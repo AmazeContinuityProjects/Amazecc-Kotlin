@@ -5,55 +5,40 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Book
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.DateRange
-import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.List
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Settings
-import androidx.compose.material.icons.rounded.ShoppingCart
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.model.*
+import com.amazecc.app.shared.repository.DashboardWidget
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.components.ActionCard
-import com.amazecc.app.shared.ui.components.AmazeBadge
-import com.amazecc.app.shared.ui.components.AmazeButton
-import com.amazecc.app.shared.ui.components.AmazeCard
-import com.amazecc.app.shared.ui.components.BadgeVariant
-import com.amazecc.app.shared.ui.components.ButtonVariant
-import com.amazecc.app.shared.ui.components.MetricCard
+import com.amazecc.app.shared.ui.components.*
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen() {
     val colors = AmazeTheme.colors
@@ -65,232 +50,357 @@ fun DashboardScreen() {
     val libraryRes by AppState.library.collectAsState()
     val paymentsRes by AppState.payments.collectAsState()
     val lmsRes by AppState.lms.collectAsState()
+    val examRes by AppState.examSchedule.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
+    
     val syncStatus by AppState.syncStatus.collectAsState()
     val syncError by AppState.error.collectAsState()
 
+    // Customization states
+    val widgetOrder by SessionManager.dashboardWidgets.collectAsState()
+    val hiddenWidgets by SessionManager.hiddenWidgets.collectAsState()
+    val collapsedWidgets by SessionManager.collapsedWidgets.collectAsState()
+    val compactMetrics by SessionManager.compactMetricsView.collectAsState()
+
+    var isCustomizingOpen by remember { mutableStateOf(false) }
+
+    // Computations
     val attendance = attendanceRes?.attendance.orEmpty()
     val overallAttendance = remember(attendance) {
         val validPercentages = attendance.mapNotNull { it.attendancePercentage?.toDoubleOrNull() }
         if (validPercentages.isEmpty()) null else validPercentages.average()
     }
-    val overallAttendanceLabel = overallAttendance?.let { "${it.toInt()}%" } ?: "-"
+    val overallAttendanceLabel = overallAttendance?.let { "${it.toInt()}%" } ?: "—"
     val attendanceProgress = ((overallAttendance ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f)
+    
     val criticalCourses = remember(attendance) {
         attendance.filter { (it.attendancePercentage?.toDoubleOrNull() ?: 100.0) < 75.0 }
     }
-    val cgpa = marksRes?.cgpa?.cgpa ?: "-"
+    val cgpa = marksRes?.cgpa?.cgpa ?: "—"
     val credits = remember(marksRes) {
         val earned = marksRes?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
         val nonGraded = marksRes?.cgpa?.nonGradedRequirement?.toDoubleOrNull() ?: 0.0
-        (earned + nonGraded).takeIf { it > 0.0 }?.toInt()?.toString() ?: "-"
+        (earned + nonGraded).takeIf { it > 0.0 }?.toInt()?.toString() ?: "—"
     }
+    
     val nextClasses = timetableRes?.courseInfo.orEmpty().take(3)
     val assignmentsDue = lmsRes?.assignments.orEmpty().count { it.status.equals("Pending", ignoreCase = true) }
     val libraryIssues = libraryRes?.booksIssued?.size ?: 0
-    val walletBalance = paymentsRes?.walletBalance ?: "-"
+    val walletBalance = paymentsRes?.walletBalance ?: "—"
+    val examsList = remember(examRes) {
+        examRes?.schedule?.values?.flatten().orEmpty()
+    }
+    
+    val calendarEvents = remember(calendarRes) {
+        calendarRes?.months?.flatMap { it.days.flatMap { d -> d.events } }.orEmpty().take(4)
+    }
+
+    val greeting = remember {
+        val hour = 14 // Mocked local context or current hour
+        when {
+            hour < 12 -> "Good Morning"
+            hour < 17 -> "Good Afternoon"
+            else -> "Good Evening"
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
     ) {
+        // Hero Header
         DashboardHero(
             studentId = authorizedID ?: "Student",
             semester = selectedSemester,
-            status = syncStatus ?: "Student OS ready",
+            status = syncStatus ?: "All modules synchronized",
             attendance = overallAttendanceLabel,
             attendanceProgress = attendanceProgress,
-            onRefresh = { AppState.loadAllData() }
+            onRefresh = { AppState.loadAllData() },
+            onCustomizeClick = { isCustomizingOpen = true }
         )
 
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            item {
-                AnimatedDashboardItem(index = 0) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        MetricCard(
-                            title = "ATTENDANCE",
-                            value = overallAttendanceLabel,
-                            caption = "${attendance.size} courses tracked",
-                            statusText = if (criticalCourses.isEmpty()) "SAFE" else "${criticalCourses.size} LOW",
-                            statusColor = if (criticalCourses.isEmpty()) colors.success else colors.warning,
-                            onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
-                            modifier = Modifier.width(176.dp)
-                        )
-                        MetricCard(
-                            title = "CGPA",
-                            value = cgpa,
-                            caption = "$credits credits earned",
-                            onClick = { AppState.navigateTo(Screen.MARKS) },
-                            modifier = Modifier.width(176.dp)
-                        )
-                        MetricCard(
-                            title = "LMS",
-                            value = "$assignmentsDue",
-                            caption = "Pending assignments",
-                            onClick = { AppState.navigateTo(Screen.LMS) },
-                            modifier = Modifier.width(176.dp)
-                        )
-                    }
-                }
-            }
-
-            if (syncError != null || criticalCourses.isNotEmpty()) {
-                item {
-                    AnimatedDashboardItem(index = 1) {
-                        AlertDock(
-                            syncError = syncError,
-                            criticalCourses = criticalCourses
-                        )
-                    }
-                }
-            }
-
-            item {
-                AnimatedDashboardItem(index = 2) {
-                    SectionTitle(
-                        title = "Today",
-                        caption = "Classes, deadlines, and quick context"
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    TodayPreview(
-                        classes = nextClasses.map { course ->
-                            DashboardClassItem(
-                                code = course.courseCode,
-                                title = course.course,
-                                meta = course.slotVenue ?: course.facultyDetails ?: "Slot details pending"
-                            )
-                        },
-                        assignmentsDue = assignmentsDue
-                    )
-                }
-            }
-
-            item {
-                AnimatedDashboardItem(index = 3) {
-                    SectionTitle(
-                        title = "Quick actions",
-                        caption = "Fast paths for between-class usage"
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        CompactAction(
-                            label = "Attendance",
-                            icon = Icons.Rounded.CheckCircle,
-                            onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        CompactAction(
-                            label = "Timetable",
-                            icon = Icons.Rounded.DateRange,
-                            onClick = { AppState.navigateTo(Screen.TIMETABLE) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        CompactAction(
-                            label = "Payments",
-                            icon = Icons.Rounded.ShoppingCart,
-                            onClick = { AppState.navigateTo(Screen.PAYMENTS) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        CompactAction(
-                            label = "Settings",
-                            icon = Icons.Rounded.Settings,
-                            onClick = { AppState.navigateTo(Screen.PROFILE) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-
-            item {
-                AnimatedDashboardItem(index = 4) {
-                    SectionTitle(
-                        title = "Academics",
-                        caption = "AmazeCC study workspace"
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    ActionCard(
-                        title = "Course Dashboard",
-                        description = "Marks, grades, attendance, and course-level overview",
-                        icon = Icons.Rounded.Star,
-                        onClick = { AppState.navigateTo(Screen.MARKS) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ActionCard(
-                        title = "Attendance Tracker",
-                        description = "Color-coded percentages and low-attendance subjects",
-                        icon = Icons.Rounded.CheckCircle,
-                        onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    ActionCard(
-                        title = "Class Timetable",
-                        description = "Daily classes, room details, and semester slots",
-                        icon = Icons.Rounded.DateRange,
-                        onClick = { AppState.navigateTo(Screen.TIMETABLE) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            item {
-                AnimatedDashboardItem(index = 5) {
-                    SectionTitle(
-                        title = "Campus life",
-                        caption = "Services and resident tools"
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        CampusTile(
-                            title = "Library",
-                            value = "$libraryIssues issued",
-                            icon = Icons.Rounded.Book,
-                            onClick = { AppState.navigateTo(Screen.LIBRARY) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        CampusTile(
-                            title = "Wallet",
-                            value = walletBalance,
-                            icon = Icons.Rounded.ShoppingCart,
-                            onClick = { AppState.navigateTo(Screen.PAYMENTS) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        CampusTile(
-                            title = "Hostel",
-                            value = "Mess & leave",
-                            icon = Icons.Rounded.Home,
-                            onClick = { AppState.navigateTo(Screen.HOSTEL) },
-                            modifier = Modifier.weight(1f)
-                        )
-                        CampusTile(
-                            title = "Transport",
-                            value = "Routes",
-                            icon = Icons.Rounded.Info,
-                            onClick = { AppState.navigateTo(Screen.TRANSPORT) },
-                            modifier = Modifier.weight(1f)
-                        )
+            widgetOrder.forEachIndexed { index, widget ->
+                if (widget !in hiddenWidgets) {
+                    val isCollapsed = widget in collapsedWidgets
+                    
+                    AnimatedDashboardItem(index = index) {
+                        DashboardSectionWrapper(
+                            widget = widget,
+                            isCollapsed = isCollapsed,
+                            onCollapseToggle = { SessionManager.toggleWidgetCollapse(widget) }
+                        ) {
+                            when (widget) {
+                                DashboardWidget.GREETING -> {
+                                    GreetingWidget(greeting = greeting, studentId = authorizedID ?: "DEMO123")
+                                }
+                                DashboardWidget.METRICS -> {
+                                    MetricsWidget(
+                                        attendanceLabel = overallAttendanceLabel,
+                                        attendanceCount = attendance.size,
+                                        criticalCount = criticalCourses.size,
+                                        cgpa = cgpa,
+                                        credits = credits,
+                                        assignments = assignmentsDue,
+                                        compact = compactMetrics
+                                    )
+                                }
+                                DashboardWidget.ALERTS -> {
+                                    if (syncError != null || criticalCourses.isNotEmpty()) {
+                                        AlertWidget(syncError = syncError, criticalCourses = criticalCourses)
+                                    }
+                                }
+                                DashboardWidget.TODAY_CLASSES -> {
+                                    TodayClassesWidget(classes = nextClasses, assignmentsDue = assignmentsDue)
+                                }
+                                DashboardWidget.UPCOMING_EXAMS -> {
+                                    UpcomingExamsWidget(exams = examsList)
+                                }
+                                DashboardWidget.QUICK_ACTIONS -> {
+                                    QuickActionsWidget()
+                                }
+                                DashboardWidget.ACADEMICS_HUB -> {
+                                    AcademicsHubWidget()
+                                }
+                                DashboardWidget.CAMPUS_SERVICES -> {
+                                    CampusServicesWidget(libraryCount = libraryIssues, walletBalance = walletBalance)
+                                }
+                                DashboardWidget.RECENT_ACTIVITY -> {
+                                    RecentActivityWidget(events = calendarEvents, syncStatus = syncStatus)
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
+
+    if (isCustomizingOpen) {
+        CustomizeDashboardSheet(
+            onDismiss = { isCustomizingOpen = false }
+        )
+    }
 }
+
+// ── CUSTOMIZATION SHEET ──
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CustomizeDashboardSheet(
+    onDismiss: () -> Unit
+) {
+    val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+    
+    val widgetOrder by SessionManager.dashboardWidgets.collectAsState()
+    val hiddenWidgets by SessionManager.hiddenWidgets.collectAsState()
+    val compactMetrics by SessionManager.compactMetricsView.collectAsState()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = colors.surface,
+        contentColor = colors.textPrimary,
+        dragHandle = {
+            Box(
+                modifier = Modifier
+                    .padding(top = 10.dp, bottom = 6.dp)
+                    .size(width = 42.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(colors.border)
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 18.dp, end = 18.dp, bottom = 32.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(radius.medium))
+                        .background(colors.elevatedSurface),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Rounded.Settings, contentDescription = null, tint = colors.accent)
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Customize Dashboard",
+                        style = AmazeTheme.typography.heading.copy(color = colors.textPrimary, fontWeight = FontWeight.Black, fontSize = 20.sp)
+                    )
+                    Text(
+                        text = "Show/hide and reorder home screen widgets",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Metric card size config
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(radius.medium))
+                    .background(colors.elevatedSurface)
+                    .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
+                    .clickable { SessionManager.compactMetricsView.value = !compactMetrics }
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Compact Summary Metrics", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp))
+                    Text("Arrange CGPA & Attendance in a grid list", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                }
+                Switch(
+                    checked = compactMetrics,
+                    onCheckedChange = { SessionManager.compactMetricsView.value = it },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = colors.accent,
+                        uncheckedThumbColor = colors.textMuted,
+                        uncheckedTrackColor = colors.border
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+            Text("Reorder & Toggle Widgets", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.Bold))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 280.dp)
+            ) {
+                items(widgetOrder) { widget ->
+                    val visible = widget !in hiddenWidgets
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(radius.small))
+                            .background(colors.elevatedSurface)
+                            .border(1.dp, colors.border, RoundedCornerShape(radius.small))
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Drag/Reorder buttons
+                        IconButton(
+                            onClick = { SessionManager.moveWidgetUp(widget) },
+                            enabled = widgetOrder.indexOf(widget) > 0,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Move Up", tint = colors.textPrimary)
+                        }
+                        IconButton(
+                            onClick = { SessionManager.moveWidgetDown(widget) },
+                            enabled = widgetOrder.indexOf(widget) < widgetOrder.lastIndex,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Move Down", tint = colors.textPrimary)
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = widget.displayName,
+                            style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
+                            modifier = Modifier.weight(1f)
+                        )
+                        // Toggle visible
+                        IconButton(
+                            onClick = { SessionManager.toggleWidgetVisibility(widget) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (visible) Icons.Rounded.Visibility else Icons.Rounded.VisibilityOff,
+                                contentDescription = if (visible) "Hide" else "Show",
+                                tint = if (visible) colors.accent else colors.textMuted
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(18.dp))
+            AmazeButton(text = "Save Preferences", onClick = onDismiss, modifier = Modifier.fillMaxWidth())
+        }
+    }
+}
+
+// ── WIDGETS WRAPPER & CONTAINER ──
+
+@Composable
+private fun DashboardSectionWrapper(
+    widget: DashboardWidget,
+    isCollapsed: Boolean,
+    onCollapseToggle: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    if (widget == DashboardWidget.GREETING) {
+        content()
+        return
+    }
+
+    val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onCollapseToggle() }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            val title = when (widget) {
+                DashboardWidget.METRICS -> "Summary stats"
+                DashboardWidget.ALERTS -> "Attention alerts"
+                DashboardWidget.TODAY_CLASSES -> "Upcoming classes"
+                DashboardWidget.UPCOMING_EXAMS -> "Upcoming exams"
+                DashboardWidget.QUICK_ACTIONS -> "Quick actions"
+                DashboardWidget.ACADEMICS_HUB -> "Academics"
+                DashboardWidget.CAMPUS_SERVICES -> "Campus life"
+                DashboardWidget.RECENT_ACTIVITY -> "Recent updates"
+                else -> ""
+            }
+            Text(
+                text = title,
+                style = AmazeTheme.typography.subheading.copy(
+                    color = colors.textPrimary,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 15.sp
+                )
+            )
+            Icon(
+                imageVector = if (isCollapsed) Icons.Rounded.KeyboardArrowDown else Icons.Rounded.KeyboardArrowUp,
+                contentDescription = null,
+                tint = colors.textMuted,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        if (!isCollapsed) {
+            content()
+        }
+    }
+}
+
+// ── SPECIFIC WIDGETS ──
 
 @Composable
 private fun DashboardHero(
@@ -299,7 +409,8 @@ private fun DashboardHero(
     status: String,
     attendance: String,
     attendanceProgress: Float,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    onCustomizeClick: () -> Unit
 ) {
     val colors = AmazeTheme.colors
     val radius = AmazeTheme.radius
@@ -309,13 +420,14 @@ private fun DashboardHero(
             .fillMaxWidth()
             .clip(RoundedCornerShape(bottomStart = radius.large, bottomEnd = radius.large))
             .background(colors.surface)
-            .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 18.dp)
+            .border(1.dp, colors.border, RoundedCornerShape(bottomStart = radius.large, bottomEnd = radius.large))
+            .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 16.dp)
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(44.dp)
                         .clip(RoundedCornerShape(radius.medium))
                         .background(colors.elevatedSurface),
                     contentAlignment = Alignment.Center
@@ -328,49 +440,52 @@ private fun DashboardHero(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Welcome back",
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontWeight = FontWeight.SemiBold)
+                        text = "AmazeCC Student OS",
+                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.Bold)
                     )
                     Text(
                         text = studentId,
-                        style = AmazeTheme.typography.heading.copy(color = colors.textPrimary, fontWeight = FontWeight.Black),
+                        style = AmazeTheme.typography.heading.copy(color = colors.textPrimary, fontWeight = FontWeight.Black, fontSize = 20.sp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                }
+                IconButton(onClick = onCustomizeClick) {
+                    Icon(Icons.Rounded.Settings, contentDescription = "Customize", tint = colors.textSecondary)
                 }
                 AmazeButton(
                     text = "Sync",
                     onClick = onRefresh,
                     variant = ButtonVariant.SECONDARY,
                     icon = Icons.Rounded.Refresh,
-                    modifier = Modifier.width(104.dp)
+                    modifier = Modifier.width(96.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             AmazeCard(backgroundColor = colors.elevatedSurface, modifier = Modifier.fillMaxWidth()) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Student OS",
+                                text = "LATEST SYNC FEEDBACK",
                                 style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.Bold)
                             )
                             Text(
                                 text = status,
-                                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
-                                maxLines = 2,
+                                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                                maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
                         AmazeBadge(text = semester, variant = BadgeVariant.INFO)
                     }
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = attendance,
-                            style = AmazeTheme.typography.display.copy(color = colors.textPrimary, fontSize = 30.sp, fontWeight = FontWeight.Black)
+                            style = AmazeTheme.typography.display.copy(color = colors.textPrimary, fontSize = 28.sp, fontWeight = FontWeight.Black)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -383,10 +498,10 @@ private fun DashboardHero(
                                 color = colors.accent,
                                 trackColor = colors.border
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Overall attendance",
-                                style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
+                                text = "Overall academic attendance",
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp)
                             )
                         }
                     }
@@ -397,31 +512,140 @@ private fun DashboardHero(
 }
 
 @Composable
-private fun AlertDock(
-    syncError: String?,
-    criticalCourses: List<AttendanceItem>
+private fun GreetingWidget(greeting: String, studentId: String) {
+    val colors = AmazeTheme.colors
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.AccountCircle, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = "$greeting, Student!",
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                )
+                Text(
+                    text = "Welcome to your student workspace dashboard ($studentId).",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricsWidget(
+    attendanceLabel: String,
+    attendanceCount: Int,
+    criticalCount: Int,
+    cgpa: String,
+    credits: String,
+    assignments: Int,
+    compact: Boolean
 ) {
     val colors = AmazeTheme.colors
-    AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = if (syncError != null) colors.dangerSurface else colors.warningSurface) {
+    if (compact) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                MetricRowItem(title = "Attendance", value = attendanceLabel, sub = "$attendanceCount tracked", modifier = Modifier.weight(1f))
+                MetricRowItem(title = "CGPA", value = cgpa, sub = "$credits credits", modifier = Modifier.weight(1f))
+                MetricRowItem(title = "Assignments", value = "$assignments Due", sub = "LMS workspace", modifier = Modifier.weight(1f))
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            MetricCard(
+                title = "ATTENDANCE",
+                value = attendanceLabel,
+                caption = "$attendanceCount courses tracked",
+                statusText = if (criticalCount == 0) "SAFE" else "$criticalCount LOW",
+                statusColor = if (criticalCount == 0) colors.success else colors.danger,
+                onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
+                modifier = Modifier.width(160.dp)
+            )
+            MetricCard(
+                title = "CGPA",
+                value = cgpa,
+                caption = "$credits credits earned",
+                statusText = "Academics",
+                onClick = { AppState.navigateTo(Screen.MARKS) },
+                modifier = Modifier.width(160.dp)
+            )
+            MetricCard(
+                title = "PENDING ASSIGNMENTS",
+                value = "$assignments",
+                caption = "Tasks to submit",
+                statusText = if (assignments > 0) "PENDING" else "ALL DONE",
+                statusColor = if (assignments > 0) colors.warning else colors.success,
+                onClick = { AppState.navigateTo(Screen.LMS) },
+                modifier = Modifier.width(160.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MetricRowItem(title: String, value: String, sub: String, modifier: Modifier = Modifier) {
+    val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(radius.small))
+            .background(colors.surface)
+            .border(1.dp, colors.border, RoundedCornerShape(radius.small))
+            .padding(10.dp)
+    ) {
+        Column {
+            Text(title.uppercase(), style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp))
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Text(sub, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
+        }
+    }
+}
+
+@Composable
+private fun AlertWidget(syncError: String?, criticalCourses: List<AttendanceItem>) {
+    val colors = AmazeTheme.colors
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = if (syncError != null) colors.dangerSurface else colors.warningSurface
+    ) {
         Row(verticalAlignment = Alignment.Top) {
             Icon(
                 imageVector = Icons.Rounded.Warning,
                 contentDescription = null,
-                tint = if (syncError != null) colors.dangerText else colors.warningText
+                tint = if (syncError != null) colors.dangerText else colors.warningText,
+                modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (syncError != null) "Sync needs attention" else "Attendance watchlist",
+                    text = if (syncError != null) "Sync Connection Error" else "Attendance watchlist warning",
                     style = AmazeTheme.typography.body.copy(
                         color = if (syncError != null) colors.dangerText else colors.warningText,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
                     )
                 )
                 Text(
-                    text = syncError ?: criticalCourses.take(2).joinToString { "${it.courseCode} ${it.attendancePercentage ?: "-"}%" },
+                    text = syncError ?: "The following subjects are below the 75% requirement: " +
+                            criticalCourses.joinToString { "${it.courseCode} (${it.attendancePercentage}%)" },
                     style = AmazeTheme.typography.caption.copy(
-                        color = if (syncError != null) colors.dangerText else colors.warningText
+                        color = if (syncError != null) colors.dangerText else colors.warningText,
+                        fontSize = 12.sp
                     ),
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
@@ -432,34 +656,31 @@ private fun AlertDock(
 }
 
 @Composable
-private fun TodayPreview(
-    classes: List<DashboardClassItem>,
-    assignmentsDue: Int
-) {
+private fun TodayClassesWidget(classes: List<CourseItem>, assignmentsDue: Int) {
     val colors = AmazeTheme.colors
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.DateRange, contentDescription = null, tint = colors.accent)
+                Icon(Icons.Rounded.DateRange, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
-                    text = if (classes.isEmpty()) "No timetable preview available" else "Upcoming classes",
+                    text = if (classes.isEmpty()) "No classes today" else "Timetable Preview",
                     style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
                     modifier = Modifier.weight(1f)
                 )
                 AmazeBadge(
-                    text = "$assignmentsDue LMS",
+                    text = "$assignmentsDue Assignments",
                     variant = if (assignmentsDue > 0) BadgeVariant.WARNING else BadgeVariant.SUCCESS
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
             if (classes.isEmpty()) {
                 Text(
-                    text = "Sync timetable data to see the next class cards here.",
+                    text = "No scheduled class sessions found for today. Make sure to sync latest data.",
                     style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                 )
             } else {
-                classes.forEachIndexed { index, item ->
+                classes.forEachIndexed { index, course ->
                     if (index > 0) Spacer(modifier = Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
@@ -472,22 +693,198 @@ private fun TodayPreview(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = item.code,
+                                text = course.courseCode,
                                 style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.Bold)
                             )
                             Text(
-                                text = item.title,
-                                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
+                                text = course.course,
+                                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 14.sp),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = item.meta,
+                                text = course.slotVenue ?: course.facultyDetails ?: "No slot venue details",
                                 style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpcomingExamsWidget(exams: List<ExamItem>) {
+    val colors = AmazeTheme.colors
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Star, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Exam Schedule Preview",
+                    style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            if (exams.isEmpty()) {
+                Text(
+                    text = "No upcoming exams registered. Sync exam calendar from services.",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                )
+            } else {
+                exams.take(2).forEachIndexed { i, exam ->
+                    if (i > 0) Spacer(modifier = Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                            .background(colors.elevatedSurface)
+                            .padding(10.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(exam.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                            Text(exam.examDate, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        }
+                        Text(exam.courseTitle, style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold), maxLines = 1)
+                        Text(
+                            text = "Session: ${exam.examSession} • Venue: ${exam.venue} • Seat: ${exam.seatNo}",
+                            style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = 11.sp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickActionsWidget() {
+    Column {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            CompactAction(
+                label = "Academics Hub",
+                icon = Icons.Rounded.Star,
+                onClick = { AppState.navigateTo(Screen.MARKS) },
+                modifier = Modifier.weight(1f)
+            )
+            CompactAction(
+                label = "Timetable Info",
+                icon = Icons.Rounded.DateRange,
+                onClick = { AppState.navigateTo(Screen.TIMETABLE) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            CompactAction(
+                label = "Hostel & Leaves",
+                icon = Icons.Rounded.Home,
+                onClick = { AppState.navigateTo(Screen.HOSTEL) },
+                modifier = Modifier.weight(1f)
+            )
+            CompactAction(
+                label = "Payments Dues",
+                icon = Icons.Rounded.ShoppingCart,
+                onClick = { AppState.navigateTo(Screen.PAYMENTS) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AcademicsHubWidget() {
+    Column {
+        ActionCard(
+            title = "Weekly Attendance Tracker",
+            description = "Detailed insights, limits, and safe-attendance projections.",
+            icon = Icons.Rounded.CheckCircle,
+            onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+        ActionCard(
+            title = "Internal Marks & Grades",
+            description = "Detailed breakdown of assessments and overall credit reports.",
+            icon = Icons.Rounded.Star,
+            onClick = { AppState.navigateTo(Screen.MARKS) },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun CampusServicesWidget(libraryCount: Int, walletBalance: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+        CampusTile(
+            title = "KOHA Library",
+            value = "$libraryCount books checked out",
+            icon = Icons.Rounded.Book,
+            onClick = { AppState.navigateTo(Screen.LIBRARY) },
+            modifier = Modifier.weight(1f)
+        )
+        CampusTile(
+            title = "V-Wallet Balance",
+            value = walletBalance,
+            icon = Icons.Rounded.ShoppingCart,
+            onClick = { AppState.navigateTo(Screen.PAYMENTS) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun RecentActivityWidget(events: List<CalendarEvent>, syncStatus: String?) {
+    val colors = AmazeTheme.colors
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Info, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Calendar notices & recent activity",
+                    style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold)
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            if (events.isEmpty()) {
+                Text(
+                    text = syncStatus ?: "Active student session synced. No current events listed.",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                )
+            } else {
+                events.forEachIndexed { i, event ->
+                    if (i > 0) Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(if (event.type.equals("Holiday", ignoreCase = true)) colors.danger else colors.accent)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = event.text,
+                            style = AmazeTheme.typography.caption.copy(color = colors.textPrimary),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = event.type,
+                            style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
+                        )
                     }
                 }
             }
@@ -512,12 +909,12 @@ private fun CompactAction(
                     .background(colors.elevatedSurface),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                Icon(icon, contentDescription = null, tint = colors.accent, modifier = Modifier.size(18.dp))
             }
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = label,
-                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
+                style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
                 maxLines = 1
             )
         }
@@ -535,37 +932,19 @@ private fun CampusTile(
     val colors = AmazeTheme.colors
     AmazeCard(modifier = modifier, onClick = onClick, backgroundColor = colors.surface) {
         Column {
-            Icon(icon, contentDescription = null, tint = colors.accent, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.height(10.dp))
+            Icon(icon, contentDescription = null, tint = colors.accent, modifier = Modifier.size(22.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = title,
-                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold)
+                style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold)
             )
             Text(
                 text = value,
-                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-    }
-}
-
-@Composable
-private fun SectionTitle(
-    title: String,
-    caption: String
-) {
-    val colors = AmazeTheme.colors
-    Column {
-        Text(
-            text = title,
-            style = AmazeTheme.typography.subheading.copy(color = colors.textPrimary, fontWeight = FontWeight.Black)
-        )
-        Text(
-            text = caption,
-            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-        )
     }
 }
 
@@ -580,18 +959,12 @@ private fun AnimatedDashboardItem(
     }
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(animationSpec = tween(durationMillis = 220, delayMillis = index * 45)) +
+        enter = fadeIn(animationSpec = tween(durationMillis = 200, delayMillis = index * 40)) +
             slideInVertically(
-                animationSpec = tween(durationMillis = 260, delayMillis = index * 45),
-                initialOffsetY = { it / 6 }
+                animationSpec = tween(durationMillis = 240, delayMillis = index * 40),
+                initialOffsetY = { it / 8 }
             )
     ) {
         content()
     }
 }
-
-private data class DashboardClassItem(
-    val code: String,
-    val title: String,
-    val meta: String
-)

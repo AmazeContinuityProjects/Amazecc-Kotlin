@@ -7,7 +7,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 enum class AppTheme {
-    LIGHT, DARK, SYSTEM
+    LIGHT, DARK, MIDNIGHT, SYSTEM
 }
 
 enum class AccentTheme {
@@ -192,6 +192,28 @@ fun AmazeTheme(
             textPrimary = NeutralTextPrimaryDark,
             textSecondary = NeutralTextSecondaryDark,
             textMuted = NeutralTextMutedDark,
+            accent = accent,
+            success = ColorSuccess,
+            successSurface = ColorSuccessSurfaceDark,
+            successText = ColorSuccessTextDark,
+            warning = ColorWarning,
+            warningSurface = ColorWarningSurfaceDark,
+            warningText = ColorWarningTextDark,
+            danger = ColorDanger,
+            dangerSurface = ColorDangerSurfaceDark,
+            dangerText = ColorDangerTextDark,
+            info = ColorInfo,
+            infoSurface = ColorInfoSurfaceDark,
+            infoText = ColorInfoTextDark
+        )
+        AppTheme.MIDNIGHT -> AmazeColors(
+            background = NeutralBgMidnight,
+            surface = NeutralSurfaceMidnight,
+            elevatedSurface = NeutralElevatedMidnight,
+            border = NeutralBorderMidnight,
+            textPrimary = NeutralTextPrimaryMidnight,
+            textSecondary = NeutralTextSecondaryMidnight,
+            textMuted = NeutralTextMutedMidnight,
             accent = accent,
             success = ColorSuccess,
             successSurface = ColorSuccessSurfaceDark,

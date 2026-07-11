@@ -4,6 +4,9 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,6 +21,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.List
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
@@ -38,9 +42,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.ui.screens.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,6 +60,13 @@ fun App() {
     val syncStatus by AppState.syncStatus.collectAsState()
     val syncError by AppState.error.collectAsState()
     var isMoreOpen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (SessionManager.isLoggedIn) {
+            AppState.switchTopLevel(Screen.DASHBOARD)
+            AppState.loadAllData()
+        }
+    }
 
     AmazeTheme(
         appTheme = currentTheme,
@@ -70,7 +84,8 @@ fun App() {
                         AnimatedContent(
                             targetState = currentScreen,
                             transitionSpec = {
-                                fadeIn() togetherWith fadeOut()
+                                (fadeIn(animationSpec = tween(220)) + scaleIn(initialScale = 0.97f, animationSpec = tween(220))) togetherWith
+                                (fadeOut(animationSpec = tween(180)) + scaleOut(targetScale = 0.97f, animationSpec = tween(180)))
                             }
                         ) { targetScreen ->
                             when (targetScreen) {
@@ -173,6 +188,8 @@ private fun AmazeBottomBar(
         BottomNavItem("More", null, Icons.Rounded.MoreHoriz, setOf(Screen.HOSTEL, Screen.LMS, Screen.LIBRARY, Screen.TRANSPORT, Screen.PROFILE))
     )
 
+    val currentTheme by AppState.theme.collectAsState()
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -183,9 +200,29 @@ private fun AmazeBottomBar(
             .background(colors.surface)
             .border(1.dp, colors.border.copy(alpha = 0.72f), RoundedCornerShape(radius.large))
             .padding(horizontal = 6.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        IconButton(
+            onClick = {
+                val nextTheme = when (currentTheme) {
+                    AppTheme.SYSTEM -> AppTheme.LIGHT
+                    AppTheme.LIGHT -> AppTheme.DARK
+                    AppTheme.DARK -> AppTheme.MIDNIGHT
+                    AppTheme.MIDNIGHT -> AppTheme.SYSTEM
+                }
+                AppState.changeTheme(nextTheme)
+            },
+            modifier = Modifier.size(38.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Settings,
+                contentDescription = "Cycle Theme",
+                tint = colors.textMuted,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
         items.forEach { item ->
             val selected = currentScreen in item.selectedScreens
             val itemBg by animateColorAsState(
@@ -222,6 +259,18 @@ private fun AmazeBottomBar(
                     maxLines = 1
                 )
             }
+        }
+
+        IconButton(
+            onClick = { AppState.logout() },
+            modifier = Modifier.size(38.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Lock,
+                contentDescription = "Log Out",
+                tint = colors.danger,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

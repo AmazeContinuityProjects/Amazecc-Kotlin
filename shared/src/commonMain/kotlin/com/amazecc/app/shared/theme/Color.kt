@@ -50,3 +50,13 @@ val NeutralBorderDark = Color(0xFF232327)
 val NeutralTextPrimaryDark = Color(0xFFF8FAFC)
 val NeutralTextSecondaryDark = Color(0xFFD4D4D8)
 val NeutralTextMutedDark = Color(0xFF71717A)
+
+// Neutral Colors - Midnight Mode
+val NeutralBgMidnight = Color(0xFF020617)       // Deepest slate blue
+val NeutralSurfaceMidnight = Color(0xFF0F172A)  // Deep slate surface
+val NeutralElevatedMidnight = Color(0xFF1E293B) // Slate elevated
+val NeutralBorderMidnight = Color(0xFF334155)   // Slate border
+val NeutralTextPrimaryMidnight = Color(0xFFF8FAFC)// Ice white text
+val NeutralTextSecondaryMidnight = Color(0xFF94A3B8) // Slate grey text
+val NeutralTextMutedMidnight = Color(0xFF64748B)     // Muted slate text
+

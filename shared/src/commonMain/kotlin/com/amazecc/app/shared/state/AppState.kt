@@ -263,21 +263,36 @@ object AppState {
                                 errorMessage = { it.message ?: it.error },
                                 update = { _transport.value = it }
                             )
-                        },
-                        async {
-                            syncModule(
-                                name = "LMS",
-                                fetch = { AmazeClient.getLMSAssignments() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _lms.value = it }
-                            )
                         }
                     ).awaitAll()
                 }
                 updateSyncSummary(results)
             } finally {
                 _isLoading.value = false
+            }
+        }
+    }
+
+    fun syncLMS() {
+        if (_isLoading.value) return
+        scope.launch {
+            _isLoading.value = true
+            _error.value = null
+            _syncStatus.value = "Syncing LMS data..."
+            try {
+                val results = listOf(
+                    syncModule(
+                        name = "LMS",
+                        fetch = { AmazeClient.getLMSAssignments() },
+                        isSuccess = { it.success },
+                        errorMessage = { it.message ?: it.error },
+                        update = { _lms.value = it }
+                    )
+                )
+                updateSyncSummary(results)
+            } finally {
+                _isLoading.value = false
+                _syncStatus.value = null
             }
         }
     }
