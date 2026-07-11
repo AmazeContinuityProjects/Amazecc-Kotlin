@@ -2,6 +2,7 @@ package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -86,46 +87,46 @@ fun DashboardScreen() {
                 .padding(16.dp)
         ) {
             // Quick metrics overview cards
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+            LazyRow(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 0.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                MetricCard(
-                    title = "OVERALL ATTENDANCE",
-                    value = overallAttendance,
-                    caption = "Classes summary",
-                    modifier = Modifier.weight(1f),
-                    onClick = { AppState.navigateTo(Screen.ATTENDANCE) }
-                )
-                MetricCard(
-                    title = "ACADEMIC CGPA",
-                    value = cgpa,
-                    caption = "Latest grades",
-                    modifier = Modifier.weight(1f),
-                    onClick = { AppState.navigateTo(Screen.ACADEMICS) }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                MetricCard(
-                    title = "LIBRARY ISSUES",
-                    value = "$libraryDues Books",
-                    caption = "Active checkouts",
-                    modifier = Modifier.weight(1f),
-                    onClick = { AppState.navigateTo(Screen.LIBRARIES) }
-                )
-                MetricCard(
-                    title = "WALLET BALANCE",
-                    value = walletBalance,
-                    caption = "Synced from payments API",
-                    modifier = Modifier.weight(1f),
-                    onClick = { AppState.navigateTo(Screen.PAYMENTS) }
-                )
+                item {
+                    MetricCard(
+                        title = "OVERALL ATTENDANCE",
+                        value = overallAttendance,
+                        caption = "Classes summary",
+                        circleColor = colors.success,
+                        onClick = { AppState.navigateTo(Screen.ATTENDANCE) }
+                    )
+                }
+                item {
+                    MetricCard(
+                        title = "ACADEMIC CGPA",
+                        value = cgpa,
+                        caption = "Latest grades",
+                        circleColor = colors.info,
+                        onClick = { AppState.navigateTo(Screen.ACADEMICS) }
+                    )
+                }
+                item {
+                    MetricCard(
+                        title = "LIBRARY ISSUES",
+                        value = "$libraryDues Books",
+                        caption = "Active checkouts",
+                        circleColor = colors.warning,
+                        onClick = { AppState.navigateTo(Screen.LIBRARIES) }
+                    )
+                }
+                item {
+                    MetricCard(
+                        title = "WALLET BALANCE",
+                        value = walletBalance,
+                        caption = "Synced from payments",
+                        circleColor = colors.accent,
+                        onClick = { AppState.navigateTo(Screen.PAYMENTS) }
+                    )
+                }
             }
 
             if (syncError != null) {

@@ -148,47 +148,67 @@ fun MetricCard(
     caption: String? = null,
     statusText: String? = null,
     statusColor: Color? = null,
+    circleColor: Color? = null,
     onClick: (() -> Unit)? = null
 ) {
     val colors = AmazeTheme.colors
-    AmazeCard(modifier = modifier, onClick = onClick, backgroundColor = colors.surface) {
-        Column {
-            Text(
-                text = title,
-                style = AmazeTheme.typography.smallLabel.copy(
-                    color = colors.textMuted,
-                    fontWeight = FontWeight.SemiBold
-                )
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Row(
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+    AmazeCard(
+        modifier = modifier.defaultMinSize(minWidth = 140.dp, minHeight = 120.dp),
+        onClick = onClick,
+        backgroundColor = colors.surface
+    ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(end = if (circleColor != null) 16.dp else 0.dp)) {
                 Text(
-                    text = value,
-                    style = AmazeTheme.typography.display.copy(
-                        color = colors.textPrimary,
-                        fontSize = 28.sp
-                    )
+                    text = title,
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        color = colors.textMuted,
+                        fontWeight = FontWeight.SemiBold
+                    ),
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
-                if (statusText != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Text(
-                        text = statusText,
-                        style = AmazeTheme.typography.smallLabel.copy(
-                            color = statusColor ?: colors.textSecondary,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        text = value,
+                        style = AmazeTheme.typography.display.copy(
+                            color = colors.textPrimary,
+                            fontSize = 28.sp
+                        )
+                    )
+                    if (statusText != null) {
+                        Text(
+                            text = statusText,
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = statusColor ?: colors.textSecondary,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                    }
+                }
+                if (caption != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = caption,
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                     )
                 }
             }
-            if (caption != null) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = caption,
-                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+            if (circleColor != null) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .background(circleColor)
+                        .align(Alignment.TopEnd)
                 )
             }
         }

@@ -277,11 +277,10 @@ fun MarksSubScreen() {
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(semId, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                        Text("GPA: ${semResult.gpa ?: "—"}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent))
+                                        Text("GPA: ${semResult?.gpa ?: "-"}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent))
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
-                                    
-                                    semResult.grades.forEach { grade ->
+                                    semResult?.grades?.forEach { grade ->
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()

@@ -104,9 +104,9 @@ fun ProfileScreen() {
                         modifier = Modifier.weight(1f)
                     )
                     AmazeButton(
-                        text = "Midnight",
-                        onClick = { AppState.changeTheme(AppTheme.MIDNIGHT) },
-                        variant = if (activeTheme == AppTheme.MIDNIGHT) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
+                        text = "SYSTEM",
+                        onClick = { AppState.changeTheme(AppTheme.SYSTEM) },
+                        variant = if (activeTheme == AppTheme.SYSTEM) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
                         modifier = Modifier.weight(1f)
                     )
                 }
