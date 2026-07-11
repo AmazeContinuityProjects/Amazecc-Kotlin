@@ -15,10 +15,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
+import com.russhwolf.settings.Settings
+import com.russhwolf.settings.set
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 
 enum class Screen {
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
-    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS
+    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR
 }
 
 object AppState {
@@ -94,7 +98,30 @@ object AppState {
     val timetable: StateFlow<TimetableRes?> = _timetable.asStateFlow()
 
     private val _marks = MutableStateFlow<MarksRes?>(null)
-    val marks: StateFlow<MarksRes?> = _marks.asStateFlow()
+    val marks: StateFlow<MarksRes?> = _marks
+
+    private val _calendarData = MutableStateFlow<CalendarRes?>(null)
+    val calendarData: StateFlow<CalendarRes?> = _calendarData
+
+    private val settings = Settings()
+    private val jsonFormat = Json { ignoreUnknownKeys = true }
+
+    private val _moodleData = MutableStateFlow<MoodleRes?>(null)
+    val moodleData: StateFlow<MoodleRes?> = _moodleData
+
+    init {
+        val cachedMoodle = settings.getString("moodle_data_cache", "")
+        if (cachedMoodle.isNotBlank()) {
+            try {
+                _moodleData.value = jsonFormat.decodeFromString<MoodleRes>(cachedMoodle)
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+    }
+
+    private val _vitolData = MutableStateFlow<VitolRes?>(null)
+    val vitolData: StateFlow<VitolRes?> = _vitolData
 
     private val _allGrades = MutableStateFlow<AllGradesRes?>(null)
     val allGrades: StateFlow<AllGradesRes?> = _allGrades.asStateFlow()
@@ -393,6 +420,29 @@ object AppState {
         _clubs.value = null
         _error.value = null
         _syncStatus.value = null
+    }
+
+    fun updateMarks(data: MarksRes?) {
+        _marks.value = data
+    }
+
+    fun updateCalendarData(data: CalendarRes?) {
+        _calendarData.value = data
+    }
+
+    fun updateMoodleData(data: MoodleRes?) {
+        _moodleData.value = data
+        if (data != null) {
+            try {
+                settings["moodle_data_cache"] = jsonFormat.encodeToString(data)
+            } catch (e: Exception) {}
+        } else {
+            settings.remove("moodle_data_cache")
+        }
+    }
+
+    fun updateVitolData(data: VitolRes?) {
+        _vitolData.value = data
     }
 
     fun changeTheme(theme: AppTheme) {

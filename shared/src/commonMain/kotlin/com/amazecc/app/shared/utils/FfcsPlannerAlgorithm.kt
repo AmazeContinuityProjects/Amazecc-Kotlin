@@ -48,7 +48,7 @@ object FfcsPlannerAlgorithm {
                 var hasConflict = false
                 for (np in opt.periods) {
                     for (ep in currentPeriods) {
-                        if (np.day == ep.day && Math.max(np.startMin, ep.startMin) < Math.min(np.endMin, ep.endMin)) {
+                        if (np.day == ep.day && kotlin.math.max(np.startMin, ep.startMin) < kotlin.math.min(np.endMin, ep.endMin)) {
                             hasConflict = true
                             break
                         }

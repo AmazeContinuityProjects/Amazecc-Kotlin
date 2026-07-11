@@ -42,7 +42,7 @@ fun TransportScreen() {
                 Text("DAYBOARDER STATUS", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = transportRes?.dayBoarderStatus ?: "APPROVED (Bus Pass Active)",
+                    text = if (transportRes?.dayBoarderStatus.isNullOrEmpty()) "Not a Dayboarder / Data not available" else transportRes?.dayBoarderStatus!!,
                     style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                 )
             }

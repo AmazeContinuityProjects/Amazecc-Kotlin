@@ -255,6 +255,24 @@ data class CalendarRes(
 )
 
 @Serializable
+data class MoodleAssignment(
+    val name: String,
+    val due: String,
+    val done: Boolean = false,
+    val url: String? = null,
+    val teachers: List<String> = emptyList(),
+    val hidden: Boolean = false
+)
+
+@Serializable
+data class MoodleRes(
+    val success: Boolean = true,
+    val error: String? = null,
+    val message: String? = null,
+    val data: List<MoodleAssignment> = emptyList()
+)
+
+@Serializable
 data class PaymentItem(
     val billingId: String,
     val description: String,
@@ -388,4 +406,19 @@ data class ClubsRes(
     val clubs: List<ClubItem> = emptyList(),
     val error: String? = null,
     val message: String? = null
+)
+@Serializable
+data class VitolData(
+    val balance: String,
+    val limit: String,
+    val consumed: String,
+    val message: String
+)
+
+@Serializable
+data class VitolRes(
+    val success: Boolean = true,
+    val data: VitolData? = null,
+    val message: String? = null,
+    val error: String? = null
 )

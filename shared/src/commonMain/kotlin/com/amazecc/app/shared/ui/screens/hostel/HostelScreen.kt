@@ -91,16 +91,20 @@ fun HostelScreen() {
                             ) {
                                 Column {
                                     Text("Block / Room", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                                    Text("${hostelDetails?.blockName ?: "Q-Block"} / ${hostelDetails?.roomNo ?: "612"}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                    Text(
+                                        if (hostelDetails?.blockName.isNullOrEmpty()) "N/A" 
+                                        else "${hostelDetails?.blockName} / ${hostelDetails?.roomNo}", 
+                                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                                    )
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text("Gender", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                                    Text(hostelDetails?.gender ?: "MALE", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                                    Text(if (hostelDetails?.gender.isNullOrEmpty()) "N/A" else hostelDetails?.gender!!, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text("Mess Facility", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                            Text(hostelDetails?.messInfo ?: "Veg Mess (Caterer: CRCL)", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            Text(if (hostelDetails?.messInfo.isNullOrEmpty()) "Not Enrolled" else hostelDetails?.messInfo!!, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                         }
                     }
 

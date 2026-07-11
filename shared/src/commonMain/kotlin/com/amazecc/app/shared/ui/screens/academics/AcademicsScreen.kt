@@ -41,17 +41,14 @@ import kotlinx.serialization.json.decodeFromJsonElement
 
 
 @Composable
-fun AttendanceScreen() = AcademicsScreen(initialTab = "Attendance")
-
-@Composable
 fun MarksGradesScreen() = AcademicsScreen(initialTab = "Marks & GPA")
 
 
 @Composable
-fun AcademicsScreen(initialTab: String = "Attendance") {
+fun AcademicsScreen(initialTab: String = "Marks & GPA") {
     val colors = AmazeTheme.colors
     var activeSubTab by remember(initialTab) { mutableStateOf(initialTab) }
-    val tabs = listOf("Attendance", "Marks & GPA", "Schedule", "Calendar", "Question Bank")
+    val tabs = listOf("Marks & GPA", "Schedule", "Calendar", "Question Bank")
 
     Column(
         modifier = Modifier
@@ -102,7 +99,6 @@ fun AcademicsScreen(initialTab: String = "Attendance") {
                 .padding(16.dp)
         ) {
             when (activeSubTab) {
-                "Attendance" -> AttendanceSubScreen()
                 "Marks & GPA" -> MarksSubScreen()
                 "Schedule" -> TimetableSubScreen()
                 "Calendar" -> CalendarSubScreen()
@@ -113,79 +109,6 @@ fun AcademicsScreen(initialTab: String = "Attendance") {
 }
 
 // ── 2. UNIFIED SERVICES SCREEN (TABS: PAYMENTS, LIBRARY, TRANSPORT, LMS) ──
-
-
-@Composable
-fun AttendanceSubScreen() {
-    val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
-    val courses = attendanceRes?.attendance ?: emptyList()
-
-    if (courses.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No attendance data found. Tap refresh to sync.", color = colors.textSecondary)
-        }
-    } else {
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(courses) { course ->
-                AttendanceCardItem(course)
-            }
-        }
-    }
-}
-
-@Composable
-fun AttendanceCardItem(course: AttendanceItem) {
-    val colors = AmazeTheme.colors
-    val percentage = course.attendancePercentage?.toDoubleOrNull()
-    val badgeVariant = when {
-        percentage == null -> BadgeVariant.INFO
-        percentage >= 85.0 -> BadgeVariant.SUCCESS
-        percentage >= 75.0 -> BadgeVariant.WARNING
-        else -> BadgeVariant.DANGER
-    }
-
-    AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                    Text(course.courseTitle, style = AmazeTheme.typography.subheading.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp))
-                    Text("Faculty: ${course.faculty ?: "—"}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                }
-                AmazeBadge(
-                    text = course.attendancePercentage?.let { "$it%" } ?: "—",
-                    variant = badgeVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = colors.border)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Classes: ${course.attendedClasses ?: 0}/${course.totalClasses ?: 0}",
-                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                )
-                Text(
-                    text = "Slot / Venue: ${course.slotName} / ${course.slotVenue ?: "—"}",
-                    style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold)
-                )
-            }
-        }
-    }
-}
 
 @Composable
 fun MarksSubScreen() {
