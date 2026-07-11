@@ -10,6 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,54 +26,61 @@ import com.amazecc.app.shared.theme.AmazeTheme
 fun BottomNavigationBar() {
     val currentScreen by AppState.currentScreen.collectAsState()
     val colors = AmazeTheme.colors
+    var showAppLibrary by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
     if (currentScreen == Screen.LOGIN) return
 
-    Row(
-        modifier = Modifier
-            .padding(horizontal = 16.dp, vertical = 24.dp) // Floating effect
-            .fillMaxWidth()
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(32.dp))
-            .background(androidx.compose.ui.graphics.Color(0xFF0F0F12)) // Pitch black with hint of grey
-            .border(
-                1.dp, 
-                androidx.compose.ui.graphics.Color(0xFF262626), 
-                androidx.compose.foundation.shape.RoundedCornerShape(32.dp)
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 24.dp) // Floating effect
+                .fillMaxWidth()
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(32.dp))
+                .background(androidx.compose.ui.graphics.Color(0xFF0F0F12)) // Pitch black with hint of grey
+                .border(
+                    1.dp, 
+                    androidx.compose.ui.graphics.Color(0xFF262626), 
+                    androidx.compose.foundation.shape.RoundedCornerShape(32.dp)
+                )
+                .padding(vertical = 12.dp, horizontal = 24.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BottomNavItem(
+                icon = Icons.Rounded.Home,
+                label = "Home",
+                isSelected = currentScreen == Screen.DASHBOARD,
+                onClick = { AppState.navigateTo(Screen.DASHBOARD) }
             )
-            .padding(vertical = 12.dp, horizontal = 24.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        BottomNavItem(
-            icon = Icons.Rounded.Home,
-            label = "Home",
-            isSelected = currentScreen == Screen.DASHBOARD,
-            onClick = { AppState.navigateTo(Screen.DASHBOARD) }
-        )
-        BottomNavItem(
-            icon = Icons.Rounded.EventAvailable,
-            label = "Attendance",
-            isSelected = currentScreen == Screen.ATTENDANCE,
-            onClick = { AppState.navigateTo(Screen.ATTENDANCE) }
-        )
-        BottomNavItem(
-            icon = Icons.Rounded.School,
-            label = "Academics",
-            isSelected = currentScreen == Screen.MARKS || currentScreen == Screen.TIMETABLE,
-            onClick = { AppState.navigateTo(Screen.MARKS) }
-        )
-        BottomNavItem(
-            icon = Icons.Rounded.Payment,
-            label = "Payments",
-            isSelected = currentScreen == Screen.PAYMENTS,
-            onClick = { AppState.navigateTo(Screen.PAYMENTS) }
-        )
-        BottomNavItem(
-            icon = Icons.Rounded.Person,
-            label = "Profile",
-            isSelected = currentScreen == Screen.PROFILE,
-            onClick = { AppState.navigateTo(Screen.PROFILE) }
-        )
+            BottomNavItem(
+                icon = Icons.Rounded.EventAvailable,
+                label = "Attendance",
+                isSelected = currentScreen == Screen.ATTENDANCE,
+                onClick = { AppState.navigateTo(Screen.ATTENDANCE) }
+            )
+            BottomNavItem(
+                icon = Icons.Rounded.Apps,
+                label = "Modules",
+                isSelected = showAppLibrary,
+                onClick = { showAppLibrary = true }
+            )
+            BottomNavItem(
+                icon = Icons.Rounded.School,
+                label = "Academics",
+                isSelected = currentScreen == Screen.MARKS || currentScreen == Screen.TIMETABLE,
+                onClick = { AppState.navigateTo(Screen.MARKS) }
+            )
+            BottomNavItem(
+                icon = Icons.Rounded.Person,
+                label = "Profile",
+                isSelected = currentScreen == Screen.PROFILE,
+                onClick = { AppState.navigateTo(Screen.PROFILE) }
+            )
+        }
+    }
+    
+    if (showAppLibrary) {
+        AppLibraryModal(onDismiss = { showAppLibrary = false })
     }
 }
 
