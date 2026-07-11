@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,6 +36,7 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.ui.components.*
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.decodeFromJsonElement
 
 
 @Composable

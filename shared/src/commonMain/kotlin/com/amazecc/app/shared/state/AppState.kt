@@ -61,9 +61,18 @@ object AppState {
     private val _residentialStatus = MutableStateFlow("Hosteller")
     val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()
 
-    // Semesters
-    val semesterIDs = listOf("CH20252601", "CH20242505", "CH20242501", "CH20232405")
-    private val _selectedSemester = MutableStateFlow("CH20252601")
+    val semesterMap = mapOf(
+        "CH20262705" to "Winter Semester 2026-27",
+        "CH20262701" to "Fall Semester 2026-27",
+        "CH20252605" to "Winter Semester 2025-26",
+        "CH20252601" to "Fall Semester 2025-26",
+        "CH20242505" to "Winter Semester 2024-25",
+        "CH20242501" to "Fall Semester 2024-25",
+        "CH20232405" to "Winter Semester 2023-24",
+        "CH20232401" to "Fall Semester 2023-24"
+    )
+    val semesterIDs = semesterMap.keys.toList()
+    private val _selectedSemester = MutableStateFlow("CH20262701")
     val selectedSemester: StateFlow<String> = _selectedSemester.asStateFlow()
 
     // Loading & Error states

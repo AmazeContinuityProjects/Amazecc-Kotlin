@@ -65,18 +65,9 @@ fun DashboardScreen() {
             .background(colors.background)
     ) {
         // Page Header
-            PageHeaderContainer(
-                title = "AmazeCC Student OS",
-            description = syncStatus ?: "Welcome back, $authorizedID",
-            actions = {
-                AmazeDropdown(
-                    options = AppState.semesterIDs,
-                    selectedOption = selectedSemester,
-                    onOptionSelected = { AppState.selectSemester(it) },
-                    label = "",
-                    modifier = Modifier.width(160.dp)
-                )
-            }
+        PageHeaderContainer(
+            title = "AmazeCC Student OS",
+            description = syncStatus ?: "Welcome back, $authorizedID"
         )
 
         // Main Contents Scroll

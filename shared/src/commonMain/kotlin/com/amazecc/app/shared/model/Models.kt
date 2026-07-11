@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class LoginResponse(
@@ -374,8 +375,8 @@ data class EventHubRes(
 
 @Serializable
 data class ClubItem(
-    val id: String,
-    val name: String,
+    val id: String? = null,
+    val name: String? = null,
     val description: String? = null,
     val logoUrl: String? = null
 )
