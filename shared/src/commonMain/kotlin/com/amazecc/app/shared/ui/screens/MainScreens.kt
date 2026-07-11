@@ -309,19 +309,26 @@ fun AttendanceSubScreen() {
     
     var activeDetailCourse by remember { mutableStateOf<AttendanceItem?>(null) }
     
+    val isDayscholarWithBus by SessionManager.isDayscholarWithBus.collectAsState()
+    val decimalValues by SessionManager.decimalValues.collectAsState()
+
+    val targetPct = if (isDayscholarWithBus) 85.0 else 75.0
+    val targetBorderPct = if (isDayscholarWithBus) 90.0 else 80.0
+    val targetMidPct = if (isDayscholarWithBus) 90.0 else 85.0
+    
     val average = remember(courses) {
         courses.mapNotNull { it.attendancePercentage?.toDoubleOrNull() }.takeIf { it.isNotEmpty() }?.average()
     }
     
-    val filteredCourses = remember(courses, filter, searchQuery) {
+    val filteredCourses = remember(courses, filter, searchQuery, isDayscholarWithBus) {
         courses.filter { course ->
             val matchesSearch = course.courseTitle.contains(searchQuery, ignoreCase = true) || 
                                 course.courseCode.contains(searchQuery, ignoreCase = true)
             val percentage = course.attendancePercentage?.toDoubleOrNull() ?: 100.0
             val matchesFilter = when (filter) {
-                "Watchlist" -> percentage < 75.0
-                "Border" -> percentage in 75.0..80.0
-                "Safe" -> percentage > 80.0
+                "Watchlist" -> percentage < targetPct
+                "Border" -> percentage in targetPct..targetBorderPct
+                "Safe" -> percentage > targetBorderPct
                 else -> true
             }
             matchesSearch && matchesFilter
@@ -330,6 +337,10 @@ fun AttendanceSubScreen() {
 
     var activeTab by remember { mutableStateOf("All Subjects") }
     var activePlannerDay by remember { mutableStateOf("Mon") }
+
+    val displayAverage = average?.let {
+        if (decimalValues) "${((it * 100.0).toInt() / 100.0)}%" else "${it.toInt()}%"
+    } ?: "—"
 
     Column(modifier = Modifier.fillMaxSize()) {
         AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = colors.surface) {
@@ -340,11 +351,11 @@ fun AttendanceSubScreen() {
                         Text("Last sync: " + (syncStatus ?: "Active session cached"), style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     }
                     AmazeBadge(
-                        text = average?.let { "${it.toInt()}%" } ?: "—",
+                        text = displayAverage,
                         variant = when {
                             average == null -> BadgeVariant.INFO
-                            average >= 85.0 -> BadgeVariant.SUCCESS
-                            average >= 75.0 -> BadgeVariant.WARNING
+                            average >= targetMidPct -> BadgeVariant.SUCCESS
+                            average >= targetPct -> BadgeVariant.WARNING
                             else -> BadgeVariant.DANGER
                         }
                     )
@@ -358,8 +369,8 @@ fun AttendanceSubScreen() {
                         .clip(RoundedCornerShape(999.dp)),
                     color = when {
                         average == null -> colors.accent
-                        average >= 85.0 -> colors.success
-                        average >= 75.0 -> colors.warning
+                        average >= targetMidPct -> colors.success
+                        average >= targetPct -> colors.warning
                         else -> colors.danger
                     },
                     trackColor = colors.border
@@ -579,28 +590,40 @@ fun AttendanceCardItem(
     onClick: () -> Unit
 ) {
     val colors = AmazeTheme.colors
+    val isDayscholarWithBus by SessionManager.isDayscholarWithBus.collectAsState()
+    val decimalValues by SessionManager.decimalValues.collectAsState()
+
+    val targetPct = if (isDayscholarWithBus) 85.0 else 75.0
+    val targetMidPct = if (isDayscholarWithBus) 90.0 else 85.0
+    val targetRatio = targetPct / 100.0
+
     val percentage = course.attendancePercentage?.toDoubleOrNull()
     val progress = ((percentage ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f)
     val attended = course.attendedClasses ?: 0
     val total = course.totalClasses ?: 0
     
-    val target = 0.75
-    val classesNeeded = if (percentage != null && percentage < 75.0) {
-        ceil(((target * total) - attended) / (1 - target)).toInt().coerceAtLeast(0)
+    val classesNeeded = if (percentage != null && percentage < targetPct) {
+        ceil(((targetRatio * total) - attended) / (1 - targetRatio)).toInt().coerceAtLeast(0)
     } else {
         0
     }
-    val canMiss = if (percentage != null && percentage >= 75.0) {
-        floor((attended - target * total) / target).toInt().coerceAtLeast(0)
+    val canMiss = if (percentage != null && percentage >= targetPct) {
+        floor((attended - targetRatio * total) / targetRatio).toInt().coerceAtLeast(0)
     } else {
         0
     }
     
     val badgeVariant = when {
         percentage == null -> BadgeVariant.INFO
-        percentage >= 85.0 -> BadgeVariant.SUCCESS
-        percentage >= 75.0 -> BadgeVariant.WARNING
+        percentage >= targetMidPct -> BadgeVariant.SUCCESS
+        percentage >= targetPct -> BadgeVariant.WARNING
         else -> BadgeVariant.DANGER
+    }
+
+    val displayPct = if (percentage != null) {
+        if (decimalValues) "${percentage}%" else "${percentage.toInt()}%"
+    } else {
+        "—"
     }
 
     AmazeCard(
@@ -619,7 +642,7 @@ fun AttendanceCardItem(
                     Text("${course.slotName} • ${course.faculty ?: "Faculty details pending"}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1)
                 }
                 AmazeBadge(
-                    text = course.attendancePercentage?.let { "$it%" } ?: "—",
+                    text = displayPct,
                     variant = badgeVariant
                 )
             }
@@ -651,8 +674,8 @@ fun AttendanceCardItem(
                     modifier = Modifier.weight(1f)
                 )
                 AttendanceInsightPill(
-                    label = if ((percentage ?: 100.0) < 75.0) "Classes Needed" else "Can Miss",
-                    value = if ((percentage ?: 100.0) < 75.0) "$classesNeeded classes" else "$canMiss classes",
+                    label = if ((percentage ?: 100.0) < targetPct) "Classes Needed" else "Can Miss",
+                    value = if ((percentage ?: 100.0) < targetPct) "$classesNeeded classes" else "$canMiss classes",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -740,6 +763,13 @@ fun AttendanceDetailSheet(
     val colors = AmazeTheme.colors
     val radius = AmazeTheme.radius
     
+    val isDayscholarWithBus by SessionManager.isDayscholarWithBus.collectAsState()
+    val decimalValues by SessionManager.decimalValues.collectAsState()
+
+    val targetPct = if (isDayscholarWithBus) 85.0 else 75.0
+    val targetMidPct = if (isDayscholarWithBus) 90.0 else 85.0
+    val targetRatio = targetPct / 100.0
+
     val attended = course.attendedClasses ?: 0
     val total = course.totalClasses ?: 0
     val percentage = course.attendancePercentage?.toDoubleOrNull() ?: 0.0
@@ -751,17 +781,19 @@ fun AttendanceDetailSheet(
     val simAttendedTotal = attended + simAttended
     val simPercentage = if (simTotal == 0) 0.0 else (simAttendedTotal * 100.0) / simTotal
     
-    val target = 0.75
-    val classesNeeded = if (percentage < 75.0) {
-        ceil(((target * total) - attended) / (1 - target)).toInt().coerceAtLeast(0)
+    val classesNeeded = if (percentage < targetPct) {
+        ceil(((targetRatio * total) - attended) / (1 - targetRatio)).toInt().coerceAtLeast(0)
     } else {
         0
     }
-    val canMiss = if (percentage >= 75.0) {
-        floor((attended - target * total) / target).toInt().coerceAtLeast(0)
+    val canMiss = if (percentage >= targetPct) {
+        floor((attended - targetRatio * total) / targetRatio).toInt().coerceAtLeast(0)
     } else {
         0
     }
+
+    val displayPct = if (decimalValues) "${percentage}%" else "${percentage.toInt()}%"
+    val displaySimPct = if (decimalValues) "${((simPercentage * 100.0).toInt() / 100.0)}%" else "${simPercentage.toInt()}%"
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -819,10 +851,10 @@ fun AttendanceDetailSheet(
                     ) {
                         Text("Current Attendance", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp))
                         AmazeBadge(
-                            text = "${percentage.toInt()}%",
+                            text = displayPct,
                             variant = when {
-                                percentage >= 85.0 -> BadgeVariant.SUCCESS
-                                percentage >= 75.0 -> BadgeVariant.WARNING
+                                percentage >= targetMidPct -> BadgeVariant.SUCCESS
+                                percentage >= targetPct -> BadgeVariant.WARNING
                                 else -> BadgeVariant.DANGER
                             }
                         )
@@ -836,11 +868,11 @@ fun AttendanceDetailSheet(
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Simulation Target", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                             Text(
-                                text = if (percentage < 75.0) "Need $classesNeeded classes" else "Can miss $canMiss classes",
+                                text = if (percentage < targetPct) "Need $classesNeeded classes" else "Can miss $canMiss classes",
                                 style = AmazeTheme.typography.body.copy(
                                     fontWeight = FontWeight.Black,
                                     fontSize = 15.sp,
-                                    color = if (percentage < 75.0) colors.danger else colors.success
+                                    color = if (percentage < targetPct) colors.danger else colors.success
                                 )
                             )
                         }
@@ -866,8 +898,8 @@ fun AttendanceDetailSheet(
             AmazeCard(
                 modifier = Modifier.fillMaxWidth(),
                 backgroundColor = when {
-                    simPercentage >= 85.0 -> colors.successSurface
-                    simPercentage >= 75.0 -> colors.warningSurface
+                    simPercentage >= targetMidPct -> colors.successSurface
+                    simPercentage >= targetPct -> colors.warningSurface
                     else -> colors.dangerSurface
                 }
             ) {
@@ -879,7 +911,7 @@ fun AttendanceDetailSheet(
                     Column {
                         Text("Simulated Percentage", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                         Text(
-                            text = "${simPercentage.toInt()}%",
+                            text = displaySimPct,
                             style = AmazeTheme.typography.display.copy(fontWeight = FontWeight.Black, fontSize = 28.sp)
                         )
                     }
@@ -1739,9 +1771,19 @@ fun LMSSubScreen() {
 @Composable
 fun ProfileScreen() {
     val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
     val authorizedID by SessionManager.authorizedID.collectAsState()
     val activeTheme by AppState.theme.collectAsState()
     val activeAccent by AppState.accent.collectAsState()
+
+    val friendlyName by SessionManager.friendlyName.collectAsState()
+    val decimalValues by SessionManager.decimalValues.collectAsState()
+    val isDayscholarWithBus by SessionManager.isDayscholarWithBus.collectAsState()
+    val residentialStatus by SessionManager.residentialStatus.collectAsState()
+    val selectedSemester by AppState.selectedSemester.collectAsState()
+    val semesters = AppState.semesterIDs
+
+    var editFriendlyName by remember(friendlyName) { mutableStateOf(friendlyName) }
 
     Column(
         modifier = Modifier
@@ -1750,7 +1792,7 @@ fun ProfileScreen() {
     ) {
         ScreenHeader(
             title = "App Preferences",
-            description = "Themes, accents, and session logout",
+            description = "Manage semesters, housing, appearance, and profile",
             showBackButton = true,
             showSyncButton = false
         )
@@ -1762,6 +1804,7 @@ fun ProfileScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
+            // Student Card Info
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
@@ -1775,13 +1818,157 @@ fun ProfileScreen() {
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text("VIT University student", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                        Text(authorizedID ?: "DEMO123", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Text("Session state: ACTIVE", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.success))
+                        Text(if (friendlyName.isNotBlank()) friendlyName else "VIT University Student", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Text(authorizedID ?: "DEMO123", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                        Text("Session state: ACTIVE", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.success))
                     }
                 }
             }
 
+            // 1. Personal Settings Card
+            Column {
+                Text("Student Profile", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Spacer(modifier = Modifier.height(8.dp))
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                AmazeTextField(
+                                    value = editFriendlyName,
+                                    onValueChange = { editFriendlyName = it },
+                                    label = "Preferred Name",
+                                    placeholder = "e.g. John Doe",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                AmazeButton(
+                                    text = "Save",
+                                    onClick = { SessionManager.friendlyName.value = editFriendlyName },
+                                    variant = ButtonVariant.PRIMARY
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(color = colors.border)
+
+                        Column {
+                            Text("Selected Semester", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontWeight = FontWeight.Bold))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                semesters.take(3).forEach { sem ->
+                                    val isSelected = selectedSemester == sem
+                                    val semLabel = when(sem) {
+                                        "CH20252601" -> "Fall 25-26"
+                                        "CH20242505" -> "Winter 24-25"
+                                        "CH20242501" -> "Fall 24-25"
+                                        else -> sem.takeLast(6)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(radius.small))
+                                            .background(if (isSelected) colors.accent else colors.elevatedSurface)
+                                            .border(1.dp, if (isSelected) colors.accent else colors.border, RoundedCornerShape(radius.small))
+                                            .clickable { AppState.selectSemester(sem) }
+                                            .padding(vertical = 8.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = semLabel,
+                                            color = if (isSelected) colors.surface else colors.textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 2. Academic & Attendance Rules Card
+            Column {
+                Text("Attendance Configuration", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Spacer(modifier = Modifier.height(8.dp))
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Decimal Values", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                                Text("Display attendance percentage with decimals", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                            }
+                            Switch(
+                                checked = decimalValues,
+                                onCheckedChange = { SessionManager.decimalValues.value = it }
+                            )
+                        }
+
+                        HorizontalDivider(color = colors.border)
+
+                        Column {
+                            Text("Residential Status / Bus Attendance Limit", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontWeight = FontWeight.Bold))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                listOf(
+                                    Triple("hosteller", "Hosteller", "75% limit"),
+                                    Triple("dayscholar_bus", "Day Scholar (Bus)", "85% limit"),
+                                    Triple("dayscholar_nobus", "Day Scholar (No Bus)", "75% limit")
+                                ).forEach { (id, label, desc) ->
+                                    val isSelected = when (id) {
+                                        "hosteller" -> residentialStatus == "hosteller" && !isDayscholarWithBus
+                                        "dayscholar_bus" -> residentialStatus == "dayscholar" && isDayscholarWithBus
+                                        else -> residentialStatus == "dayscholar" && !isDayscholarWithBus
+                                    }
+                                    Column(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clip(RoundedCornerShape(radius.small))
+                                            .background(if (isSelected) colors.accent else colors.elevatedSurface)
+                                            .border(1.dp, if (isSelected) colors.accent else colors.border, RoundedCornerShape(radius.small))
+                                            .clickable {
+                                                SessionManager.isDayscholarWithBus.value = id == "dayscholar_bus"
+                                                SessionManager.residentialStatus.value = if (id == "hosteller") "hosteller" else "dayscholar"
+                                            }
+                                            .padding(vertical = 8.dp, horizontal = 2.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) colors.surface else colors.textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 11.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = desc,
+                                            color = if (isSelected) colors.surface.copy(alpha = 0.8f) else colors.textMuted,
+                                            fontSize = 9.sp,
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Theme Configuration Card
             Column {
                 Text("Select App Theme", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1822,6 +2009,7 @@ fun ProfileScreen() {
                 }
             }
 
+            // 4. Accent Palette Selection Card
             Column {
                 Text("Select Accent Palette", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Spacer(modifier = Modifier.height(8.dp))
@@ -1868,5 +2056,239 @@ fun ProfileScreen() {
                 modifier = Modifier.fillMaxWidth()
             )
         }
+    }
+}
+
+@Composable
+fun PostLoginOnboardingScreen() {
+    val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+    val scope = rememberCoroutineScope()
+    val isLoading by AppState.isLoading.collectAsState()
+    val syncStatus by AppState.syncStatus.collectAsState()
+
+    var friendlyName by remember { mutableStateOf("") }
+    var selectedSem by remember { mutableStateOf("CH20252601") }
+    var resStatus by remember { mutableStateOf("hosteller") } // "hosteller", "dayscholar_bus", "dayscholar_nobus"
+    var showDecimalPct by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Title Section
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(RoundedCornerShape(radius.large))
+                .background(colors.elevatedSurface),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.School,
+                contentDescription = null,
+                tint = colors.accent,
+                modifier = Modifier.size(36.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Welcome to AmazeCC",
+            style = AmazeTheme.typography.display.copy(
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black,
+                color = colors.textPrimary
+            ),
+            textAlign = TextAlign.Center
+        )
+        Text(
+            text = "Configure your college preferences to personalize your dashboard.",
+            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // 1. Friendly name input
+                Column {
+                    AmazeTextField(
+                        value = friendlyName,
+                        onValueChange = { friendlyName = it },
+                        label = "Preferred Name",
+                        placeholder = "e.g. John Doe",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // 2. Semester selection dropdown
+                Column {
+                    Text(
+                        text = "Active Academic Semester",
+                        style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    val semesters = AppState.semesterIDs
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        semesters.take(3).forEach { sem ->
+                            val isSelected = selectedSem == sem
+                            val semLabel = when(sem) {
+                                "CH20252601" -> "Fall 25-26"
+                                "CH20242505" -> "Winter 24-25"
+                                "CH20242501" -> "Fall 24-25"
+                                else -> sem.takeLast(6)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(radius.small))
+                                    .background(if (isSelected) colors.accent else colors.elevatedSurface)
+                                    .border(1.dp, if (isSelected) colors.accent else colors.border, RoundedCornerShape(radius.small))
+                                    .clickable { selectedSem = sem }
+                                    .padding(vertical = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = semLabel,
+                                    color = if (isSelected) colors.surface else colors.textPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 3. Residential / Housing Selector
+                Column {
+                    Text(
+                        text = "Residential Status",
+                        style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(
+                            Triple("hosteller", "Hosteller", "75% limit"),
+                            Triple("dayscholar_bus", "Day Scholar (Bus)", "85% limit"),
+                            Triple("dayscholar_nobus", "Day Scholar (No Bus)", "75% limit")
+                        ).forEach { (id, label, desc) ->
+                            val isSelected = resStatus == id
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(radius.small))
+                                    .background(if (isSelected) colors.accent else colors.elevatedSurface)
+                                    .border(1.dp, if (isSelected) colors.accent else colors.border, RoundedCornerShape(radius.small))
+                                    .clickable { resStatus = id }
+                                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) colors.surface else colors.textPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = desc,
+                                    color = if (isSelected) colors.surface.copy(alpha = 0.8f) else colors.textMuted,
+                                    fontSize = 9.sp,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 4. Decimal Values precision switch
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(radius.small))
+                        .background(colors.elevatedSurface)
+                        .border(1.dp, colors.border, RoundedCornerShape(radius.small))
+                        .clickable { showDecimalPct = !showDecimalPct }
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Decimal Attendance Precision",
+                            style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                        )
+                        Text(
+                            text = "Show exact values (e.g. 75.24%) instead of whole numbers",
+                            style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
+                        )
+                    }
+                    AmazeBadge(
+                        text = if (showDecimalPct) "ON" else "OFF",
+                        variant = if (showDecimalPct) BadgeVariant.SUCCESS else BadgeVariant.INFO
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        if (isLoading) {
+            AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = colors.surface) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(28.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = syncStatus ?: "Syncing VTOP details...",
+                        style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    )
+                }
+            }
+        } else {
+            AmazeButton(
+                text = "Let's Go! 🚀",
+                onClick = {
+                    scope.launch {
+                        // Save preferences
+                        SessionManager.friendlyName.value = friendlyName
+                        SessionManager.decimalValues.value = showDecimalPct
+                        SessionManager.isDayscholarWithBus.value = resStatus == "dayscholar_bus"
+                        SessionManager.residentialStatus.value = if (resStatus == "hosteller") "hosteller" else "dayscholar"
+                        
+                        // Select chosen semester (which fetches the semester data)
+                        AppState.selectSemester(selectedSem)
+                        
+                        // Complete onboarding state
+                        SessionManager.postLoginCompleted.value = true
+                        
+                        // Navigate to dashboard
+                        AppState.switchTopLevel(Screen.DASHBOARD)
+                    }
+                },
+                variant = ButtonVariant.PRIMARY,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
     }
 }

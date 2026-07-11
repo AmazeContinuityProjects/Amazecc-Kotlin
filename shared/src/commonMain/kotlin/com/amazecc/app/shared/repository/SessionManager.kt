@@ -22,6 +22,13 @@ object SessionManager {
     val currentAccent = MutableStateFlow("ocean") // ocean, forest, lavender, sunset
     val onboardingCompleted = MutableStateFlow(false)
     val lmsAuthenticated = MutableStateFlow(false)
+    
+    // Academic preferences
+    val decimalValues = MutableStateFlow(false)
+    val isDayscholarWithBus = MutableStateFlow(false)
+    val residentialStatus = MutableStateFlow("hosteller") // hosteller, dayscholar
+    val friendlyName = MutableStateFlow("")
+    val postLoginCompleted = MutableStateFlow(false)
 
     // Dashboard customization settings
     val dashboardWidgets = MutableStateFlow(listOf(
@@ -59,6 +66,11 @@ object SessionManager {
         _authorizedID.value = null
         _clubToken.value = null
         lmsAuthenticated.value = false
+        decimalValues.value = false
+        isDayscholarWithBus.value = false
+        residentialStatus.value = "hosteller"
+        friendlyName.value = ""
+        postLoginCompleted.value = false
     }
 
     fun moveWidgetUp(widget: DashboardWidget) {

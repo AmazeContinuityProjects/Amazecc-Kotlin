@@ -515,6 +515,9 @@ private fun DashboardHero(
 @Composable
 private fun GreetingWidget(greeting: String, studentId: String) {
     val colors = AmazeTheme.colors
+    val friendlyName by SessionManager.friendlyName.collectAsState()
+    val displayName = if (friendlyName.isNotBlank()) friendlyName else "Student"
+
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -529,7 +532,7 @@ private fun GreetingWidget(greeting: String, studentId: String) {
             Spacer(modifier = Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "$greeting, Student!",
+                    text = "$greeting, $displayName!",
                     style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                 )
                 Text(

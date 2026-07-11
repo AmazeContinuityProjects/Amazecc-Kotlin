@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 
 enum class Screen {
-    LOGIN, DASHBOARD, ATTENDANCE, MARKS, TIMETABLE, HOSTEL, PAYMENTS, LIBRARY, TRANSPORT, LMS, PROFILE
+    LOGIN, POST_LOGIN_ONBOARDING, DASHBOARD, ATTENDANCE, MARKS, TIMETABLE, HOSTEL, PAYMENTS, LIBRARY, TRANSPORT, LMS, PROFILE
 }
 
 object AppState {

@@ -65,8 +65,12 @@ fun App() {
 
     LaunchedEffect(Unit) {
         if (SessionManager.isLoggedIn) {
-            AppState.switchTopLevel(Screen.DASHBOARD)
-            AppState.loadAllData()
+            if (SessionManager.postLoginCompleted.value) {
+                AppState.switchTopLevel(Screen.DASHBOARD)
+                AppState.loadAllData()
+            } else {
+                AppState.switchTopLevel(Screen.POST_LOGIN_ONBOARDING)
+            }
         }
     }
 
@@ -92,6 +96,7 @@ fun App() {
                         ) { targetScreen ->
                             when (targetScreen) {
                                 Screen.LOGIN -> LoginScreen()
+                                Screen.POST_LOGIN_ONBOARDING -> PostLoginOnboardingScreen()
                                 Screen.DASHBOARD -> DashboardScreen()
                                 Screen.ATTENDANCE -> AttendanceScreen()
                                 Screen.MARKS -> MarksGradesScreen()
@@ -106,7 +111,7 @@ fun App() {
                         }
                     }
 
-                    if (currentScreen != Screen.LOGIN) {
+                    if (currentScreen != Screen.LOGIN && currentScreen != Screen.POST_LOGIN_ONBOARDING) {
                         AmazeBottomBar(
                             currentScreen = currentScreen,
                             onMoreClick = { isMoreOpen = true }
