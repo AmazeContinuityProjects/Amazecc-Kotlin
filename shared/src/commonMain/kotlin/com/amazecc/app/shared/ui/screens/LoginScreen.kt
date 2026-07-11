@@ -171,7 +171,7 @@ fun LoginScreen() {
                             }
                             // Load student data and transition to dashboard
                             AppState.loadAllData()
-                            AppState.navigateTo(Screen.DASHBOARD)
+                            AppState.navigateTo(Screen.HOME)
                         } else {
                             errorMessage = response.message ?: "Authentication failed."
                         }
@@ -202,7 +202,7 @@ fun LoginScreen() {
                     )
                     AmazeClient.setUseMockData(true)
                     AppState.loadAllData()
-                    AppState.navigateTo(Screen.DASHBOARD)
+                    AppState.navigateTo(Screen.HOME)
                     isSubmitting = false
                 }
             }

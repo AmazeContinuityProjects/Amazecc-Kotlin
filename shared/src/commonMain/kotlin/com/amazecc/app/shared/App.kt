@@ -17,6 +17,9 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.screens.*
+import com.amazecc.app.shared.ui.screens.libraries.LibrariesScreen
+import com.amazecc.app.shared.ui.screens.transport.TransportScreen
+import com.amazecc.app.shared.ui.screens.academics.FreeClassroomsScreen
 
 @Composable
 fun App() {
@@ -55,6 +58,9 @@ fun App() {
                 containerColor = colors.background
             ) { paddingValues ->
                 Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                    // Sync Notification Overlay
+                    com.amazecc.app.shared.ui.components.SyncNotification()
+
                     // Crossfade screen transitions
                     AnimatedContent(
                         targetState = currentScreen,
@@ -64,25 +70,26 @@ fun App() {
                     ) { targetScreen ->
                         when (targetScreen) {
                             Screen.LOGIN -> LoginScreen()
-                            Screen.DASHBOARD -> DashboardScreen()
+                            Screen.ONBOARDING -> OnboardingScreen()
+                            Screen.HOME -> DashboardScreen()
                             Screen.ATTENDANCE -> AttendanceScreen()
-                            Screen.MARKS -> MarksGradesScreen()
-                            Screen.TIMETABLE -> TimetableScreen()
-                            Screen.HOSTEL -> HostelScreen()
+                            Screen.ACADEMICS -> AcademicsScreen()
                             Screen.PAYMENTS -> PaymentsScreen()
-                            Screen.LIBRARY -> LibraryScreen()
+                            Screen.LIBRARIES -> LibrariesScreen()
+                            Screen.HOSTEL -> HostelScreen()
+                            Screen.CABSHARE -> CabShareScreen()
                             Screen.TRANSPORT -> TransportScreen()
-                            Screen.LMS -> LMSScreen()
+                            Screen.MORE -> MoreScreen()
                             Screen.PROFILE -> ProfileScreen()
                             Screen.EVENTS -> EventHubScreen()
-                            Screen.CALENDAR -> CalendarScreen()
                             Screen.QBANK -> QBankScreen()
                             Screen.SOCIAL -> SocialScreen()
-                            Screen.FFCS -> FfcsPlannerScreen()
+                            Screen.FFCS_PLANNER -> FfcsPlannerScreen()
+                            Screen.FREE_CLASSROOMS -> FreeClassroomsScreen(onBack = { AppState.navigateBack() })
                         }
                     }
 
-                    // Global Loading Overlay
+                    // Global Loading Overlay (Legacy)
                     if (isLoading) {
                         Column(
                             modifier = Modifier
@@ -97,7 +104,7 @@ fun App() {
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = syncStatus ?: "Syncing data...",
+                                text = syncStatus ?: "Loading...",
                                 color = colors.textPrimary
                             )
                         }

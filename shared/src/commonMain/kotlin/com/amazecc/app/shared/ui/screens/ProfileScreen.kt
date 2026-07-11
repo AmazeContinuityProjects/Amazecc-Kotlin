@@ -166,6 +166,47 @@ fun ProfileScreen() {
                     )
                 )
             }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("Display Settings", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                
+                val decimalValues by AppState.decimalValues.collectAsState()
+                val friendlyName by AppState.friendlyName.collectAsState()
+                val calendarView by AppState.calendarView.collectAsState()
+                val residentialStatus by AppState.residentialStatus.collectAsState()
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("Decimal Values", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                        Text("Show exact decimal percentages", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    }
+                    Switch(checked = decimalValues, onCheckedChange = { AppState.setDecimalValues(it) })
+                }
+                
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("Friendly Names", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                        Text("Use short names for subjects", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    }
+                    Switch(checked = friendlyName, onCheckedChange = { AppState.setFriendlyName(it) })
+                }
+                
+                AmazeDropdown(
+                    label = "Calendar View Format",
+                    selectedOption = calendarView,
+                    options = listOf("List", "Grid"),
+                    onOptionSelected = { AppState.setCalendarView(it) }
+                )
+                
+                AmazeDropdown(
+                    label = "Residential Status",
+                    selectedOption = residentialStatus,
+                    options = listOf("Hosteller", "Day Boarder"),
+                    onOptionSelected = { AppState.setResidentialStatus(it) }
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = colors.border)

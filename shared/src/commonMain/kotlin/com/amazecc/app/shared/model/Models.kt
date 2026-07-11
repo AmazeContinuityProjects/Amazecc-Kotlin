@@ -287,6 +287,7 @@ data class LibraryRes(
     val success: Boolean = true,
     val booksIssued: List<BookItem> = emptyList(),
     val searchResults: List<BookItem> = emptyList(),
+    val total: Int = 0,
     val error: String? = null,
     val message: String? = null
 )

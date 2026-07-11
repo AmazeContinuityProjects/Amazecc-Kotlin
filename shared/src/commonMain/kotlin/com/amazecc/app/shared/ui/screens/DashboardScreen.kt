@@ -102,7 +102,7 @@ fun DashboardScreen() {
                     value = cgpa,
                     caption = "Latest grades",
                     modifier = Modifier.weight(1f),
-                    onClick = { AppState.navigateTo(Screen.MARKS) }
+                    onClick = { AppState.navigateTo(Screen.ACADEMICS) }
                 )
             }
 
@@ -117,7 +117,7 @@ fun DashboardScreen() {
                     value = "$libraryDues Books",
                     caption = "Active checkouts",
                     modifier = Modifier.weight(1f),
-                    onClick = { AppState.navigateTo(Screen.LIBRARY) }
+                    onClick = { AppState.navigateTo(Screen.LIBRARIES) }
                 )
                 MetricCard(
                     title = "WALLET BALANCE",
@@ -167,7 +167,7 @@ fun DashboardScreen() {
                 title = "Marks & Exam Grades",
                 description = "View internal assessments, exams, and grade history",
                 icon = Icons.Rounded.Star,
-                onClick = { AppState.navigateTo(Screen.MARKS) },
+                onClick = { AppState.navigateTo(Screen.ACADEMICS) },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -176,7 +176,7 @@ fun DashboardScreen() {
                 title = "Class Timetable & Schedule",
                 description = "View daily hours, locations, and instructional calendar",
                 icon = Icons.Rounded.DateRange,
-                onClick = { AppState.navigateTo(Screen.TIMETABLE) },
+                onClick = { AppState.navigateTo(Screen.ACADEMICS) },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -195,7 +195,7 @@ fun DashboardScreen() {
                 title = "LMS assignments & Exams",
                 description = "Manage digital submissions and check exam venues",
                 icon = Icons.Rounded.List,
-                onClick = { AppState.navigateTo(Screen.LMS) },
+                onClick = { AppState.navigateTo(Screen.ACADEMICS) },
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -217,7 +217,7 @@ fun DashboardScreen() {
                     title = "Library Koha",
                     description = "Search catalog",
                     icon = Icons.Rounded.Book,
-                    onClick = { AppState.navigateTo(Screen.LIBRARY) },
+                    onClick = { AppState.navigateTo(Screen.LIBRARIES) },
                     modifier = Modifier.weight(1f)
                 )
                 
@@ -264,12 +264,21 @@ fun DashboardScreen() {
             }
             
             Spacer(modifier = Modifier.height(12.dp))
-
             ActionCard(
                 title = "FFCS Timetable Planner",
                 description = "Plan conflict-free schedules",
                 icon = Icons.Rounded.DateRange,
-                onClick = { AppState.navigateTo(Screen.FFCS) },
+                onClick = { AppState.navigateTo(Screen.FFCS_PLANNER) },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            ActionCard(
+                title = "Free Classrooms",
+                description = "Find an empty spot to sit",
+                icon = Icons.Rounded.MeetingRoom,
+                onClick = { AppState.navigateTo(Screen.FREE_CLASSROOMS) },
                 modifier = Modifier.fillMaxWidth()
             )
 

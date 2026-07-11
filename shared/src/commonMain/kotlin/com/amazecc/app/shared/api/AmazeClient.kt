@@ -341,7 +341,7 @@ object AmazeClient {
         }
     }
 
-    suspend fun searchLibrary(query: String): LibraryRes {
+    suspend fun searchLibrary(query: String, index: String = "kw", offset: Int = 0): LibraryRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return LibraryRes(
                 success = true,
@@ -352,7 +352,7 @@ object AmazeClient {
             )
         }
         return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/koha/search?q=${query.encodeURLParameter()}")
+            val response: HttpResponse = httpClient.get("$baseUrl/api/koha/search?q=${query.encodeURLParameter()}&idx=${index.encodeURLParameter()}&offset=$offset&count=20")
             jsonConfig.decodeFromString(response.bodyAsText())
         } catch (e: Exception) {
             LibraryRes(success = false, message = e.message, error = e.toString())
