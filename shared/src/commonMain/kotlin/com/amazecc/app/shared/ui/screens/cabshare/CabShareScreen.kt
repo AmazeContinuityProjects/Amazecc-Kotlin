@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens
+package com.amazecc.app.shared.ui.screens.cabshare
 
 import androidx.compose.foundation.layout.*
 import com.amazecc.app.shared.ui.components.ScreenHeader
