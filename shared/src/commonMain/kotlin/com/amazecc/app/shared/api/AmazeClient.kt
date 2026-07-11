@@ -393,4 +393,84 @@ object AmazeClient {
             LMSRes(success = false, message = e.message, error = e.toString())
         }
     }
+    suspend fun getQBankQuestions(courseCode: String): QBankRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return QBankRes(
+                success = true,
+                data = listOf(
+                    QBankQuestion(
+                        question_id = "Q-1",
+                        question_text = "What is encapsulation?",
+                        question_type = "Descriptive",
+                        marks = 5,
+                        topic_name = "OOPs",
+                        exam_semester = "Fall 2025"
+                    )
+                )
+            )
+        }
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/qbank/questions?course=${courseCode.encodeURLParameter()}")
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString(response.bodyAsText())
+            } else {
+                QBankRes(success = false, message = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            QBankRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getEventsProfile(): EventHubRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return EventHubRes(
+                success = true,
+                events = listOf(
+                    EventHubEvent(
+                        eid = "EV-901",
+                        title = "Hackathon 2026",
+                        type = "Technical",
+                        date = "2026-08-15",
+                        location = "Anna Auditorium",
+                        price = "Free"
+                    )
+                )
+            )
+        }
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/events/profile") // Depending on actual API it might need postAuthorized
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString(response.bodyAsText())
+            } else {
+                EventHubRes(success = false, message = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            EventHubRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getClubsDetails(): ClubsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ClubsRes(
+                success = true,
+                clubs = listOf(
+                    ClubItem(
+                        id = "CL-1",
+                        name = "Computer Society of India (CSI)",
+                        description = "Technical Club"
+                    )
+                )
+            )
+        }
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/clubs/details")
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString(response.bodyAsText())
+            } else {
+                ClubsRes(success = false, message = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            ClubsRes(success = false, message = e.message, error = e.toString())
+        }
+    }
 }

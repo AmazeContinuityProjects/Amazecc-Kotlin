@@ -27,75 +27,99 @@ fun App() {
     val syncStatus by AppState.syncStatus.collectAsState()
     val syncError by AppState.error.collectAsState()
 
+    val uiScale by AppState.uiScale.collectAsState()
+
     AmazeTheme(
         appTheme = currentTheme,
         accentTheme = currentAccent
     ) {
         val colors = AmazeTheme.colors
         
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = colors.background
+        val currentDensity = androidx.compose.ui.platform.LocalDensity.current
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
+                density = currentDensity.density * uiScale,
+                fontScale = currentDensity.fontScale * uiScale
+            )
         ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Crossfade screen transitions
-                AnimatedContent(
-                    targetState = currentScreen,
-                    transitionSpec = {
-                        fadeIn() togetherWith fadeOut()
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = colors.background
+            ) {
+                Scaffold(
+                    bottomBar = {
+                        if (currentScreen != Screen.LOGIN) {
+                            com.amazecc.app.shared.ui.components.BottomNavigationBar()
+                        }
+                    },
+                containerColor = colors.background
+            ) { paddingValues ->
+                Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                    // Crossfade screen transitions
+                    AnimatedContent(
+                        targetState = currentScreen,
+                        transitionSpec = {
+                            fadeIn() togetherWith fadeOut()
+                        }
+                    ) { targetScreen ->
+                        when (targetScreen) {
+                            Screen.LOGIN -> LoginScreen()
+                            Screen.DASHBOARD -> DashboardScreen()
+                            Screen.ATTENDANCE -> AttendanceScreen()
+                            Screen.MARKS -> MarksGradesScreen()
+                            Screen.TIMETABLE -> TimetableScreen()
+                            Screen.HOSTEL -> HostelScreen()
+                            Screen.PAYMENTS -> PaymentsScreen()
+                            Screen.LIBRARY -> LibraryScreen()
+                            Screen.TRANSPORT -> TransportScreen()
+                            Screen.LMS -> LMSScreen()
+                            Screen.PROFILE -> ProfileScreen()
+                            Screen.EVENTS -> EventHubScreen()
+                            Screen.CALENDAR -> CalendarScreen()
+                            Screen.QBANK -> QBankScreen()
+                            Screen.SOCIAL -> SocialScreen()
+                            Screen.FFCS -> FfcsPlannerScreen()
+                        }
                     }
-                ) { targetScreen ->
-                    when (targetScreen) {
-                        Screen.LOGIN -> LoginScreen()
-                        Screen.DASHBOARD -> DashboardScreen()
-                        Screen.ATTENDANCE -> AttendanceScreen()
-                        Screen.MARKS -> MarksGradesScreen()
-                        Screen.TIMETABLE -> TimetableScreen()
-                        Screen.HOSTEL -> HostelScreen()
-                        Screen.PAYMENTS -> PaymentsScreen()
-                        Screen.LIBRARY -> LibraryScreen()
-                        Screen.TRANSPORT -> TransportScreen()
-                        Screen.LMS -> LMSScreen()
-                        Screen.PROFILE -> ProfileScreen()
-                    }
-                }
 
-                // Global Loading Overlay
-                if (isLoading) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(colors.background.copy(alpha = 0.6f)),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator(
-                            color = colors.accent,
-                            strokeWidth = 4.dp
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = syncStatus ?: "Syncing data...",
-                            color = colors.textPrimary
-                        )
+                    // Global Loading Overlay
+                    if (isLoading) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(colors.background.copy(alpha = 0.6f)),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = colors.accent,
+                                strokeWidth = 4.dp
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = syncStatus ?: "Syncing data...",
+                                color = colors.textPrimary
+                            )
+                        }
                     }
-                }
 
-                if (!isLoading && syncError != null && currentScreen != Screen.LOGIN) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(16.dp)
-                            .background(colors.dangerSurface, MaterialTheme.shapes.small)
-                            .padding(12.dp)
-                    ) {
-                        Text(
-                            text = syncError ?: "",
-                            color = colors.dangerText
-                        )
+                    if (!isLoading && syncError != null && currentScreen != Screen.LOGIN) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(16.dp)
+                                .background(colors.dangerSurface, MaterialTheme.shapes.small)
+                                .padding(12.dp)
+                        ) {
+                            Text(
+                                text = syncError ?: "",
+                                color = colors.dangerText
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
 }

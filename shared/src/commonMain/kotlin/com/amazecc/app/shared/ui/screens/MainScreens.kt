@@ -23,6 +23,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
@@ -151,7 +154,7 @@ fun ScreenHeader(
 fun AcademicsScreen(initialTab: String = "Attendance") {
     val colors = AmazeTheme.colors
     var activeSubTab by remember(initialTab) { mutableStateOf(initialTab) }
-    val tabs = listOf("Attendance", "Marks & GPA", "Schedule")
+    val tabs = listOf("Attendance", "Marks & GPA", "Schedule", "Calendar", "Question Bank")
 
     Column(
         modifier = Modifier
@@ -205,6 +208,8 @@ fun AcademicsScreen(initialTab: String = "Attendance") {
                 "Attendance" -> AttendanceSubScreen()
                 "Marks & GPA" -> MarksSubScreen()
                 "Schedule" -> TimetableSubScreen()
+                "Calendar" -> CalendarSubScreen()
+                "Question Bank" -> QBankSubScreen()
             }
         }
     }
@@ -476,7 +481,21 @@ fun TimetableSubScreen() {
     val timetableCourses = timetableRes?.courseInfo ?: emptyList()
     val attendanceCourses = attendanceRes?.attendance ?: emptyList()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    var scale by remember { mutableStateOf(1f) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTransformGestures { _, _, zoom, _ ->
+                    scale = (scale * zoom).coerceIn(0.5f, 3f)
+                }
+            }
+            .graphicsLayer(
+                scaleX = scale,
+                scaleY = scale
+            )
+    ) {
         if (timetableCourses.isEmpty() && attendanceCourses.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No timetable data found. Tap refresh to sync.", color = colors.textSecondary)
@@ -1117,6 +1136,26 @@ fun ProfileScreen() {
                 )
             }
 
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column {
+                val uiScale by AppState.uiScale.collectAsState()
+                Text("Global UI Scale: ${(uiScale * 100).toInt()}%", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Spacer(modifier = Modifier.height(8.dp))
+                androidx.compose.material3.Slider(
+                    value = uiScale,
+                    onValueChange = { AppState.changeUiScale(it) },
+                    valueRange = 0.5f..1.5f,
+                    steps = 9,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = androidx.compose.material3.SliderDefaults.colors(
+                        thumbColor = colors.accent,
+                        activeTrackColor = colors.accent,
+                        inactiveTrackColor = colors.accent.copy(alpha = 0.2f)
+                    )
+                )
+            }
+
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = colors.border)
             Spacer(modifier = Modifier.height(12.dp))
@@ -1127,6 +1166,200 @@ fun ProfileScreen() {
                 variant = ButtonVariant.DANGER,
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+    }
+}
+@Composable
+fun CalendarScreen() = AcademicsScreen(initialTab = "Calendar")
+
+@Composable
+fun QBankScreen() = AcademicsScreen(initialTab = "Question Bank")
+
+@Composable
+fun EventHubScreen(initialTab: String = "Events") {
+    val colors = AmazeTheme.colors
+    var activeSubTab by remember(initialTab) { mutableStateOf(initialTab) }
+    val tabs = listOf("Events", "Clubs")
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+    ) {
+        ScreenHeader(
+            title = "Social & Events",
+            description = "Discover tech fests, clubs, and meetups",
+            showBackButton = false,
+            showSyncButton = true
+        )
+
+        androidx.compose.material3.TabRow(
+            selectedTabIndex = tabs.indexOf(activeSubTab),
+            containerColor = colors.background,
+            contentColor = colors.accent,
+            indicator = { tabPositions ->
+                androidx.compose.material3.TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[tabs.indexOf(activeSubTab)]),
+                    color = colors.accent
+                )
+            }
+        ) {
+            tabs.forEach { tab ->
+                androidx.compose.material3.Tab(
+                    selected = activeSubTab == tab,
+                    onClick = { activeSubTab = tab },
+                    text = {
+                        Text(
+                            text = tab,
+                            style = AmazeTheme.typography.body.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        )
+                    },
+                    selectedContentColor = colors.accent,
+                    unselectedContentColor = colors.textSecondary
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .padding(16.dp)
+        ) {
+            when (activeSubTab) {
+                "Events" -> EventHubSubScreen()
+                "Clubs" -> ClubsSubScreen()
+            }
+        }
+    }
+}
+
+@Composable
+fun CalendarSubScreen() {
+    val colors = AmazeTheme.colors
+    val calendarRes by AppState.calendar.collectAsState()
+    val months = calendarRes?.months ?: emptyList()
+
+    if (months.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No calendar events found.", color = colors.textSecondary)
+        }
+    } else {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            items(months) { monthData ->
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        Text(monthData.month, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        monthData.days.forEach { dayData ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(colors.accent.copy(alpha = 0.1f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(dayData.date.toString(), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    dayData.events.forEach { event ->
+                                        Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                                        Text(event.text, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun QBankSubScreen() {
+    val colors = AmazeTheme.colors
+    // Minimal mock UI since QBank requires course search
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(64.dp), tint = colors.textMuted)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Search for a course to view previous papers", color = colors.textSecondary)
+            Spacer(modifier = Modifier.height(8.dp))
+            AmazeButton(text = "Search Course", onClick = { /* TODO */ })
+        }
+    }
+}
+
+@Composable
+fun EventHubSubScreen() {
+    val colors = AmazeTheme.colors
+    val eventRes by AppState.events.collectAsState()
+    val eventsList = eventRes?.events ?: emptyList()
+
+    if (eventsList.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No registered events found.", color = colors.textSecondary)
+        }
+    } else {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            items(eventsList) { event ->
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(event.type ?: "Event", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent))
+                            AmazeBadge(text = event.price ?: "Free", variant = BadgeVariant.SUCCESS)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(event.title, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Date: ${event.date}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        Text("Location: ${event.location}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ClubsSubScreen() {
+    val colors = AmazeTheme.colors
+    val clubsRes by AppState.clubs.collectAsState()
+    val clubsList = clubsRes?.clubs ?: emptyList()
+
+    if (clubsList.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No clubs available.", color = colors.textSecondary)
+        }
+    } else {
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            items(clubsList) { club ->
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        Text(club.name, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        if (!club.description.isNullOrEmpty()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(club.description.toString(), style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                    }
+                }
+            }
         }
     }
 }

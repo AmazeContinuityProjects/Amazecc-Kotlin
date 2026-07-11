@@ -39,6 +39,7 @@ fun DashboardScreen() {
     val marksRes by AppState.marks.collectAsState()
     val libraryRes by AppState.library.collectAsState()
     val paymentsRes by AppState.payments.collectAsState()
+    val hostelDetails by AppState.hostelDetails.collectAsState()
     val syncStatus by AppState.syncStatus.collectAsState()
     val syncError by AppState.error.collectAsState()
     
@@ -191,15 +192,6 @@ fun DashboardScreen() {
             Spacer(modifier = Modifier.height(12.dp))
 
             ActionCard(
-                title = "Hostel & Leaves Portal",
-                description = "Mess details, outing leaves, and late hour requests",
-                icon = Icons.Rounded.Home,
-                onClick = { AppState.navigateTo(Screen.HOSTEL) },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-
-            ActionCard(
                 title = "LMS assignments & Exams",
                 description = "Manage digital submissions and check exam venues",
                 icon = Icons.Rounded.List,
@@ -228,14 +220,58 @@ fun DashboardScreen() {
                     onClick = { AppState.navigateTo(Screen.LIBRARY) },
                     modifier = Modifier.weight(1f)
                 )
+                
+                if (hostelDetails?.isHosteller == true) {
+                    ActionCard(
+                        title = "Hostel Portal",
+                        description = "Mess & leaves",
+                        icon = Icons.Rounded.Home,
+                        onClick = { AppState.navigateTo(Screen.HOSTEL) },
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    ActionCard(
+                        title = "Transport Routes",
+                        description = "Bus pass & slots",
+                        icon = Icons.Rounded.Info,
+                        onClick = { AppState.navigateTo(Screen.TRANSPORT) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 ActionCard(
-                    title = "Transport Routes",
-                    description = "Bus pass & slots",
-                    icon = Icons.Rounded.Info,
-                    onClick = { AppState.navigateTo(Screen.TRANSPORT) },
+                    title = "Social & Events",
+                    description = "Fests & clubs",
+                    icon = Icons.Rounded.Star,
+                    onClick = { AppState.navigateTo(Screen.EVENTS) },
+                    modifier = Modifier.weight(1f)
+                )
+
+                ActionCard(
+                    title = "Friends Directory",
+                    description = "Tap to share",
+                    icon = Icons.Rounded.Person,
+                    onClick = { AppState.navigateTo(Screen.SOCIAL) },
                     modifier = Modifier.weight(1f)
                 )
             }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+
+            ActionCard(
+                title = "FFCS Timetable Planner",
+                description = "Plan conflict-free schedules",
+                icon = Icons.Rounded.DateRange,
+                onClick = { AppState.navigateTo(Screen.FFCS) },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
 

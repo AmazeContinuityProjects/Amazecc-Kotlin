@@ -327,3 +327,62 @@ data class LMSRes(
     val error: String? = null,
     val message: String? = null
 )
+
+@Serializable
+data class QBankQuestion(
+    val question_id: String,
+    val question_text: String,
+    val question_type: String,
+    val options: Map<String, String>? = null,
+    val correct_answer: String? = null,
+    val marks: Int? = null,
+    val topic_name: String? = null,
+    val exam_semester: String? = null,
+    val exam_year: String? = null,
+    val image_url: String? = null
+)
+
+@Serializable
+data class QBankRes(
+    val success: Boolean = true,
+    val data: List<QBankQuestion> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class EventHubEvent(
+    val eid: String,
+    val title: String,
+    val eligibility: String? = null,
+    val type: String? = null,
+    val date: String? = null,
+    val location: String? = null,
+    val price: String? = null,
+    val time: String? = null,
+    val isPastEvent: Boolean = false
+)
+
+@Serializable
+data class EventHubRes(
+    val success: Boolean = true,
+    val events: List<EventHubEvent> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class ClubItem(
+    val id: String,
+    val name: String,
+    val description: String? = null,
+    val logoUrl: String? = null
+)
+
+@Serializable
+data class ClubsRes(
+    val success: Boolean = true,
+    val clubs: List<ClubItem> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)

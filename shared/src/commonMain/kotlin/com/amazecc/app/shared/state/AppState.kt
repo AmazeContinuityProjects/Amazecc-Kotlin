@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 
 enum class Screen {
-    LOGIN, DASHBOARD, ATTENDANCE, MARKS, TIMETABLE, HOSTEL, PAYMENTS, LIBRARY, TRANSPORT, LMS, PROFILE
+    LOGIN, DASHBOARD, ATTENDANCE, MARKS, TIMETABLE, HOSTEL, PAYMENTS, LIBRARY, TRANSPORT, LMS, PROFILE, EVENTS, CALENDAR, QBANK, SOCIAL, FFCS
 }
 
 object AppState {
@@ -34,6 +34,9 @@ object AppState {
 
     private val _accent = MutableStateFlow(AccentTheme.OCEAN)
     val accent: StateFlow<AccentTheme> = _accent.asStateFlow()
+
+    private val _uiScale = MutableStateFlow(1.0f)
+    val uiScale: StateFlow<Float> = _uiScale.asStateFlow()
 
     // Semesters
     val semesterIDs = listOf("CH20252601", "CH20242505", "CH20242501", "CH20232405")
@@ -86,6 +89,12 @@ object AppState {
 
     private val _lms = MutableStateFlow<LMSRes?>(null)
     val lms: StateFlow<LMSRes?> = _lms.asStateFlow()
+
+    private val _events = MutableStateFlow<EventHubRes?>(null)
+    val events: StateFlow<EventHubRes?> = _events.asStateFlow()
+
+    private val _clubs = MutableStateFlow<ClubsRes?>(null)
+    val clubs: StateFlow<ClubsRes?> = _clubs.asStateFlow()
 
     // Temp inputs/states
     val cabShareActive = MutableStateFlow(false)
@@ -265,6 +274,24 @@ object AppState {
                                 errorMessage = { it.message ?: it.error },
                                 update = { _lms.value = it }
                             )
+                        },
+                        async {
+                            syncModule(
+                                name = "Events",
+                                fetch = { AmazeClient.getEventsProfile() },
+                                isSuccess = { it.success },
+                                errorMessage = { it.message ?: it.error },
+                                update = { _events.value = it }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Clubs",
+                                fetch = { AmazeClient.getClubsDetails() },
+                                isSuccess = { it.success },
+                                errorMessage = { it.message ?: it.error },
+                                update = { _clubs.value = it }
+                            )
                         }
                     ).awaitAll()
                 }
@@ -322,6 +349,8 @@ object AppState {
         _library.value = null
         _transport.value = null
         _lms.value = null
+        _events.value = null
+        _clubs.value = null
         _error.value = null
         _syncStatus.value = null
     }
@@ -332,6 +361,10 @@ object AppState {
 
     fun changeAccent(accent: AccentTheme) {
         _accent.value = accent
+    }
+
+    fun changeUiScale(scale: Float) {
+        _uiScale.value = scale
     }
 }
 
