@@ -1,3 +1,4 @@
+@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.background
@@ -6,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -34,7 +36,7 @@ fun DashboardScreen() {
     val colors = AmazeTheme.colors
     val authorizedID by SessionManager.authorizedID.collectAsState()
     
-    val selectedSemester by AppState.selectedSemester.collectAsState()
+
     
     val attendanceRes by AppState.attendance.collectAsState()
     val marksRes by AppState.marks.collectAsState()
@@ -186,7 +188,7 @@ fun DashboardScreen() {
             ActionCard(
                 title = "LMS assignments & Exams",
                 description = "Manage digital submissions and check exam venues",
-                icon = Icons.Rounded.List,
+                icon = Icons.AutoMirrored.Rounded.List,
                 onClick = { AppState.navigateTo(Screen.ACADEMICS) },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -296,7 +298,7 @@ fun DashboardScreen() {
                     onClick = { AppState.logout() }
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.ExitToApp, contentDescription = null, tint = colors.danger)
+                        Icon(Icons.AutoMirrored.Rounded.ExitToApp, contentDescription = null, tint = colors.danger)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Secure Exit", style = AmazeTheme.typography.body.copy(color = colors.danger, fontWeight = FontWeight.Bold))
                     }

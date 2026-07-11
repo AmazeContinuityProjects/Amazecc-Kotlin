@@ -1,3 +1,4 @@
+@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.api.AmazeClient

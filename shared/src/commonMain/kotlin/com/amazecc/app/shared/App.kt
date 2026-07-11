@@ -20,6 +20,13 @@ import com.amazecc.app.shared.ui.screens.*
 import com.amazecc.app.shared.ui.screens.libraries.LibrariesScreen
 import com.amazecc.app.shared.ui.screens.transport.TransportScreen
 import com.amazecc.app.shared.ui.screens.academics.FreeClassroomsScreen
+import com.amazecc.app.shared.ui.screens.academics.*
+import com.amazecc.app.shared.ui.screens.cabshare.CabShareScreen
+import com.amazecc.app.shared.ui.screens.events.EventHubScreen
+import com.amazecc.app.shared.ui.screens.hostel.HostelScreen
+import com.amazecc.app.shared.ui.screens.more.MoreScreen
+import com.amazecc.app.shared.ui.screens.onboarding.OnboardingScreen
+import com.amazecc.app.shared.ui.screens.payments.PaymentsScreen
 
 @Composable
 fun App() {

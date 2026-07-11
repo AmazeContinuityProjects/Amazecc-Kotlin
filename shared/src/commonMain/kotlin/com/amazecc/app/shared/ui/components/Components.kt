@@ -10,7 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -274,7 +274,7 @@ fun ActionCard(
             }
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
-                imageVector = Icons.Rounded.ArrowForward,
+                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                 contentDescription = null,
                 tint = colors.textMuted,
                 modifier = Modifier.size(20.dp)
@@ -334,7 +334,6 @@ fun AmazeTextField(
     modifier: Modifier = Modifier,
     isError: Boolean = false,
     errorText: String? = null,
-    isPassword: Boolean = false,
     leadingIcon: @Composable (() -> Unit)? = null
 ) {
     val colors = AmazeTheme.colors
