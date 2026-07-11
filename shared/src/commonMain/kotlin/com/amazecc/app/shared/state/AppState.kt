@@ -16,7 +16,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 
 enum class Screen {
-    LOGIN, DASHBOARD, ATTENDANCE, MARKS, TIMETABLE, HOSTEL, PAYMENTS, LIBRARY, TRANSPORT, LMS, PROFILE
+    LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
+    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS
 }
 
 object AppState {
@@ -25,6 +26,16 @@ object AppState {
     // Navigation
     private val _currentScreen = MutableStateFlow(Screen.LOGIN)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
+    
+    private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
+    val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
+
+    // Sync Notifications
+    private val _isSyncing = MutableStateFlow(false)
+    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+    
+    private val _syncMessage = MutableStateFlow<String?>(null)
+    val syncMessage: StateFlow<String?> = _syncMessage.asStateFlow()
 
     private val backstack = mutableListOf<Screen>()
 
@@ -34,6 +45,21 @@ object AppState {
 
     private val _accent = MutableStateFlow(AccentTheme.OCEAN)
     val accent: StateFlow<AccentTheme> = _accent.asStateFlow()
+
+    private val _uiScale = MutableStateFlow(1.0f)
+    val uiScale: StateFlow<Float> = _uiScale.asStateFlow()
+
+    private val _decimalValues = MutableStateFlow(true)
+    val decimalValues: StateFlow<Boolean> = _decimalValues.asStateFlow()
+
+    private val _friendlyName = MutableStateFlow(true)
+    val friendlyName: StateFlow<Boolean> = _friendlyName.asStateFlow()
+
+    private val _calendarView = MutableStateFlow("List")
+    val calendarView: StateFlow<String> = _calendarView.asStateFlow()
+
+    private val _residentialStatus = MutableStateFlow("Hosteller")
+    val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()
 
     // Semesters
     val semesterIDs = listOf("CH20252601", "CH20242505", "CH20242501", "CH20232405")
@@ -86,6 +112,12 @@ object AppState {
 
     private val _lms = MutableStateFlow<LMSRes?>(null)
     val lms: StateFlow<LMSRes?> = _lms.asStateFlow()
+
+    private val _events = MutableStateFlow<EventHubRes?>(null)
+    val events: StateFlow<EventHubRes?> = _events.asStateFlow()
+
+    private val _clubs = MutableStateFlow<ClubsRes?>(null)
+    val clubs: StateFlow<ClubsRes?> = _clubs.asStateFlow()
 
     // Temp inputs/states
     val cabShareActive = MutableStateFlow(false)
@@ -272,6 +304,24 @@ object AppState {
                                 errorMessage = { it.message ?: it.error },
                                 update = { _lms.value = it }
                             )
+                        },
+                        async {
+                            syncModule(
+                                name = "Events",
+                                fetch = { AmazeClient.getEventsProfile() },
+                                isSuccess = { it.success },
+                                errorMessage = { it.message ?: it.error },
+                                update = { _events.value = it }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Clubs",
+                                fetch = { AmazeClient.getClubsDetails() },
+                                isSuccess = { it.success },
+                                errorMessage = { it.message ?: it.error },
+                                update = { _clubs.value = it }
+                            )
                         }
                     ).awaitAll()
                 }
@@ -329,6 +379,8 @@ object AppState {
         _library.value = null
         _transport.value = null
         _lms.value = null
+        _events.value = null
+        _clubs.value = null
         _error.value = null
         _syncStatus.value = null
     }
@@ -339,6 +391,39 @@ object AppState {
 
     fun changeAccent(accent: AccentTheme) {
         _accent.value = accent
+    }
+
+    fun changeUiScale(scale: Float) {
+        _uiScale.value = scale
+    }
+
+    fun setDecimalValues(enabled: Boolean) {
+        _decimalValues.value = enabled
+    }
+
+    fun setFriendlyName(enabled: Boolean) {
+        _friendlyName.value = enabled
+    }
+
+    fun setCalendarView(view: String) {
+        _calendarView.value = view
+    }
+
+    fun setResidentialStatus(status: String) {
+        _residentialStatus.value = status
+    }
+
+    fun setPinnedNavTabs(tabs: List<Screen>) {
+        if (tabs.size <= 4) {
+            _pinnedNavTabs.value = tabs
+        }
+    }
+
+    fun setSyncStatus(isSyncing: Boolean, message: String? = null) {
+        _isSyncing.value = isSyncing
+        if (message != null) {
+            _syncMessage.value = message
+        }
     }
 }
 

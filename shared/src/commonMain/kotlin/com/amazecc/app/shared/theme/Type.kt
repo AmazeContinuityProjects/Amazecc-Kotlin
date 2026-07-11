@@ -9,38 +9,38 @@ data class AmazeTypography(
     val display: TextStyle = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Black,
-        fontSize = 32.sp,
-        lineHeight = 40.sp
+        fontSize = 28.sp,
+        lineHeight = 36.sp
     ),
     val heading: TextStyle = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
-        fontSize = 24.sp,
-        lineHeight = 32.sp
+        fontSize = 22.sp,
+        lineHeight = 30.sp
     ),
     val subheading: TextStyle = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 20.sp,
-        lineHeight = 28.sp
+        fontSize = 18.sp,
+        lineHeight = 26.sp
     ),
     val body: TextStyle = TextStyle(
-        fontFamily = FontFamily.SansSerif,
-        fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 24.sp
-    ),
-    val caption: TextStyle = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp
     ),
+    val caption: TextStyle = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 12.sp,
+        lineHeight = 18.sp
+    ),
     val smallLabel: TextStyle = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
-        fontSize = 12.sp,
-        lineHeight = 16.sp
+        fontSize = 10.sp,
+        lineHeight = 14.sp
     )
 )
 val Typography = AmazeTypography()
