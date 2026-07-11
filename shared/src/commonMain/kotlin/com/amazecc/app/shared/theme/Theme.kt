@@ -7,7 +7,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 enum class AppTheme {
-    LIGHT, DARK, MIDNIGHT
+    LIGHT, DARK, SYSTEM
 }
 
 enum class AccentTheme {
@@ -145,7 +145,7 @@ val LocalAmazeTypography = staticCompositionLocalOf { Typography }
 
 @Composable
 fun AmazeTheme(
-    appTheme: AppTheme = AppTheme.MIDNIGHT, // Default theme in FEATURE.md is midnight!
+    appTheme: AppTheme = AppTheme.SYSTEM,
     accentTheme: AccentTheme = AccentTheme.OCEAN,
     content: @Composable () -> Unit
 ) {
@@ -156,9 +156,12 @@ fun AmazeTheme(
         AccentTheme.SUNSET -> AccentSunset
     }
 
-    val isDark = appTheme == AppTheme.DARK || appTheme == AppTheme.MIDNIGHT
+    val resolvedTheme = when (appTheme) {
+        AppTheme.SYSTEM -> if (isSystemInDarkTheme()) AppTheme.DARK else AppTheme.LIGHT
+        else -> appTheme
+    }
 
-    val colors = when (appTheme) {
+    val colors = when (resolvedTheme) {
         AppTheme.LIGHT -> AmazeColors(
             background = NeutralBgLight,
             surface = NeutralSurfaceLight,
@@ -203,28 +206,7 @@ fun AmazeTheme(
             infoSurface = ColorInfoSurfaceDark,
             infoText = ColorInfoTextDark
         )
-        AppTheme.MIDNIGHT -> AmazeColors(
-            background = NeutralBgMidnight,
-            surface = NeutralSurfaceMidnight,
-            elevatedSurface = NeutralElevatedMidnight,
-            border = NeutralBorderMidnight,
-            textPrimary = NeutralTextPrimaryMidnight,
-            textSecondary = NeutralTextSecondaryMidnight,
-            textMuted = NeutralTextMutedMidnight,
-            accent = accent,
-            success = ColorSuccess,
-            successSurface = ColorSuccessSurfaceDark,
-            successText = ColorSuccessTextDark,
-            warning = ColorWarning,
-            warningSurface = ColorWarningSurfaceDark,
-            warningText = ColorWarningTextDark,
-            danger = ColorDanger,
-            dangerSurface = ColorDangerSurfaceDark,
-            dangerText = ColorDangerTextDark,
-            info = ColorInfo,
-            infoSurface = ColorInfoSurfaceDark,
-            infoText = ColorInfoTextDark
-        )
+        AppTheme.SYSTEM -> error("System theme must be resolved before selecting colors")
     }
 
     val rememberColors = remember { colors }.apply { updateWith(colors) }

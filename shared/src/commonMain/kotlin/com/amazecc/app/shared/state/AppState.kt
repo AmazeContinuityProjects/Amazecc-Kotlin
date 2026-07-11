@@ -29,7 +29,7 @@ object AppState {
     private val backstack = mutableListOf<Screen>()
 
     // Global settings
-    private val _theme = MutableStateFlow(AppTheme.MIDNIGHT)
+    private val _theme = MutableStateFlow(AppTheme.SYSTEM)
     val theme: StateFlow<AppTheme> = _theme.asStateFlow()
 
     private val _accent = MutableStateFlow(AccentTheme.OCEAN)
@@ -94,6 +94,13 @@ object AppState {
     fun navigateTo(screen: Screen) {
         if (_currentScreen.value != screen) {
             backstack.add(_currentScreen.value)
+            _currentScreen.value = screen
+        }
+    }
+
+    fun switchTopLevel(screen: Screen) {
+        if (_currentScreen.value != screen) {
+            backstack.clear()
             _currentScreen.value = screen
         }
     }

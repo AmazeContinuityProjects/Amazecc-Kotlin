@@ -1,9 +1,12 @@
 package com.amazecc.app.shared.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -106,14 +110,31 @@ fun AmazeCard(
     val radius = AmazeTheme.radius
 
     val bg = backgroundColor ?: colors.surface
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.985f else 1f)
 
     Box(
         modifier = modifier
-            .shadow(2.dp, shape = RoundedCornerShape(radius.medium), clip = false) // Shadow Small
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .shadow(2.dp, RoundedCornerShape(radius.medium), clip = false)
             .clip(RoundedCornerShape(radius.medium)) // 16px Medium Radius
             .background(bg)
             .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onClick
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(16.dp),
         content = content
     )
@@ -130,7 +151,7 @@ fun MetricCard(
     onClick: (() -> Unit)? = null
 ) {
     val colors = AmazeTheme.colors
-    AmazeCard(modifier = modifier, onClick = onClick) {
+    AmazeCard(modifier = modifier, onClick = onClick, backgroundColor = colors.surface) {
         Column {
             Text(
                 text = title,
@@ -164,7 +185,7 @@ fun MetricCard(
                 }
             }
             if (caption != null) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = caption,
                     style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
@@ -193,9 +214,9 @@ fun ActionCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(colors.accent.copy(alpha = 0.1f)),
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.elevatedSurface),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -208,12 +229,12 @@ fun ActionCard(
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = title,
-                    style = AmazeTheme.typography.subheading.copy(
-                        fontSize = 16.sp,
-                        color = colors.textPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
+                text = title,
+                style = AmazeTheme.typography.subheading.copy(
+                    fontSize = 15.sp,
+                    color = colors.textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
@@ -432,7 +453,8 @@ fun PageHeaderContainer(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)) // Semi-Pill top format rounded-b-2xl
-            .background(colors.accent.copy(alpha = 0.08f)) // pastel background block
+            .background(colors.surface)
+            .border(1.dp, colors.border, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
             .padding(top = 24.dp, bottom = 20.dp, start = 20.dp, end = 20.dp)
     ) {
         Column {

@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -70,7 +71,8 @@ fun ScreenHeader(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .background(colors.accent.copy(alpha = 0.08f))
+            .background(colors.surface)
+            .border(1.dp, colors.border, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
             .padding(top = 16.dp, bottom = 16.dp, start = 8.dp, end = 16.dp)
     ) {
         Row(
@@ -123,7 +125,7 @@ fun ScreenHeader(
                     enabled = !isLoading,
                     modifier = Modifier
                         .size(44.dp)
-                        .background(colors.accent.copy(alpha = 0.1f), CircleShape)
+                        .background(colors.elevatedSurface, CircleShape)
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -499,7 +501,7 @@ fun TimetableSubScreen() {
                                     modifier = Modifier
                                         .size(44.dp)
                                         .clip(CircleShape)
-                                        .background(colors.accent.copy(alpha = 0.1f)),
+                                        .background(colors.elevatedSurface),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(course.slNo, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
@@ -522,7 +524,7 @@ fun TimetableSubScreen() {
                                     modifier = Modifier
                                         .size(44.dp)
                                         .clip(CircleShape)
-                                        .background(colors.accent.copy(alpha = 0.1f)),
+                                        .background(colors.elevatedSurface),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(course.slotName, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
@@ -872,8 +874,8 @@ fun TransportSubScreen() {
                             Box(
                                 modifier = Modifier
                                     .size(40.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(colors.accent.copy(alpha = 0.1f)),
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(colors.elevatedSurface),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(Icons.Rounded.Info, contentDescription = null, tint = colors.accent)
@@ -1045,7 +1047,7 @@ fun ProfileScreen() {
                         modifier = Modifier
                             .size(56.dp)
                             .clip(CircleShape)
-                            .background(colors.accent.copy(alpha = 0.1f)),
+                            .background(colors.elevatedSurface),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Rounded.AccountCircle, contentDescription = null, tint = colors.accent, modifier = Modifier.size(36.dp))
@@ -1067,6 +1069,12 @@ fun ProfileScreen() {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     AmazeButton(
+                        text = "System",
+                        onClick = { AppState.changeTheme(AppTheme.SYSTEM) },
+                        variant = if (activeTheme == AppTheme.SYSTEM) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
+                        modifier = Modifier.weight(1f)
+                    )
+                    AmazeButton(
                         text = "Light",
                         onClick = { AppState.changeTheme(AppTheme.LIGHT) },
                         variant = if (activeTheme == AppTheme.LIGHT) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
@@ -1076,12 +1084,6 @@ fun ProfileScreen() {
                         text = "Dark",
                         onClick = { AppState.changeTheme(AppTheme.DARK) },
                         variant = if (activeTheme == AppTheme.DARK) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
-                        modifier = Modifier.weight(1f)
-                    )
-                    AmazeButton(
-                        text = "Midnight",
-                        onClick = { AppState.changeTheme(AppTheme.MIDNIGHT) },
-                        variant = if (activeTheme == AppTheme.MIDNIGHT) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
                         modifier = Modifier.weight(1f)
                     )
                 }
