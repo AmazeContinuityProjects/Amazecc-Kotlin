@@ -335,7 +335,7 @@ fun AttendanceSubScreen() {
         }
     }
 
-    var activeTab by remember { mutableStateOf("All Subjects") }
+    var activeTab by remember { mutableStateOf("Daily Planner") }
     var activePlannerDay by remember { mutableStateOf("Mon") }
 
     val displayAverage = average?.let {
@@ -537,30 +537,48 @@ fun AttendanceSubScreen() {
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            AmazeBadge(text = slot, variant = BadgeVariant.INFO)
-                                            Spacer(modifier = Modifier.width(8.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        // Vertical Indicator bar colored by attendance safety status
+                                        val percentage = course.attendancePercentage?.toDoubleOrNull() ?: 100.0
+                                        val isCritical = percentage < targetPct
+                                        Box(
+                                            modifier = Modifier
+                                                .width(4.dp)
+                                                .height(56.dp)
+                                                .clip(RoundedCornerShape(999.dp))
+                                                .background(if (isCritical) colors.danger else colors.success)
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        
+                                        Column {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                AmazeBadge(text = slot, variant = BadgeVariant.INFO)
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(
+                                                    text = timeRange,
+                                                    style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold, color = colors.accent)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
                                             Text(
-                                                text = timeRange,
-                                                style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold, color = colors.textSecondary)
+                                                text = course.courseTitle,
+                                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                                            )
+                                            Text(
+                                                text = "${course.courseCode} • ${course.courseType ?: "Theory"} • Venue: ${course.slotVenue ?: "Not mapped"}",
+                                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                                             )
                                         }
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = course.courseTitle,
-                                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                                        )
-                                        Text(
-                                            text = "${course.courseCode} • ${course.courseType ?: "Theory"}",
-                                            style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
-                                        )
                                     }
                                     
                                     val percentage = course.attendancePercentage?.toDoubleOrNull() ?: 100.0
-                                    val isCritical = percentage < 75.0
+                                    val isCritical = percentage < targetPct
+                                    val displayPct = if (decimalValues) "${percentage}%" else "${percentage.toInt()}%"
                                     AmazeBadge(
-                                        text = "${percentage.toInt()}%",
+                                        text = displayPct,
                                         variant = if (isCritical) BadgeVariant.DANGER else BadgeVariant.SUCCESS
                                     )
                                 }
@@ -1107,12 +1125,14 @@ fun MarksSubScreen() {
                         item {
                             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                                 Column {
+                                    val hideCGPA by SessionManager.hideCGPA.collectAsState()
+                                    val displayGpa = if (hideCGPA) "*.*" else (semResult.gpa ?: "—")
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
                                         Text(semId, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                        Text("GPA: ${semResult.gpa ?: "—"}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent))
+                                        Text("GPA: $displayGpa", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent))
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
                                     
@@ -1916,6 +1936,24 @@ fun ProfileScreen() {
 
                         HorizontalDivider(color = colors.border)
 
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Hide CGPA", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                                Text("Conceal cumulative grade points across the app", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                            }
+                            val hideCGPA by SessionManager.hideCGPA.collectAsState()
+                            Switch(
+                                checked = hideCGPA,
+                                onCheckedChange = { SessionManager.hideCGPA.value = it }
+                            )
+                        }
+
+                        HorizontalDivider(color = colors.border)
+
                         Column {
                             Text("Residential Status / Bus Attendance Limit", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontWeight = FontWeight.Bold))
                             Spacer(modifier = Modifier.height(8.dp))
@@ -2068,7 +2106,8 @@ fun PostLoginOnboardingScreen() {
     val syncStatus by AppState.syncStatus.collectAsState()
 
     var friendlyName by remember { mutableStateOf("") }
-    var selectedSem by remember { mutableStateOf("CH20252601") }
+    val initialSelectedSem = remember { AppState.selectedSemester.value }
+    var selectedSem by remember { mutableStateOf(initialSelectedSem) }
     var resStatus by remember { mutableStateOf("hosteller") } // "hosteller", "dayscholar_bus", "dayscholar_nobus"
     var showDecimalPct by remember { mutableStateOf(false) }
 
@@ -2134,40 +2173,76 @@ fun PostLoginOnboardingScreen() {
 
                 // 2. Semester selection dropdown
                 Column {
+                    val semesters by AppState.availableSemesters.collectAsState()
+                    val displaySemesters = semesters.ifEmpty {
+                        AppState.semesterIDs.map {
+                            SemesterOption(
+                                it,
+                                when (it) {
+                                    "CH20252601" -> "Fall Semester 2025-26"
+                                    "CH20242505" -> "Winter Semester 2024-25"
+                                    "CH20242501" -> "Fall Semester 2024-25"
+                                    else -> "Semester ${it.takeLast(6)}"
+                                }
+                            )
+                        }
+                    }
+
                     Text(
                         text = "Active Academic Semester",
                         style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                     )
                     Spacer(modifier = Modifier.height(6.dp))
-                    val semesters = AppState.semesterIDs
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+
+                    var expanded by remember { mutableStateOf(false) }
+                    val selectedLabel = displaySemesters.find { it.value == selectedSem }?.label ?: selectedSem
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(radius.small))
+                            .background(colors.elevatedSurface)
+                            .border(1.dp, colors.border, RoundedCornerShape(radius.small))
+                            .clickable { expanded = !expanded }
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
                     ) {
-                        semesters.take(3).forEach { sem ->
-                            val isSelected = selectedSem == sem
-                            val semLabel = when(sem) {
-                                "CH20252601" -> "Fall 25-26"
-                                "CH20242505" -> "Winter 24-25"
-                                "CH20242501" -> "Fall 24-25"
-                                else -> sem.takeLast(6)
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(radius.small))
-                                    .background(if (isSelected) colors.accent else colors.elevatedSurface)
-                                    .border(1.dp, if (isSelected) colors.accent else colors.border, RoundedCornerShape(radius.small))
-                                    .clickable { selectedSem = sem }
-                                    .padding(vertical = 10.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = semLabel,
-                                    color = if (isSelected) colors.surface else colors.textPrimary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = selectedLabel,
+                                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold)
+                            )
+                            Icon(
+                                imageVector = if (expanded) Icons.Rounded.ArrowDropUp else Icons.Rounded.ArrowDropDown,
+                                contentDescription = null,
+                                tint = colors.textMuted,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier
+                                .background(colors.surface)
+                                .border(1.dp, colors.border, RoundedCornerShape(radius.small))
+                        ) {
+                            displaySemesters.forEach { sem ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = sem.label,
+                                            color = if (sem.value == selectedSem) colors.accent else colors.textPrimary,
+                                            fontWeight = if (sem.value == selectedSem) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    onClick = {
+                                        expanded = false
+                                        selectedSem = sem.value
+                                    }
                                 )
                             }
                         }
@@ -2292,3 +2367,226 @@ fun PostLoginOnboardingScreen() {
         Spacer(modifier = Modifier.height(20.dp))
     }
 }
+
+@Composable
+fun ODScreen() {
+    val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+    val attendanceRes by AppState.attendance.collectAsState()
+    val courses = attendanceRes?.attendance ?: emptyList()
+    val decimalValues by SessionManager.decimalValues.collectAsState()
+
+    // Parse all On-Duty instances
+    val odInstances = remember(courses) {
+        val list = mutableListOf<Triple<String, AttendanceItem, DetailedAttendance>>()
+        courses.forEach { course ->
+            course.viewLink?.forEach { day ->
+                if (day.status.equals("On Duty", ignoreCase = true)) {
+                    list.add(Triple(day.date, course, day))
+                }
+            }
+        }
+        list.sortedByDescending { it.first }
+    }
+
+    // Keep track of user's simulation: which ODs are "wasted" (manually toggled)
+    // Key: date_courseCode -> true (if wasted)
+    var wastedTracker by remember { mutableStateOf(mapOf<String, Boolean>()) }
+
+    val stats = remember(odInstances, wastedTracker) {
+        var total = 0
+        var wasted = 0
+        odInstances.forEach { (date, course, _) ->
+            val isLab = course.slotName.startsWith("L", ignoreCase = true)
+            val hours = if (isLab) 2 else 1
+            total += hours
+            val key = "${date}_${course.courseCode}"
+            if (wastedTracker[key] == true) {
+                wasted += hours
+            }
+        }
+        val valid = total - wasted
+        Triple(total, valid, wasted)
+    }
+    val (totalHours, validHours, wastedHours) = stats
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+    ) {
+        ScreenHeader(
+            title = "OD Tracker",
+            description = "Track approved On-Duty hours and analyze wasted OD classes",
+            showBackButton = true,
+            showSyncButton = true
+        )
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Stats Panel
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Total Approved
+                AmazeCard(
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = colors.elevatedSurface
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Approved",
+                            style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "$totalHours hrs",
+                            style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Black, fontSize = 20.sp)
+                        )
+                    }
+                }
+
+                // Valid OD
+                AmazeCard(
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = colors.successSurface
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Valid",
+                            style = AmazeTheme.typography.caption.copy(color = colors.success.copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "$validHours hrs",
+                            style = AmazeTheme.typography.body.copy(color = colors.success, fontWeight = FontWeight.Black, fontSize = 20.sp)
+                        )
+                    }
+                }
+
+                // Wasted OD
+                AmazeCard(
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = colors.dangerSurface
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = "Wasted",
+                            style = AmazeTheme.typography.caption.copy(color = colors.danger.copy(alpha = 0.8f), fontWeight = FontWeight.Bold)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "$wastedHours hrs",
+                            style = AmazeTheme.typography.body.copy(color = colors.danger, fontWeight = FontWeight.Black, fontSize = 20.sp)
+                        )
+                    }
+                }
+            }
+
+            // Explainer Card
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = null,
+                        tint = colors.accent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Mark an OD class as \"Wasted\" if you went and attended the lecture anyway. Wasted ODs do not contribute to your safety buffer.",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                    )
+                }
+            }
+
+            // List of instances
+            Text(
+                text = "On-Duty Instances Log",
+                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = colors.textPrimary)
+            )
+
+            if (odInstances.isEmpty()) {
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No approved On-Duty entries found for this semester.",
+                            style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+                        )
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    odInstances.forEach { (date, course, day) ->
+                        val isLab = course.slotName.startsWith("L", ignoreCase = true)
+                        val hours = if (isLab) 2 else 1
+                        val key = "${date}_${course.courseCode}"
+                        val isWasted = wastedTracker[key] == true
+
+                        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = date,
+                                            style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        AmazeBadge(
+                                            text = "$hours hr" + (if (hours > 1) "s" else ""),
+                                            variant = BadgeVariant.INFO
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = course.courseTitle,
+                                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                                    )
+                                    Text(
+                                        text = "${course.courseCode} • Slot ${course.slotName}",
+                                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = if (isWasted) "Wasted" else "Valid",
+                                        style = AmazeTheme.typography.caption.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isWasted) colors.danger else colors.success
+                                        )
+                                    )
+                                    Switch(
+                                        checked = !isWasted,
+                                        onCheckedChange = { isValid ->
+                                            val tracker = wastedTracker.toMutableMap()
+                                            tracker[key] = !isValid
+                                            wastedTracker = tracker
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

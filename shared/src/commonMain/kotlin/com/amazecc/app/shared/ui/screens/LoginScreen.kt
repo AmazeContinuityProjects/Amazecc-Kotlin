@@ -648,7 +648,9 @@ private fun AuthScreen() {
                                             clubToken = response.clubToken
                                         )
                                         AmazeClient.setUseMockData(username.lowercase() == "demo" || username.uppercase() == "DEMO123")
-                                        AppState.switchTopLevel(Screen.POST_LOGIN_ONBOARDING)
+                                        AppState.loadSemesters {
+                                            AppState.switchTopLevel(Screen.POST_LOGIN_ONBOARDING)
+                                        }
                                     } else {
                                         errorMessage = response.message ?: "Authentication failed. Check your VTOP credentials."
                                         launch {
@@ -712,7 +714,9 @@ private fun AuthScreen() {
                                         clubToken = null
                                     )
                                     AmazeClient.setUseMockData(true)
-                                    AppState.switchTopLevel(Screen.POST_LOGIN_ONBOARDING)
+                                    AppState.loadSemesters {
+                                        AppState.switchTopLevel(Screen.POST_LOGIN_ONBOARDING)
+                                    }
                                 } catch (e: Exception) {
                                     errorMessage = "Demo mode could not start."
                                 } finally {

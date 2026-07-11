@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
 
 enum class Screen {
-    LOGIN, POST_LOGIN_ONBOARDING, DASHBOARD, ATTENDANCE, MARKS, TIMETABLE, HOSTEL, PAYMENTS, LIBRARY, TRANSPORT, LMS, PROFILE
+    LOGIN, POST_LOGIN_ONBOARDING, DASHBOARD, ATTENDANCE, MARKS, TIMETABLE, HOSTEL, PAYMENTS, LIBRARY, TRANSPORT, LMS, PROFILE, OD_TRACKER
 }
 
 object AppState {
@@ -37,6 +37,9 @@ object AppState {
 
     // Semesters
     val semesterIDs = listOf("CH20252601", "CH20242505", "CH20242501", "CH20232405")
+    private val _availableSemesters = MutableStateFlow<List<SemesterOption>>(emptyList())
+    val availableSemesters: StateFlow<List<SemesterOption>> = _availableSemesters.asStateFlow()
+
     private val _selectedSemester = MutableStateFlow("CH20252601")
     val selectedSemester: StateFlow<String> = _selectedSemester.asStateFlow()
 
@@ -347,6 +350,7 @@ object AppState {
         _lms.value = null
         _error.value = null
         _syncStatus.value = null
+        _availableSemesters.value = emptyList()
     }
 
     fun changeTheme(theme: AppTheme) {
@@ -355,6 +359,26 @@ object AppState {
 
     fun changeAccent(accent: AccentTheme) {
         _accent.value = accent
+    }
+
+    fun loadSemesters(onComplete: () -> Unit = {}) {
+        scope.launch {
+            try {
+                val sems = AmazeClient.getSemestersList()
+                if (sems.isNotEmpty()) {
+                    _availableSemesters.value = sems
+                    val currentSel = _selectedSemester.value
+                    if (sems.none { it.value == currentSel }) {
+                        val autoSelected = sems.find { it.selected }?.value ?: sems.first().value
+                        _selectedSemester.value = autoSelected
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore
+            } finally {
+                onComplete()
+            }
+        }
     }
 }
 

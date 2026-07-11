@@ -116,8 +116,25 @@ object AmazeClient {
                 success = true,
                 semesterId = semesterId ?: "CH20252601",
                 attendance = listOf(
-                    AttendanceItem(slNo = "1", courseCode = "CSE1001", courseTitle = "Software Engineering", courseType = "Theory", slotName = "A1+TA1", faculty = "Dr. Amit Kumar", attendedClasses = 26, totalClasses = 30, attendancePercentage = "86", slotVenue = "SJT-402", credits = "3", category = "PC"),
-                    AttendanceItem(slNo = "2", courseCode = "CSE2002", courseTitle = "Database Management Systems", courseType = "Theory", slotName = "B1+TB1", faculty = "Dr. Rajeev Sen", attendedClasses = 14, totalClasses = 20, attendancePercentage = "70", slotVenue = "SJT-503", credits = "4", category = "PC"),
+                    AttendanceItem(
+                        slNo = "1", courseCode = "CSE1001", courseTitle = "Software Engineering", courseType = "Theory", slotName = "A1+TA1", faculty = "Dr. Amit Kumar", attendedClasses = 26, totalClasses = 30, attendancePercentage = "86", slotVenue = "SJT-402", credits = "3", category = "PC",
+                        viewLink = listOf(
+                            DetailedAttendance("2026-07-01", "Present"),
+                            DetailedAttendance("2026-07-03", "Present"),
+                            DetailedAttendance("2026-07-06", "On Duty"),
+                            DetailedAttendance("2026-07-08", "Present"),
+                            DetailedAttendance("2026-07-10", "Absent")
+                        )
+                    ),
+                    AttendanceItem(
+                        slNo = "2", courseCode = "CSE2002", courseTitle = "Database Management Systems", courseType = "Theory", slotName = "B1+TB1", faculty = "Dr. Rajeev Sen", attendedClasses = 14, totalClasses = 20, attendancePercentage = "70", slotVenue = "SJT-503", credits = "4", category = "PC",
+                        viewLink = listOf(
+                            DetailedAttendance("2026-07-01", "Present"),
+                            DetailedAttendance("2026-07-02", "Absent"),
+                            DetailedAttendance("2026-07-07", "On Duty"),
+                            DetailedAttendance("2026-07-09", "Present")
+                        )
+                    ),
                     AttendanceItem(slNo = "3", courseCode = "CSE3001", courseTitle = "Artificial Intelligence", courseType = "Embedded Lab", slotName = "L1+L2", faculty = "Prof. Priya Nair", attendedClasses = 10, totalClasses = 10, attendancePercentage = "100", slotVenue = "TT-204", credits = "4", category = "PE"),
                     AttendanceItem(slNo = "4", courseCode = "MAT2001", courseTitle = "Differential Equations", courseType = "Theory", slotName = "C1+TC1", faculty = "Dr. Sarah John", attendedClasses = 16, totalClasses = 24, attendancePercentage = "66", slotVenue = "SJT-612", credits = "3", category = "UC")
                 )
@@ -391,6 +408,22 @@ object AmazeClient {
             postAuthorized<LMSRes>("lms-data") ?: LMSRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             LMSRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getSemestersList(): List<SemesterOption> {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return listOf(
+                SemesterOption("CH20252601", "Fall Semester 2025-26", true),
+                SemesterOption("CH20242505", "Winter Semester 2024-25", false),
+                SemesterOption("CH20242501", "Fall Semester 2024-25", false)
+            )
+        }
+        return try {
+            val response = postAuthorized<CoursePageRes>("course-page")
+            response?.semesters ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 }

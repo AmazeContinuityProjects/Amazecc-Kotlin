@@ -77,7 +77,8 @@ fun DashboardScreen() {
     val criticalCourses = remember(attendance) {
         attendance.filter { (it.attendancePercentage?.toDoubleOrNull() ?: 100.0) < 75.0 }
     }
-    val cgpa = marksRes?.cgpa?.cgpa ?: "—"
+    val hideCGPA by SessionManager.hideCGPA.collectAsState()
+    val cgpa = if (hideCGPA) "*.*" else (marksRes?.cgpa?.cgpa ?: "—")
     val credits = remember(marksRes) {
         val earned = marksRes?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
         val nonGraded = marksRes?.cgpa?.nonGradedRequirement?.toDoubleOrNull() ?: 0.0

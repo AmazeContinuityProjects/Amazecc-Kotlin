@@ -29,6 +29,8 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.ShoppingCart
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.material.icons.rounded.ArrowDropUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -67,9 +69,12 @@ fun App() {
         if (SessionManager.isLoggedIn) {
             if (SessionManager.postLoginCompleted.value) {
                 AppState.switchTopLevel(Screen.DASHBOARD)
+                AppState.loadSemesters()
                 AppState.loadAllData()
             } else {
-                AppState.switchTopLevel(Screen.POST_LOGIN_ONBOARDING)
+                AppState.loadSemesters {
+                    AppState.switchTopLevel(Screen.POST_LOGIN_ONBOARDING)
+                }
             }
         }
     }
@@ -107,6 +112,7 @@ fun App() {
                                 Screen.TRANSPORT -> TransportScreen()
                                 Screen.LMS -> LMSScreen()
                                 Screen.PROFILE -> ProfileScreen()
+                                Screen.OD_TRACKER -> ODScreen()
                             }
                         }
                     }
@@ -272,6 +278,7 @@ private fun AmazeMoreSheet(
         MoreModule("Library", "Issued books, dues, and KOHA access", Icons.Rounded.Book, Screen.LIBRARY),
         MoreModule("Transport", "Bus routes and day scholar status", Icons.Rounded.Info, Screen.TRANSPORT),
         MoreModule("LMS", "Assignments, deadlines, and submissions", Icons.Rounded.List, Screen.LMS),
+        MoreModule("OD Tracker", "Track approved On-Duty hours and class attendance", Icons.Rounded.Star, Screen.OD_TRACKER),
         MoreModule("Profile", "Student summary and preferences", Icons.Rounded.AccountCircle, Screen.PROFILE)
     )
     val filteredModules = modules.filter {
@@ -323,6 +330,74 @@ private fun AmazeMoreSheet(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Dynamic Semesters Dropdown
+            val semesters by AppState.availableSemesters.collectAsState()
+            val selectedSem by AppState.selectedSemester.collectAsState()
+            if (semesters.isNotEmpty()) {
+                var expanded by remember { mutableStateOf(false) }
+                val selectedLabel = semesters.find { it.value == selectedSem }?.label ?: selectedSem
+                
+                Column {
+                    Text(
+                        text = "Active Academic Semester",
+                        style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textSecondary)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(radius.medium))
+                            .background(colors.elevatedSurface)
+                            .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
+                            .clickable { expanded = !expanded }
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = selectedLabel,
+                                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold)
+                            )
+                            Icon(
+                                imageVector = if (expanded) Icons.Rounded.ArrowDropUp else Icons.Rounded.ArrowDropDown,
+                                contentDescription = null,
+                                tint = colors.textMuted,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                        
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false },
+                            modifier = Modifier
+                                .background(colors.surface)
+                                .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
+                        ) {
+                            semesters.forEach { sem ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = sem.label,
+                                            color = if (sem.value == selectedSem) colors.accent else colors.textPrimary,
+                                            fontWeight = if (sem.value == selectedSem) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    onClick = {
+                                        expanded = false
+                                        AppState.selectSemester(sem.value)
+                                        AppState.loadAllData()
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             OutlinedTextField(
                 value = query,

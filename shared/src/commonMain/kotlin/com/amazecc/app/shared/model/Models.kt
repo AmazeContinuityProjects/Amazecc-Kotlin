@@ -54,7 +54,8 @@ data class AttendanceItem(
     val slotVenue: String? = null,
     val classId: String? = null,
     val credits: String? = null,
-    val category: String? = null
+    val category: String? = null,
+    val viewLink: List<DetailedAttendance>? = null
 )
 
 @Serializable
@@ -324,6 +325,21 @@ data class LMSAssignment(
 data class LMSRes(
     val success: Boolean = true,
     val assignments: List<LMSAssignment> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class SemesterOption(
+    val value: String,
+    val label: String,
+    val selected: Boolean = false
+)
+
+@Serializable
+data class CoursePageRes(
+    val success: Boolean = true,
+    val semesters: List<SemesterOption> = emptyList(),
     val error: String? = null,
     val message: String? = null
 )

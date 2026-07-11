@@ -29,6 +29,7 @@ object SessionManager {
     val residentialStatus = MutableStateFlow("hosteller") // hosteller, dayscholar
     val friendlyName = MutableStateFlow("")
     val postLoginCompleted = MutableStateFlow(false)
+    val hideCGPA = MutableStateFlow(false)
 
     // Dashboard customization settings
     val dashboardWidgets = MutableStateFlow(listOf(
@@ -71,6 +72,7 @@ object SessionManager {
         residentialStatus.value = "hosteller"
         friendlyName.value = ""
         postLoginCompleted.value = false
+        hideCGPA.value = false
     }
 
     fun moveWidgetUp(widget: DashboardWidget) {
