@@ -328,6 +328,7 @@ object AppState {
 
     fun logout() {
         SessionManager.clearSession()
+        com.amazecc.app.shared.api.AmazeClient.setUseMockData(false)
         backstack.clear()
         _currentScreen.value = Screen.LOGIN
         

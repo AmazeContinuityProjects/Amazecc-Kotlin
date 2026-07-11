@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -959,10 +960,14 @@ private fun AnimatedDashboardItem(
     }
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(animationSpec = tween(durationMillis = 200, delayMillis = index * 40)) +
+        enter = fadeIn(animationSpec = tween(durationMillis = 280, delayMillis = index * 50)) +
             slideInVertically(
-                animationSpec = tween(durationMillis = 240, delayMillis = index * 40),
-                initialOffsetY = { it / 8 }
+                animationSpec = tween(durationMillis = 320, delayMillis = index * 50),
+                initialOffsetY = { it / 10 }
+            ) +
+            scaleIn(
+                initialScale = 0.95f,
+                animationSpec = tween(durationMillis = 280, delayMillis = index * 50)
             )
     ) {
         content()

@@ -40,25 +40,109 @@ import kotlin.math.floor
 import kotlinx.coroutines.launch
 
 @Composable
-fun AttendanceScreen() = AcademicsScreen(initialTab = "Attendance")
+fun AttendanceScreen() {
+    Column(modifier = Modifier.fillMaxSize().background(AmazeTheme.colors.background)) {
+        ScreenHeader(
+            title = "Attendance Tracker",
+            description = "Monitor your academic presence",
+            showBackButton = false,
+            showSyncButton = true
+        )
+        Box(modifier = Modifier.weight(1f).padding(16.dp)) {
+            AttendanceSubScreen()
+        }
+    }
+}
 
 @Composable
-fun MarksGradesScreen() = AcademicsScreen(initialTab = "Marks & GPA")
+fun MarksGradesScreen() {
+    Column(modifier = Modifier.fillMaxSize().background(AmazeTheme.colors.background)) {
+        ScreenHeader(
+            title = "Academics & GPA",
+            description = "Check internal marks and grades",
+            showBackButton = false,
+            showSyncButton = true
+        )
+        Box(modifier = Modifier.weight(1f).padding(16.dp)) {
+            MarksSubScreen()
+        }
+    }
+}
 
 @Composable
-fun TimetableScreen() = AcademicsScreen(initialTab = "Schedule")
+fun TimetableScreen() {
+    Column(modifier = Modifier.fillMaxSize().background(AmazeTheme.colors.background)) {
+        ScreenHeader(
+            title = "Class Timetable",
+            description = "Your daily class slots and venues",
+            showBackButton = true,
+            showSyncButton = true
+        )
+        Box(modifier = Modifier.weight(1f).padding(16.dp)) {
+            TimetableSubScreen()
+        }
+    }
+}
 
 @Composable
-fun PaymentsScreen() = ServicesScreen(initialTab = "Payments")
+fun PaymentsScreen() {
+    Column(modifier = Modifier.fillMaxSize().background(AmazeTheme.colors.background)) {
+        ScreenHeader(
+            title = "Online Payments",
+            description = "Track college dues and transaction history",
+            showBackButton = true,
+            showSyncButton = true
+        )
+        Box(modifier = Modifier.weight(1f).padding(16.dp)) {
+            PaymentsSubScreen()
+        }
+    }
+}
 
 @Composable
-fun LibraryScreen() = ServicesScreen(initialTab = "Library")
+fun LibraryScreen() {
+    Column(modifier = Modifier.fillMaxSize().background(AmazeTheme.colors.background)) {
+        ScreenHeader(
+            title = "Library Catalog",
+            description = "Koha catalog and issued books status",
+            showBackButton = true,
+            showSyncButton = true
+        )
+        Box(modifier = Modifier.weight(1f).padding(16.dp)) {
+            LibrarySubScreen()
+        }
+    }
+}
 
 @Composable
-fun TransportScreen() = ServicesScreen(initialTab = "Transport")
+fun TransportScreen() {
+    Column(modifier = Modifier.fillMaxSize().background(AmazeTheme.colors.background)) {
+        ScreenHeader(
+            title = "Campus Transport",
+            description = "Day scholar bus routes and timings",
+            showBackButton = true,
+            showSyncButton = true
+        )
+        Box(modifier = Modifier.weight(1f).padding(16.dp)) {
+            TransportSubScreen()
+        }
+    }
+}
 
 @Composable
-fun LMSScreen() = ServicesScreen(initialTab = "LMS")
+fun LMSScreen() {
+    Column(modifier = Modifier.fillMaxSize().background(AmazeTheme.colors.background)) {
+        ScreenHeader(
+            title = "LMS Assignments",
+            description = "Sync deadlines and submit reports",
+            showBackButton = true,
+            showSyncButton = true
+        )
+        Box(modifier = Modifier.weight(1f).padding(16.dp)) {
+            LMSSubScreen()
+        }
+    }
+}
 
 // Unified top-level header with back navigation and a concurrent Sync/Refresh action
 @Composable
@@ -151,138 +235,66 @@ fun ScreenHeader(
     }
 }
 
-// ── 1. UNIFIED ACADEMICS SCREEN (TABS: ATTENDANCE, MARKS, SCHEDULE) ──
-
-@Composable
-fun AcademicsScreen(initialTab: String = "Attendance") {
-    val colors = AmazeTheme.colors
-    var activeSubTab by remember(initialTab) { mutableStateOf(initialTab) }
-    val tabs = listOf("Attendance", "Marks & GPA", "Schedule")
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
-        ScreenHeader(
-            title = "Academics Hub",
-            description = "Track classes, grades & schedules",
-            showBackButton = false,
-            showSyncButton = true
+fun getClassesForDay(attendance: List<AttendanceItem>, day: String): List<Triple<String, String, AttendanceItem>> {
+    val dayUpper = day.uppercase().take(3)
+    val daySlots = when (dayUpper) {
+        "MON" -> mapOf(
+            "A1" to "08:00 - 08:50", "F1" to "08:55 - 09:45", "D1" to "09:50 - 10:40",
+            "TB1" to "10:45 - 11:35", "TG1" to "11:40 - 12:30", "A2" to "14:00 - 14:50",
+            "F2" to "14:55 - 15:45", "D2" to "15:50 - 16:40", "TB2" to "16:45 - 17:35",
+            "TG2" to "17:40 - 18:30", "L1" to "08:00 - 09:40", "L2" to "09:50 - 11:30",
+            "L3" to "11:40 - 13:20", "L31" to "14:00 - 15:40", "L32" to "15:50 - 17:30",
+            "L33" to "17:40 - 19:20"
         )
+        "TUE" -> mapOf(
+            "B1" to "08:00 - 08:50", "G1" to "08:55 - 09:45", "E1" to "09:50 - 10:40",
+            "TC1" to "10:45 - 11:35", "TAA1" to "11:40 - 12:30", "B2" to "14:00 - 14:50",
+            "G2" to "14:55 - 15:45", "E2" to "15:50 - 16:40", "TC2" to "16:45 - 17:35",
+            "TAA2" to "17:40 - 18:30", "L7" to "08:00 - 09:40", "L8" to "09:50 - 11:30",
+            "L9" to "11:40 - 13:20", "L37" to "14:00 - 15:40", "L38" to "15:50 - 17:30",
+            "L39" to "17:40 - 19:20"
+        )
+        "WED" -> mapOf(
+            "C1" to "08:00 - 08:50", "A1" to "08:55 - 09:45", "F1" to "09:50 - 10:40",
+            "TD1" to "10:45 - 11:35", "TBB1" to "11:40 - 12:30", "C2" to "14:00 - 14:50",
+            "A2" to "14:55 - 15:45", "F2" to "15:50 - 16:40", "TD2" to "16:45 - 17:35",
+            "TBB2" to "17:40 - 18:30", "L13" to "08:00 - 09:40", "L14" to "09:50 - 11:30",
+            "L15" to "11:40 - 13:20", "L43" to "14:00 - 15:40", "L44" to "15:50 - 17:30",
+            "L45" to "17:40 - 19:20"
+        )
+        "THU" -> mapOf(
+            "D1" to "08:00 - 08:50", "B1" to "08:55 - 09:45", "G1" to "09:50 - 10:40",
+            "TE1" to "10:45 - 11:35", "TCC1" to "11:40 - 12:30", "D2" to "14:00 - 14:50",
+            "B2" to "14:55 - 15:45", "G2" to "15:50 - 16:40", "TE2" to "16:45 - 17:35",
+            "TCC2" to "17:40 - 18:30", "L19" to "08:00 - 09:40", "L20" to "09:50 - 11:30",
+            "L21" to "11:40 - 13:20", "L49" to "14:00 - 15:40", "L50" to "15:50 - 17:30",
+            "L51" to "17:40 - 19:20"
+        )
+        "FRI" -> mapOf(
+            "E1" to "08:00 - 08:50", "C1" to "08:55 - 09:45", "A1" to "09:50 - 10:40",
+            "TF1" to "10:45 - 11:35", "TDD1" to "11:40 - 12:30", "E2" to "14:00 - 14:50",
+            "C2" to "14:55 - 15:45", "A2" to "15:50 - 16:40", "TF2" to "16:45 - 17:35",
+            "TDD2" to "17:40 - 18:30", "L25" to "08:00 - 09:40", "L26" to "09:50 - 11:30",
+            "L27" to "11:40 - 13:20", "L55" to "14:00 - 15:40", "L56" to "15:50 - 17:30",
+            "L57" to "17:40 - 19:20"
+        )
+        else -> emptyMap()
+    }
 
-        // Sub-Tab Navigation row
-        TabRow(
-            selectedTabIndex = tabs.indexOf(activeSubTab),
-            containerColor = colors.background,
-            contentColor = colors.accent,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[tabs.indexOf(activeSubTab)]),
-                    color = colors.accent
-                )
-            }
-        ) {
-            tabs.forEach { tab ->
-                Tab(
-                    selected = activeSubTab == tab,
-                    onClick = { activeSubTab = tab },
-                    text = {
-                        Text(
-                            text = tab,
-                            style = AmazeTheme.typography.body.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        )
-                    },
-                    selectedContentColor = colors.accent,
-                    unselectedContentColor = colors.textSecondary
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .padding(16.dp)
-        ) {
-            when (activeSubTab) {
-                "Attendance" -> AttendanceSubScreen()
-                "Marks & GPA" -> MarksSubScreen()
-                "Schedule" -> TimetableSubScreen()
+    val dayClasses = mutableListOf<Triple<String, String, AttendanceItem>>()
+    attendance.forEach { course ->
+        val slots = (course.slotName ?: "")
+            .split("+")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        slots.forEach { slot ->
+            daySlots[slot]?.let { timeRange ->
+                dayClasses.add(Triple(slot, timeRange, course))
             }
         }
     }
+    return dayClasses.distinctBy { it.first + it.third.courseCode }.sortedBy { it.second }
 }
-
-// ── 2. UNIFIED SERVICES SCREEN (TABS: PAYMENTS, LIBRARY, TRANSPORT, LMS) ──
-
-@Composable
-fun ServicesScreen(initialTab: String = "Payments") {
-    val colors = AmazeTheme.colors
-    var activeSubTab by remember(initialTab) { mutableStateOf(initialTab) }
-    val tabs = listOf("Payments", "Library", "Transport", "LMS")
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
-        ScreenHeader(
-            title = "Campus Services",
-            description = "Dues, Koha, buses & LMS tasks",
-            showBackButton = false,
-            showSyncButton = true
-        )
-
-        // Sub-Tab Navigation row
-        TabRow(
-            selectedTabIndex = tabs.indexOf(activeSubTab),
-            containerColor = colors.background,
-            contentColor = colors.accent,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[tabs.indexOf(activeSubTab)]),
-                    color = colors.accent
-                )
-            }
-        ) {
-            tabs.forEach { tab ->
-                Tab(
-                    selected = activeSubTab == tab,
-                    onClick = { activeSubTab = tab },
-                    text = {
-                        Text(
-                            text = tab,
-                            style = AmazeTheme.typography.body.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        )
-                    },
-                    selectedContentColor = colors.accent,
-                    unselectedContentColor = colors.textSecondary
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .padding(16.dp)
-        ) {
-            when (activeSubTab) {
-                "Payments" -> PaymentsSubScreen()
-                "Library" -> LibrarySubScreen()
-                "Transport" -> TransportSubScreen()
-                "LMS" -> LMSSubScreen()
-            }
-        }
-    }
-}
-
-// ── SUB-SCREEN IMPLEMENTATIONS ──
 
 @Composable
 fun AttendanceSubScreen() {
@@ -316,57 +328,73 @@ fun AttendanceSubScreen() {
         }
     }
 
-    if (courses.isEmpty()) {
-        AmazeCard(modifier = Modifier.fillMaxWidth()) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(36.dp))
+    var activeTab by remember { mutableStateOf("All Subjects") }
+    var activePlannerDay by remember { mutableStateOf("Mon") }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = colors.surface) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Overall presence", style = AmazeTheme.typography.subheading.copy(color = colors.textPrimary, fontWeight = FontWeight.Black))
+                        Text("Last sync: " + (syncStatus ?: "Active session cached"), style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    }
+                    AmazeBadge(
+                        text = average?.let { "${it.toInt()}%" } ?: "—",
+                        variant = when {
+                            average == null -> BadgeVariant.INFO
+                            average >= 85.0 -> BadgeVariant.SUCCESS
+                            average >= 75.0 -> BadgeVariant.WARNING
+                            else -> BadgeVariant.DANGER
+                        }
+                    )
+                }
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("No attendance data found", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
-                Text("Tap refresh to sync VTOP attendance.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                LinearProgressIndicator(
+                    progress = { ((average ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(RoundedCornerShape(999.dp)),
+                    color = when {
+                        average == null -> colors.accent
+                        average >= 85.0 -> colors.success
+                        average >= 75.0 -> colors.warning
+                        else -> colors.danger
+                    },
+                    trackColor = colors.border
+                )
             }
         }
-    } else {
-        Column(modifier = Modifier.fillMaxSize()) {
-            AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = colors.surface) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Weekly attendance", style = AmazeTheme.typography.subheading.copy(color = colors.textPrimary, fontWeight = FontWeight.Black))
-                            Text("Last sync: " + (syncStatus ?: "Active session cached"), style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                        }
-                        AmazeBadge(
-                            text = average?.let { "${it.toInt()}%" } ?: "—",
-                            variant = when {
-                                average == null -> BadgeVariant.INFO
-                                average >= 85.0 -> BadgeVariant.SUCCESS
-                                average >= 75.0 -> BadgeVariant.WARNING
-                                else -> BadgeVariant.DANGER
-                            }
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                    LinearProgressIndicator(
-                        progress = { ((average ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(999.dp)),
-                        color = when {
-                            average == null -> colors.accent
-                            average >= 85.0 -> colors.success
-                            average >= 75.0 -> colors.warning
-                            else -> colors.danger
-                        },
-                        trackColor = colors.border
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    WeekdayAttendanceStrip(courses)
-                }
-            }
 
-            Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-            // Search and Filter controls
+        // Toggle View Mode Tab segment
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(radius.medium))
+                .background(colors.elevatedSurface)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            AmazeButton(
+                text = "All Subjects",
+                onClick = { activeTab = "All Subjects" },
+                variant = if (activeTab == "All Subjects") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
+                modifier = Modifier.weight(1f)
+            )
+            AmazeButton(
+                text = "Daily Planner",
+                onClick = { activeTab = "Daily Planner" },
+                variant = if (activeTab == "Daily Planner") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        if (activeTab == "All Subjects") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -422,12 +450,116 @@ fun AttendanceSubScreen() {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
-            ) {
-                items(filteredCourses) { course ->
-                    AttendanceCardItem(course = course, onClick = { activeDetailCourse = course })
+            if (courses.isEmpty()) {
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(36.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("No attendance data found", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                        Text("Tap refresh to sync VTOP attendance.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), textAlign = TextAlign.Center)
+                    }
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    items(filteredCourses) { course ->
+                        AttendanceCardItem(course = course, onClick = { activeDetailCourse = course })
+                    }
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                WeekdayAttendanceStrip(
+                    courses = courses,
+                    activeDay = activePlannerDay,
+                    onDayClick = { activePlannerDay = it }
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val dayClasses = getClassesForDay(courses, activePlannerDay)
+                
+                if (dayClasses.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = colors.success,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "No classes scheduled!",
+                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                            )
+                            Text(
+                                text = "Enjoy your free day! 🎉",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 16.dp)
+                    ) {
+                        items(dayClasses) { (slot, timeRange, course) ->
+                            var showSheet by remember { mutableStateOf(false) }
+                            
+                            AmazeCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { showSheet = true }
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            AmazeBadge(text = slot, variant = BadgeVariant.INFO)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = timeRange,
+                                                style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold, color = colors.textSecondary)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            text = course.courseTitle,
+                                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                                        )
+                                        Text(
+                                            text = "${course.courseCode} • ${course.courseType ?: "Theory"}",
+                                            style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+                                        )
+                                    }
+                                    
+                                    val percentage = course.attendancePercentage?.toDoubleOrNull() ?: 100.0
+                                    val isCritical = percentage < 75.0
+                                    AmazeBadge(
+                                        text = "${percentage.toInt()}%",
+                                        variant = if (isCritical) BadgeVariant.DANGER else BadgeVariant.SUCCESS
+                                    )
+                                }
+                            }
+                            
+                            if (showSheet) {
+                                AttendanceDetailSheet(course = course, onDismiss = { showSheet = false })
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -535,35 +667,45 @@ fun AttendanceCardItem(
 }
 
 @Composable
-private fun WeekdayAttendanceStrip(courses: List<AttendanceItem>) {
+private fun WeekdayAttendanceStrip(courses: List<AttendanceItem>, activeDay: String, onDayClick: (String) -> Unit) {
     val colors = AmazeTheme.colors
-    val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    val radius = AmazeTheme.radius
+    val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+            .clip(RoundedCornerShape(radius.medium))
             .background(colors.elevatedSurface)
-            .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
+            .border(1.dp, colors.border, RoundedCornerShape(radius.medium)),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        days.forEachIndexed { index, day ->
-            val classCount = courses.count { course ->
-                val seed = course.slotName.fold(0) { acc, c -> acc + c.code }
-                seed % 7 == index
-            }.coerceAtMost(9)
+        days.forEach { day ->
+            val isSelected = activeDay == day
+            val classCount = getClassesForDay(courses, day).size
             Column(
                 modifier = Modifier
                     .weight(1f)
+                    .clip(RoundedCornerShape(radius.medium))
+                    .background(if (isSelected) colors.accent else Color.Transparent)
+                    .clickable { onDayClick(day) }
                     .padding(vertical = 10.dp, horizontal = 2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(day, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.Bold, fontSize = 10.sp))
+                Text(
+                    text = day,
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        color = if (isSelected) colors.surface else colors.textMuted,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (classCount == 0) "Free" else "$classCount",
+                    text = if (classCount == 0) "Free" else "$classCount cls",
                     style = AmazeTheme.typography.caption.copy(
-                        color = if (classCount == 0) colors.textMuted else colors.textPrimary,
+                        color = if (isSelected) colors.surface.copy(alpha = 0.9f) else if (classCount == 0) colors.textMuted else colors.textPrimary,
                         fontWeight = FontWeight.Black,
-                        fontSize = 13.sp
+                        fontSize = 10.sp
                     )
                 )
             }
@@ -1052,7 +1194,7 @@ fun HostelScreen() {
         ScreenHeader(
             title = "Hostel Portal",
             description = "Manage mess, outings & late requests",
-            showBackButton = false,
+            showBackButton = true,
             showSyncButton = true
         )
 
@@ -1609,7 +1751,7 @@ fun ProfileScreen() {
         ScreenHeader(
             title = "App Preferences",
             description = "Themes, accents, and session logout",
-            showBackButton = false,
+            showBackButton = true,
             showSyncButton = false
         )
 

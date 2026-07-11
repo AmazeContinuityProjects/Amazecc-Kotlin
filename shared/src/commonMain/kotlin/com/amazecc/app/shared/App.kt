@@ -11,6 +11,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -183,12 +185,11 @@ private fun AmazeBottomBar(
     val items = listOf(
         BottomNavItem("Home", Screen.DASHBOARD, Icons.Rounded.Home, setOf(Screen.DASHBOARD)),
         BottomNavItem("Attend", Screen.ATTENDANCE, Icons.Rounded.CheckCircle, setOf(Screen.ATTENDANCE)),
-        BottomNavItem("Academics", Screen.MARKS, Icons.Rounded.Star, setOf(Screen.MARKS, Screen.TIMETABLE)),
-        BottomNavItem("Payments", Screen.PAYMENTS, Icons.Rounded.ShoppingCart, setOf(Screen.PAYMENTS)),
-        BottomNavItem("More", null, Icons.Rounded.MoreHoriz, setOf(Screen.HOSTEL, Screen.LMS, Screen.LIBRARY, Screen.TRANSPORT, Screen.PROFILE))
+        BottomNavItem("Academics", Screen.MARKS, Icons.Rounded.Star, setOf(Screen.MARKS)),
+        BottomNavItem("More", null, Icons.Rounded.MoreHoriz, setOf(
+            Screen.TIMETABLE, Screen.HOSTEL, Screen.PAYMENTS, Screen.LIBRARY, Screen.TRANSPORT, Screen.LMS, Screen.PROFILE
+        ))
     )
-
-    val currentTheme by AppState.theme.collectAsState()
 
     Row(
         modifier = Modifier
@@ -200,29 +201,9 @@ private fun AmazeBottomBar(
             .background(colors.surface)
             .border(1.dp, colors.border.copy(alpha = 0.72f), RoundedCornerShape(radius.large))
             .padding(horizontal = 6.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(
-            onClick = {
-                val nextTheme = when (currentTheme) {
-                    AppTheme.SYSTEM -> AppTheme.LIGHT
-                    AppTheme.LIGHT -> AppTheme.DARK
-                    AppTheme.DARK -> AppTheme.MIDNIGHT
-                    AppTheme.MIDNIGHT -> AppTheme.SYSTEM
-                }
-                AppState.changeTheme(nextTheme)
-            },
-            modifier = Modifier.size(38.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Settings,
-                contentDescription = "Cycle Theme",
-                tint = colors.textMuted,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-
         items.forEach { item ->
             val selected = currentScreen in item.selectedScreens
             val itemBg by animateColorAsState(
@@ -260,18 +241,6 @@ private fun AmazeBottomBar(
                 )
             }
         }
-
-        IconButton(
-            onClick = { AppState.logout() },
-            modifier = Modifier.size(38.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Lock,
-                contentDescription = "Log Out",
-                tint = colors.danger,
-                modifier = Modifier.size(20.dp)
-            )
-        }
     }
 }
 
@@ -294,6 +263,7 @@ private fun AmazeMoreSheet(
     val modules = listOf(
         MoreModule("Timetable", "Class hours, rooms, and schedule preview", Icons.Rounded.DateRange, Screen.TIMETABLE),
         MoreModule("Hostel", "Mess, leave requests, and resident tools", Icons.Rounded.Home, Screen.HOSTEL),
+        MoreModule("Payments", "Tuition fees, hostel dues, and transactions", Icons.Rounded.ShoppingCart, Screen.PAYMENTS),
         MoreModule("Library", "Issued books, dues, and KOHA access", Icons.Rounded.Book, Screen.LIBRARY),
         MoreModule("Transport", "Bus routes and day scholar status", Icons.Rounded.Info, Screen.TRANSPORT),
         MoreModule("LMS", "Assignments, deadlines, and submissions", Icons.Rounded.List, Screen.LMS),
@@ -337,7 +307,7 @@ private fun AmazeMoreSheet(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "More",
+                        text = "More Options",
                         style = AmazeTheme.typography.heading.copy(color = colors.textPrimary, fontWeight = FontWeight.Black)
                     )
                     Text(
@@ -374,7 +344,10 @@ private fun AmazeMoreSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(
+                modifier = Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 filteredModules.forEach { module ->
                     Row(
                         modifier = Modifier
@@ -407,6 +380,99 @@ private fun AmazeMoreSheet(
                                 maxLines = 2
                             )
                         }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+            HorizontalDivider(color = colors.border)
+            Spacer(modifier = Modifier.height(16.dp))
+
+            val currentTheme by AppState.theme.collectAsState()
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Theme Cycle Card
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(radius.medium))
+                        .background(colors.elevatedSurface)
+                        .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
+                        .clickable {
+                            val nextTheme = when (currentTheme) {
+                                AppTheme.SYSTEM -> AppTheme.LIGHT
+                                AppTheme.LIGHT -> AppTheme.DARK
+                                AppTheme.DARK -> AppTheme.MIDNIGHT
+                                AppTheme.MIDNIGHT -> AppTheme.SYSTEM
+                            }
+                            AppState.changeTheme(nextTheme)
+                        }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(radius.small))
+                            .background(colors.surface),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Settings, contentDescription = null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Theme",
+                            style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                        )
+                        Text(
+                            text = when (currentTheme) {
+                                AppTheme.LIGHT -> "Light"
+                                AppTheme.DARK -> "Dark"
+                                AppTheme.MIDNIGHT -> "Midnight"
+                                AppTheme.SYSTEM -> "System"
+                            },
+                            style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
+                        )
+                    }
+                }
+
+                // Logout Card
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(radius.medium))
+                        .background(colors.elevatedSurface)
+                        .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
+                        .clickable {
+                            onDismiss()
+                            AppState.logout()
+                        }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(radius.small))
+                            .background(colors.surface),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Lock, contentDescription = null, tint = colors.danger, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Sign Out",
+                            style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.danger)
+                        )
+                        Text(
+                            text = "End session",
+                            style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
+                        )
                     }
                 }
             }
