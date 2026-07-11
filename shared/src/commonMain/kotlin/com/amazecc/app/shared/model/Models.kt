@@ -164,7 +164,7 @@ data class SemesterGradeResult(
 data class AllGradesRes(
     val success: Boolean = true,
     val semesterId: String? = null,
-    val grades: Map<String, SemesterGradeResult> = emptyMap(),
+    val grades: Map<String, SemesterGradeResult?> = emptyMap(),
     val error: String? = null,
     val message: String? = null
 )

@@ -357,7 +357,12 @@ fun MarksSubScreen() {
     val allGradesRes by AppState.allGrades.collectAsState()
     
     val courses = marksRes?.marks ?: emptyList()
-    val gpaRecords = allGradesRes?.grades ?: emptyMap()
+    val gpaRecords = remember(allGradesRes) {
+        allGradesRes?.grades
+            ?.mapNotNull { (semId, semResult) -> semResult?.let { semId to it } }
+            ?.toMap()
+            ?: emptyMap()
+    }
 
     var activeViewTab by remember { mutableStateOf("Internal Marks") }
     
