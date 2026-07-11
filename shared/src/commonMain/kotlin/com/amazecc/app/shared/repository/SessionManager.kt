@@ -18,7 +18,7 @@ object SessionManager {
     val clubToken: StateFlow<String?> = _clubToken.asStateFlow()
 
     // Settings
-    val currentTheme = MutableStateFlow("midnight") // light, dark, midnight
+    val currentTheme = MutableStateFlow("system") // system, light, dark
     val currentAccent = MutableStateFlow("ocean") // ocean, forest, lavender, sunset
 
     val isLoggedIn: Boolean

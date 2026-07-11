@@ -51,7 +51,8 @@ fun LoginScreen() {
         Box(
             modifier = Modifier
                 .size(72.dp)
-                .background(colors.accent.copy(alpha = 0.1f), shape = MaterialTheme.shapes.medium),
+                .background(colors.surface, shape = MaterialTheme.shapes.medium)
+                .border(1.dp, colors.border, shape = MaterialTheme.shapes.medium),
             contentAlignment = Alignment.Center
         ) {
             Text(
