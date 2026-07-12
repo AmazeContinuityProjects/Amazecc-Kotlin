@@ -250,11 +250,17 @@ object AmazeClient {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return HostelDetails(
                 success = true,
-                gender = "MALE",
-                isHosteller = true,
-                blockName = "Q-Block",
-                roomNo = "612",
-                messInfo = "Special Veg Mess (Caterer: CRCL)"
+                hostelInfo = HostelProfileInfo(
+                    gender = "MALE",
+                    isHosteller = true,
+                    blockName = "Q-Block",
+                    roomNo = "612",
+                    messInfo = "Special Veg Mess (Caterer: CRCL)"
+                ),
+                leaveHistory = listOf(
+                    LeaveItem("LV-9810", "Home (Delhi)", "Family function", "Home Leave", "2026-07-15", "2026-07-20", "APPROVED", "Ensure return by due time"),
+                    LeaveItem("LV-9541", "Local (Vellore)", "Shopping", "Outing", "2026-06-28 10:00 AM", "2026-06-28 06:00 PM", "COMPLETED", "Returned on time")
+                )
             )
         }
         return try {
@@ -336,6 +342,12 @@ object AmazeClient {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return PaymentsRes(
                 success = true,
+                studentInfo = StudentInfo(
+                    registerNumber = "22BCE1234",
+                    studentName = "Anas A",
+                    programme = "B.Tech Computer Science & Engineering",
+                    campus = "Vellore"
+                ),
                 payments = listOf(
                     PaymentItem("BILL-4412", "Academic Tuition Fees 2026-27", "Rs. 1,98,000", "2026-06-15", "PAID", "2026-06-10", "REC-99120"),
                     PaymentItem("BILL-4501", "Hostel & Mess Booking Q-Block", "Rs. 1,12,000", "2026-06-30", "PAID", "2026-06-25", "REC-99881")

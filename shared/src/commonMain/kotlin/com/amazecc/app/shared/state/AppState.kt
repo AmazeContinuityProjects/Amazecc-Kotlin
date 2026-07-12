@@ -116,11 +116,15 @@ object AppState {
         return false
     }
 
-    fun selectSemester(semesterId: String) {
+    fun selectSemester(semesterId: String, forceFullSync: Boolean = false) {
         _selectedSemester.value = semesterId
         // Refresh semester-specific data
         if (SessionManager.isLoggedIn) {
-            loadSemesterData(semesterId)
+            if (forceFullSync) {
+                loadAllData()
+            } else {
+                loadSemesterData(semesterId)
+            }
         }
     }
 
@@ -210,16 +214,15 @@ object AppState {
                                 fetch = { AmazeClient.getHostelDetails() },
                                 isSuccess = { it.success },
                                 errorMessage = { it.message ?: it.error },
-                                update = { _hostelDetails.value = it }
-                            )
-                        },
-                        async {
-                            syncModule(
-                                name = "Hostel leaves",
-                                fetch = { AmazeClient.getHostelLeaves() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _hostelLeaves.value = it }
+                                update = {
+                                    _hostelDetails.value = it
+                                    _hostelLeaves.value = HostelLeaveRes(
+                                        success = it.success,
+                                        leaves = it.leaveHistory,
+                                        error = it.error,
+                                        message = it.message
+                                    )
+                                }
                             )
                         },
                         async {
@@ -371,6 +374,20 @@ object AppState {
                     if (sems.none { it.value == currentSel }) {
                         val autoSelected = sems.find { it.selected }?.value ?: sems.first().value
                         _selectedSemester.value = autoSelected
+                    }
+                }
+
+                // Fetch student name from payments in background to pre-populate onboarding
+                if (SessionManager.isLoggedIn) {
+                    try {
+                        val payments = AmazeClient.getPayments()
+                        payments.studentInfo?.studentName?.let { name ->
+                            if (SessionManager.friendlyName.value.isBlank()) {
+                                SessionManager.friendlyName.value = name
+                            }
+                        }
+                    } catch (e: Exception) {
+                        // Ignore
                     }
                 }
             } catch (e: Exception) {

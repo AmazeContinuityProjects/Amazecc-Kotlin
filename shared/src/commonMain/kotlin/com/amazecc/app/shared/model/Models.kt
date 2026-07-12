@@ -144,12 +144,12 @@ data class GradeRange(
 
 @Serializable
 data class GradeItem(
-    val slNo: String,
-    val courseCode: String,
-    val courseTitle: String,
-    val courseType: String,
-    val grandTotal: String,
-    val grade: String,
+    val slNo: String? = null,
+    val courseCode: String? = null,
+    val courseTitle: String? = null,
+    val courseType: String? = null,
+    val grandTotal: String? = null,
+    val grade: String? = null,
     val courseId: String? = null,
     val details: List<GradeBreakdown>? = null,
     val range: GradeRange? = null
@@ -171,13 +171,19 @@ data class AllGradesRes(
 )
 
 @Serializable
-data class HostelDetails(
-    val success: Boolean = true,
+data class HostelProfileInfo(
     val gender: String? = null,
     val isHosteller: Boolean = false,
     val blockName: String? = null,
     val roomNo: String? = null,
-    val messInfo: String? = null,
+    val messInfo: String? = null
+)
+
+@Serializable
+data class HostelDetails(
+    val success: Boolean = true,
+    val hostelInfo: HostelProfileInfo? = null,
+    val leaveHistory: List<LeaveItem> = emptyList(),
     val error: String? = null,
     val message: String? = null
 )
@@ -255,18 +261,27 @@ data class CalendarRes(
 
 @Serializable
 data class PaymentItem(
-    val billingId: String,
-    val description: String,
-    val amount: String,
+    val billingId: String? = null,
+    val description: String? = null,
+    val amount: String? = null,
     val dueDate: String? = null,
-    val status: String,
+    val status: String? = null,
     val paymentDate: String? = null,
     val receiptNo: String? = null
 )
 
 @Serializable
+data class StudentInfo(
+    val registerNumber: String? = null,
+    val studentName: String? = null,
+    val programme: String? = null,
+    val campus: String? = null
+)
+
+@Serializable
 data class PaymentsRes(
     val success: Boolean = true,
+    val studentInfo: StudentInfo? = null,
     val payments: List<PaymentItem> = emptyList(),
     val walletBalance: String? = null,
     val error: String? = null,
@@ -275,8 +290,8 @@ data class PaymentsRes(
 
 @Serializable
 data class BookItem(
-    val bookId: String,
-    val title: String,
+    val bookId: String? = null,
+    val title: String? = null,
     val author: String? = null,
     val issueDate: String? = null,
     val dueDate: String? = null,

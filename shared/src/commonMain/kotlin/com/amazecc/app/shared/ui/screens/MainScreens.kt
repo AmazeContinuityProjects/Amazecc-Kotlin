@@ -19,6 +19,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -1126,13 +1127,21 @@ fun MarksSubScreen() {
                             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                                 Column {
                                     val hideCGPA by SessionManager.hideCGPA.collectAsState()
-                                    val displayGpa = if (hideCGPA) "*.*" else (semResult.gpa ?: "—")
+                                    val displayGpa = semResult.gpa ?: "—"
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(semId, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                        Text("GPA: $displayGpa", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("GPA: ", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textSecondary))
+                                            Text(
+                                                text = displayGpa,
+                                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent),
+                                                modifier = if (hideCGPA) Modifier.blur(6.dp) else Modifier
+                                            )
+                                        }
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
                                     
@@ -1283,16 +1292,16 @@ fun HostelScreen() {
                             ) {
                                 Column {
                                     Text("Block / Room", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                                    Text("${hostelDetails?.blockName ?: "Q-Block"} / ${hostelDetails?.roomNo ?: "612"}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                    Text("${hostelDetails?.hostelInfo?.blockName ?: "Q-Block"} / ${hostelDetails?.hostelInfo?.roomNo ?: "612"}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     Text("Gender", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                                    Text(hostelDetails?.gender ?: "MALE", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                                    Text(hostelDetails?.hostelInfo?.gender ?: "MALE", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                                 }
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text("Mess Facility", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                            Text(hostelDetails?.messInfo ?: "Veg Mess (Caterer: CRCL)", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            Text(hostelDetails?.hostelInfo?.messInfo ?: "Veg Mess (Caterer: CRCL)", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                         }
                     }
 
@@ -1407,16 +1416,16 @@ fun PaymentsSubScreen() {
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text(bill.description, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
-                                AmazeBadge(text = bill.status, variant = if (bill.status == "PAID") BadgeVariant.SUCCESS else BadgeVariant.DANGER)
+                                Text(bill.description.orEmpty(), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
+                                AmazeBadge(text = bill.status.orEmpty(), variant = if (bill.status == "PAID") BadgeVariant.SUCCESS else BadgeVariant.DANGER)
                             }
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Text("Billing ID: ${bill.billingId}", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
-                                Text(bill.amount, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.textPrimary))
+                                Text("Billing ID: ${bill.billingId.orEmpty()}", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                                Text(bill.amount.orEmpty(), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.textPrimary))
                             }
                             if (bill.paymentDate != null) {
                                 Text("Paid on: ${bill.paymentDate} (Receipt: ${bill.receiptNo})", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
@@ -1480,7 +1489,7 @@ fun LibrarySubScreen() {
                 items(searchResults) { book ->
                     AmazeCard(modifier = Modifier.fillMaxWidth()) {
                         Column {
-                            Text(book.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            Text(book.title.orEmpty(), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text(book.author ?: "Unknown Author", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                         }
                     }
@@ -1501,7 +1510,7 @@ fun LibrarySubScreen() {
                     items(issuedBooks) { book ->
                         AmazeCard(modifier = Modifier.fillMaxWidth()) {
                             Column {
-                                Text(book.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                Text(book.title.orEmpty(), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                 Text("Issued: ${book.issueDate ?: "—"} | Due: ${book.dueDate ?: "—"}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Row(
@@ -2100,7 +2109,8 @@ fun PostLoginOnboardingScreen() {
     val isLoading by AppState.isLoading.collectAsState()
     val syncStatus by AppState.syncStatus.collectAsState()
 
-    var friendlyName by remember { mutableStateOf("") }
+    val vtopName by SessionManager.friendlyName.collectAsState()
+    var friendlyName by remember(vtopName) { mutableStateOf(vtopName) }
     val initialSelectedSem = remember { AppState.selectedSemester.value }
     var selectedSem by remember { mutableStateOf(initialSelectedSem) }
     var resStatus by remember { mutableStateOf("hosteller") } // "hosteller", "dayscholar_bus", "dayscholar_nobus"
@@ -2339,8 +2349,8 @@ fun PostLoginOnboardingScreen() {
                         SessionManager.isDayscholarWithBus.value = resStatus == "dayscholar_bus"
                         SessionManager.residentialStatus.value = if (resStatus == "hosteller") "hosteller" else "dayscholar"
                         
-                        // Select chosen semester (which fetches the semester data)
-                        AppState.selectSemester(selectedSem)
+                        // Select chosen semester and trigger a full sync
+                        AppState.selectSemester(selectedSem, forceFullSync = true)
                         
                         // Complete onboarding state
                         SessionManager.postLoginCompleted.value = true

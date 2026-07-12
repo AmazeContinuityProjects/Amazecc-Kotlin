@@ -584,8 +584,8 @@ private fun AuthScreen() {
                             username = it
                             errorMessage = null
                         },
-                        label = "VTOP Registration Number",
-                        placeholder = "e.g. 24BCE1022",
+                        label = "VTOP Username",
+                        placeholder = "e.g. username",
                         leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(20.dp)) },
                         isError = errorMessage != null && username.isBlank(),
                         modifier = Modifier.fillMaxWidth()

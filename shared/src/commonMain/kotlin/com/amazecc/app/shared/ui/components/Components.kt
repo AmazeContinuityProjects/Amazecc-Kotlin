@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.theme.AmazeTheme
 
+import androidx.compose.ui.draw.blur
+
 // ── BUTTONS ──
 
 @Composable
@@ -152,7 +154,8 @@ fun MetricCard(
     caption: String? = null,
     statusText: String? = null,
     statusColor: Color? = null,
-    onClick: (() -> Unit)? = null
+    onClick: (() -> Unit)? = null,
+    isBlur: Boolean = false
 ) {
     val colors = AmazeTheme.colors
     AmazeCard(modifier = modifier, onClick = onClick, backgroundColor = colors.surface) {
@@ -175,7 +178,8 @@ fun MetricCard(
                     style = AmazeTheme.typography.display.copy(
                         color = colors.textPrimary,
                         fontSize = 28.sp
-                    )
+                    ),
+                    modifier = if (isBlur) Modifier.blur(8.dp) else Modifier
                 )
                 if (statusText != null) {
                     Text(

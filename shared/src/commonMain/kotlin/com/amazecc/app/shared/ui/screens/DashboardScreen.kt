@@ -27,6 +27,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,7 +79,7 @@ fun DashboardScreen() {
         attendance.filter { (it.attendancePercentage?.toDoubleOrNull() ?: 100.0) < 75.0 }
     }
     val hideCGPA by SessionManager.hideCGPA.collectAsState()
-    val cgpa = if (hideCGPA) "*.*" else (marksRes?.cgpa?.cgpa ?: "—")
+    val cgpa = marksRes?.cgpa?.cgpa ?: "—"
     val credits = remember(marksRes) {
         val earned = marksRes?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
         val nonGraded = marksRes?.cgpa?.nonGradedRequirement?.toDoubleOrNull() ?: 0.0
@@ -151,7 +152,8 @@ fun DashboardScreen() {
                                         cgpa = cgpa,
                                         credits = credits,
                                         assignments = assignmentsDue,
-                                        compact = compactMetrics
+                                        compact = compactMetrics,
+                                        hideCGPA = hideCGPA
                                     )
                                 }
                                 DashboardWidget.ALERTS -> {
@@ -452,16 +454,32 @@ private fun DashboardHero(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                IconButton(onClick = onCustomizeClick) {
-                    Icon(Icons.Rounded.Settings, contentDescription = "Customize", tint = colors.textSecondary)
+                IconButton(
+                    onClick = onCustomizeClick,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(radius.medium))
+                        .background(colors.elevatedSurface)
+                        .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
+                        .size(40.dp)
+                ) {
+                    Icon(Icons.Rounded.Settings, contentDescription = "Customize", tint = colors.textSecondary, modifier = Modifier.size(20.dp))
                 }
-                AmazeButton(
-                    text = "Sync",
+                Spacer(modifier = Modifier.width(6.dp))
+                IconButton(
                     onClick = onRefresh,
-                    variant = ButtonVariant.SECONDARY,
-                    icon = Icons.Rounded.Refresh,
-                    modifier = Modifier.width(96.dp)
-                )
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(radius.medium))
+                        .background(colors.elevatedSurface)
+                        .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
+                        .size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = "Sync",
+                        tint = colors.textPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -553,14 +571,15 @@ private fun MetricsWidget(
     cgpa: String,
     credits: String,
     assignments: Int,
-    compact: Boolean
+    compact: Boolean,
+    hideCGPA: Boolean = false
 ) {
     val colors = AmazeTheme.colors
     if (compact) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 MetricRowItem(title = "Attendance", value = attendanceLabel, sub = "$attendanceCount tracked", modifier = Modifier.weight(1f))
-                MetricRowItem(title = "CGPA", value = cgpa, sub = "$credits credits", modifier = Modifier.weight(1f))
+                MetricRowItem(title = "CGPA", value = cgpa, sub = "$credits credits", modifier = Modifier.weight(1f), isBlur = hideCGPA)
                 MetricRowItem(title = "Assignments", value = "$assignments Due", sub = "LMS workspace", modifier = Modifier.weight(1f))
             }
         }
@@ -586,7 +605,8 @@ private fun MetricsWidget(
                 caption = "$credits credits earned",
                 statusText = "Academics",
                 onClick = { AppState.navigateTo(Screen.MARKS) },
-                modifier = Modifier.width(160.dp)
+                modifier = Modifier.width(160.dp),
+                isBlur = hideCGPA
             )
             MetricCard(
                 title = "PENDING ASSIGNMENTS",
@@ -602,7 +622,7 @@ private fun MetricsWidget(
 }
 
 @Composable
-private fun MetricRowItem(title: String, value: String, sub: String, modifier: Modifier = Modifier) {
+private fun MetricRowItem(title: String, value: String, sub: String, modifier: Modifier = Modifier, isBlur: Boolean = false) {
     val colors = AmazeTheme.colors
     val radius = AmazeTheme.radius
     Box(
@@ -615,7 +635,11 @@ private fun MetricRowItem(title: String, value: String, sub: String, modifier: M
         Column {
             Text(title.uppercase(), style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp))
             Spacer(modifier = Modifier.height(2.dp))
-            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Text(
+                text = value,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                modifier = if (isBlur) Modifier.blur(6.dp) else Modifier
+            )
             Text(sub, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
         }
     }
