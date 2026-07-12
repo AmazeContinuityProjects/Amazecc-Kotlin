@@ -30,6 +30,10 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.Image
+import org.jetbrains.compose.resources.painterResource
+import amazecc_app.shared.generated.resources.Res
+import amazecc_app.shared.generated.resources.logo
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -521,7 +525,11 @@ private fun AuthScreen() {
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("A", fontSize = 30.sp, fontWeight = FontWeight.Black, color = colors.accent)
+                    Image(
+                        painter = painterResource(Res.drawable.logo),
+                        contentDescription = "AmazeCC Logo",
+                        modifier = Modifier.fillMaxSize().padding(6.dp)
+                    )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
@@ -734,7 +742,7 @@ private fun AuthScreen() {
 
             Spacer(modifier = Modifier.height(20.dp))
             Text(
-                text = "VTOP credentials are used only to establish session cookies. Antigravity does not collect or store your password on any remote server.",
+                text = "VTOP credentials are used only to establish session cookies. AmazeCC does not collect or store your password on any remote server.",
                 style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 11.sp),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 8.dp)

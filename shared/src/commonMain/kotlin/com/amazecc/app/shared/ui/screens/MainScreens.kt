@@ -24,6 +24,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.Image
+import org.jetbrains.compose.resources.painterResource
+import amazecc_app.shared.generated.resources.Res
+import amazecc_app.shared.generated.resources.logo
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1136,11 +1140,20 @@ fun MarksSubScreen() {
                                         Text(semId, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Text("GPA: ", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textSecondary))
-                                            Text(
-                                                text = displayGpa,
-                                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent),
-                                                modifier = if (hideCGPA) Modifier.blur(6.dp) else Modifier
-                                            )
+                                            if (hideCGPA) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(42.dp)
+                                                        .height(18.dp)
+                                                        .clip(RoundedCornerShape(4.dp))
+                                                        .background(colors.textSecondary.copy(alpha = 0.25f))
+                                                )
+                                            } else {
+                                                Text(
+                                                    text = displayGpa,
+                                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent)
+                                                )
+                                            }
                                         }
                                     }
                                     Spacer(modifier = Modifier.height(8.dp))
@@ -2135,11 +2148,10 @@ fun PostLoginOnboardingScreen() {
                 .background(colors.elevatedSurface),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Rounded.School,
-                contentDescription = null,
-                tint = colors.accent,
-                modifier = Modifier.size(36.dp)
+            Image(
+                painter = painterResource(Res.drawable.logo),
+                contentDescription = "AmazeCC Logo",
+                modifier = Modifier.fillMaxSize().padding(6.dp)
             )
         }
 

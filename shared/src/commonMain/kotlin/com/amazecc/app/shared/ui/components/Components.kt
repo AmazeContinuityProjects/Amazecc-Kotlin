@@ -169,18 +169,28 @@ fun MetricCard(
             )
             Spacer(modifier = Modifier.height(4.dp))
             Row(
-                verticalAlignment = Alignment.Bottom,
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(
-                    text = value,
-                    style = AmazeTheme.typography.display.copy(
-                        color = colors.textPrimary,
-                        fontSize = 28.sp
-                    ),
-                    modifier = if (isBlur) Modifier.blur(8.dp) else Modifier
-                )
+                if (isBlur) {
+                    Box(
+                        modifier = Modifier
+                            .padding(vertical = 4.dp)
+                            .width(68.dp)
+                            .height(26.dp)
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                            .background(colors.textSecondary.copy(alpha = 0.25f))
+                    )
+                } else {
+                    Text(
+                        text = value,
+                        style = AmazeTheme.typography.display.copy(
+                            color = colors.textPrimary,
+                            fontSize = 28.sp
+                        )
+                    )
+                }
                 if (statusText != null) {
                     Text(
                         text = statusText,

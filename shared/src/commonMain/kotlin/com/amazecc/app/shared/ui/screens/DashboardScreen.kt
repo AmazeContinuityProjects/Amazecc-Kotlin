@@ -1,7 +1,7 @@
 package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.scaleIn
@@ -25,10 +25,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.Image
+import org.jetbrains.compose.resources.painterResource
+import amazecc_app.shared.generated.resources.Res
+import amazecc_app.shared.generated.resources.logo
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.*
@@ -419,6 +424,22 @@ private fun DashboardHero(
     val colors = AmazeTheme.colors
     val radius = AmazeTheme.radius
 
+    val isLoading by AppState.isLoading.collectAsState()
+    val rotationAngle = if (isLoading) {
+        val infiniteTransition = rememberInfiniteTransition()
+        val angle by infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            )
+        )
+        angle
+    } else {
+        0f
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -436,9 +457,10 @@ private fun DashboardHero(
                         .background(colors.elevatedSurface),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "A",
-                        style = AmazeTheme.typography.heading.copy(color = colors.accent, fontWeight = FontWeight.Black)
+                    Image(
+                        painter = painterResource(Res.drawable.logo),
+                        contentDescription = "AmazeCC Logo",
+                        modifier = Modifier.fillMaxSize().padding(4.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
@@ -477,7 +499,9 @@ private fun DashboardHero(
                         imageVector = Icons.Rounded.Refresh,
                         contentDescription = "Sync",
                         tint = colors.textPrimary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier
+                            .size(20.dp)
+                            .graphicsLayer { rotationZ = rotationAngle }
                     )
                 }
             }
@@ -635,11 +659,21 @@ private fun MetricRowItem(title: String, value: String, sub: String, modifier: M
         Column {
             Text(title.uppercase(), style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp))
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = value,
-                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                modifier = if (isBlur) Modifier.blur(6.dp) else Modifier
-            )
+            if (isBlur) {
+                Box(
+                    modifier = Modifier
+                        .padding(vertical = 4.dp)
+                        .width(48.dp)
+                        .height(16.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(colors.textSecondary.copy(alpha = 0.25f))
+                )
+            } else {
+                Text(
+                    text = value,
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                )
+            }
             Text(sub, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
         }
     }
