@@ -1883,12 +1883,7 @@ fun ProfileScreen() {
                             ) {
                                 semesters.take(3).forEach { sem ->
                                     val isSelected = selectedSemester == sem
-                                    val semLabel = when(sem) {
-                                        "CH20252601" -> "Fall 25-26"
-                                        "CH20242505" -> "Winter 24-25"
-                                        "CH20242501" -> "Fall 24-25"
-                                        else -> sem.takeLast(6)
-                                    }
+                                    val semLabel = resolveSemesterNameShort(sem)
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
@@ -2178,12 +2173,7 @@ fun PostLoginOnboardingScreen() {
                         AppState.semesterIDs.map {
                             SemesterOption(
                                 it,
-                                when (it) {
-                                    "CH20252601" -> "Fall Semester 2025-26"
-                                    "CH20242505" -> "Winter Semester 2024-25"
-                                    "CH20242501" -> "Fall Semester 2024-25"
-                                    else -> "Semester ${it.takeLast(6)}"
-                                }
+                                resolveSemesterName(it)
                             )
                         }
                     }

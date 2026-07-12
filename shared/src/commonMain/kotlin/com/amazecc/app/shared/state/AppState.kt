@@ -36,11 +36,11 @@ object AppState {
     val accent: StateFlow<AccentTheme> = _accent.asStateFlow()
 
     // Semesters
-    val semesterIDs = listOf("CH20252601", "CH20242505", "CH20242501", "CH20232405")
+    val semesterIDs = listOf("CH20262701", "CH20262705", "CH20252601", "CH20242505", "CH20242501", "CH20232405")
     private val _availableSemesters = MutableStateFlow<List<SemesterOption>>(emptyList())
     val availableSemesters: StateFlow<List<SemesterOption>> = _availableSemesters.asStateFlow()
 
-    private val _selectedSemester = MutableStateFlow("CH20252601")
+    private val _selectedSemester = MutableStateFlow("CH20262701")
     val selectedSemester: StateFlow<String> = _selectedSemester.asStateFlow()
 
     // Loading & Error states
@@ -225,7 +225,7 @@ object AppState {
                         async {
                             syncModule(
                                 name = "Exam schedule",
-                                fetch = { AmazeClient.getExamSchedule() },
+                                fetch = { AmazeClient.getExamSchedule(_selectedSemester.value) },
                                 isSuccess = { it.success },
                                 errorMessage = { it.message ?: it.error },
                                 update = { _examSchedule.value = it }

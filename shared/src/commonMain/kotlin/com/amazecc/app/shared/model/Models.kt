@@ -343,3 +343,66 @@ data class CoursePageRes(
     val error: String? = null,
     val message: String? = null
 )
+
+fun resolveSemesterName(value: String): String {
+    if (value.startsWith("CH") && value.length >= 10) {
+        val yearPart = value.substring(2, 8) // e.g. "202627"
+        val termPart = value.substring(8, 10) // e.g. "01"
+        if (yearPart.length == 6) {
+            val startYear = yearPart.substring(0, 4) // "2026"
+            val endYearSuffix = yearPart.substring(4, 6) // "27"
+            val termName = when (termPart) {
+                "01" -> "Fall Semester"
+                "05" -> "Winter Semester"
+                "02" -> "Flexible Semester"
+                "03" -> "Freshers Semester"
+                "06" -> "Flexible Freshers"
+                "08" -> "Cohort LAW"
+                "11" -> "Flexible Research"
+                else -> "Semester"
+            }
+            return "$termName $startYear-$endYearSuffix"
+        }
+    }
+    return when (value) {
+        "CH20262701" -> "Fall Semester 2026-27"
+        "CH20262705" -> "Winter Semester 2026-27"
+        "CH20252601" -> "Fall Semester 2025-26"
+        "CH20242505" -> "Winter Semester 2024-25"
+        "CH20242501" -> "Fall Semester 2024-25"
+        "CH20232405" -> "Winter Semester 2023-24"
+        else -> "Semester ${value.takeLast(6)}"
+    }
+}
+
+fun resolveSemesterNameShort(value: String): String {
+    if (value.startsWith("CH") && value.length >= 10) {
+        val yearPart = value.substring(2, 8)
+        val termPart = value.substring(8, 10)
+        if (yearPart.length == 6) {
+            val startYearSuffix = yearPart.substring(2, 4) // "26"
+            val endYearSuffix = yearPart.substring(4, 6) // "27"
+            val termName = when (termPart) {
+                "01" -> "Fall"
+                "05" -> "Winter"
+                "02" -> "Flexible"
+                "03" -> "Freshers"
+                "06" -> "Flexible Fresh"
+                "08" -> "Cohort"
+                "11" -> "Flex Res"
+                else -> "Sem"
+            }
+            return "$termName $startYearSuffix-$endYearSuffix"
+        }
+    }
+    return when (value) {
+        "CH20262701" -> "Fall 26-27"
+        "CH20262705" -> "Winter 26-27"
+        "CH20252601" -> "Fall 25-26"
+        "CH20242505" -> "Winter 24-25"
+        "CH20242501" -> "Fall 24-25"
+        "CH20232405" -> "Winter 23-24"
+        else -> value.takeLast(6)
+    }
+}
+

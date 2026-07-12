@@ -281,12 +281,21 @@ object AmazeClient {
         }
     }
 
-    suspend fun getExamSchedule(): ExamScheduleRes {
+    suspend fun getExamSchedule(semesterId: String? = null): ExamScheduleRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            val activeSem = semesterId ?: "CH20262701"
+            val activeSemName = when(activeSem) {
+                "CH20262701" -> "Fall Semester 2026-27"
+                "CH20262705" -> "Winter Semester 2026-27"
+                "CH20252601" -> "Fall Semester 2025-26"
+                "CH20242505" -> "Winter Semester 2024-25"
+                "CH20242501" -> "Fall Semester 2024-25"
+                else -> "Semester ${activeSem.takeLast(6)}"
+            }
             return ExamScheduleRes(
                 success = true,
                 schedule = mapOf(
-                    "Fall Semester 2025-26" to listOf(
+                    activeSemName to listOf(
                         ExamItem("CSE1001", "Software Engineering", "1024", "A1", "2026-09-12", "FN", "08:30 AM", "09:00 AM - 12:00 PM", "SJT-401", "Row 3, Seat A", "A-32"),
                         ExamItem("CSE2002", "Database Management Systems", "1056", "B1", "2026-09-14", "AN", "01:30 PM", "02:00 PM - 05:00 PM", "TT-102", "Row 1, Seat C", "C-08")
                     )
@@ -414,7 +423,9 @@ object AmazeClient {
     suspend fun getSemestersList(): List<SemesterOption> {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return listOf(
-                SemesterOption("CH20252601", "Fall Semester 2025-26", true),
+                SemesterOption("CH20262701", "Fall Semester 2026-27", true),
+                SemesterOption("CH20262705", "Winter Semester 2026-27", false),
+                SemesterOption("CH20252601", "Fall Semester 2025-26", false),
                 SemesterOption("CH20242505", "Winter Semester 2024-25", false),
                 SemesterOption("CH20242501", "Fall Semester 2024-25", false)
             )
