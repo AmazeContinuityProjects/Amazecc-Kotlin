@@ -58,7 +58,7 @@ fun App() {
             ) {
                 Scaffold(
                     bottomBar = {
-                        if (currentScreen != Screen.LOGIN) {
+                        if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) {
                             com.amazecc.app.shared.ui.components.BottomNavigationBar()
                         }
                     },
@@ -76,6 +76,7 @@ fun App() {
                         }
                     ) { targetScreen ->
                         when (targetScreen) {
+                            Screen.SPLASH -> SplashScreen()
                             Screen.LOGIN -> LoginScreen()
                             Screen.ONBOARDING -> OnboardingScreen()
                             Screen.HOME -> DashboardScreen()
@@ -94,27 +95,6 @@ fun App() {
                             Screen.FFCS_PLANNER -> FfcsPlannerScreen()
                             Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateTo(Screen.ACADEMICS) }
                             Screen.CALENDAR -> CalendarScreen { AppState.navigateTo(Screen.ACADEMICS) }
-                        }
-                    }
-
-                    // Global Loading Overlay (Legacy)
-                    if (isLoading) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(colors.background.copy(alpha = 0.6f)),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            CircularProgressIndicator(
-                                color = colors.accent,
-                                strokeWidth = 4.dp
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = syncStatus ?: "Loading...",
-                                color = colors.textPrimary
-                            )
                         }
                     }
 

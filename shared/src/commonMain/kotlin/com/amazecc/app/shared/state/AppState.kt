@@ -20,7 +20,7 @@ import com.russhwolf.settings.set
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 
-enum class Screen {
+enum class Screen { SPLASH, 
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR
 }
@@ -29,13 +29,15 @@ object AppState {
     private val scope = CoroutineScope(Dispatchers.Main)
 
     // Navigation
-    private val _currentScreen = MutableStateFlow(Screen.LOGIN)
+    private val _currentScreen = MutableStateFlow(Screen.SPLASH)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
     
     private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
 
     // Sync Notifications
+    private val notificationService = com.amazecc.app.shared.services.NotificationService()
+
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
     

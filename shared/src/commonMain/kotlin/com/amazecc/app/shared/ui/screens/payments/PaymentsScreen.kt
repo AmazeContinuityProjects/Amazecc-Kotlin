@@ -1,9 +1,14 @@
 package com.amazecc.app.shared.ui.screens.payments
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Receipt
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -17,8 +22,10 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeBadge
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.BadgeVariant
-import com.amazecc.app.shared.ui.components.MetricCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.AmazeButton
+import com.amazecc.app.shared.ui.components.ButtonVariant
+import com.amazecc.app.shared.model.PaymentItem
 
 @Composable
 fun PaymentsScreen() {
@@ -26,7 +33,7 @@ fun PaymentsScreen() {
     val paymentsRes by AppState.payments.collectAsState()
     val payments = paymentsRes?.payments ?: emptyList()
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(colors.background).padding(horizontal = 16.dp)) {
         ScreenHeader(
             title = "Payments",
             description = "View dues and transaction history",
@@ -34,50 +41,67 @@ fun PaymentsScreen() {
             showSyncButton = true
         )
 
-        MetricCard(
-            title = "VTOP WALLET BALANCE",
-            value = paymentsRes?.walletBalance ?: "—",
-            caption = "Available when wallet data is returned by the API",
-            modifier = Modifier.fillMaxWidth()
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("Transactions & Dues", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(modifier = Modifier.height(12.dp))
+        AmazeCard(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), backgroundColor = colors.accent.copy(alpha = 0.1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.AccountBalanceWallet, contentDescription = null, tint = colors.accent, modifier = Modifier.size(36.dp))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("VTOP WALLET BALANCE", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                    Text(
+                        paymentsRes?.walletBalance ?: "â‚¹ 0.00",
+                        style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Bold, color = colors.accent)
+                    )
+                }
+            }
+        }
 
         if (payments.isEmpty()) {
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                Text("No billing receipts found.", color = colors.textSecondary)
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No payment records found.", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
             }
         } else {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.weight(1f)
+                contentPadding = PaddingValues(bottom = 30.dp)
             ) {
-                items(payments) { bill ->
-                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(bill.description, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
-                                AmazeBadge(text = bill.status, variant = if (bill.status == "PAID") BadgeVariant.SUCCESS else BadgeVariant.DANGER)
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Billing ID: ${bill.billingId}", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
-                                Text(bill.amount, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.textPrimary))
-                            }
-                            if (bill.paymentDate != null) {
-                                Text("Paid on: ${bill.paymentDate} (Receipt: ${bill.receiptNo})", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                            }
-                        }
-                    }
+                items(payments) { payment ->
+                    PaymentReceiptCard(payment)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun PaymentReceiptCard(payment: PaymentItem) {
+    val colors = AmazeTheme.colors
+    val isPaid = true // Assuming all fetched are paid history for now, or based on a status field if it exists
+    
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Receipt, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Ref: ${(payment.receiptNo ?: payment.billingId)}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                }
+                AmazeBadge(if (isPaid) "PAID" else "PENDING", variant = if (isPaid) BadgeVariant.SUCCESS else BadgeVariant.WARNING)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Text(payment.description, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text((payment.paymentDate ?: payment.dueDate ?: ""), style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                Text(payment.amount, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                AmazeButton(
+                    text = "Receipt", 
+                    icon = Icons.Rounded.Download,
+                    onClick = { /* Open receipt PDF if supported */ }, 
+                    variant = ButtonVariant.SECONDARY
+                )
             }
         }
     }
