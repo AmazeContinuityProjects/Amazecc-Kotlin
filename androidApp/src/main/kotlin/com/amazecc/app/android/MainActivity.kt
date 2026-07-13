@@ -1,6 +1,7 @@
 package com.amazecc.app.android
 
 import android.os.Bundle
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.CompositionLocalProvider
@@ -10,6 +11,7 @@ import com.amazecc.app.shared.nfc.LocalNfcManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         
         val nfcManager = AndroidNfcManager(this)

@@ -16,6 +16,9 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class LoginRequest(val username: String, val password: String)
 
+@Serializable
+data class MoodleLoginRequest(val username: String, val pass: String)
+
 data class AcademicSyncResult(
     val attendance: AttendanceRes,
     val marks: MarksRes? = null
@@ -226,6 +229,28 @@ object AmazeClient {
             postAuthorized<AllGradesRes>("all-grades") ?: AllGradesRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             AllGradesRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun fetchMoodleData(username: String, pass: String): MoodleRes {
+        return try {
+            val response: HttpResponse = httpClient.post("$baseUrl/api/lms-data") {
+                contentType(ContentType.Application.Json)
+                setBody(MoodleLoginRequest(username, pass))
+            }
+            if (response.status == HttpStatusCode.OK) {
+                // The API might just return the array of assignments directly instead of MoodleRes
+                // Wait, let's look at the React code: `const moodleData = await moodleRes.json();`
+                // And then `mergedData = moodleData.map(...)`.
+                // It means it returns an Array, not a wrapper object!
+                // I'll read it as List<MoodleAssignment>
+                val assignments: List<MoodleAssignment> = jsonConfig.decodeFromString(response.bodyAsText())
+                MoodleRes(success = true, data = assignments)
+            } else {
+                MoodleRes(success = false, error = "HTTP ${response.status}", message = "Server returned status ${response.status}")
+            }
+        } catch (e: Exception) {
+            MoodleRes(success = false, message = "Network error: ${e.message}", error = e.toString())
         }
     }
 
@@ -472,5 +497,16 @@ object AmazeClient {
         } catch (e: Exception) {
             ClubsRes(success = false, message = e.message, error = e.toString())
         }
+    }
+
+    suspend fun getVitol(): VitolRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return VitolRes(
+                success = true,
+                message = "VITOL fetched (Demo)",
+                data = VitolData(balance = "500.00", limit = "2000.00", consumed = "1500.00", message = "Active")
+            )
+        }
+        return postAuthorized<VitolRes>("vitol") ?: VitolRes(success = false, message = "Empty response")
     }
 }

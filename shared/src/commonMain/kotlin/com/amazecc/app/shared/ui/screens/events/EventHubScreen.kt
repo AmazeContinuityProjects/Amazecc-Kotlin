@@ -1,4 +1,5 @@
-package com.amazecc.app.shared.ui.screens
+@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
+package com.amazecc.app.shared.ui.screens.events
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -152,7 +153,7 @@ fun ClubsSubScreen() {
             items(clubsList) { club ->
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Column {
-                        Text(club.name, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Text(club.name ?: "Unnamed Club", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                         if (!club.description.isNullOrEmpty()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(club.description.toString(), style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))

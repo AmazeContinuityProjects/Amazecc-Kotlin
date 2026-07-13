@@ -24,11 +24,12 @@ import com.amazecc.app.shared.theme.AmazeTheme
 @Composable
 fun SyncNotification() {
     val isSyncing by AppState.isSyncing.collectAsState()
+    val isLoading by AppState.isLoading.collectAsState()
     val syncMessage by AppState.syncMessage.collectAsState()
     val colors = AmazeTheme.colors
 
     AnimatedVisibility(
-        visible = isSyncing,
+        visible = isSyncing || isLoading,
         enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
         exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
         modifier = Modifier

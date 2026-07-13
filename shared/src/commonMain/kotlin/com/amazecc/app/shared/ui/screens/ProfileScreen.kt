@@ -1,3 +1,4 @@
+@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.background
@@ -82,6 +83,20 @@ fun ProfileScreen() {
                         Text("Session state: ACTIVE", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.success))
                     }
                 }
+            }
+
+            Column {
+                val selectedSemester by AppState.selectedSemester.collectAsState()
+                Text("Select Academic Semester", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Spacer(modifier = Modifier.height(8.dp))
+                AmazeDropdown(
+                    options = AppState.semesterIDs,
+                    selectedOption = selectedSemester,
+                    onOptionSelected = { AppState.selectSemester(it) },
+                    label = "",
+                    modifier = Modifier.fillMaxWidth(),
+                    displayMapper = { AppState.semesterMap[it] ?: it }
+                )
             }
 
             Column {

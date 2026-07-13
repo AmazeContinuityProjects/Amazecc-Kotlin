@@ -1,3 +1,4 @@
+@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -141,7 +142,16 @@ val LocalAmazeColors = staticCompositionLocalOf<AmazeColors> {
 }
 
 val LocalAmazeRadius = staticCompositionLocalOf { AmazeRadius() }
-val LocalAmazeTypography = staticCompositionLocalOf { Typography }
+val LocalAmazeTypography = staticCompositionLocalOf { 
+    AmazeTypography(
+        androidx.compose.ui.text.TextStyle(),
+        androidx.compose.ui.text.TextStyle(),
+        androidx.compose.ui.text.TextStyle(),
+        androidx.compose.ui.text.TextStyle(),
+        androidx.compose.ui.text.TextStyle(),
+        androidx.compose.ui.text.TextStyle()
+    ) 
+}
 
 @Composable
 fun AmazeTheme(
@@ -211,7 +221,7 @@ fun AmazeTheme(
 
     val rememberColors = remember { colors }.apply { updateWith(colors) }
     val radius = remember { AmazeRadius() }
-    val typography = remember { Typography }
+    val typography = getAmazeTypography()
 
     CompositionLocalProvider(
         LocalAmazeColors provides rememberColors,

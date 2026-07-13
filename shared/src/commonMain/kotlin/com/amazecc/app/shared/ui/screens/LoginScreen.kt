@@ -125,7 +125,6 @@ fun LoginScreen() {
             label = "Password",
             placeholder = "••••••••",
             leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null, tint = colors.textSecondary) },
-            isPassword = true,
             modifier = Modifier.fillMaxWidth()
         )
         

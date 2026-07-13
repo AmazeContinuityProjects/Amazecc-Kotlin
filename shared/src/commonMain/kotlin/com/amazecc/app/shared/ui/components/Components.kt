@@ -10,7 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -61,9 +61,16 @@ fun AmazeButton(
         else -> null
     }
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(targetValue = if (isPressed) 0.96f else 1f)
+
     Button(
         onClick = onClick,
-        modifier = modifier.height(48.dp),
+        modifier = modifier.height(48.dp).graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        },
         enabled = enabled,
         shape = RoundedCornerShape(radius.small), // 12px Small Radius
         colors = ButtonDefaults.buttonColors(
@@ -74,7 +81,8 @@ fun AmazeButton(
         ),
         border = border,
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        elevation = null
+        elevation = null,
+        interactionSource = interactionSource
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -266,7 +274,7 @@ fun ActionCard(
             }
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
-                imageVector = Icons.Rounded.ArrowForward,
+                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                 contentDescription = null,
                 tint = colors.textMuted,
                 modifier = Modifier.size(20.dp)
@@ -326,7 +334,6 @@ fun AmazeTextField(
     modifier: Modifier = Modifier,
     isError: Boolean = false,
     errorText: String? = null,
-    isPassword: Boolean = false,
     leadingIcon: @Composable (() -> Unit)? = null
 ) {
     val colors = AmazeTheme.colors
@@ -388,21 +395,24 @@ fun AmazeDropdown(
     selectedOption: String,
     onOptionSelected: (String) -> Unit,
     label: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    displayMapper: (String) -> String = { it }
 ) {
     val colors = AmazeTheme.colors
     val radius = AmazeTheme.radius
     var expanded by remember { mutableStateOf(false) }
 
     Column(modifier = modifier) {
-        Text(
-            text = label,
-            style = AmazeTheme.typography.smallLabel.copy(
-                color = colors.textSecondary,
-                fontWeight = FontWeight.Bold
-            ),
-            modifier = Modifier.padding(bottom = 6.dp)
-        )
+        if (label.isNotEmpty()) {
+            Text(
+                text = label,
+                style = AmazeTheme.typography.smallLabel.copy(
+                    color = colors.textSecondary,
+                    fontWeight = FontWeight.Bold
+                ),
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+        }
         
         Box(
             modifier = Modifier
@@ -417,42 +427,31 @@ fun AmazeDropdown(
             contentAlignment = Alignment.CenterStart
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = selectedOption,
+                    text = displayMapper(selectedOption),
                     style = AmazeTheme.typography.body.copy(color = colors.textPrimary)
                 )
-                Icon(
-                    imageVector = Icons.Rounded.KeyboardArrowDown,
-                    contentDescription = null,
-                    tint = colors.textSecondary
-                )
+                Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = colors.textSecondary)
             }
-            
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier
-                    .fillMaxWidth(0.9f)
-                    .background(colors.elevatedSurface)
-            ) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                text = option,
-                                style = AmazeTheme.typography.body.copy(color = colors.textPrimary)
-                            )
-                        },
-                        onClick = {
-                            onOptionSelected(option)
-                            expanded = false
-                        }
-                    )
-                }
+        }
+        
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.background(colors.surface)
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(displayMapper(option), style = AmazeTheme.typography.body.copy(color = colors.textPrimary)) },
+                    onClick = {
+                        onOptionSelected(option)
+                        expanded = false
+                    }
+                )
             }
         }
     }
@@ -475,7 +474,7 @@ fun PageHeaderContainer(
             .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)) // Semi-Pill top format rounded-b-2xl
             .background(colors.surface)
             .border(1.dp, colors.border, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .padding(top = 24.dp, bottom = 20.dp, start = 20.dp, end = 20.dp)
+            .padding(top = 18.dp, bottom = 18.dp, start = 24.dp, end = 24.dp)
     ) {
         Column {
             Row(
@@ -488,20 +487,22 @@ fun PageHeaderContainer(
                         text = title,
                         style = AmazeTheme.typography.display.copy(
                             color = colors.textPrimary,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Black // font-black weight Outfit
+                            fontWeight = FontWeight.Black
                         )
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = description,
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                        style = AmazeTheme.typography.body.copy(
+                            color = colors.textSecondary
+                        )
                     )
                 }
                 if (actions != null) {
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End,
                         content = actions
                     )
                 }

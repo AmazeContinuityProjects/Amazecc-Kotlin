@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens
+package com.amazecc.app.shared.ui.screens.onboarding
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

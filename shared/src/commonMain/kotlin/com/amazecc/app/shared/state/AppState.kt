@@ -1,3 +1,4 @@
+@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.api.AmazeClient
@@ -14,23 +15,29 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.supervisorScope
+import com.russhwolf.settings.Settings
+import com.russhwolf.settings.set
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 
-enum class Screen {
+enum class Screen { SPLASH, 
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
-    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS
+    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR
 }
 
 object AppState {
     private val scope = CoroutineScope(Dispatchers.Main)
 
     // Navigation
-    private val _currentScreen = MutableStateFlow(Screen.LOGIN)
+    private val _currentScreen = MutableStateFlow(Screen.SPLASH)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
     
     private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
 
     // Sync Notifications
+    private val notificationService = com.amazecc.app.shared.services.NotificationService()
+
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
     
@@ -61,9 +68,18 @@ object AppState {
     private val _residentialStatus = MutableStateFlow("Hosteller")
     val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()
 
-    // Semesters
-    val semesterIDs = listOf("CH20252601", "CH20242505", "CH20242501", "CH20232405")
-    private val _selectedSemester = MutableStateFlow("CH20252601")
+    val semesterMap = mapOf(
+        "CH20262705" to "Winter Semester 2026-27",
+        "CH20262701" to "Fall Semester 2026-27",
+        "CH20252605" to "Winter Semester 2025-26",
+        "CH20252601" to "Fall Semester 2025-26",
+        "CH20242505" to "Winter Semester 2024-25",
+        "CH20242501" to "Fall Semester 2024-25",
+        "CH20232405" to "Winter Semester 2023-24",
+        "CH20232401" to "Fall Semester 2023-24"
+    )
+    val semesterIDs = semesterMap.keys.toList()
+    private val _selectedSemester = MutableStateFlow("CH20262701")
     val selectedSemester: StateFlow<String> = _selectedSemester.asStateFlow()
 
     // Loading & Error states
@@ -84,7 +100,30 @@ object AppState {
     val timetable: StateFlow<TimetableRes?> = _timetable.asStateFlow()
 
     private val _marks = MutableStateFlow<MarksRes?>(null)
-    val marks: StateFlow<MarksRes?> = _marks.asStateFlow()
+    val marks: StateFlow<MarksRes?> = _marks
+
+    private val _calendarData = MutableStateFlow<CalendarRes?>(null)
+    val calendarData: StateFlow<CalendarRes?> = _calendarData
+
+    private val settings = Settings()
+    private val jsonFormat = Json { ignoreUnknownKeys = true }
+
+    private val _moodleData = MutableStateFlow<MoodleRes?>(null)
+    val moodleData: StateFlow<MoodleRes?> = _moodleData
+
+    init {
+        val cachedMoodle = settings.getString("moodle_data_cache", "")
+        if (cachedMoodle.isNotBlank()) {
+            try {
+                _moodleData.value = jsonFormat.decodeFromString<MoodleRes>(cachedMoodle)
+            } catch (e: Exception) {
+                // ignore
+            }
+        }
+    }
+
+    private val _vitolData = MutableStateFlow<VitolRes?>(null)
+    val vitolData: StateFlow<VitolRes?> = _vitolData
 
     private val _allGrades = MutableStateFlow<AllGradesRes?>(null)
     val allGrades: StateFlow<AllGradesRes?> = _allGrades.asStateFlow()
@@ -383,6 +422,29 @@ object AppState {
         _clubs.value = null
         _error.value = null
         _syncStatus.value = null
+    }
+
+    fun updateMarks(data: MarksRes?) {
+        _marks.value = data
+    }
+
+    fun updateCalendarData(data: CalendarRes?) {
+        _calendarData.value = data
+    }
+
+    fun updateMoodleData(data: MoodleRes?) {
+        _moodleData.value = data
+        if (data != null) {
+            try {
+                settings["moodle_data_cache"] = jsonFormat.encodeToString(data)
+            } catch (e: Exception) {}
+        } else {
+            settings.remove("moodle_data_cache")
+        }
+    }
+
+    fun updateVitolData(data: VitolRes?) {
+        _vitolData.value = data
     }
 
     fun changeTheme(theme: AppTheme) {

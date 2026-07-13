@@ -1,108 +1,160 @@
-package com.amazecc.app.shared.ui.screens
+package com.amazecc.app.shared.ui.screens.more
 
 import androidx.compose.foundation.background
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.ExitToApp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.components.AmazeButton
-import com.amazecc.app.shared.ui.components.ScreenHeader
-import com.amazecc.app.shared.ui.components.getScreenIconAndLabel
+import com.amazecc.app.shared.ui.components.*
 
 @Composable
 fun MoreScreen() {
     val colors = AmazeTheme.colors
-    val pinnedTabs by AppState.pinnedNavTabs.collectAsState()
-    var isEditing by remember { mutableStateOf(false) }
 
-    val allModules = listOf(
-        Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.HOSTEL,
-        Screen.CABSHARE, Screen.TRANSPORT, Screen.PAYMENTS, Screen.PROFILE,
-        Screen.EVENTS, Screen.QBANK, Screen.SOCIAL, Screen.FFCS_PLANNER, Screen.FREE_CLASSROOMS
-    )
-
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(colors.background).padding(horizontal = 16.dp)) {
         ScreenHeader(
-            title = if (isEditing) "Edit Navigation" else "App Library",
-            description = if (isEditing) "Select up to 4 modules to pin to your bottom bar" else "All available modules and services",
+            title = "More",
+            description = "Modules, Communities and Settings",
             showBackButton = false,
             showSyncButton = false
         )
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.End
-        ) {
-            AmazeButton(
-                text = if (isEditing) "Done" else "Customize Navigation",
-                onClick = { isEditing = !isEditing }
+        
+        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+            
+            Text("App Library", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            val modules = listOf(
+                Pair(Screen.PAYMENTS, Icons.Rounded.CreditCard to "Payments"),
+                Pair(Screen.LIBRARIES, Icons.Rounded.LibraryBooks to "Library"),
+                Pair(Screen.HOSTEL, Icons.Rounded.Apartment to "Hostel"),
+                Pair(Screen.TRANSPORT, Icons.Rounded.DirectionsBus to "Transport"),
+                Pair(Screen.CABSHARE, Icons.Rounded.DirectionsCar to "Cabshare"),
+                Pair(Screen.EVENTS, Icons.Rounded.Event to "Events"),
+                Pair(Screen.QBANK, Icons.Rounded.Topic to "QBank"),
+                Pair(Screen.SOCIAL, Icons.Rounded.People to "Social"),
+                Pair(Screen.FFCS_PLANNER, Icons.Rounded.ViewTimeline to "FFCS"),
+                Pair(Screen.FREE_CLASSROOMS, Icons.Rounded.MeetingRoom to "Classes")
             )
-        }
-
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.weight(1f)
-        ) {
-            items(allModules) { module ->
-                val (icon, label) = getScreenIconAndLabel(module)
-                val isPinned = pinnedTabs.contains(module)
-
-                Box(
-                    modifier = Modifier
-                        .aspectRatio(1f)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(
-                            if (isEditing && isPinned) colors.accent.copy(alpha = 0.2f)
-                            else colors.surface
-                        )
-                        .clickable {
-                            if (isEditing) {
-                                if (isPinned) {
-                                    AppState.setPinnedNavTabs(pinnedTabs - module)
-                                } else if (pinnedTabs.size < 4) {
-                                    AppState.setPinnedNavTabs(pinnedTabs + module)
-                                }
-                            } else {
-                                AppState.navigateTo(module)
+            
+            // Render as a grid (3 columns)
+            val chunkedModules = modules.chunked(3)
+            AmazeCard(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    chunkedModules.forEach { rowModules ->
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            rowModules.forEach { (screen, iconAndLabel) ->
+                                val (icon, label) = iconAndLabel
+                                ModuleIcon(
+                                    icon = icon,
+                                    label = label,
+                                    onClick = { AppState.navigateTo(screen) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            // Fill empty slots if row has less than 3 items
+                            repeat(3 - rowModules.size) {
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
-                        .padding(12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = label,
-                            tint = if (isEditing && isPinned) colors.accent else colors.textPrimary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = label,
-                            style = AmazeTheme.typography.smallLabel.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = if (isEditing && isPinned) colors.accent else colors.textSecondary
-                            )
-                        )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            Text("Communities", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    Icon(Icons.Rounded.Groups, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text("Club Hub", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Text("Explore student clubs and chapters", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                    Icon(Icons.Rounded.Explore, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column {
+                        Text("Community Feed", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Text("Latest posts from AmazeCC members", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            Text("Settings & Info", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    SettingsRow("App Settings", Icons.Rounded.Settings)
+                    SettingsRow("About AmazeCC", Icons.Rounded.Info)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    AmazeButton("Log Out", onClick = {}, variant = ButtonVariant.SECONDARY, modifier = Modifier.fillMaxWidth())
+                }
+            }
+            Spacer(modifier = Modifier.height(30.dp))
         }
+    }
+}
+
+@Composable
+fun ModuleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = AmazeTheme.colors
+    Column(
+        modifier = modifier.clickable { onClick() },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(colors.surface)
+                .padding(12.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = label, tint = colors.accent, modifier = Modifier.size(32.dp))
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = label, 
+            style = AmazeTheme.typography.smallLabel.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+fun SettingsRow(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    val colors = AmazeTheme.colors
+    Row(
+        verticalAlignment = Alignment.CenterVertically, 
+        modifier = Modifier.fillMaxWidth().clickable {}.padding(vertical = 12.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(24.dp))
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
     }
 }

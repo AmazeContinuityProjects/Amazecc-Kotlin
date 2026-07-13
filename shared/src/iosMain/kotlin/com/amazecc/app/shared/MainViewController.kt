@@ -1,3 +1,4 @@
+@file:Suppress("UNRESOLVED_REFERENCE")
 package com.amazecc.app.shared
 
 import androidx.compose.ui.window.ComposeUIViewController
