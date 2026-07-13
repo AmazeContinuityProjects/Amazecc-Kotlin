@@ -524,6 +524,65 @@ object AmazeClient {
         }
     }
 
+    suspend fun getArrearSchedule(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                keyValuePairs = listOf(
+                    KeyValuePair("Registered Credits", "22.0"),
+                    KeyValuePair("Eligible Arrears", "2"),
+                    KeyValuePair("Exam Fee", "Rs. 2,400")
+                ),
+                tables = listOf(
+                    ApiTable(
+                        title = "Arrear Schedule",
+                        headers = listOf("Course Code", "Course Title", "Date", "Time", "Venue"),
+                        rows = listOf(
+                            listOf("MAT2001", "Statistics for Engineers", "2026-07-20", "10:00 AM", "SJT-201"),
+                            listOf("PHY1701", "Engineering Physics", "2026-07-22", "2:00 PM", "SJT-305")
+                        )
+                    )
+                )
+            )
+        }
+        return postAuthorized<ArrearResponse>("arrear-schedule") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getArrearDetails(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                tables = listOf(
+                    ApiTable(
+                        title = "Arrear Details",
+                        headers = listOf("Course Code", "Course Title", "Credits", "Course Type", "Status"),
+                        rows = listOf(
+                            listOf("MAT2001", "Statistics for Engineers", "4", "Theory", "Registered"),
+                            listOf("PHY1701", "Engineering Physics", "3", "Theory", "Registered")
+                        )
+                    )
+                )
+            )
+        }
+        return postAuthorized<ArrearResponse>("arrear-details") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getArrearGrade(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                tables = listOf(
+                    ApiTable(
+                        title = "Arrear Grades",
+                        headers = listOf("Course Code", "Course Title", "Grade", "Credits", "Result"),
+                        rows = listOf(
+                            listOf("MAT2001", "Statistics for Engineers", "B", "4", "PASS"),
+                            listOf("PHY1701", "Engineering Physics", "", "3", "Awaited")
+                        )
+                    )
+                )
+            )
+        }
+        return postAuthorized<ArrearResponse>("arrear-grade") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
     suspend fun getVitol(): VitolRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return VitolRes(
