@@ -8,10 +8,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
-import androidx.compose.material.icons.automirrored.rounded.ExitToApp
+import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,6 +30,7 @@ import com.amazecc.app.shared.ui.components.*
 @Composable
 fun MoreScreen() {
     val colors = AmazeTheme.colors
+    var showPushPrompt by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background).padding(horizontal = 16.dp)) {
         ScreenHeader(
@@ -34,15 +39,15 @@ fun MoreScreen() {
             showBackButton = false,
             showSyncButton = false
         )
-        
+
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-            
+
             Text("App Library", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             val modules = listOf(
                 Pair(Screen.PAYMENTS, Icons.Rounded.CreditCard to "Payments"),
-                Pair(Screen.LIBRARIES, Icons.Rounded.LibraryBooks to "Library"),
+                Pair(Screen.LIBRARIES, Icons.AutoMirrored.Rounded.LibraryBooks to "Library"),
                 Pair(Screen.HOSTEL, Icons.Rounded.Apartment to "Hostel"),
                 Pair(Screen.TRANSPORT, Icons.Rounded.DirectionsBus to "Transport"),
                 Pair(Screen.CABSHARE, Icons.Rounded.DirectionsCar to "Cabshare"),
@@ -52,8 +57,7 @@ fun MoreScreen() {
                 Pair(Screen.FFCS_PLANNER, Icons.Rounded.ViewTimeline to "FFCS"),
                 Pair(Screen.FREE_CLASSROOMS, Icons.Rounded.MeetingRoom to "Classes")
             )
-            
-            // Render as a grid (3 columns)
+
             val chunkedModules = modules.chunked(3)
             AmazeCard(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -68,7 +72,6 @@ fun MoreScreen() {
                                     modifier = Modifier.weight(1f)
                                 )
                             }
-                            // Fill empty slots if row has less than 3 items
                             repeat(3 - rowModules.size) {
                                 Spacer(modifier = Modifier.weight(1f))
                             }
@@ -78,9 +81,31 @@ fun MoreScreen() {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+            Text("Services & Tools", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ActionCard(title = "Course Management", description = "Option changes, EXC, minors & completion", icon = Icons.Rounded.School, onClick = { AppState.navigateTo(Screen.COURSE_MANAGEMENT) })
+                    Spacer(Modifier.height(4.dp))
+                    ActionCard(title = "Faculty Info", description = "Faculty directory by school", icon = Icons.Rounded.People, onClick = { AppState.navigateTo(Screen.FACULTY_INFO) })
+                    Spacer(Modifier.height(4.dp))
+                    ActionCard(title = "Projects", description = "Academic projects and guides", icon = Icons.Rounded.WorkspacePremium, onClick = { AppState.navigateTo(Screen.PROJECTS) })
+                    Spacer(Modifier.height(4.dp))
+                    ActionCard(title = "Wishlist", description = "Course wishlist", icon = Icons.Rounded.Favorite, onClick = { AppState.navigateTo(Screen.WISHLIST) })
+                    Spacer(Modifier.height(4.dp))
+                    ActionCard(title = "Feedback", description = "Course feedback status", icon = Icons.Rounded.RateReview, onClick = { AppState.navigateTo(Screen.FEEDBACK_STATUS) })
+                    Spacer(Modifier.height(4.dp))
+                    ActionCard(title = "Documents", description = "Bonafide, transcripts & additional learning", icon = Icons.Rounded.Description, onClick = { AppState.navigateTo(Screen.DOCUMENTS) })
+                    Spacer(Modifier.height(4.dp))
+                    ActionCard(title = "Activity Tree", description = "Your engagement heatmap", icon = Icons.Rounded.GridView, onClick = { AppState.navigateTo(Screen.ACTIVITY_TREE) })
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
             Text("Communities", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Icon(Icons.Rounded.Groups, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
@@ -102,21 +127,31 @@ fun MoreScreen() {
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(24.dp))
             Text("Settings & Info", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column {
-                    SettingsRow("App Settings", Icons.Rounded.Settings)
-                    SettingsRow("About AmazeCC", Icons.Rounded.Info)
+                    ClickableRow(title = "App Settings", icon = Icons.Rounded.Settings, onClick = { /* TODO: Settings screen */ })
+                    ClickableRow(title = "Activity Tree", icon = Icons.Rounded.GridView, onClick = { AppState.navigateTo(Screen.ACTIVITY_TREE) })
+                    ClickableRow(title = "About AmazeCC", icon = Icons.Rounded.Info, onClick = { AppState.navigateTo(Screen.ABOUT) })
+                    ClickableRow(title = "Fresher's Welcome", icon = Icons.Rounded.Star, onClick = { AppState.navigateTo(Screen.FRESHER_WELCOME) })
+                    ClickableRow(title = "Enable Push Notifications", icon = Icons.Rounded.Notifications, onClick = { showPushPrompt = true })
                     Spacer(modifier = Modifier.height(12.dp))
-                    AmazeButton("Log Out", onClick = {}, variant = ButtonVariant.SECONDARY, modifier = Modifier.fillMaxWidth())
+                    AmazeButton("Log Out", onClick = { AppState.logout() }, variant = ButtonVariant.SECONDARY, modifier = Modifier.fillMaxWidth())
                 }
             }
             Spacer(modifier = Modifier.height(30.dp))
         }
+    }
+
+    if (showPushPrompt) {
+        PushPromptModal(
+            onEnable = { showPushPrompt = false },
+            onDismiss = { showPushPrompt = false }
+        )
     }
 }
 
@@ -139,7 +174,7 @@ fun ModuleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = label, 
+            text = label,
             style = AmazeTheme.typography.smallLabel.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
             textAlign = TextAlign.Center
         )
@@ -147,11 +182,11 @@ fun ModuleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
 }
 
 @Composable
-fun SettingsRow(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+fun ClickableRow(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     val colors = AmazeTheme.colors
     Row(
-        verticalAlignment = Alignment.CenterVertically, 
-        modifier = Modifier.fillMaxWidth().clickable {}.padding(vertical = 12.dp)
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 12.dp)
     ) {
         Icon(icon, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))

@@ -6,13 +6,25 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.BugReport
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -34,10 +46,10 @@ fun App() {
     val currentAccent by AppState.accent.collectAsState()
     val currentScreen by AppState.currentScreen.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
-    val syncStatus by AppState.syncStatus.collectAsState()
     val syncError by AppState.error.collectAsState()
 
     val uiScale by AppState.uiScale.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
 
     AmazeTheme(
         appTheme = currentTheme,
@@ -56,25 +68,20 @@ fun App() {
                 modifier = Modifier.fillMaxSize(),
                 color = colors.background
             ) {
-                Scaffold(
-                    bottomBar = {
-                        if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) {
-                            com.amazecc.app.shared.ui.components.BottomNavigationBar()
-                        }
-                    },
-                containerColor = colors.background
-            ) { paddingValues ->
-                Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                Scaffold(containerColor = colors.background) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     // Sync Notification Overlay
                     com.amazecc.app.shared.ui.components.SyncNotification()
 
                     // Crossfade screen transitions
-                    AnimatedContent(
-                        targetState = currentScreen,
-                        transitionSpec = {
-                            fadeIn() togetherWith fadeOut()
-                        }
-                    ) { targetScreen ->
+                    val navBottomPadding = if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) 80.dp else 0.dp
+                    Box(modifier = Modifier.padding(bottom = navBottomPadding)) {
+                        AnimatedContent(
+                            targetState = currentScreen,
+                            transitionSpec = {
+                                fadeIn() togetherWith fadeOut()
+                            }
+                        ) { targetScreen ->
                         when (targetScreen) {
                             Screen.SPLASH -> SplashScreen()
                             Screen.LOGIN -> LoginScreen()
@@ -95,22 +102,121 @@ fun App() {
                             Screen.FFCS_PLANNER -> FfcsPlannerScreen()
                             Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateTo(Screen.ACADEMICS) }
                             Screen.CALENDAR -> CalendarScreen { AppState.navigateTo(Screen.ACADEMICS) }
+                            Screen.GLASS_MORPH -> GlassMorphismScreen()
+                            Screen.GRADES -> GradesScreen()
+                            Screen.GPA_PREDICTOR -> GPAPredictorScreen()
+                            Screen.COURSE_ATTENDANCE -> CourseAttendanceScreen()
+                            Screen.ARREAR -> ArrearScreen()
+                            Screen.MAKEUP_COMPRE -> MakeupCompreScreen()
+                            Screen.CIRCULARS -> CircularsScreen()
+                            Screen.CURRICULUM -> CurriculumScreen()
+                            Screen.OD_TRACKER -> ODTrackerScreen()
+                            Screen.COURSE_DASHBOARD -> CourseDashboardScreen { AppState.navigateTo(Screen.ACADEMICS) }
+                            Screen.MARKS_TIMELINE -> MarksTimelineScreen()
+                            Screen.VITOL -> VitolScreen()
+                            Screen.FACULTY_INFO -> FacultyInfoScreen()
+                            Screen.COURSE_MANAGEMENT -> CourseManagementScreen()
+                            Screen.PROJECTS -> ProjectsScreen()
+                            Screen.WISHLIST -> WishlistScreen()
+                            Screen.FEEDBACK_STATUS -> FeedbackStatusScreen()
+                            Screen.FRESHER_WELCOME -> FresherWelcomeScreen()
+                            Screen.DOCUMENTS -> DocumentsScreen()
+                            Screen.ABOUT -> AboutScreen()
+                            Screen.ACTIVITY_TREE -> ActivityTreeScreen()
+                        }
+                    }
+                    }
+
+                    // Floating nav bar overlay
+                    if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 16.dp)
+                        ) {
+                            com.amazecc.app.shared.ui.components.BottomNavigationBar()
                         }
                     }
 
                     if (!isLoading && syncError != null && currentScreen != Screen.LOGIN) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(16.dp)
-                                .background(colors.dangerSurface, MaterialTheme.shapes.small)
-                                .padding(12.dp)
-                        ) {
-                            Text(
-                                text = syncError ?: "",
-                                color = colors.dangerText
-                            )
-                        }
+                        AlertDialog(
+                            onDismissRequest = { AppState.dismissError() },
+                            containerColor = colors.surface,
+                            shape = RoundedCornerShape(24.dp),
+                            title = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "Sync Error",
+                                        style = AmazeTheme.typography.subheading.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = colors.dangerText
+                                        )
+                                    )
+                                    IconButton(onClick = { AppState.dismissError() }) {
+                                        Icon(Icons.Rounded.Close, "Dismiss", tint = colors.textSecondary)
+                                    }
+                                }
+                            },
+                            text = {
+                                Column {
+                                    Text(
+                                        "Some data failed to sync. You can copy the details below or report the issue to the developer.",
+                                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                    )
+                                    Spacer(Modifier.height(12.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .heightIn(max = 250.dp)
+                                            .background(colors.background, RoundedCornerShape(12.dp))
+                                            .padding(12.dp)
+                                            .verticalScroll(rememberScrollState())
+                                    ) {
+                                        Text(
+                                            text = syncError ?: "",
+                                            style = AmazeTheme.typography.smallLabel.copy(
+                                                fontFamily = FontFamily.Monospace,
+                                                fontSize = 11.sp,
+                                                color = colors.dangerText
+                                            )
+                                        )
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            clipboardManager.setText(AnnotatedString(syncError ?: ""))
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Copy", style = AmazeTheme.typography.smallLabel)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            val report = "AmazeCC Error Report\n\n${syncError ?: ""}\n\n---\nApp: AmazeCC\nPlatform: Android"
+                                            clipboardManager.setText(AnnotatedString(report))
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Rounded.BugReport, null, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Report", style = AmazeTheme.typography.smallLabel)
+                                    }
+                                }
+                            }
+                        )
                     }
                 }
             }

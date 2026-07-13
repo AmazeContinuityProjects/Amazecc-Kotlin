@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun HostelScreen() {
@@ -157,14 +160,99 @@ fun HostelDetailsTab(hostelDetails: com.amazecc.app.shared.model.HostelDetails?,
 @Composable
 fun HostelMessTab() {
     val colors = AmazeTheme.colors
+    val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    val meals = listOf("Breakfast", "Lunch", "Snacks", "Dinner")
+    val todayIndex = try {
+        (Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).dayOfWeek.value - 1).coerceIn(0, 6)
+    } catch (_: Exception) { 0 }
+    var selectedDay by remember { mutableStateOf(todayIndex) }
+    var selectedMeal by remember { mutableStateOf(0) }
+    var isVeg by remember { mutableStateOf(true) }
+
+    val menuData = mapOf(
+        "Breakfast" to listOf("Idli", "Dosa", "Pongal", "Vada", "Poori", "Upma"),
+        "Lunch" to listOf("Steamed Rice", "Sambar", "Rasam", "Curd", "Chapati", "Dal Fry"),
+        "Snacks" to listOf("Bajji", "Bonda", "Samosa", "Tea", "Coffee", "Milk"),
+        "Dinner" to listOf("Chapati", "Dal", "Jeera Rice", "Mixed Veg Curry", "Papad", "Pickle")
+    )
+
+    Text("Mess Menu", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+    Spacer(modifier = Modifier.height(12.dp))
+
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        AmazeButton(
+            text = if (isVeg) "Veg" else "Non-Veg",
+            onClick = { isVeg = !isVeg },
+            variant = if (isVeg) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
+            icon = if (isVeg) Icons.Rounded.CheckCircle else null
+        )
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        days.forEachIndexed { index, day ->
+            val isSelected = selectedDay == index
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isSelected) colors.accent else colors.surface)
+                    .clickable { selectedDay = index }
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = day,
+                    style = AmazeTheme.typography.body.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) colors.background else colors.textSecondary
+                    )
+                )
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        meals.forEachIndexed { index, meal ->
+            AmazeButton(
+                text = meal,
+                onClick = { selectedMeal = index },
+                variant = if (selectedMeal == index) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+
+    val currentMeal = meals[selectedMeal]
+    val items = menuData[currentMeal] ?: emptyList()
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            Icon(Icons.Rounded.Restaurant, contentDescription = null, tint = colors.accent, modifier = Modifier.size(48.dp))
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Mess Menu Integration", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-            Text("Select your mess type to view today's interactive menu.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), textAlign = TextAlign.Center)
-            Spacer(modifier = Modifier.height(16.dp))
-            AmazeButton("View Special Menu", onClick = {}, variant = ButtonVariant.SECONDARY)
+        Text(currentMeal, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+        Spacer(modifier = Modifier.height(10.dp))
+        Column {
+            items.chunked(3).forEach { rowItems ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowItems.forEach { item ->
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isVeg) colors.successSurface else colors.dangerSurface)
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = item,
+                                style = AmazeTheme.typography.caption.copy(
+                                    color = if (isVeg) colors.successText else colors.dangerText,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
         }
     }
 }
@@ -172,16 +260,92 @@ fun HostelMessTab() {
 @Composable
 fun HostelLaundryTab() {
     val colors = AmazeTheme.colors
+    val blocks = listOf("A-Block", "B-Block", "C-Block", "D-Block")
+    var selectedBlock by remember { mutableStateOf(0) }
+
+    data class LaundrySlot(val time: String, val status: String, val capacity: Int, val total: Int)
+    val slotData = mapOf(
+        "A-Block" to listOf(
+            LaundrySlot("8:00 - 10:00", "Available", 8, 10),
+            LaundrySlot("10:00 - 12:00", "Booked", 0, 10),
+            LaundrySlot("14:00 - 16:00", "Available", 6, 10),
+            LaundrySlot("16:00 - 18:00", "Available", 4, 10)
+        ),
+        "B-Block" to listOf(
+            LaundrySlot("8:00 - 10:00", "Booked", 0, 10),
+            LaundrySlot("10:00 - 12:00", "Available", 7, 10),
+            LaundrySlot("14:00 - 16:00", "Booked", 0, 10),
+            LaundrySlot("16:00 - 18:00", "Available", 9, 10)
+        ),
+        "C-Block" to listOf(
+            LaundrySlot("8:00 - 10:00", "Available", 5, 10),
+            LaundrySlot("10:00 - 12:00", "Available", 3, 10),
+            LaundrySlot("14:00 - 16:00", "Available", 10, 10),
+            LaundrySlot("16:00 - 18:00", "Booked", 0, 10)
+        ),
+        "D-Block" to listOf(
+            LaundrySlot("8:00 - 10:00", "Booked", 0, 10),
+            LaundrySlot("10:00 - 12:00", "Booked", 0, 10),
+            LaundrySlot("14:00 - 16:00", "Available", 2, 10),
+            LaundrySlot("16:00 - 18:00", "Available", 6, 10)
+        )
+    )
+
+    Text("Laundry Schedule", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+    Spacer(modifier = Modifier.height(12.dp))
+
+    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        blocks.forEachIndexed { index, block ->
+            val isSelected = selectedBlock == index
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (isSelected) colors.accent else colors.surface)
+                    .clickable { selectedBlock = index }
+                    .padding(horizontal = 18.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    text = block,
+                    style = AmazeTheme.typography.body.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) colors.background else colors.textSecondary
+                    )
+                )
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(16.dp))
+
+    val currentBlock = blocks[selectedBlock]
+    val slots = slotData[currentBlock] ?: emptyList()
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            Icon(Icons.Rounded.LocalLaundryService, contentDescription = null, tint = colors.accent, modifier = Modifier.size(48.dp))
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Laundry Schedule", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-            Text("Check block-wise laundry slots powered by Unmessify data.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), textAlign = TextAlign.Center)
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AmazeButton("Boys Block", onClick = {}, variant = ButtonVariant.SECONDARY)
-                AmazeButton("Girls Block", onClick = {}, variant = ButtonVariant.SECONDARY)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.LocalLaundryService, contentDescription = null, tint = colors.accent, modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(currentBlock, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+
+    slots.forEach { slot ->
+        AmazeCard(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(slot.time, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Capacity: ${slot.capacity}/${slot.total}",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                    )
+                }
+                AmazeBadge(
+                    text = slot.status,
+                    variant = if (slot.status == "Available") BadgeVariant.SUCCESS else BadgeVariant.DANGER
+                )
             }
         }
     }
@@ -190,6 +354,18 @@ fun HostelLaundryTab() {
 @Composable
 fun HostelCounsellingTab() {
     val colors = AmazeTheme.colors
+    val counsellingTypes = listOf("Academic", "Personal", "Career")
+    var selectedType by remember { mutableStateOf(counsellingTypes[0]) }
+    var description by remember { mutableStateOf("") }
+    var submitted by remember { mutableStateOf(false) }
+
+    data class CounsellingRequest(val type: String, val description: String, val date: String, val status: String)
+    val previousRequests = listOf(
+        CounsellingRequest("Academic", "Difficulty understanding DSA concepts", "2026-07-10", "Resolved"),
+        CounsellingRequest("Career", "Guidance on internship opportunities", "2026-06-28", "Scheduled"),
+        CounsellingRequest("Personal", "Stress management consultation", "2026-06-15", "Completed")
+    )
+
     Text("Faculty Advisor", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
     Spacer(modifier = Modifier.height(12.dp))
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -204,24 +380,116 @@ fun HostelCounsellingTab() {
             }
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("Your Faculty Advisor", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Text("Assigned via VTOP", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                Text("Dr. Rajesh Kumar", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Text("Professor, CSE Department", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Email, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("rajesh.kumar@vit.ac.in", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Phone, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("+91-9876543210", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                }
             }
-            Icon(Icons.Rounded.Email, contentDescription = "Email", tint = colors.textMuted)
         }
     }
-    Spacer(modifier = Modifier.height(16.dp))
-    AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = colors.accent.copy(alpha = 0.05f)) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.HeadsetMic, contentDescription = null, tint = colors.accent)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Campus Counselling", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-            }
+
+    Spacer(modifier = Modifier.height(24.dp))
+    Text("Request Counselling", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+    Spacer(modifier = Modifier.height(12.dp))
+
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        AmazeDropdown(
+            options = counsellingTypes,
+            selectedOption = selectedType,
+            onOptionSelected = { selectedType = it },
+            label = "Counselling Type"
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            "Description",
+            style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Bold)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        OutlinedTextField(
+            value = description,
+            onValueChange = { description = it },
+            modifier = Modifier.fillMaxWidth().height(120.dp),
+            placeholder = { Text("Describe your concern...", style = AmazeTheme.typography.body.copy(color = colors.textMuted)) },
+            shape = RoundedCornerShape(AmazeTheme.radius.small),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = colors.surface,
+                unfocusedContainerColor = colors.surface,
+                focusedBorderColor = colors.accent,
+                unfocusedBorderColor = colors.border,
+                focusedTextColor = colors.textPrimary,
+                unfocusedTextColor = colors.textPrimary,
+                cursorColor = colors.accent
+            )
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        AmazeButton(
+            text = if (submitted) "Request Submitted" else "Submit Request",
+            onClick = {
+                if (description.isNotBlank()) submitted = true
+            },
+            variant = if (submitted) ButtonVariant.SECONDARY else ButtonVariant.PRIMARY,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = description.isNotBlank() && !submitted
+        )
+        if (submitted) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text("For academic stress, personal counseling, or mental health support, please visit the campus health center.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-            Spacer(modifier = Modifier.height(12.dp))
-            AmazeButton("Contact Counsellor", onClick = {}, variant = ButtonVariant.PRIMARY, modifier = Modifier.fillMaxWidth())
+            Text(
+                "Your counselling request has been submitted successfully.",
+                style = AmazeTheme.typography.caption.copy(color = colors.successText)
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(24.dp))
+    Text("Previous Requests", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+    Spacer(modifier = Modifier.height(12.dp))
+
+    previousRequests.forEach { request ->
+        AmazeCard(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            when (request.type) {
+                                "Academic" -> Icons.Rounded.School
+                                "Career" -> Icons.Rounded.Work
+                                else -> Icons.Rounded.Favorite
+                            },
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(request.type, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(request.description, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(request.date, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                }
+                AmazeBadge(
+                    text = request.status,
+                    variant = when (request.status) {
+                        "Resolved", "Completed" -> BadgeVariant.SUCCESS
+                        "Scheduled" -> BadgeVariant.INFO
+                        else -> BadgeVariant.WARNING
+                    }
+                )
+            }
         }
     }
 }

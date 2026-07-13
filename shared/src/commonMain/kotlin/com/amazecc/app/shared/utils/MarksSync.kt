@@ -3,11 +3,10 @@ package com.amazecc.app.shared.utils
 import kotlinx.serialization.json.*
 import io.ktor.client.*
 import io.ktor.client.request.*
-import io.ktor.client.statement.*
 import io.ktor.http.*
 import kotlinx.datetime.Clock
+import kotlin.math.roundToInt
 
-// Expect a sha-256 implementation provided per platform
 expect suspend fun hashStringSha256(str: String): String
 
 // Assuming Settings or similar Key-Value store interface is provided
@@ -16,6 +15,7 @@ interface KeyValueStore {
     fun setString(key: String, value: String)
 }
 
+@Suppress("unused")
 object MarksSync {
     private const val API_BASE = "https://amazecc.vercel.app" // Adjust accordingly
     
@@ -58,14 +58,14 @@ object MarksSync {
 
         if (group.lab == null) {
             val projected = if (theoryTotals.weightPercent > 0) {
-                Math.round((theoryTotals.weighted / theoryTotals.weightPercent) * 100).toInt()
+                ((theoryTotals.weighted / theoryTotals.weightPercent) * 100).roundToInt()
             } else 0
             return projected
         }
 
         if (group.theory == null) {
             val projected = if (labTotals.weightPercent > 0) {
-                Math.round((labTotals.weighted / labTotals.weightPercent) * 100).toInt()
+                ((labTotals.weighted / labTotals.weightPercent) * 100).roundToInt()
             } else 0
             return projected
         }
@@ -82,7 +82,7 @@ object MarksSync {
         val combinedWeightPercent = (theoryCredits * theoryTotals.weightPercent + labCredits * labTotals.weightPercent) / creditsTotal
 
         val projected = if (combinedWeightPercent > 0) {
-            Math.round((combinedWeighted / combinedWeightPercent) * 100).toInt()
+            ((combinedWeighted / combinedWeightPercent) * 100).roundToInt()
         } else 0
 
         return projected
@@ -94,6 +94,7 @@ object MarksSync {
         var lab: JsonObject? = null
     )
 
+    @Suppress("unused")
     suspend fun syncMarksDiff(
         oldMarksDataStr: String?,
         newMarksDataStr: String?,
@@ -107,8 +108,8 @@ object MarksSync {
             val hasSyncedBefore = store.getString("hasSyncedMarksV2") != null
             val actualOldMarksStr = if (!hasSyncedBefore) "{}" else (oldMarksDataStr ?: "{}")
 
-            val oldMarksData = try { Json.parseToJsonElement(actualOldMarksStr).jsonObject } catch (e: Exception) { buildJsonObject {} }
-            val newMarksData = try { Json.parseToJsonElement(newMarksDataStr).jsonObject } catch (e: Exception) { buildJsonObject {} }
+            val oldMarksData = try { Json.parseToJsonElement(actualOldMarksStr).jsonObject } catch (_: Exception) { buildJsonObject {} }
+            val newMarksData = try { Json.parseToJsonElement(newMarksDataStr).jsonObject } catch (_: Exception) { buildJsonObject {} }
 
             if (!newMarksData.containsKey("courses")) return
 
@@ -160,7 +161,7 @@ object MarksSync {
                             put("type", "add")
                             put("classId", classId)
                             put("assessmentTitle", "OVERALL")
-                            put("mark", java.lang.Double.valueOf(newStatsProjected.toDouble()) ?: 0.0) // type issue workaround, assume Int is fine
+                            put("mark", newStatsProjected) // type issue workaround, assume Int is fine
                         })
                     } else if (oldStatsProjected != newStatsProjected) {
                         actions.add(buildJsonObject {

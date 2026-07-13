@@ -4,6 +4,7 @@ package com.amazecc.app.shared.state
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AppTheme
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +23,10 @@ import kotlinx.serialization.encodeToString
 
 enum class Screen { SPLASH, 
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
-    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR
+    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GLASS_MORPH, GRADES, GPA_PREDICTOR,
+    COURSE_ATTENDANCE, ARREAR, MAKEUP_COMPRE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
+    MARKS_TIMELINE, VITOL, FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
+    FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, ACTIVITY_TREE
 }
 
 object AppState {
@@ -62,11 +66,32 @@ object AppState {
     private val _friendlyName = MutableStateFlow(true)
     val friendlyName: StateFlow<Boolean> = _friendlyName.asStateFlow()
 
+    private val _cgpaHidden = MutableStateFlow(false)
+    val cgpaHidden: StateFlow<Boolean> = _cgpaHidden.asStateFlow()
+
+    private val _attendanceDisplayMode = MutableStateFlow("percentage")
+    val attendanceDisplayMode: StateFlow<String> = _attendanceDisplayMode.asStateFlow()
+
     private val _calendarView = MutableStateFlow("List")
     val calendarView: StateFlow<String> = _calendarView.asStateFlow()
 
     private val _residentialStatus = MutableStateFlow("Hosteller")
     val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()
+
+    // Sync toggles (mirror web app settings)
+    private val _syncArrear = MutableStateFlow(true)
+    val syncArrear: StateFlow<Boolean> = _syncArrear.asStateFlow()
+    private val _syncExam = MutableStateFlow(true)
+    val syncExam: StateFlow<Boolean> = _syncExam.asStateFlow()
+    private val _syncProfile = MutableStateFlow(true)
+    val syncProfile: StateFlow<Boolean> = _syncProfile.asStateFlow()
+    private val _syncAdditional = MutableStateFlow(true)
+    val syncAdditional: StateFlow<Boolean> = _syncAdditional.asStateFlow()
+
+    // Student profile data
+    private val _studentProfile = MutableStateFlow<StudentProfile?>(null)
+    val studentProfile: StateFlow<StudentProfile?> = _studentProfile.asStateFlow()
+    private val _cachedStudentProfile = MutableStateFlow<StudentProfileRes?>(null)
 
     val semesterMap = mapOf(
         "CH20262705" to "Winter Semester 2026-27",
@@ -112,14 +137,75 @@ object AppState {
     val moodleData: StateFlow<MoodleRes?> = _moodleData
 
     init {
+        // Load cached data from local storage
+        loadCachedData()
+        // Load persisted settings
+        _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
+        _attendanceDisplayMode.value = SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage")
+        _syncArrear.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ARREAR, true)
+        _syncExam.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_EXAM, true)
+        _syncProfile.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_PROFILE, true)
+        _syncAdditional.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, true)
+    }
+
+    private fun loadCachedString(key: String): String? {
+        val cached = settings.getString(key, "")
+        return if (cached.isNotBlank()) cached else null
+    }
+
+    private inline fun <reified T> loadCachedData(key: String, state: MutableStateFlow<T?>) {
+        val cached = settings.getString(key, "")
+        if (cached.isNotBlank()) {
+            try {
+                state.value = jsonFormat.decodeFromString<T>(cached)
+            } catch (e: Exception) { /* ignore corrupt cache */ }
+        }
+    }
+
+    private fun loadCachedData() {
+        loadCachedData<AttendanceRes>(SettingsManager.CACHE_ATTENDANCE, _attendance)
+        loadCachedData<TimetableRes>(SettingsManager.CACHE_TIMETABLE, _timetable)
+        loadCachedData<MarksRes>(SettingsManager.CACHE_MARKS, _marks)
+        loadCachedData<AllGradesRes>(SettingsManager.CACHE_GRADES, _allGrades)
+        loadCachedData<HostelDetails>(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails)
+        loadCachedData<HostelLeaveRes>(SettingsManager.CACHE_HOSTEL_LEAVES, _hostelLeaves)
+        loadCachedData<ExamScheduleRes>(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule)
+        loadCachedData<CalendarRes>(SettingsManager.CACHE_CALENDAR, _calendar)
+        loadCachedData<PaymentsRes>(SettingsManager.CACHE_PAYMENTS, _payments)
+        loadCachedData<LibraryRes>(SettingsManager.CACHE_LIBRARY, _library)
+        loadCachedData<TransportRes>(SettingsManager.CACHE_TRANSPORT, _transport)
+        loadCachedData<LMSRes>(SettingsManager.CACHE_LMS, _lms)
+        loadCachedData<EventHubRes>(SettingsManager.CACHE_EVENTS, _events)
+        loadCachedData<ClubsRes>(SettingsManager.CACHE_CLUBS, _clubs)
+        loadCachedData<StudentProfileRes>(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile)
+        loadCachedData<VitolRes>(SettingsManager.CACHE_VITOL, _vitolData)
+        // Also load moodle
         val cachedMoodle = settings.getString("moodle_data_cache", "")
         if (cachedMoodle.isNotBlank()) {
             try {
                 _moodleData.value = jsonFormat.decodeFromString<MoodleRes>(cachedMoodle)
-            } catch (e: Exception) {
-                // ignore
-            }
+            } catch (e: Exception) { /* ignore */ }
         }
+    }
+
+    private fun cacheData(key: String, value: Any?) {
+        if (value != null) {
+            try {
+                settings[key] = jsonFormat.encodeToString(value)
+            } catch (e: Exception) { /* ignore serialization error */ }
+        } else {
+            settings.remove(key)
+        }
+    }
+
+    fun restoreSession(): Boolean {
+        val cookies = loadCachedString(SettingsManager.SESSION_COOKIES) ?: return false
+        val csrf = loadCachedString(SettingsManager.SESSION_CSRF) ?: return false
+        val authorizedID = loadCachedString(SettingsManager.SESSION_AUTHORIZED_ID) ?: return false
+        val clubToken = loadCachedString(SettingsManager.SESSION_CLUB_TOKEN)
+        SessionManager.saveSession(cookies, csrf, authorizedID, clubToken)
+        AmazeClient.setUseMockData(false)
+        return true
     }
 
     private val _vitolData = MutableStateFlow<VitolRes?>(null)
@@ -157,6 +243,15 @@ object AppState {
 
     private val _clubs = MutableStateFlow<ClubsRes?>(null)
     val clubs: StateFlow<ClubsRes?> = _clubs.asStateFlow()
+
+    // Selected course for detail view
+    private val _selectedCourseCode = MutableStateFlow<String?>(null)
+    val selectedCourseCode: StateFlow<String?> = _selectedCourseCode.asStateFlow()
+
+    fun openCourseAttendance(courseCode: String) {
+        _selectedCourseCode.value = courseCode
+        navigateTo(Screen.COURSE_ATTENDANCE)
+    }
 
     // Temp inputs/states
     val cabShareActive = MutableStateFlow(false)
@@ -205,11 +300,15 @@ object AppState {
                             syncModule(
                                 name = "Attendance and CGPA",
                                 fetch = { AmazeClient.getAcademicData(semesterId) },
-                                isSuccess = { it.attendance.success && (it.marks?.success != false) },
-                                errorMessage = { it.attendance.message ?: it.attendance.error ?: it.marks?.message ?: it.marks?.error },
+                                isSuccess = { it.attendance.error == null && it.marks?.error == null },
+                                errorMessage = { it.attendance.error ?: it.marks?.error },
                                 update = {
                                     _attendance.value = it.attendance
-                                    it.marks?.let { marks -> _marks.value = marks }
+                                    cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
+                                    it.marks?.let { marks ->
+                                        _marks.value = marks
+                                        cacheData(SettingsManager.CACHE_MARKS, marks)
+                                    }
                                 }
                             )
                         },
@@ -217,9 +316,12 @@ object AppState {
                             syncModule(
                                 name = "Timetable",
                                 fetch = { AmazeClient.getTimetable(semesterId) },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _timetable.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _timetable.value = it
+                                    cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                                }
                             )
                         }
                     ).awaitAll()
@@ -246,11 +348,15 @@ object AppState {
                             syncModule(
                                 name = "Attendance and CGPA",
                                 fetch = { AmazeClient.getAcademicData(sem) },
-                                isSuccess = { it.attendance.success && (it.marks?.success != false) },
-                                errorMessage = { it.attendance.message ?: it.attendance.error ?: it.marks?.message ?: it.marks?.error },
+                                isSuccess = { it.attendance.error == null && it.marks?.error == null },
+                                errorMessage = { it.attendance.error ?: it.marks?.error },
                                 update = {
                                     _attendance.value = it.attendance
-                                    it.marks?.let { marks -> _marks.value = marks }
+                                    cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
+                                    it.marks?.let { marks ->
+                                        _marks.value = marks
+                                        cacheData(SettingsManager.CACHE_MARKS, marks)
+                                    }
                                 }
                             )
                         },
@@ -258,109 +364,159 @@ object AppState {
                             syncModule(
                                 name = "Timetable",
                                 fetch = { AmazeClient.getTimetable(sem) },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _timetable.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _timetable.value = it
+                                    cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "Grade history",
                                 fetch = { AmazeClient.getAllGrades() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _allGrades.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _allGrades.value = it
+                                    cacheData(SettingsManager.CACHE_GRADES, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "Hostel details",
                                 fetch = { AmazeClient.getHostelDetails() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _hostelDetails.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _hostelDetails.value = it
+                                    cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "Hostel leaves",
                                 fetch = { AmazeClient.getHostelLeaves() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _hostelLeaves.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _hostelLeaves.value = it
+                                    cacheData(SettingsManager.CACHE_HOSTEL_LEAVES, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "Exam schedule",
                                 fetch = { AmazeClient.getExamSchedule() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _examSchedule.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _examSchedule.value = it
+                                    cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "Academic calendar",
                                 fetch = { AmazeClient.getCalendar() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _calendar.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _calendar.value = it
+                                    cacheData(SettingsManager.CACHE_CALENDAR, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "Payments",
                                 fetch = { AmazeClient.getPayments() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _payments.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _payments.value = it
+                                    cacheData(SettingsManager.CACHE_PAYMENTS, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "Library",
                                 fetch = { AmazeClient.getLibrary() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _library.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _library.value = it
+                                    cacheData(SettingsManager.CACHE_LIBRARY, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "Transport",
                                 fetch = { AmazeClient.getTransport() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _transport.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _transport.value = it
+                                    cacheData(SettingsManager.CACHE_TRANSPORT, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "LMS",
                                 fetch = { AmazeClient.getLMSAssignments() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _lms.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _lms.value = it
+                                    cacheData(SettingsManager.CACHE_LMS, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "Events",
                                 fetch = { AmazeClient.getEventsProfile() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _events.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _events.value = it
+                                    cacheData(SettingsManager.CACHE_EVENTS, it)
+                                }
                             )
                         },
                         async {
                             syncModule(
                                 name = "Clubs",
                                 fetch = { AmazeClient.getClubsDetails() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
-                                update = { _clubs.value = it }
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _clubs.value = it
+                                    cacheData(SettingsManager.CACHE_CLUBS, it)
+                                }
                             )
+                        },
+                        async {
+                            if (syncProfile.value) {
+                                syncModule(
+                                    name = "Student Profile",
+                                    fetch = { AmazeClient.getStudentProfile() },
+                                    isSuccess = { it.success && it.data != null },
+                                    errorMessage = { it.error },
+                                    update = {
+                                        _studentProfile.value = it.data
+                                        cacheData(SettingsManager.CACHE_STUDENT_PROFILE, it)
+                                    }
+                                )
+                            } else SyncModuleResult("Student Profile", true)
                         }
                     ).awaitAll()
                 }
@@ -400,6 +556,10 @@ object AppState {
             ?.joinToString(separator = "\n") { "${it.name}: ${it.message}" }
     }
 
+    fun dismissError() {
+        _error.value = null
+    }
+
     fun logout() {
         SessionManager.clearSession()
         backstack.clear()
@@ -422,6 +582,33 @@ object AppState {
         _clubs.value = null
         _error.value = null
         _syncStatus.value = null
+
+        // Clear persisted caches
+        settings.remove(SettingsManager.CACHE_ATTENDANCE)
+        settings.remove(SettingsManager.CACHE_TIMETABLE)
+        settings.remove(SettingsManager.CACHE_MARKS)
+        settings.remove(SettingsManager.CACHE_GRADES)
+        settings.remove(SettingsManager.CACHE_HOSTEL_DETAILS)
+        settings.remove(SettingsManager.CACHE_HOSTEL_LEAVES)
+        settings.remove(SettingsManager.CACHE_EXAM_SCHEDULE)
+        settings.remove(SettingsManager.CACHE_CALENDAR)
+        settings.remove(SettingsManager.CACHE_PAYMENTS)
+        settings.remove(SettingsManager.CACHE_LIBRARY)
+        settings.remove(SettingsManager.CACHE_TRANSPORT)
+        settings.remove(SettingsManager.CACHE_LMS)
+        settings.remove(SettingsManager.CACHE_EVENTS)
+        settings.remove(SettingsManager.CACHE_CLUBS)
+        settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
+        settings.remove(SettingsManager.CACHE_VITOL)
+        settings.remove(SettingsManager.SESSION_COOKIES)
+        settings.remove(SettingsManager.SESSION_CSRF)
+        settings.remove(SettingsManager.SESSION_AUTHORIZED_ID)
+        settings.remove(SettingsManager.SESSION_CLUB_TOKEN)
+        settings.remove("moodle_data_cache")
+    }
+
+    fun updateAttendance(data: AttendanceRes?) {
+        _attendance.value = data
     }
 
     fun updateMarks(data: MarksRes?) {
@@ -479,6 +666,40 @@ object AppState {
         if (tabs.size <= 4) {
             _pinnedNavTabs.value = tabs
         }
+    }
+
+    fun setCgpaHidden(hidden: Boolean) {
+        _cgpaHidden.value = hidden
+        SettingsManager.setBoolean(SettingsManager.KEY_CGPA_HIDDEN, hidden)
+    }
+
+    fun setAttendanceDisplayMode(mode: String) {
+        _attendanceDisplayMode.value = mode
+        SettingsManager.setString(SettingsManager.KEY_ATTENDANCE_MODE, mode)
+    }
+
+    fun setSyncArrear(enabled: Boolean) {
+        _syncArrear.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_ARREAR, enabled)
+    }
+
+    fun setSyncExam(enabled: Boolean) {
+        _syncExam.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_EXAM, enabled)
+    }
+
+    fun setSyncProfile(enabled: Boolean) {
+        _syncProfile.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_PROFILE, enabled)
+    }
+
+    fun setSyncAdditional(enabled: Boolean) {
+        _syncAdditional.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, enabled)
+    }
+
+    fun updateStudentProfile(profile: StudentProfile?) {
+        _studentProfile.value = profile
     }
 
     fun setSyncStatus(isSyncing: Boolean, message: String? = null) {

@@ -184,12 +184,11 @@ fun CatalogSearchTab() {
                         AmazeCard(modifier = Modifier.fillMaxWidth()) {
                             Column {
                                 Text(book.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(book.author ?: "Unknown Author", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                                if (book.bookId != null) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("ID: ${book.bookId}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                                if (book.author != null) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(book.author ?: "Unknown Author", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                                 }
+                                Text("ID: ${book.bookId}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                             }
                         }
                     }
