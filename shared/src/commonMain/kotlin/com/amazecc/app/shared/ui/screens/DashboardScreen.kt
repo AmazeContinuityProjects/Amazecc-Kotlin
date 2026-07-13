@@ -31,6 +31,7 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeBadge
 import com.amazecc.app.shared.ui.components.BadgeVariant
+import com.amazecc.app.shared.ui.components.CommandPalette
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.utils.AttendanceTimetable
@@ -64,6 +65,7 @@ fun DashboardScreen() {
     val credits = marksRes?.cgpa?.creditsEarned ?: "—"
     
     val courses = attendanceRes?.attendance ?: emptyList()
+    var showCommandPalette by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -134,7 +136,9 @@ fun DashboardScreen() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp)
-                    .background(colors.surface, RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.surface)
+                    .clickable { showCommandPalette = true }
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -351,6 +355,10 @@ fun DashboardScreen() {
             Spacer(modifier = Modifier.height(40.dp))
         }
     }
+
+    if (showCommandPalette) {
+        CommandPalette(onDismiss = { showCommandPalette = false })
+    }
 }
 
 @Composable
@@ -444,6 +452,4 @@ fun QuickActionBtn(modifier: Modifier = Modifier, title: String, icon: androidx.
     }
 }
 
-@Composable
-inline fun <T> remember(key1: Any?, crossinline block: () -> T): T =
-    androidx.compose.runtime.remember(key1) { block() }
+

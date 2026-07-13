@@ -99,6 +99,23 @@ fun App() {
                             Screen.GRADES -> GradesScreen()
                             Screen.GPA_PREDICTOR -> GPAPredictorScreen()
                             Screen.COURSE_ATTENDANCE -> CourseAttendanceScreen()
+                            Screen.ARREAR -> ArrearScreen()
+                            Screen.MAKEUP_COMPRE -> MakeupCompreScreen()
+                            Screen.CIRCULARS -> CircularsScreen()
+                            Screen.CURRICULUM -> CurriculumScreen()
+                            Screen.OD_TRACKER -> ODTrackerScreen()
+                            Screen.COURSE_DASHBOARD -> CourseDashboardScreen { AppState.navigateTo(Screen.ACADEMICS) }
+                            Screen.MARKS_TIMELINE -> MarksTimelineScreen()
+                            Screen.VITOL -> VitolScreen()
+                            Screen.FACULTY_INFO -> FacultyInfoScreen()
+                            Screen.COURSE_MANAGEMENT -> CourseManagementScreen()
+                            Screen.PROJECTS -> ProjectsScreen()
+                            Screen.WISHLIST -> WishlistScreen()
+                            Screen.FEEDBACK_STATUS -> FeedbackStatusScreen()
+                            Screen.FRESHER_WELCOME -> FresherWelcomeScreen()
+                            Screen.DOCUMENTS -> DocumentsScreen()
+                            Screen.ABOUT -> AboutScreen()
+                            Screen.ACTIVITY_TREE -> ActivityTreeScreen()
                         }
                     }
 

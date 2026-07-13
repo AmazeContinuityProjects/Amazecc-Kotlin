@@ -583,6 +583,95 @@ object AmazeClient {
         return postAuthorized<ArrearResponse>("arrear-grade") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
+    suspend fun getMakeupExam(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                keyValuePairs = listOf(
+                    KeyValuePair("Eligibility Status", "Eligible"),
+                    KeyValuePair("Courses Eligible", "2"),
+                    KeyValuePair("Last Date to Apply", "2026-07-25")
+                ),
+                tables = listOf(
+                    ApiTable(
+                        title = "Makeup Exam Eligibility",
+                        headers = listOf("Course Code", "Course Title", "Credits", "Eligibility"),
+                        rows = listOf(
+                            listOf("MAT2001", "Statistics for Engineers", "4", "Eligible"),
+                            listOf("PHY1701", "Engineering Physics", "3", "Eligible")
+                        )
+                    )
+                )
+            )
+        }
+        return postAuthorized<ArrearResponse>("makeup-exam") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getMakeupSchedule(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                tables = listOf(
+                    ApiTable(
+                        title = "Makeup Schedule",
+                        headers = listOf("Course Code", "Course Title", "Date", "Time", "Venue"),
+                        rows = listOf(
+                            listOf("MAT2001", "Statistics for Engineers", "2026-07-28", "10:00 AM", "SJT-101"),
+                            listOf("PHY1701", "Engineering Physics", "2026-07-30", "2:00 PM", "SJT-204")
+                        )
+                    )
+                )
+            )
+        }
+        return postAuthorized<ArrearResponse>("makeup-schedule") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getCompreInfo(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                keyValuePairs = listOf(
+                    KeyValuePair("Total Eligible Courses", "6"),
+                    KeyValuePair("Comprehensive Exam Date", "2026-08-15"),
+                    KeyValuePair("Result Declaration", "2026-08-30")
+                ),
+                tables = listOf(
+                    ApiTable(
+                        title = "Comprehensive Exam Info",
+                        headers = listOf("Course Code", "Course Title", "Credits", "Compre Status"),
+                        rows = listOf(
+                            listOf("MAT2001", "Statistics for Engineers", "4", "Scheduled"),
+                            listOf("PHY1701", "Engineering Physics", "3", "Scheduled"),
+                            listOf("CSE1001", "Problem Solving", "3", "Completed"),
+                            listOf("ENG1001", "Technical English", "2", "Completed")
+                        )
+                    )
+                )
+            )
+        }
+        return postAuthorized<ArrearResponse>("compre-info") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getCirculars(): CircularsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CircularsRes(
+                success = true,
+                circulars = listOf(
+                    CircularFolder("Academic Calendar", listOf(
+                        CircularItem("CIR-001", "Revised Academic Calendar for 2026-27"),
+                        CircularItem("CIR-002", "Holiday List for Upcoming Semester")
+                    )),
+                    CircularFolder("Examinations", listOf(
+                        CircularItem("CIR-003", "CAT I Examination Schedule"),
+                        CircularItem("CIR-004", "Makeup Exam Application Notice")
+                    )),
+                    CircularFolder("General", listOf(
+                        CircularItem("CIR-005", "Hostel Fee Payment Deadline"),
+                        CircularItem("CIR-006", "Transport Route Changes Effective Aug 1")
+                    ))
+                )
+            )
+        }
+        return postAuthorized<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
+    }
+
     suspend fun getVitol(): VitolRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return VitolRes(
@@ -592,5 +681,204 @@ object AmazeClient {
             )
         }
         return postAuthorized<VitolRes>("vitol") ?: VitolRes(success = false, message = "Empty response")
+    }
+
+    // ── Phase 3 endpoints ──
+
+    suspend fun getQBankCourses(): QBankCoursesRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return QBankCoursesRes(success = true, courses = listOf(
+                QBankCourse("CSE1001", "Software Engineering"),
+                QBankCourse("CSE2002", "Database Management Systems"),
+                QBankCourse("CSE3001", "Artificial Intelligence"),
+                QBankCourse("MAT2001", "Differential Equations"),
+                QBankCourse("PHY1701", "Engineering Physics")
+            ))
+        }
+        return postAuthorized<QBankCoursesRes>("qbank/courses") ?: QBankCoursesRes(success = false, message = "Empty response")
+    }
+
+    suspend fun getFacultySchools(): FacultySchoolsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return FacultySchoolsRes(success = true, schools = listOf(
+                FacultySchool("SCOPE", "SCOPE"),
+                FacultySchool("SENSE", "SENSE"),
+                FacultySchool("SCE", "SCE"),
+                FacultySchool("SMEC", "SMEC"),
+                FacultySchool("SASM", "SAS MATHS"),
+                FacultySchool("SASP", "SAS PHYSICS"),
+                FacultySchool("SASC", "SAS CHEMISTRY"),
+                FacultySchool("SSL", "SSL"),
+                FacultySchool("SBST", "SBST"),
+                FacultySchool("SELECT", "SELECT"),
+                FacultySchool("V-SMART", "V-SMART"),
+                FacultySchool("VFSI", "VFIT"),
+                FacultySchool("VSL", "VITSOL")
+            ))
+        }
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/faculty/schools")
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString(response.bodyAsText())
+            } else {
+                FacultySchoolsRes(success = false, error = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            FacultySchoolsRes(success = false, error = e.message)
+        }
+    }
+
+    suspend fun postFacultyScrape(schoolId: String): FacultyScrapeRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            val facultyMap = mapOf(
+                "SCOPE" to listOf(
+                    FacultyProfile("50300", "Dr. Viswanathan V", "Professor and Dean", imageUrl = "https://chennai.vit.ac.in/wp-content/uploads/2020/08/50300-Viswanathan-V.jpg", profileUrl = "https://chennai.vit.ac.in/member/dr-viswanathan-v/", email = "viswanathan.v@vit.ac.in", employeeId = "50300", intercom = "044 3993 1130"),
+                    FacultyProfile("50443", "Dr. Nithyanandam P", "Professor and Associate Dean", email = "nithyanandam.p@vit.ac.in", employeeId = "50443", intercom = "044 3993 1396"),
+                    FacultyProfile("50438", "Dr. Suganya G", "Professor and Associate Dean", email = "suganya.g@vit.ac.in", employeeId = "50438", intercom = "044 3993 1399")
+                )
+            )
+            return FacultyScrapeRes(success = true, faculties = facultyMap[schoolId] ?: emptyList())
+        }
+        return try {
+            val response: HttpResponse = httpClient.post("$baseUrl/api/faculty/scrape") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject { put("schoolId", schoolId) })
+            }
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString(response.bodyAsText())
+            } else {
+                FacultyScrapeRes(success = false, error = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            FacultyScrapeRes(success = false, error = e.message)
+        }
+    }
+
+    suspend fun getCourseOptionChange(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                tables = listOf(ApiTable(title = "Course Option Change", headers = listOf("Course Code", "Course Title", "Status", "Last Date"), rows = listOf(
+                    listOf("CSE1001", "Software Engineering", "Open", "2026-07-20"),
+                    listOf("MAT2001", "Differential Equations", "Closed", "2026-06-30")
+                )))
+            )
+        }
+        return postAuthorized<ArrearResponse>("course-option-change") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getExcRegistration(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                keyValuePairs = listOf(KeyValuePair("Eligible Credits", "22"), KeyValuePair("Applied Credits", "18")),
+                tables = listOf(ApiTable(title = "EXC Registration", headers = listOf("Course Code", "Course Title", "Credits", "Status"), rows = listOf(
+                    listOf("CSE4001", "Machine Learning", "4", "Approved"),
+                    listOf("CSE4002", "Cloud Computing", "3", "Pending")
+                )))
+            )
+        }
+        return postAuthorized<ArrearResponse>("exc-registration") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getMinorHonour(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                tables = listOf(ApiTable(title = "Minor / Honour Courses", headers = listOf("Course Code", "Course Title", "Type", "Status"), rows = listOf(
+                    listOf("MNC1001", "Data Science Minor", "Minor", "Enrolled"),
+                    listOf("HON2001", "Advanced Algorithms", "Honour", "Completed")
+                )))
+            )
+        }
+        return postAuthorized<ArrearResponse>("minor-honour") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getCourseCompletion(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                keyValuePairs = listOf(KeyValuePair("Total Credits Required", "160"), KeyValuePair("Credits Completed", "84")),
+                tables = listOf(ApiTable(title = "Course Completion Status", headers = listOf("Category", "Required", "Completed", "Status"), rows = listOf(
+                    listOf("University Core", "48", "36", "In Progress"),
+                    listOf("Program Core", "52", "30", "In Progress"),
+                    listOf("Program Elective", "24", "8", "In Progress"),
+                    listOf("Open Elective", "12", "4", "In Progress")
+                )))
+            )
+        }
+        return postAuthorized<ArrearResponse>("course-completion") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getProjects(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                tables = listOf(ApiTable(title = "Projects", headers = listOf("Project Code", "Title", "Guide", "Status"), rows = listOf(
+                    listOf("PJ-001", "AI Chatbot for Education", "Dr. Amit Kumar", "In Progress"),
+                    listOf("PJ-002", "Blockchain-based Voting", "Dr. Rajeev Sen", "Completed")
+                )))
+            )
+        }
+        return postAuthorized<ArrearResponse>("project") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getWishlist(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                tables = listOf(ApiTable(title = "Course Wishlist", headers = listOf("Course Code", "Course Title", "Priority", "Semester"), rows = listOf(
+                    listOf("CSE4003", "Natural Language Processing", "High", "Fall 2026-27"),
+                    listOf("CSE4004", "Computer Vision", "Medium", "Fall 2026-27")
+                )))
+            )
+        }
+        return postAuthorized<ArrearResponse>("wishlist") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getFeedbackStatus(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                keyValuePairs = listOf(KeyValuePair("Total Feedbacks", "6"), KeyValuePair("Pending", "2"), KeyValuePair("Submitted", "4")),
+                tables = listOf(ApiTable(title = "Feedback Status", headers = listOf("Course Code", "Course Title", "Status", "Due Date"), rows = listOf(
+                    listOf("CSE1001", "Software Engineering", "Submitted", "2026-07-10"),
+                    listOf("CSE2002", "Database Management Systems", "Pending", "2026-07-15"),
+                    listOf("MAT2001", "Differential Equations", "Submitted", "2026-07-08")
+                )))
+            )
+        }
+        return postAuthorized<ArrearResponse>("feedback") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getBonafide(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                tables = listOf(ApiTable(title = "Bonafide Certificates", headers = listOf("Request ID", "Purpose", "Status", "Issued Date"), rows = listOf(
+                    listOf("BNF-001", "Bank Loan", "Issued", "2026-06-20"),
+                    listOf("BNF-002", "Passport Application", "Processing", "—")
+                )))
+            )
+        }
+        return postAuthorized<ArrearResponse>("bonafide") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getETranscript(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                keyValuePairs = listOf(KeyValuePair("Available Transcripts", "4"), KeyValuePair("Pending Requests", "1")),
+                tables = listOf(ApiTable(title = "E-Transcripts", headers = listOf("Transcript ID", "Semester", "Type", "Status"), rows = listOf(
+                    listOf("TR-101", "Fall 2025-26", "Provisional", "Downloaded"),
+                    listOf("TR-102", "Winter 2025-26", "Consolidated", "Available"),
+                    listOf("TR-103", "Fall 2026-27", "Provisional", "Requested")
+                )))
+            )
+        }
+        return postAuthorized<ArrearResponse>("e-transcript") ?: ArrearResponse(success = false, message = "Empty response")
+    }
+
+    suspend fun getAdditionalLearning(): ArrearResponse {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ArrearResponse(
+                tables = listOf(ApiTable(title = "Additional Learning", headers = listOf("Course Code", "Course Title", "Platform", "Progress"), rows = listOf(
+                    listOf("AL-001", "Python for Data Science", "Coursera", "80%"),
+                    listOf("AL-002", "Web Development", "NPTEL", "45%")
+                )))
+            )
+        }
+        return postAuthorized<ArrearResponse>("additional-learning") ?: ArrearResponse(success = false, message = "Empty response")
     }
 }

@@ -225,6 +225,17 @@ data class ClubsRes(
 )
 
 @Serializable
+data class QBankCourse(val courseCode: String, val courseTitle: String)
+
+@Serializable
+data class QBankCoursesRes(
+    val success: Boolean = true,
+    val courses: List<QBankCourse> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
 data class StudentProfile(
     val regNo: String = "",
     val name: String = "",
@@ -243,6 +254,38 @@ data class StudentProfileRes(
     val success: Boolean = true,
     val data: StudentProfile? = null,
     val message: String? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class FacultySchool(
+    val id: String,
+    val school_name: String
+)
+
+@Serializable
+data class FacultySchoolsRes(
+    val success: Boolean = true,
+    val schools: List<FacultySchool> = emptyList(),
+    val error: String? = null
+)
+
+@Serializable
+data class FacultyProfile(
+    val id: String,
+    val name: String,
+    val designation: String,
+    val imageUrl: String = "",
+    val profileUrl: String = "",
+    val email: String = "",
+    val employeeId: String = "",
+    val intercom: String = ""
+)
+
+@Serializable
+data class FacultyScrapeRes(
+    val success: Boolean = true,
+    val faculties: List<FacultyProfile> = emptyList(),
     val error: String? = null
 )
 

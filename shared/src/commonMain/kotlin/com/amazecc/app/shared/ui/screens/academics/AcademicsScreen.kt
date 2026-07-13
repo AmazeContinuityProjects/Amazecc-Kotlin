@@ -102,6 +102,13 @@ fun AcademicsScreen(initialTab: String = "Overview") {
                         "course-dashboard" -> currentView = dest
                         "grades" -> AppState.navigateTo(Screen.GRADES)
                         "predictor" -> AppState.navigateTo(Screen.GPA_PREDICTOR)
+                        "arrear" -> AppState.navigateTo(Screen.ARREAR)
+                        "makeup" -> AppState.navigateTo(Screen.MAKEUP_COMPRE)
+                        "circulars" -> AppState.navigateTo(Screen.CIRCULARS)
+                        "curriculum" -> AppState.navigateTo(Screen.CURRICULUM)
+                        "od-tracker" -> AppState.navigateTo(Screen.OD_TRACKER)
+                        "marks-timeline" -> AppState.navigateTo(Screen.MARKS_TIMELINE)
+                        "vitol" -> AppState.navigateTo(Screen.VITOL)
                         else -> activeSubTab = dest
                     }
                 })
@@ -323,10 +330,6 @@ fun TimetableSubScreen() {
 
 @Composable
 fun CalendarScreen() = AcademicsScreen(initialTab = "Calendar")
-
-@Composable
-fun QBankScreen() = AcademicsScreen(initialTab = "Question Bank")
-
 
 @Composable
 fun CalendarSubScreen() {

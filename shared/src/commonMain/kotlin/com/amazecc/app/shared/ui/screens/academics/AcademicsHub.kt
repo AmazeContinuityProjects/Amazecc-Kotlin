@@ -58,7 +58,11 @@ fun AcademicsHubScreen(onNavigate: (String) -> Unit) {
         HubCard("predictor", "CGPA Predictor", "Estimate your future CGPA based on expected grades.", Icons.Rounded.TrendingUp, Color(0xFFEA580C), Color(0xFFFFEDD5)),
         HubCard("qbank", "Question Bank", "Access and search past year question papers.", Icons.Rounded.Storage, Color(0xFFDC2626), Color(0xFFFEE2E2)),
         HubCard("arrear", "Arrear Management", "View arrear schedule, details and grades.", Icons.Rounded.Warning, Color(0xFFD97706), Color(0xFFFEF3C7)),
-        HubCard("makeup", "Makeup & Compre", "Makeup exam eligibility, schedule and compre info.", Icons.Rounded.School, Color(0xFF0891B2), Color(0xFFCFFAFE))
+        HubCard("makeup", "Makeup & Compre", "Makeup exam eligibility, schedule and compre info.", Icons.Rounded.School, Color(0xFF0891B2), Color(0xFFCFFAFE)),
+        HubCard("circulars", "Circulars", "Academic notices and circulars from VTOP.", Icons.Rounded.Campaign, Color(0xFF6366F1), Color(0xFFEEF2FF)),
+        HubCard("od-tracker", "OD Tracker", "Track on-duty hours, lab and theory.", Icons.Rounded.TaskAlt, Color(0xFFEC4899), Color(0xFFFDF2F8)),
+        HubCard("marks-timeline", "Marks Timeline", "Assessment history and grade trend.", Icons.Rounded.Timeline, Color(0xFF14B8A6), Color(0xFFF0FDFA)),
+        HubCard("vitol", "VITOL Wallet", "Digital wallet balance and transactions.", Icons.Rounded.AccountBalanceWallet, Color(0xFF8B5CF6), Color(0xFFF5F3FF))
     )
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
