@@ -2,65 +2,63 @@
 package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.ui.graphics.graphicsLayer
-import com.amazecc.app.shared.api.AmazeClient
-import com.amazecc.app.shared.model.*
-import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
-import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.theme.AppTheme
-import com.amazecc.app.shared.ui.components.*
-import kotlinx.coroutines.launch
-import kotlinx.serialization.json.decodeFromJsonElement
-
+import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.AmazeButton
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import com.amazecc.app.shared.ui.components.ButtonVariant
 
 @Composable
-fun MarksGradesScreen() = AcademicsScreen(initialTab = "Marks & GPA")
-
+fun MarksGradesScreen() = AcademicsScreen(initialTab = "Overview")
 
 @Composable
-fun AcademicsScreen(initialTab: String = "Marks & GPA") {
+fun AcademicsScreen(initialTab: String = "Overview") {
     val colors = AmazeTheme.colors
     var activeSubTab by remember(initialTab) { mutableStateOf(initialTab) }
-    val tabs = listOf("Marks & GPA", "Schedule", "Calendar", "Question Bank")
+    
+    // Core navigation state mimicking web app deep linking
+    var currentView by remember { mutableStateOf<String?>(null) } // null = hub, "course-dashboard" = unified course view
+
+    if (currentView == "course-dashboard") {
+        CourseDashboardScreen(onBack = { currentView = null })
+        return
+    }
+
+    val tabs = listOf("Overview", "Marks & GPA", "Schedule", "Calendar", "Question Bank")
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Academics Hub",
-            description = "Track classes, grades & schedules",
-            showBackButton = false,
-            showSyncButton = true
-        )
+        if (activeSubTab != "Overview") {
+            ScreenHeader(
+                title = "Academics",
+                description = "Track classes, grades & schedules",
+                showBackButton = false,
+                showSyncButton = true
+            )
+        }
 
         // Sub-Tab Navigation row
         TabRow(
@@ -96,13 +94,22 @@ fun AcademicsScreen(initialTab: String = "Marks & GPA") {
         Box(
             modifier = Modifier
                 .weight(1f)
-                .padding(16.dp)
+                .padding(top = if (activeSubTab == "Overview") 0.dp else 16.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
         ) {
             when (activeSubTab) {
+                "Overview" -> AcademicsHubScreen(onNavigate = { dest ->
+                    when (dest) {
+                        "course-dashboard" -> currentView = dest
+                        "grades" -> AppState.navigateTo(Screen.GRADES)
+                        "predictor" -> AppState.navigateTo(Screen.GPA_PREDICTOR)
+                        else -> activeSubTab = dest
+                    }
+                })
                 "Marks & GPA" -> MarksSubScreen()
                 "Schedule" -> TimetableSubScreen()
                 "Calendar" -> CalendarSubScreen()
                 "Question Bank" -> QBankSubScreen()
+                else -> MarksSubScreen()
             }
         }
     }

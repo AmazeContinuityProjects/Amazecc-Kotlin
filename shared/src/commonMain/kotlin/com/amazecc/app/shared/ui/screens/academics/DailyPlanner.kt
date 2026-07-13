@@ -1,0 +1,290 @@
+package com.amazecc.app.shared.ui.screens.academics
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Coffee
+import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.utils.TimeMath
+import kotlin.math.max
+
+data class TimelineEvent(
+    val type: String, // "class", "free", "lunch"
+    val slots: List<String> = emptyList(),
+    val startMins: Int,
+    val endMins: Int,
+    val durationMins: Int,
+    val course: AttendanceItem? = null
+)
+
+@Composable
+fun DailyPlannerScreen() {
+    val colors = AmazeTheme.colors
+    val attendanceRes by AppState.attendance.collectAsState()
+    val attendance = attendanceRes?.attendance ?: emptyList()
+
+    val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
+    var selectedDay by remember { mutableStateOf("MON") }
+
+    fun buildDailySchedule(day: String): List<TimelineEvent> {
+        val dayClasses = mutableListOf<TimelineEvent>()
+        val dayMap = SlotMap.map[day] ?: return emptyList()
+
+        attendance.forEach { course ->
+            val slots = course.slotName.split("+").map { it.trim() }.filter { it.isNotEmpty() }
+            slots.forEach { slot ->
+                val timeStr = dayMap[slot]
+                if (timeStr != null) {
+                    val parts = timeStr.split("-")
+                    if (parts.size == 2) {
+                        val start = TimeMath.toMinutes(parts[0])
+                        val end = TimeMath.toMinutes(parts[1])
+                        dayClasses.add(
+                            TimelineEvent("class", listOf(slot), start, end, end - start, course)
+                        )
+                    }
+                }
+            }
+        }
+
+        if (dayClasses.isEmpty()) return emptyList()
+        dayClasses.sortBy { it.startMins }
+
+        val merged = mutableListOf<TimelineEvent>()
+        dayClasses.forEach { item ->
+            if (merged.isEmpty()) {
+                merged.add(item)
+            } else {
+                val last = merged.last()
+                if (last.course?.courseCode == item.course?.courseCode && kotlin.math.abs(last.endMins - item.startMins) <= 10) {
+                    val updated = last.copy(
+                        endMins = max(last.endMins, item.endMins),
+                        slots = last.slots + item.slots,
+                        durationMins = max(last.endMins, item.endMins) - last.startMins
+                    )
+                    merged[merged.size - 1] = updated
+                } else {
+                    merged.add(item)
+                }
+            }
+        }
+
+        val DAY_START = 480 // 8:00 AM
+        val LUNCH_START = 800 // 1:20 PM
+        val LUNCH_END = 840 // 2:00 PM
+        val DAY_END = 1160 // 7:20 PM
+
+        val timeline = mutableListOf<TimelineEvent>()
+        var pointer = DAY_START
+
+        merged.forEach { c ->
+            val gapStart = pointer
+            val gapEnd = c.startMins
+            val gap = gapEnd - gapStart
+
+            if (gap > 10) {
+                if (gapStart < LUNCH_END && gapEnd > LUNCH_START) {
+                    if (gapStart < LUNCH_START && LUNCH_START - gapStart > 10) {
+                        timeline.add(TimelineEvent("free", emptyList(), gapStart, LUNCH_START, LUNCH_START - gapStart))
+                    }
+                    timeline.add(TimelineEvent("lunch", emptyList(), LUNCH_START, LUNCH_END, 40))
+                    if (gapEnd > LUNCH_END && gapEnd - LUNCH_END > 10) {
+                        timeline.add(TimelineEvent("free", emptyList(), LUNCH_END, gapEnd, gapEnd - LUNCH_END))
+                    }
+                } else {
+                    timeline.add(TimelineEvent("free", emptyList(), gapStart, gapEnd, gap))
+                }
+            }
+            timeline.add(c)
+            pointer = c.endMins
+        }
+
+        if (pointer < LUNCH_START) {
+            if (LUNCH_START - pointer > 10) {
+                timeline.add(TimelineEvent("free", emptyList(), pointer, LUNCH_START, LUNCH_START - pointer))
+            }
+            timeline.add(TimelineEvent("lunch", emptyList(), LUNCH_START, LUNCH_END, 40))
+            pointer = LUNCH_END
+        }
+
+        if (pointer < DAY_END) {
+            val finalGap = DAY_END - pointer
+            if (finalGap > 10) {
+                timeline.add(TimelineEvent("free", emptyList(), pointer, DAY_END, finalGap))
+            }
+        }
+
+        return timeline
+    }
+
+    val scheduleData = remember(selectedDay, attendance) { buildDailySchedule(selectedDay) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Horizontal Day Selector
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(days) { day ->
+                val isSelected = selectedDay == day
+                val dayMap = SlotMap.map[day] ?: emptyMap()
+                val classCount = attendance.count { course ->
+                    val slots = course.slotName.split("+").map { it.trim() }
+                    slots.any { dayMap.containsKey(it) }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .background(
+                            if (isSelected) colors.accent else colors.surface,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .border(1.dp, if (isSelected) colors.accent else colors.border, RoundedCornerShape(12.dp))
+                        .clickable { selectedDay = day }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = day,
+                        style = AmazeTheme.typography.caption.copy(
+                            color = if (isSelected) Color.White.copy(alpha=0.8f) else colors.textSecondary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp
+                        )
+                    )
+                    Text(
+                        text = if (classCount > 0) classCount.toString() else "-",
+                        style = AmazeTheme.typography.subheading.copy(
+                            color = if (isSelected) Color.White else colors.textPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        if (scheduleData.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("🎉", fontSize = 48.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("No Classes Scheduled", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Text("Enjoy your day off!", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(start = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(bottom = 32.dp)
+            ) {
+                items(scheduleData) { item ->
+                    TimelineRow(item)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TimelineRow(item: TimelineEvent) {
+    val colors = AmazeTheme.colors
+    
+    Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        // Timeline connector
+        Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.TopCenter) {
+            Box(modifier = Modifier.width(2.dp).fillMaxHeight().background(colors.border))
+            Box(modifier = Modifier.padding(top = 24.dp).size(10.dp).clip(CircleShape).background(if (item.type == "class") colors.accent else colors.border))
+        }
+        
+        Spacer(modifier = Modifier.width(16.dp))
+        
+        // Content Card
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .background(
+                    if (item.type == "class") colors.surface else colors.surface.copy(alpha = 0.5f), 
+                    RoundedCornerShape(16.dp)
+                )
+                .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+                .padding(16.dp)
+        ) {
+            when (item.type) {
+                "free" -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Coffee, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Free Period", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            Text("${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)} (${TimeMath.formatDuration(item.durationMins)})", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                    }
+                }
+                "lunch" -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Restaurant, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Lunch Break", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            Text("${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)} (${TimeMath.formatDuration(item.durationMins)})", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                    }
+                }
+                "class" -> {
+                    Column {
+                        val c = item.course!!
+                        val total = c.totalClasses ?: 0
+                        val attended = c.attendedClasses ?: 0
+                        val attPct = if (total > 0) ((attended.toFloat() / total) * 100).toInt() else 0
+                        val isSafe = attPct >= 75
+                        
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(item.slots.joinToString(" + "), style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                            Text("${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(c.courseTitle, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(if (isSafe) Icons.Rounded.CheckCircle else Icons.Rounded.Warning, contentDescription = null, tint = if (isSafe) Color(0xFF10B981) else Color(0xFFEF4444), modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Attendance: $attPct%", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                            }
+                            Text(c.courseType, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

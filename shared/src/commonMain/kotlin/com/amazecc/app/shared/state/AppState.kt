@@ -4,6 +4,7 @@ package com.amazecc.app.shared.state
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AppTheme
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +23,8 @@ import kotlinx.serialization.encodeToString
 
 enum class Screen { SPLASH, 
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
-    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR
+    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GLASS_MORPH, GRADES, GPA_PREDICTOR,
+    COURSE_ATTENDANCE
 }
 
 object AppState {
@@ -62,11 +64,31 @@ object AppState {
     private val _friendlyName = MutableStateFlow(true)
     val friendlyName: StateFlow<Boolean> = _friendlyName.asStateFlow()
 
+    private val _cgpaHidden = MutableStateFlow(false)
+    val cgpaHidden: StateFlow<Boolean> = _cgpaHidden.asStateFlow()
+
+    private val _attendanceDisplayMode = MutableStateFlow("percentage")
+    val attendanceDisplayMode: StateFlow<String> = _attendanceDisplayMode.asStateFlow()
+
     private val _calendarView = MutableStateFlow("List")
     val calendarView: StateFlow<String> = _calendarView.asStateFlow()
 
     private val _residentialStatus = MutableStateFlow("Hosteller")
     val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()
+
+    // Sync toggles (mirror web app settings)
+    private val _syncArrear = MutableStateFlow(true)
+    val syncArrear: StateFlow<Boolean> = _syncArrear.asStateFlow()
+    private val _syncExam = MutableStateFlow(true)
+    val syncExam: StateFlow<Boolean> = _syncExam.asStateFlow()
+    private val _syncProfile = MutableStateFlow(true)
+    val syncProfile: StateFlow<Boolean> = _syncProfile.asStateFlow()
+    private val _syncAdditional = MutableStateFlow(true)
+    val syncAdditional: StateFlow<Boolean> = _syncAdditional.asStateFlow()
+
+    // Student profile data
+    private val _studentProfile = MutableStateFlow<StudentProfile?>(null)
+    val studentProfile: StateFlow<StudentProfile?> = _studentProfile.asStateFlow()
 
     val semesterMap = mapOf(
         "CH20262705" to "Winter Semester 2026-27",
@@ -120,6 +142,13 @@ object AppState {
                 // ignore
             }
         }
+        // Load persisted settings
+        _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
+        _attendanceDisplayMode.value = SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage")
+        _syncArrear.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ARREAR, true)
+        _syncExam.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_EXAM, true)
+        _syncProfile.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_PROFILE, true)
+        _syncAdditional.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, true)
     }
 
     private val _vitolData = MutableStateFlow<VitolRes?>(null)
@@ -157,6 +186,15 @@ object AppState {
 
     private val _clubs = MutableStateFlow<ClubsRes?>(null)
     val clubs: StateFlow<ClubsRes?> = _clubs.asStateFlow()
+
+    // Selected course for detail view
+    private val _selectedCourseCode = MutableStateFlow<String?>(null)
+    val selectedCourseCode: StateFlow<String?> = _selectedCourseCode.asStateFlow()
+
+    fun openCourseAttendance(courseCode: String) {
+        _selectedCourseCode.value = courseCode
+        navigateTo(Screen.COURSE_ATTENDANCE)
+    }
 
     // Temp inputs/states
     val cabShareActive = MutableStateFlow(false)
@@ -205,8 +243,8 @@ object AppState {
                             syncModule(
                                 name = "Attendance and CGPA",
                                 fetch = { AmazeClient.getAcademicData(semesterId) },
-                                isSuccess = { it.attendance.success && (it.marks?.success != false) },
-                                errorMessage = { it.attendance.message ?: it.attendance.error ?: it.marks?.message ?: it.marks?.error },
+                                isSuccess = { it.attendance.error == null && it.marks?.error == null },
+                                errorMessage = { it.attendance.error ?: it.marks?.error },
                                 update = {
                                     _attendance.value = it.attendance
                                     it.marks?.let { marks -> _marks.value = marks }
@@ -217,8 +255,8 @@ object AppState {
                             syncModule(
                                 name = "Timetable",
                                 fetch = { AmazeClient.getTimetable(semesterId) },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _timetable.value = it }
                             )
                         }
@@ -246,8 +284,8 @@ object AppState {
                             syncModule(
                                 name = "Attendance and CGPA",
                                 fetch = { AmazeClient.getAcademicData(sem) },
-                                isSuccess = { it.attendance.success && (it.marks?.success != false) },
-                                errorMessage = { it.attendance.message ?: it.attendance.error ?: it.marks?.message ?: it.marks?.error },
+                                isSuccess = { it.attendance.error == null && it.marks?.error == null },
+                                errorMessage = { it.attendance.error ?: it.marks?.error },
                                 update = {
                                     _attendance.value = it.attendance
                                     it.marks?.let { marks -> _marks.value = marks }
@@ -258,8 +296,8 @@ object AppState {
                             syncModule(
                                 name = "Timetable",
                                 fetch = { AmazeClient.getTimetable(sem) },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _timetable.value = it }
                             )
                         },
@@ -267,8 +305,8 @@ object AppState {
                             syncModule(
                                 name = "Grade history",
                                 fetch = { AmazeClient.getAllGrades() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _allGrades.value = it }
                             )
                         },
@@ -276,8 +314,8 @@ object AppState {
                             syncModule(
                                 name = "Hostel details",
                                 fetch = { AmazeClient.getHostelDetails() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _hostelDetails.value = it }
                             )
                         },
@@ -285,8 +323,8 @@ object AppState {
                             syncModule(
                                 name = "Hostel leaves",
                                 fetch = { AmazeClient.getHostelLeaves() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _hostelLeaves.value = it }
                             )
                         },
@@ -294,8 +332,8 @@ object AppState {
                             syncModule(
                                 name = "Exam schedule",
                                 fetch = { AmazeClient.getExamSchedule() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _examSchedule.value = it }
                             )
                         },
@@ -303,8 +341,8 @@ object AppState {
                             syncModule(
                                 name = "Academic calendar",
                                 fetch = { AmazeClient.getCalendar() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _calendar.value = it }
                             )
                         },
@@ -312,8 +350,8 @@ object AppState {
                             syncModule(
                                 name = "Payments",
                                 fetch = { AmazeClient.getPayments() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _payments.value = it }
                             )
                         },
@@ -321,8 +359,8 @@ object AppState {
                             syncModule(
                                 name = "Library",
                                 fetch = { AmazeClient.getLibrary() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _library.value = it }
                             )
                         },
@@ -330,8 +368,8 @@ object AppState {
                             syncModule(
                                 name = "Transport",
                                 fetch = { AmazeClient.getTransport() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _transport.value = it }
                             )
                         },
@@ -339,8 +377,8 @@ object AppState {
                             syncModule(
                                 name = "LMS",
                                 fetch = { AmazeClient.getLMSAssignments() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _lms.value = it }
                             )
                         },
@@ -348,8 +386,8 @@ object AppState {
                             syncModule(
                                 name = "Events",
                                 fetch = { AmazeClient.getEventsProfile() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _events.value = it }
                             )
                         },
@@ -357,10 +395,21 @@ object AppState {
                             syncModule(
                                 name = "Clubs",
                                 fetch = { AmazeClient.getClubsDetails() },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message ?: it.error },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
                                 update = { _clubs.value = it }
                             )
+                        },
+                        async {
+                            if (syncProfile.value) {
+                                syncModule(
+                                    name = "Student Profile",
+                                    fetch = { AmazeClient.getStudentProfile() },
+                                    isSuccess = { it.success && it.data != null },
+                                    errorMessage = { it.error },
+                                    update = { _studentProfile.value = it.data }
+                                )
+                            } else SyncModuleResult("Student Profile", true)
                         }
                     ).awaitAll()
                 }
@@ -424,6 +473,10 @@ object AppState {
         _syncStatus.value = null
     }
 
+    fun updateAttendance(data: AttendanceRes?) {
+        _attendance.value = data
+    }
+
     fun updateMarks(data: MarksRes?) {
         _marks.value = data
     }
@@ -479,6 +532,40 @@ object AppState {
         if (tabs.size <= 4) {
             _pinnedNavTabs.value = tabs
         }
+    }
+
+    fun setCgpaHidden(hidden: Boolean) {
+        _cgpaHidden.value = hidden
+        SettingsManager.setBoolean(SettingsManager.KEY_CGPA_HIDDEN, hidden)
+    }
+
+    fun setAttendanceDisplayMode(mode: String) {
+        _attendanceDisplayMode.value = mode
+        SettingsManager.setString(SettingsManager.KEY_ATTENDANCE_MODE, mode)
+    }
+
+    fun setSyncArrear(enabled: Boolean) {
+        _syncArrear.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_ARREAR, enabled)
+    }
+
+    fun setSyncExam(enabled: Boolean) {
+        _syncExam.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_EXAM, enabled)
+    }
+
+    fun setSyncProfile(enabled: Boolean) {
+        _syncProfile.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_PROFILE, enabled)
+    }
+
+    fun setSyncAdditional(enabled: Boolean) {
+        _syncAdditional.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, enabled)
+    }
+
+    fun updateStudentProfile(profile: StudentProfile?) {
+        _studentProfile.value = profile
     }
 
     fun setSyncStatus(isSyncing: Boolean, message: String? = null) {

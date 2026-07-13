@@ -135,8 +135,7 @@ object AmazeClient {
             } else {
                 val attendance = response.attRes ?: AttendanceRes(
                     success = response.success,
-                    semester = response.semester,
-                    semesterId = response.semesterId,
+                                        semesterId = response.semesterId,
                     attendance = response.attendance,
                     error = response.error,
                     message = response.message
@@ -177,7 +176,7 @@ object AmazeClient {
                 success = true,
                 marks = listOf(
                     MarksCourseItem(
-                        slNo = "1", classNbr = "1024", courseCode = "CSE1001", credits = 3.0, courseTitle = "Software Engineering", courseType = "Theory", faculty = "Dr. Amit Kumar", slot = "A1",
+                        slNo = "1", classNbr = "1024", courseCode = "CSE1001", credits = "3.0", courseTitle = "Software Engineering", courseType = "Theory", courseSystem = "CBCS", courseMode = "Regular", faculty = "Dr. Amit Kumar", slot = "A1",
                         assessments = listOf(
                             AssessmentItem("1", "Continuous Assessment Test 1", "50", "15", "Completed", "42", "12.6"),
                             AssessmentItem("2", "Continuous Assessment Test 2", "50", "15", "Completed", "45", "13.5"),
@@ -185,7 +184,7 @@ object AmazeClient {
                         )
                     ),
                     MarksCourseItem(
-                        slNo = "2", classNbr = "1056", courseCode = "CSE2002", credits = 4.0, courseTitle = "Database Management Systems", courseType = "Theory", faculty = "Dr. Rajeev Sen", slot = "B1",
+                        slNo = "2", classNbr = "1056", courseCode = "CSE2002", credits = "4.0", courseTitle = "Database Management Systems", courseType = "Theory", courseSystem = "CBCS", courseMode = "Regular", faculty = "Dr. Rajeev Sen", slot = "B1",
                         assessments = listOf(
                             AssessmentItem("1", "Continuous Assessment Test 1", "50", "15", "Completed", "35", "10.5"),
                             AssessmentItem("2", "Continuous Assessment Test 2", "50", "15", "Completed", "38", "11.4")
@@ -457,7 +456,8 @@ object AmazeClient {
                         type = "Technical",
                         date = "2026-08-15",
                         location = "Anna Auditorium",
-                        price = "Free"
+                        price = "Free",
+                        eligibility = "All"
                     )
                 )
             )
@@ -496,6 +496,31 @@ object AmazeClient {
             }
         } catch (e: Exception) {
             ClubsRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getStudentProfile(): StudentProfileRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return StudentProfileRes(
+                success = true,
+                data = StudentProfile(
+                    regNo = "23BCE1234",
+                    name = "Alexander Pierce",
+                    email = "alex.pierce2023@vitstudent.ac.in",
+                    mobile = "+91 98765 43210",
+                    program = "B.Tech CSE (Specialisation in AI & ML)",
+                    campus = "VIT Chennai",
+                    batch = "2023-2027",
+                    section = "A",
+                    advisorName = "Dr. Rajesh Kumar",
+                    bloodGroup = "O+"
+                )
+            )
+        }
+        return try {
+            postAuthorized<StudentProfileRes>("student") ?: StudentProfileRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            StudentProfileRes(success = false, message = e.message, error = e.toString())
         }
     }
 

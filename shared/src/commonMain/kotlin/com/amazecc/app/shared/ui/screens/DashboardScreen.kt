@@ -31,7 +31,11 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeBadge
 import com.amazecc.app.shared.ui.components.BadgeVariant
+import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.utils.AttendanceTimetable
+import com.amazecc.app.shared.utils.CourseAttendanceInfo
+import com.amazecc.app.shared.utils.SlotInfo
 
 @Composable
 fun DashboardScreen() {
@@ -210,25 +214,68 @@ fun DashboardScreen() {
             Spacer(modifier = Modifier.height(20.dp))
 
             // Today's Classes
+            val todayClasses = remember(courses) {
+                val slotMapTyped = SlotMap.map.mapValues { (_, inner) ->
+                    inner.mapValues { (_, time) -> SlotInfo(time) }
+                }
+                AttendanceTimetable.getTodayAttendanceClasses(
+                    attendance = courses.map { item ->
+                        mapOf(
+                            "courseCode" to item.courseCode,
+                            "courseTitle" to item.courseTitle,
+                            "courseType" to item.courseType,
+                            "faculty" to item.faculty,
+                            "slotName" to (item.slotVenue?.split("\\s+".toRegex())?.firstOrNull() ?: item.slotName),
+                            "attendancePercentage" to item.attendancePercentage
+                        )
+                    },
+                    slotMap = slotMapTyped
+                )
+            }
+
             Text(
-                text = "Today's Classes",
+                text = "Today's Classes (${todayClasses.size})",
                 style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
             )
             Spacer(modifier = Modifier.height(12.dp))
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Placeholder for actual timeline logic
-                    Icon(
-                        imageVector = Icons.Rounded.CheckCircle,
-                        contentDescription = "Done",
-                        tint = colors.success,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Done with classes for today!",
-                        style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium)
-                    )
+
+            if (todayClasses.isEmpty()) {
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.FreeBreakfast, null, tint = colors.textMuted, modifier = Modifier.size(32.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("No classes scheduled for today!", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
+                        Text("Enjoy your day off", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    }
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    todayClasses.forEach { cls ->
+                        val pct = cls.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0
+                        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(cls.courseTitle ?: "", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(cls.time, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Medium))
+                                        Text(cls.slotName ?: "", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (pct >= 75) Color(0xFF10B981).copy(alpha = 0.12f)
+                                            else if (pct >= 50) Color(0xFFF59E0B).copy(alpha = 0.12f)
+                                            else Color(0xFFEF4444).copy(alpha = 0.12f),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text("${cls.attendancePercentage ?: "?"}", color = if (pct >= 75) Color(0xFF10B981) else if (pct >= 50) Color(0xFFF59E0B) else Color(0xFFEF4444), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
