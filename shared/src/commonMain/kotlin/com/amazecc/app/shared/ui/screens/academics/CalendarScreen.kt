@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -205,7 +206,7 @@ fun CalendarScreen(onBack: () -> Unit) {
                         .background(if (viewMode == "List") colors.accent else Color.Transparent)
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Icon(Icons.Rounded.ViewList, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (viewMode == "List") colors.surface else colors.textSecondary)
+                    Icon(Icons.AutoMirrored.Rounded.ViewList, contentDescription = null, modifier = Modifier.size(18.dp), tint = if (viewMode == "List") colors.surface else colors.textSecondary)
                 }
             }
         }

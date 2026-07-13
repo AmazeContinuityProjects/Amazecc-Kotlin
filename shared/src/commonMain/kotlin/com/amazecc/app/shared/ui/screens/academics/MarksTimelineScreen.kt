@@ -84,8 +84,10 @@ fun MarksTimelineScreen() {
                         )
                     }
                     allGrades.forEach { (semesterId, result) ->
-                        item {
-                            SemesterGradeCard(semesterId = semesterId, result = result, colors = colors)
+                        if (result != null) {
+                            item {
+                                SemesterGradeCard(semesterId = semesterId, result = result, colors = colors)
+                            }
                         }
                     }
                 }
@@ -170,7 +172,7 @@ private fun GpaOverviewCard(
 
 @Composable
 private fun GpaTrendSection(
-    grades: Map<String, SemesterGradeResult>,
+    grades: Map<String, SemesterGradeResult?>,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val sortedSemesters = AppState.semesterIDs.filter { it in grades }.sorted()

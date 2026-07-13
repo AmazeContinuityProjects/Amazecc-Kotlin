@@ -8,6 +8,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.FactCheck
+import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,10 +40,10 @@ fun CommandPalette(
     val allCommands = remember {
         listOf(
             CommandItem("Home", Icons.Rounded.Home, Screen.HOME),
-            CommandItem("Attendance", Icons.Rounded.FactCheck, Screen.ATTENDANCE),
+            CommandItem("Attendance", Icons.AutoMirrored.Rounded.FactCheck, Screen.ATTENDANCE),
             CommandItem("Academics Hub", Icons.Rounded.School, Screen.ACADEMICS),
             CommandItem("Payments", Icons.Rounded.CreditCard, Screen.PAYMENTS),
-            CommandItem("Library", Icons.Rounded.LibraryBooks, Screen.LIBRARIES),
+            CommandItem("Library", Icons.AutoMirrored.Rounded.LibraryBooks, Screen.LIBRARIES),
             CommandItem("Hostel", Icons.Rounded.Apartment, Screen.HOSTEL),
             CommandItem("Transport", Icons.Rounded.DirectionsBus, Screen.TRANSPORT),
             CommandItem("Cab Share", Icons.Rounded.DirectionsCar, Screen.CABSHARE),
@@ -48,11 +52,11 @@ fun CommandPalette(
             CommandItem("Social", Icons.Rounded.People, Screen.SOCIAL),
             CommandItem("Profile", Icons.Rounded.Person, Screen.PROFILE),
             CommandItem("Grades", Icons.Rounded.History, Screen.GRADES),
-            CommandItem("CGPA Predictor", Icons.Rounded.TrendingUp, Screen.GPA_PREDICTOR),
+            CommandItem("CGPA Predictor", Icons.AutoMirrored.Rounded.TrendingUp, Screen.GPA_PREDICTOR),
             CommandItem("Arrear Management", Icons.Rounded.Warning, Screen.ARREAR),
             CommandItem("Makeup & Compre", Icons.Rounded.School, Screen.MAKEUP_COMPRE),
             CommandItem("Circulars", Icons.Rounded.Campaign, Screen.CIRCULARS),
-            CommandItem("Curriculum", Icons.Rounded.MenuBook, Screen.CURRICULUM),
+            CommandItem("Curriculum", Icons.AutoMirrored.Rounded.MenuBook, Screen.CURRICULUM),
             CommandItem("OD Tracker", Icons.Rounded.TaskAlt, Screen.OD_TRACKER),
             CommandItem("Course Hub", Icons.Rounded.Dashboard, Screen.COURSE_DASHBOARD),
             CommandItem("Marks Timeline", Icons.Rounded.Timeline, Screen.MARKS_TIMELINE),

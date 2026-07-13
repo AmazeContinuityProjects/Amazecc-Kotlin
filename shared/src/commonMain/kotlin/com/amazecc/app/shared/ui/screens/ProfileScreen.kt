@@ -263,11 +263,11 @@ fun PreferencesSubScreen() {
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     ToggleRow("Sync Arrear Data", syncArrear, { AppState.setSyncArrear(it) }, colors)
-                    Divider(color = colors.border, thickness = 0.5.dp)
+                    HorizontalDivider(color = colors.border, thickness = 0.5.dp)
                     ToggleRow("Sync Exam Schedule", syncExam, { AppState.setSyncExam(it) }, colors)
-                    Divider(color = colors.border, thickness = 0.5.dp)
+                    HorizontalDivider(color = colors.border, thickness = 0.5.dp)
                     ToggleRow("Sync Profile Data", syncProfile, { AppState.setSyncProfile(it) }, colors)
-                    Divider(color = colors.border, thickness = 0.5.dp)
+                    HorizontalDivider(color = colors.border, thickness = 0.5.dp)
                     ToggleRow("Sync Additional (Proj./Wishlist)", syncAdditional, { AppState.setSyncAdditional(it) }, colors)
                 }
             }

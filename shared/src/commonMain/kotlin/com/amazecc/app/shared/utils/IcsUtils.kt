@@ -9,8 +9,8 @@ object IcsUtils {
         sb.appendLine("VERSION:2.0")
         sb.appendLine("PRODID:-//AmazeCC//Academic Calendar//EN")
         
-        calendarData.months?.forEach { month ->
-            val monthStr = month.month // e.g. "July 2026"
+        calendarData.months.forEach { month ->
+            val monthStr = month.month
             val parts = monthStr.split(" ")
             val mName = parts.firstOrNull() ?: ""
             val year = parts.lastOrNull()?.toIntOrNull() ?: 2026
@@ -21,7 +21,7 @@ object IcsUtils {
                 day.events.forEach { event ->
                     sb.appendLine("BEGIN:VEVENT")
                     sb.appendLine("SUMMARY:${event.text}")
-                    if (event.category != null) {
+                    if (event.category.isNotBlank()) {
                         sb.appendLine("DESCRIPTION:${event.category}")
                     }
                     val dateString = "${year.toString().padStart(4, '0')}${monthNum.toString().padStart(2, '0')}${dayNum.toString().padStart(2, '0')}"

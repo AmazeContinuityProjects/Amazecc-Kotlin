@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,7 +27,7 @@ fun FresherWelcomeScreen() {
     val colors = AmazeTheme.colors
     val sections = listOf(
         FresherSection("Campus", "VIT has a sprawling campus with state-of-the-art labs, libraries, sports facilities, and hostels. Get your ID card and explore!", Icons.Rounded.School, androidx.compose.ui.graphics.Color(0xFF3B82F6)),
-        FresherSection("Academics", "Attend orientation, understand the CBCS system, manage course registration, and track attendance and grades via VTOP.", Icons.Rounded.MenuBook, androidx.compose.ui.graphics.Color(0xFF10B981)),
+        FresherSection("Academics", "Attend orientation, understand the CBCS system, manage course registration, and track attendance and grades via VTOP.", Icons.AutoMirrored.Rounded.MenuBook, androidx.compose.ui.graphics.Color(0xFF10B981)),
         FresherSection("Hostel", "Hostellers get accommodation in blocks. Mess timings, laundry, and counselling are managed through the Hostel module.", Icons.Rounded.Apartment, androidx.compose.ui.graphics.Color(0xFFF59E0B)),
         FresherSection("Transport", "College buses run on fixed routes. Day-boarders can register for bus passes through the Transport module.", Icons.Rounded.DirectionsBus, androidx.compose.ui.graphics.Color(0xFFEF4444)),
         FresherSection("Events", "Join clubs, attend hackathons, cultural fests, and tech talks. Stay updated via the Events and Social modules.", Icons.Rounded.Celebration, androidx.compose.ui.graphics.Color(0xFFEC4899))

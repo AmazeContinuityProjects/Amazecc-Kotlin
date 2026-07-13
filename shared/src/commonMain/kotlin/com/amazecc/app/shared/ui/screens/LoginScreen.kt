@@ -1,6 +1,5 @@
 package com.amazecc.app.shared.ui.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -13,12 +12,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.repository.SessionManager
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -35,6 +34,40 @@ fun LoginScreen() {
     var password by remember { mutableStateOf("") }
     var isSubmitting by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isRestoring by remember { mutableStateOf(true) }
+
+    // Attempt auto-restore session on start
+    LaunchedEffect(Unit) {
+        val creds = SettingsManager.getCredentials()
+        if (creds != null && AppState.restoreSession()) {
+            // Session restored from cache — load data and go to home
+            username = creds.first
+            password = creds.second
+            AppState.loadAllData()
+            AppState.navigateTo(Screen.HOME)
+        } else {
+            // Try VTOP login with cached credentials
+            if (creds != null && SessionManager.authorizedID.value != null) {
+                username = creds.first
+                password = creds.second
+                scope.launch {
+                    isSubmitting = true
+                    val response = AmazeClient.login(creds.first, creds.second)
+                    if (response.success && response.cookies != null && response.csrf != null && response.authorizedID != null) {
+                        SessionManager.saveSession(response.cookies, response.csrf, response.authorizedID, response.clubToken)
+                        SettingsManager.setString(SettingsManager.SESSION_COOKIES, response.cookies)
+                        SettingsManager.setString(SettingsManager.SESSION_CSRF, response.csrf)
+                        SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
+                        response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                        AppState.loadAllData()
+                        AppState.navigateTo(Screen.HOME)
+                    }
+                    isSubmitting = false
+                }
+            }
+        }
+        isRestoring = false
+    }
 
     Column(
         modifier = Modifier
@@ -163,6 +196,12 @@ fun LoginScreen() {
                                 authorizedID = response.authorizedID,
                                 clubToken = response.clubToken
                             )
+                            // Persist session to local storage
+                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, response.cookies)
+                            SettingsManager.setString(SettingsManager.SESSION_CSRF, response.csrf)
+                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
+                            response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                            SettingsManager.saveCredentials(username, password)
                             // Set Demo/Real client mode based on credentials
                             if (username.lowercase() == "demo" || username.uppercase() == "DEMO123") {
                                 AmazeClient.setUseMockData(true)
@@ -173,7 +212,7 @@ fun LoginScreen() {
                             AppState.loadAllData()
                             AppState.navigateTo(Screen.HOME)
                         } else {
-                            errorMessage = response.message ?: "Authentication failed."
+                            errorMessage = response.message.ifBlank { "Authentication failed." }
                         }
                     } catch (e: Exception) {
                         errorMessage = "Connection error: ${e.message}"
@@ -194,15 +233,25 @@ fun LoginScreen() {
                 scope.launch {
                     isSubmitting = true
                     val demoRes = AmazeClient.login("DEMO123", "password")
-                    SessionManager.saveSession(
-                        cookies = demoRes.cookies!!,
-                        csrf = demoRes.csrf!!,
-                        authorizedID = demoRes.authorizedID!!,
-                        clubToken = null
-                    )
-                    AmazeClient.setUseMockData(true)
-                    AppState.loadAllData()
-                    AppState.navigateTo(Screen.HOME)
+                    demoRes.cookies?.let { cookies ->
+                        demoRes.csrf?.let { csrf ->
+                            demoRes.authorizedID?.let { authId ->
+                                SessionManager.saveSession(
+                                    cookies = cookies,
+                                    csrf = csrf,
+                                    authorizedID = authId,
+                                    clubToken = null
+                                )
+                                SettingsManager.setString(SettingsManager.SESSION_COOKIES, cookies)
+                                SettingsManager.setString(SettingsManager.SESSION_CSRF, csrf)
+                                SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, authId)
+                                SettingsManager.saveCredentials("DEMO123", "password")
+                                AmazeClient.setUseMockData(true)
+                                AppState.loadAllData()
+                                AppState.navigateTo(Screen.HOME)
+                            }
+                        }
+                    }
                     isSubmitting = false
                 }
             }

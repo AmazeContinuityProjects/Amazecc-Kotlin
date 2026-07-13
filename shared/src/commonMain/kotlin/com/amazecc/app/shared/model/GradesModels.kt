@@ -53,13 +53,13 @@ data class FeedbackStatus(
 
 @Serializable
 data class GradeBreakdown(
-    val slNo: String,
-    val component: String,
-    val maxMark: String,
-    val weightagePercent: String,
-    val status: String,
-    val scoredMark: String,
-    val weightageMark: String
+    val slNo: String? = null,
+    val component: String = "",
+    val maxMark: String = "",
+    val weightagePercent: String = "",
+    val status: String = "",
+    val scoredMark: String = "",
+    val weightageMark: String = ""
 )
 
 @Serializable
@@ -75,12 +75,12 @@ data class GradeRange(
 
 @Serializable
 data class GradeItem(
-    val slNo: String,
-    val courseCode: String,
-    val courseTitle: String,
-    val courseType: String,
-    val grandTotal: String,
-    val grade: String,
+    val slNo: String? = null,
+    val courseCode: String = "",
+    val courseTitle: String = "",
+    val courseType: String = "",
+    val grandTotal: String = "",
+    val grade: String = "",
     val courseId: String? = null,
     val details: List<GradeBreakdown>? = null,
     val range: GradeRange? = null
@@ -95,7 +95,7 @@ data class SemesterGradeResult(
 @Serializable
 data class AllGradesRes(
     val semesterId: String? = null,
-    val grades: Map<String, SemesterGradeResult>? = null,
+    val grades: Map<String, SemesterGradeResult?>? = null,
     val error: String? = null,
     val success: Boolean = true,
     val message: String? = null

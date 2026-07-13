@@ -91,6 +91,7 @@ object AppState {
     // Student profile data
     private val _studentProfile = MutableStateFlow<StudentProfile?>(null)
     val studentProfile: StateFlow<StudentProfile?> = _studentProfile.asStateFlow()
+    private val _cachedStudentProfile = MutableStateFlow<StudentProfileRes?>(null)
 
     val semesterMap = mapOf(
         "CH20262705" to "Winter Semester 2026-27",
@@ -136,14 +137,8 @@ object AppState {
     val moodleData: StateFlow<MoodleRes?> = _moodleData
 
     init {
-        val cachedMoodle = settings.getString("moodle_data_cache", "")
-        if (cachedMoodle.isNotBlank()) {
-            try {
-                _moodleData.value = jsonFormat.decodeFromString<MoodleRes>(cachedMoodle)
-            } catch (e: Exception) {
-                // ignore
-            }
-        }
+        // Load cached data from local storage
+        loadCachedData()
         // Load persisted settings
         _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
         _attendanceDisplayMode.value = SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage")
@@ -151,6 +146,66 @@ object AppState {
         _syncExam.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_EXAM, true)
         _syncProfile.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_PROFILE, true)
         _syncAdditional.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, true)
+    }
+
+    private fun loadCachedString(key: String): String? {
+        val cached = settings.getString(key, "")
+        return if (cached.isNotBlank()) cached else null
+    }
+
+    private inline fun <reified T> loadCachedData(key: String, state: MutableStateFlow<T?>) {
+        val cached = settings.getString(key, "")
+        if (cached.isNotBlank()) {
+            try {
+                state.value = jsonFormat.decodeFromString<T>(cached)
+            } catch (e: Exception) { /* ignore corrupt cache */ }
+        }
+    }
+
+    private fun loadCachedData() {
+        loadCachedData<AttendanceRes>(SettingsManager.CACHE_ATTENDANCE, _attendance)
+        loadCachedData<TimetableRes>(SettingsManager.CACHE_TIMETABLE, _timetable)
+        loadCachedData<MarksRes>(SettingsManager.CACHE_MARKS, _marks)
+        loadCachedData<AllGradesRes>(SettingsManager.CACHE_GRADES, _allGrades)
+        loadCachedData<HostelDetails>(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails)
+        loadCachedData<HostelLeaveRes>(SettingsManager.CACHE_HOSTEL_LEAVES, _hostelLeaves)
+        loadCachedData<ExamScheduleRes>(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule)
+        loadCachedData<CalendarRes>(SettingsManager.CACHE_CALENDAR, _calendar)
+        loadCachedData<PaymentsRes>(SettingsManager.CACHE_PAYMENTS, _payments)
+        loadCachedData<LibraryRes>(SettingsManager.CACHE_LIBRARY, _library)
+        loadCachedData<TransportRes>(SettingsManager.CACHE_TRANSPORT, _transport)
+        loadCachedData<LMSRes>(SettingsManager.CACHE_LMS, _lms)
+        loadCachedData<EventHubRes>(SettingsManager.CACHE_EVENTS, _events)
+        loadCachedData<ClubsRes>(SettingsManager.CACHE_CLUBS, _clubs)
+        loadCachedData<StudentProfileRes>(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile)
+        loadCachedData<VitolRes>(SettingsManager.CACHE_VITOL, _vitolData)
+        // Also load moodle
+        val cachedMoodle = settings.getString("moodle_data_cache", "")
+        if (cachedMoodle.isNotBlank()) {
+            try {
+                _moodleData.value = jsonFormat.decodeFromString<MoodleRes>(cachedMoodle)
+            } catch (e: Exception) { /* ignore */ }
+        }
+    }
+
+    private fun cacheData(key: String, value: Any?) {
+        if (value != null) {
+            try {
+                settings[key] = jsonFormat.encodeToString(value)
+            } catch (e: Exception) { /* ignore serialization error */ }
+        } else {
+            settings.remove(key)
+        }
+    }
+
+    fun restoreSession(): Boolean {
+        val cookies = loadCachedString(SettingsManager.SESSION_COOKIES) ?: return false
+        val csrf = loadCachedString(SettingsManager.SESSION_CSRF) ?: return false
+        val authorizedID = loadCachedString(SettingsManager.SESSION_AUTHORIZED_ID) ?: return false
+        val clubToken = loadCachedString(SettingsManager.SESSION_CLUB_TOKEN)
+        SessionManager.saveSession(cookies, csrf, authorizedID, clubToken)
+        AmazeClient.setUseMockData(false)
+        return true
     }
 
     private val _vitolData = MutableStateFlow<VitolRes?>(null)
@@ -249,7 +304,11 @@ object AppState {
                                 errorMessage = { it.attendance.error ?: it.marks?.error },
                                 update = {
                                     _attendance.value = it.attendance
-                                    it.marks?.let { marks -> _marks.value = marks }
+                                    cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
+                                    it.marks?.let { marks ->
+                                        _marks.value = marks
+                                        cacheData(SettingsManager.CACHE_MARKS, marks)
+                                    }
                                 }
                             )
                         },
@@ -259,7 +318,10 @@ object AppState {
                                 fetch = { AmazeClient.getTimetable(semesterId) },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _timetable.value = it }
+                                update = {
+                                    _timetable.value = it
+                                    cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                                }
                             )
                         }
                     ).awaitAll()
@@ -290,7 +352,11 @@ object AppState {
                                 errorMessage = { it.attendance.error ?: it.marks?.error },
                                 update = {
                                     _attendance.value = it.attendance
-                                    it.marks?.let { marks -> _marks.value = marks }
+                                    cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
+                                    it.marks?.let { marks ->
+                                        _marks.value = marks
+                                        cacheData(SettingsManager.CACHE_MARKS, marks)
+                                    }
                                 }
                             )
                         },
@@ -300,7 +366,10 @@ object AppState {
                                 fetch = { AmazeClient.getTimetable(sem) },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _timetable.value = it }
+                                update = {
+                                    _timetable.value = it
+                                    cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                                }
                             )
                         },
                         async {
@@ -309,7 +378,10 @@ object AppState {
                                 fetch = { AmazeClient.getAllGrades() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _allGrades.value = it }
+                                update = {
+                                    _allGrades.value = it
+                                    cacheData(SettingsManager.CACHE_GRADES, it)
+                                }
                             )
                         },
                         async {
@@ -318,7 +390,10 @@ object AppState {
                                 fetch = { AmazeClient.getHostelDetails() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _hostelDetails.value = it }
+                                update = {
+                                    _hostelDetails.value = it
+                                    cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
+                                }
                             )
                         },
                         async {
@@ -327,7 +402,10 @@ object AppState {
                                 fetch = { AmazeClient.getHostelLeaves() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _hostelLeaves.value = it }
+                                update = {
+                                    _hostelLeaves.value = it
+                                    cacheData(SettingsManager.CACHE_HOSTEL_LEAVES, it)
+                                }
                             )
                         },
                         async {
@@ -336,7 +414,10 @@ object AppState {
                                 fetch = { AmazeClient.getExamSchedule() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _examSchedule.value = it }
+                                update = {
+                                    _examSchedule.value = it
+                                    cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, it)
+                                }
                             )
                         },
                         async {
@@ -345,7 +426,10 @@ object AppState {
                                 fetch = { AmazeClient.getCalendar() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _calendar.value = it }
+                                update = {
+                                    _calendar.value = it
+                                    cacheData(SettingsManager.CACHE_CALENDAR, it)
+                                }
                             )
                         },
                         async {
@@ -354,7 +438,10 @@ object AppState {
                                 fetch = { AmazeClient.getPayments() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _payments.value = it }
+                                update = {
+                                    _payments.value = it
+                                    cacheData(SettingsManager.CACHE_PAYMENTS, it)
+                                }
                             )
                         },
                         async {
@@ -363,7 +450,10 @@ object AppState {
                                 fetch = { AmazeClient.getLibrary() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _library.value = it }
+                                update = {
+                                    _library.value = it
+                                    cacheData(SettingsManager.CACHE_LIBRARY, it)
+                                }
                             )
                         },
                         async {
@@ -372,7 +462,10 @@ object AppState {
                                 fetch = { AmazeClient.getTransport() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _transport.value = it }
+                                update = {
+                                    _transport.value = it
+                                    cacheData(SettingsManager.CACHE_TRANSPORT, it)
+                                }
                             )
                         },
                         async {
@@ -381,7 +474,10 @@ object AppState {
                                 fetch = { AmazeClient.getLMSAssignments() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _lms.value = it }
+                                update = {
+                                    _lms.value = it
+                                    cacheData(SettingsManager.CACHE_LMS, it)
+                                }
                             )
                         },
                         async {
@@ -390,7 +486,10 @@ object AppState {
                                 fetch = { AmazeClient.getEventsProfile() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _events.value = it }
+                                update = {
+                                    _events.value = it
+                                    cacheData(SettingsManager.CACHE_EVENTS, it)
+                                }
                             )
                         },
                         async {
@@ -399,7 +498,10 @@ object AppState {
                                 fetch = { AmazeClient.getClubsDetails() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
-                                update = { _clubs.value = it }
+                                update = {
+                                    _clubs.value = it
+                                    cacheData(SettingsManager.CACHE_CLUBS, it)
+                                }
                             )
                         },
                         async {
@@ -409,7 +511,10 @@ object AppState {
                                     fetch = { AmazeClient.getStudentProfile() },
                                     isSuccess = { it.success && it.data != null },
                                     errorMessage = { it.error },
-                                    update = { _studentProfile.value = it.data }
+                                    update = {
+                                        _studentProfile.value = it.data
+                                        cacheData(SettingsManager.CACHE_STUDENT_PROFILE, it)
+                                    }
                                 )
                             } else SyncModuleResult("Student Profile", true)
                         }
@@ -451,6 +556,10 @@ object AppState {
             ?.joinToString(separator = "\n") { "${it.name}: ${it.message}" }
     }
 
+    fun dismissError() {
+        _error.value = null
+    }
+
     fun logout() {
         SessionManager.clearSession()
         backstack.clear()
@@ -473,6 +582,29 @@ object AppState {
         _clubs.value = null
         _error.value = null
         _syncStatus.value = null
+
+        // Clear persisted caches
+        settings.remove(SettingsManager.CACHE_ATTENDANCE)
+        settings.remove(SettingsManager.CACHE_TIMETABLE)
+        settings.remove(SettingsManager.CACHE_MARKS)
+        settings.remove(SettingsManager.CACHE_GRADES)
+        settings.remove(SettingsManager.CACHE_HOSTEL_DETAILS)
+        settings.remove(SettingsManager.CACHE_HOSTEL_LEAVES)
+        settings.remove(SettingsManager.CACHE_EXAM_SCHEDULE)
+        settings.remove(SettingsManager.CACHE_CALENDAR)
+        settings.remove(SettingsManager.CACHE_PAYMENTS)
+        settings.remove(SettingsManager.CACHE_LIBRARY)
+        settings.remove(SettingsManager.CACHE_TRANSPORT)
+        settings.remove(SettingsManager.CACHE_LMS)
+        settings.remove(SettingsManager.CACHE_EVENTS)
+        settings.remove(SettingsManager.CACHE_CLUBS)
+        settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
+        settings.remove(SettingsManager.CACHE_VITOL)
+        settings.remove(SettingsManager.SESSION_COOKIES)
+        settings.remove(SettingsManager.SESSION_CSRF)
+        settings.remove(SettingsManager.SESSION_AUTHORIZED_ID)
+        settings.remove(SettingsManager.SESSION_CLUB_TOKEN)
+        settings.remove("moodle_data_cache")
     }
 
     fun updateAttendance(data: AttendanceRes?) {

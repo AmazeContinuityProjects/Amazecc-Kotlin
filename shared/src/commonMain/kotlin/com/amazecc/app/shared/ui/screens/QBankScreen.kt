@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Article
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -60,7 +62,7 @@ fun QBankScreen() {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = { selectedCourse = null; questions = emptyList() }) {
-                    Icon(Icons.Rounded.ArrowBack, null, tint = colors.textPrimary)
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = colors.textPrimary)
                 }
                 Spacer(Modifier.width(4.dp))
                 Column {
@@ -87,7 +89,7 @@ fun QBankScreen() {
                     AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { loadQuestions(course) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Rounded.Article, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                                Icon(Icons.AutoMirrored.Rounded.Article, null, tint = colors.accent, modifier = Modifier.size(20.dp))
                             }
                             Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
@@ -119,7 +121,7 @@ fun QBankScreen() {
                                 Text(q.question_text, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                 Spacer(Modifier.height(8.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    if (q.question_type != null) AmazeBadge(text = q.question_type, variant = BadgeVariant.INFO)
+                                    if (q.question_type.isNotBlank()) AmazeBadge(text = q.question_type, variant = BadgeVariant.INFO)
                                     if (q.marks != null) AmazeBadge(text = "${q.marks} marks", variant = BadgeVariant.SUCCESS)
                                     if (q.topic_name != null) AmazeBadge(text = q.topic_name, variant = BadgeVariant.WARNING)
                                 }

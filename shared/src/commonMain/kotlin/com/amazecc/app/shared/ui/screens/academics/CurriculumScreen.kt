@@ -65,8 +65,8 @@ fun CurriculumScreen() {
         if (gradesData?.grades?.isNotEmpty() == true) {
             gradesData.grades.mapNotNull { (semId, result) ->
                 val name = AppState.semesterMap[semId] ?: semId
-                val gpa = result.gpa ?: "N/A"
-                val credits = result.grades.size * 3
+                val gpa = result?.gpa ?: "N/A"
+                val credits = result?.grades?.size?.times(3) ?: 0
                 SemesterSummary(semId, name, gpa, credits)
             }.sortedByDescending { it.semesterId }
         } else {

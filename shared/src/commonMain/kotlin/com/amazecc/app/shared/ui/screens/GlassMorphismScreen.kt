@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -243,7 +244,7 @@ fun GlassMorphismScreen() {
             ) {
                 GlassButton(
                     text = "Message",
-                    icon = Icons.Rounded.Send,
+                    icon = Icons.AutoMirrored.Rounded.Send,
                     modifier = Modifier.weight(1f)
                 )
                 GlassButton(

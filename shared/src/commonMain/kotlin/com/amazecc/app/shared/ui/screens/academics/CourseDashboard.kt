@@ -24,9 +24,10 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import androidx.compose.foundation.clickable
 
 @Composable
-fun CourseDashboardScreen(onBack: () -> Unit) {
+fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
     val colors = AmazeTheme.colors
     val marksRes by AppState.marks.collectAsState()
     val attendanceRes by AppState.attendance.collectAsState()
@@ -49,18 +50,18 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
         ) {
             items(courses) { course ->
                 val attInfo = attendanceData.find { it.courseCode == course.courseCode }
-                CourseOverviewCard(course, attInfo)
+                CourseOverviewCard(course, attInfo, onClick = { AppState.openCourseAttendance(course.courseCode) })
             }
         }
     }
 }
 
 @Composable
-fun CourseOverviewCard(course: MarksCourseItem, attendanceInfo: AttendanceItem?) {
+fun CourseOverviewCard(course: MarksCourseItem, attendanceInfo: AttendanceItem?, onClick: () -> Unit = {}) {
     val colors = AmazeTheme.colors
     val attPct = attendanceInfo?.attendancePercentage?.toDoubleOrNull() ?: 0.0
 
-    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+    AmazeCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(

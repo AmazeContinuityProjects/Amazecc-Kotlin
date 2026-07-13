@@ -3,6 +3,7 @@ package com.amazecc.app.shared.utils
 import kotlinx.datetime.*
 import kotlinx.serialization.json.*
 
+@Suppress("unused")
 object AnalyzeCalendar {
 
     private val HOLIDAY_KEYWORDS = listOf(
@@ -93,7 +94,7 @@ object AnalyzeCalendar {
         // ---- YEAR ----
         val yearStr = calendar?.get("month")?.jsonPrimitive?.content?.split(" ")?.lastOrNull()
             ?: calendar?.get("year")?.jsonPrimitive?.content
-        var year = yearStr?.toIntOrNull() ?: now.year
+        val year = yearStr?.toIntOrNull() ?: now.year
 
         // ---- MONTH ----
         var monthIndex: Int = now.monthNumber
@@ -110,7 +111,7 @@ object AnalyzeCalendar {
                     monthIndex = MONTH_NAME_MAP[prefix] ?: now.monthNumber
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             monthIndex = now.monthNumber
         }
 
@@ -123,18 +124,15 @@ object AnalyzeCalendar {
                 daysInMonth.add(currentDate)
                 currentDate = currentDate.plus(DatePeriod(days = 1))
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             val totalDays = calendar?.get("totalDays")?.jsonPrimitive?.content?.toIntOrNull() ?: 31
             for (i in 1..totalDays) {
                 daysInMonth.add(LocalDate(year, monthIndex, i))
             }
         }
 
-        // ---- DAY LABELS ----
-        val weekdayNames = listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
-
         // ---- OUTPUT ----
-        val monthNameStr = calendar?.get("month")?.jsonPrimitive?.content ?: daysInMonth.firstOrNull()?.month?.name?.lowercase()?.capitalize() ?: "Unknown"
+        val monthNameStr = calendar?.get("month")?.jsonPrimitive?.content ?: daysInMonth.firstOrNull()?.month?.name?.lowercase()?.replaceFirstChar { it.uppercase() } ?: "Unknown"
         val result = CalendarResult(
             month = monthNameStr,
             year = year,
@@ -207,7 +205,7 @@ object AnalyzeCalendar {
                 for (impDef in importantEventNames) {
                     val key = impDef["key"] as String
                     val display = impDef["display"] as String
-                    val aliases = (impDef["aliases"] as? String)?.split(",") ?: emptyList()
+                    val aliases = impDef["aliases"]?.split(",") ?: emptyList()
                     
                     val matched = text.contains(key) || aliases.any { text.contains(it) }
                     if (matched && !importantEvents.containsKey(key)) {

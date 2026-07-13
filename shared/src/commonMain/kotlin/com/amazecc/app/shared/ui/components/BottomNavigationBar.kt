@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
@@ -27,53 +26,42 @@ import com.amazecc.app.shared.theme.AmazeTheme
 fun BottomNavigationBar() {
     val currentScreen by AppState.currentScreen.collectAsState()
     val pinnedTabs by AppState.pinnedNavTabs.collectAsState()
-    val colors = AmazeTheme.colors
-
     if (currentScreen == Screen.LOGIN || currentScreen == Screen.ONBOARDING) return
 
-    Box(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .padding(horizontal = 16.dp, vertical = 24.dp) // Floating effect
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(32.dp))
-                .background(Color(0xFF0F0F12)) // Pitch black with hint of grey
-                .border(
-                    1.dp, 
-                    Color(0xFF262626), 
-                    RoundedCornerShape(32.dp)
-                )
-                .padding(vertical = 12.dp, horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Anchor HOME at the left
-            BottomNavItem(
-                icon = Icons.Rounded.Home,
-                label = "Home",
-                isSelected = currentScreen == Screen.HOME,
-                onClick = { AppState.navigateTo(Screen.HOME) }
-            )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .clip(RoundedCornerShape(32.dp))
+            .background(Color(0xFF0F0F12))
+            .border(1.dp, Color(0xFF262626), RoundedCornerShape(32.dp))
+            .padding(vertical = 12.dp, horizontal = 20.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        BottomNavItem(
+            icon = Icons.Rounded.Home,
+            contentDesc = "Home",
+            isSelected = currentScreen == Screen.HOME,
+            onClick = { AppState.navigateTo(Screen.HOME) }
+        )
 
-            // Render dynamically pinned tabs
-            pinnedTabs.forEach { tab ->
-                val (icon, label) = getScreenIconAndLabel(tab)
-                BottomNavItem(
-                    icon = icon,
-                    label = label,
-                    isSelected = currentScreen == tab,
-                    onClick = { AppState.navigateTo(tab) }
-                )
-            }
-
-            // Anchor MORE at the right
+        pinnedTabs.forEach { tab ->
+            val (icon, desc) = getScreenIconAndLabel(tab)
             BottomNavItem(
-                icon = Icons.Rounded.Apps,
-                label = "More",
-                isSelected = currentScreen == Screen.MORE,
-                onClick = { AppState.navigateTo(Screen.MORE) }
+                icon = icon,
+                contentDesc = desc,
+                isSelected = currentScreen == tab,
+                onClick = { AppState.navigateTo(tab) }
             )
         }
+
+        BottomNavItem(
+            icon = Icons.Rounded.Apps,
+            contentDesc = "More",
+            isSelected = currentScreen == Screen.MORE,
+            onClick = { AppState.navigateTo(Screen.MORE) }
+        )
     }
 }
 
@@ -83,7 +71,7 @@ fun getScreenIconAndLabel(screen: Screen): Pair<ImageVector, String> {
         Screen.ATTENDANCE -> Icons.Rounded.EventAvailable to "Attendance"
         Screen.ACADEMICS -> Icons.Rounded.School to "Academics"
         Screen.PAYMENTS -> Icons.Rounded.CreditCard to "Payments"
-        Screen.LIBRARIES -> Icons.Rounded.LibraryBooks to "Library"
+        Screen.LIBRARIES -> Icons.AutoMirrored.Rounded.LibraryBooks to "Library"
         Screen.HOSTEL -> Icons.Rounded.Apartment to "Hostel"
         Screen.CABSHARE -> Icons.Rounded.DirectionsCar to "Cabshare"
         Screen.TRANSPORT -> Icons.Rounded.DirectionsBus to "Transport"
@@ -101,30 +89,21 @@ fun getScreenIconAndLabel(screen: Screen): Pair<ImageVector, String> {
 @Composable
 fun BottomNavItem(
     icon: ImageVector,
-    label: String,
+    contentDesc: String,
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
     val colors = AmazeTheme.colors
     val color = if (isSelected) colors.accent else colors.textMuted
     
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onClick() }
+    Box(
+        modifier = Modifier.clickable(onClick = onClick).padding(8.dp)
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = label,
+            contentDescription = contentDesc,
             tint = color,
             modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            style = AmazeTheme.typography.smallLabel.copy(
-                color = color,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-            )
         )
     }
 }

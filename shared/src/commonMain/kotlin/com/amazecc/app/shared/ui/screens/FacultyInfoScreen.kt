@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -283,7 +284,7 @@ fun FacultyDetailScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Rounded.ArrowBack, null, tint = colors.textPrimary)
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = colors.textPrimary)
             }
             Spacer(Modifier.width(4.dp))
             Column {

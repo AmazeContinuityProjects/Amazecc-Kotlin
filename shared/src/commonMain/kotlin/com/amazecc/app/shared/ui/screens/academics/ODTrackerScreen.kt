@@ -9,6 +9,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.Assignment
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -162,7 +164,7 @@ private fun OverviewTab(
                     modifier = Modifier.weight(1f),
                     title = "Total ODs",
                     value = "${metrics.totalODs}",
-                    icon = Icons.Rounded.Assignment,
+                    icon = Icons.AutoMirrored.Rounded.Assignment,
                     iconColor = colors.accent,
                     colors = colors
                 )
@@ -186,7 +188,7 @@ private fun OverviewTab(
                     modifier = Modifier.weight(1f),
                     title = "Theory Hours",
                     value = "${metrics.theoryHours}h",
-                    icon = Icons.Rounded.MenuBook,
+                    icon = Icons.AutoMirrored.Rounded.MenuBook,
                     iconColor = colors.warning,
                     colors = colors
                 )
@@ -424,7 +426,7 @@ private fun ODDateGroup(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.weight(1f)
                     ) {
-                        val typeIcon = if (entry.type == "LAB") Icons.Rounded.Science else Icons.Rounded.MenuBook
+                        val typeIcon = if (entry.type == "LAB") Icons.Rounded.Science else Icons.AutoMirrored.Rounded.MenuBook
                         val typeColor = if (entry.type == "LAB") colors.info else colors.warning
                         Icon(
                             typeIcon,

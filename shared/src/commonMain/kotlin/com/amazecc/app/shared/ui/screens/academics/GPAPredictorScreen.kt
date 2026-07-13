@@ -10,6 +10,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -95,7 +96,7 @@ fun GPAPredictorScreen() {
                 ) {
                     StatItem("Current CGPA", "%.2f".format(currentCgpa), Icons.Rounded.EmojiEvents, Color(0xFF10B981))
                     StatItem("Credits Earned", "%.0f".format(creditsEarned), Icons.Rounded.School, Color(0xFF3B82F6))
-                    StatItem("Projected", "%.2f".format(projectedCgpa), Icons.Rounded.TrendingUp, colors.accent)
+                    StatItem("Projected", "%.2f".format(projectedCgpa), Icons.AutoMirrored.Rounded.TrendingUp, colors.accent)
                 }
             }
 

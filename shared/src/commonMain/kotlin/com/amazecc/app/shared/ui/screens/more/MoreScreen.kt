@@ -8,7 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
-import androidx.compose.material.icons.automirrored.rounded.ExitToApp
+import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,7 +47,7 @@ fun MoreScreen() {
 
             val modules = listOf(
                 Pair(Screen.PAYMENTS, Icons.Rounded.CreditCard to "Payments"),
-                Pair(Screen.LIBRARIES, Icons.Rounded.LibraryBooks to "Library"),
+                Pair(Screen.LIBRARIES, Icons.AutoMirrored.Rounded.LibraryBooks to "Library"),
                 Pair(Screen.HOSTEL, Icons.Rounded.Apartment to "Hostel"),
                 Pair(Screen.TRANSPORT, Icons.Rounded.DirectionsBus to "Transport"),
                 Pair(Screen.CABSHARE, Icons.Rounded.DirectionsCar to "Cabshare"),

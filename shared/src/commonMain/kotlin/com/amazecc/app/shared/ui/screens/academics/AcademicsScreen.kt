@@ -1,234 +1,206 @@
-@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.AmazeCard
-import com.amazecc.app.shared.ui.components.AmazeButton
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
-import com.amazecc.app.shared.ui.components.ButtonVariant
+import com.amazecc.app.shared.ui.components.ScreenHeader
+import kotlin.math.roundToInt
+
+@Suppress("unused")
+@Composable
+fun MarksGradesScreen() = AcademicsScreen()
+
+@Suppress("unused")
+@Composable
+fun CalendarScreen() = AcademicsScreen()
 
 @Composable
-fun MarksGradesScreen() = AcademicsScreen(initialTab = "Overview")
-
-@Composable
-fun AcademicsScreen(initialTab: String = "Overview") {
+fun AcademicsScreen() {
     val colors = AmazeTheme.colors
-    var activeSubTab by remember(initialTab) { mutableStateOf(initialTab) }
-    
-    // Core navigation state mimicking web app deep linking
-    var currentView by remember { mutableStateOf<String?>(null) } // null = hub, "course-dashboard" = unified course view
+    val marksRes by AppState.marks.collectAsState()
+    val attendanceRes by AppState.attendance.collectAsState()
+    val timetableRes by AppState.timetable.collectAsState()
+    val allGradesRes by AppState.allGrades.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
 
+    val courses = marksRes?.marks ?: emptyList()
+    val gpaRecords = allGradesRes?.grades ?: emptyMap()
+    val timetableCourses = timetableRes?.courseInfo ?: emptyList()
+    val attendanceCourses = attendanceRes?.attendance ?: emptyList()
+    val months = calendarRes?.months ?: emptyList()
+
+    val currentCgpa = marksRes?.cgpa?.cgpa?.toDoubleOrNull() ?: 0.0
+    val creditsEarned = marksRes?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
+    val totalRequiredCredits = 160.0
+    val attendanceRows = attendanceRes?.attendance ?: emptyList()
+    val avgAttendance = if (attendanceRows.isNotEmpty()) {
+        attendanceRows.sumOf { it.attendancePercentage.toDoubleOrNull() ?: 0.0 } / attendanceRows.size
+    } else 0.0
+
+    val hubCards = listOf(
+        HubCard("course-dashboard", "Course Hub", "Your one-stop hub — courses, grades, arrears, projects and more.", Icons.Rounded.Dashboard, Color.White, colors.accent, true),
+        HubCard("grades", "Grade History", "Analyze your academic performance and past grades.", Icons.Rounded.History, Color(0xFF9333EA), Color(0xFFF3E8FF)),
+        HubCard("curriculum", "Curriculum", "Track your completed courses and credit requirements.", Icons.AutoMirrored.Rounded.MenuBook, Color(0xFF16A34A), Color(0xFFDCFCE7)),
+        HubCard("predictor", "CGPA Predictor", "Estimate your future CGPA based on expected grades.", Icons.AutoMirrored.Rounded.TrendingUp, Color(0xFFEA580C), Color(0xFFFFEDD5)),
+        HubCard("qbank", "Question Bank", "Access and search past year question papers.", Icons.Rounded.Storage, Color(0xFFDC2626), Color(0xFFFEE2E2)),
+        HubCard("arrear", "Arrear Management", "View arrear schedule, details and grades.", Icons.Rounded.Warning, Color(0xFFD97706), Color(0xFFFEF3C7)),
+        HubCard("makeup", "Makeup & Compre", "Makeup exam eligibility, schedule and compre info.", Icons.Rounded.School, Color(0xFF0891B2), Color(0xFFCFFAFE)),
+        HubCard("circulars", "Circulars", "Academic notices and circulars from VTOP.", Icons.Rounded.Campaign, Color(0xFF6366F1), Color(0xFFEEF2FF)),
+        HubCard("od-tracker", "OD Tracker", "Track on-duty hours, lab and theory.", Icons.Rounded.TaskAlt, Color(0xFFEC4899), Color(0xFFFDF2F8)),
+        HubCard("marks-timeline", "Marks Timeline", "Assessment history and grade trend.", Icons.Rounded.Timeline, Color(0xFF14B8A6), Color(0xFFF0FDFA)),
+        HubCard("vitol", "VITOL Wallet", "Digital wallet balance and transactions.", Icons.Rounded.AccountBalanceWallet, Color(0xFF8B5CF6), Color(0xFFF5F3FF))
+    )
+
+    var currentView by remember { mutableStateOf<String?>(null) }
     if (currentView == "course-dashboard") {
         CourseDashboardScreen(onBack = { currentView = null })
         return
     }
-
-    val tabs = listOf("Overview", "Marks & GPA", "Schedule", "Calendar", "Question Bank")
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
     ) {
-        if (activeSubTab != "Overview") {
-            ScreenHeader(
-                title = "Academics",
-                description = "Track classes, grades & schedules",
-                showBackButton = false,
-                showSyncButton = true
-            )
-        }
+        ScreenHeader(
+            title = "Academics Hub",
+            description = "Student OS",
+            showBackButton = false,
+            showSyncButton = true
+        )
 
-        // Sub-Tab Navigation row
-        TabRow(
-            selectedTabIndex = tabs.indexOf(activeSubTab),
-            containerColor = colors.background,
-            contentColor = colors.accent,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[tabs.indexOf(activeSubTab)]),
-                    color = colors.accent
-                )
-            }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            tabs.forEach { tab ->
-                Tab(
-                    selected = activeSubTab == tab,
-                    onClick = { activeSubTab = tab },
-                    text = {
-                        Text(
-                            text = tab,
-                            style = AmazeTheme.typography.body.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        )
-                    },
-                    selectedContentColor = colors.accent,
-                    unselectedContentColor = colors.textSecondary
-                )
+            // Stats overview
+            item {
+                StatsOverviewCard(currentCgpa, avgAttendance, creditsEarned, totalRequiredCredits)
             }
-        }
 
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .padding(top = if (activeSubTab == "Overview") 0.dp else 16.dp, start = 16.dp, end = 16.dp, bottom = 16.dp)
-        ) {
-            when (activeSubTab) {
-                "Overview" -> AcademicsHubScreen(onNavigate = { dest ->
-                    when (dest) {
-                        "course-dashboard" -> currentView = dest
-                        "grades" -> AppState.navigateTo(Screen.GRADES)
-                        "predictor" -> AppState.navigateTo(Screen.GPA_PREDICTOR)
-                        "arrear" -> AppState.navigateTo(Screen.ARREAR)
-                        "makeup" -> AppState.navigateTo(Screen.MAKEUP_COMPRE)
-                        "circulars" -> AppState.navigateTo(Screen.CIRCULARS)
-                        "curriculum" -> AppState.navigateTo(Screen.CURRICULUM)
-                        "od-tracker" -> AppState.navigateTo(Screen.OD_TRACKER)
-                        "marks-timeline" -> AppState.navigateTo(Screen.MARKS_TIMELINE)
-                        "vitol" -> AppState.navigateTo(Screen.VITOL)
-                        else -> activeSubTab = dest
+            // Hub grid
+            item {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 160.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp),
+                    userScrollEnabled = false
+                ) {
+                    items(hubCards) { card ->
+                        HubCardItem(card = card, onClick = {
+                            when (card.id) {
+                                "course-dashboard" -> currentView = "course-dashboard"
+                                "grades" -> AppState.navigateTo(Screen.GRADES)
+                                "predictor" -> AppState.navigateTo(Screen.GPA_PREDICTOR)
+                                "arrear" -> AppState.navigateTo(Screen.ARREAR)
+                                "makeup" -> AppState.navigateTo(Screen.MAKEUP_COMPRE)
+                                "circulars" -> AppState.navigateTo(Screen.CIRCULARS)
+                                "curriculum" -> AppState.navigateTo(Screen.CURRICULUM)
+                                "od-tracker" -> AppState.navigateTo(Screen.OD_TRACKER)
+                                "marks-timeline" -> AppState.navigateTo(Screen.MARKS_TIMELINE)
+                                "vitol" -> AppState.navigateTo(Screen.VITOL)
+                                "qbank" -> AppState.navigateTo(Screen.QBANK)
+                            }
+                        })
                     }
-                })
-                "Marks & GPA" -> MarksSubScreen()
-                "Schedule" -> TimetableSubScreen()
-                "Calendar" -> CalendarSubScreen()
-                "Question Bank" -> QBankSubScreen()
-                else -> MarksSubScreen()
+                }
             }
-        }
-    }
-}
 
-// ── 2. UNIFIED SERVICES SCREEN (TABS: PAYMENTS, LIBRARY, TRANSPORT, LMS) ──
+            // ── Internal Marks Section ──
+            item {
+                SectionHeader("Internal Marks", Icons.Rounded.Grade)
+            }
 
-@Composable
-fun MarksSubScreen() {
-    val colors = AmazeTheme.colors
-    val marksRes by AppState.marks.collectAsState()
-    val allGradesRes by AppState.allGrades.collectAsState()
-    
-    val courses = marksRes?.marks ?: emptyList()
-    val gpaRecords = allGradesRes?.grades ?: emptyMap()
-
-    var activeViewTab by remember { mutableStateOf("Internal Marks") }
-    
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            AmazeButton(
-                text = "Internal Marks",
-                onClick = { activeViewTab = "Internal Marks" },
-                variant = if (activeViewTab == "Internal Marks") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
-                modifier = Modifier.weight(1f)
-            )
-            AmazeButton(
-                text = "Grade History",
-                onClick = { activeViewTab = "Grade History" },
-                variant = if (activeViewTab == "Grade History") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (activeViewTab == "Internal Marks") {
             if (courses.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    Text("No internal marks records.", color = colors.textSecondary)
+                item {
+                    EmptyState("No internal marks records.")
                 }
             } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    items(courses) { course ->
+                items(courses) { course ->
+                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                            Text(course.courseTitle, style = AmazeTheme.typography.subheading.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp))
+                            Text("Faculty: ${course.faculty}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            HorizontalDivider(color = colors.border)
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            course.assessments.forEach { assess ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(assess.title, style = AmazeTheme.typography.body.copy(fontSize = 14.sp, color = colors.textPrimary))
+                                        Text("Weightage: ${assess.weightagePercent}%", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                                    }
+                                    Text("${assess.scoredMark} / ${assess.maxMark}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Grade History Section ──
+            item {
+                SectionHeader("Grade History", Icons.Rounded.History)
+            }
+
+            if (gpaRecords.isEmpty()) {
+                item {
+                    EmptyState("No GPA & grade history records.")
+                }
+            } else {
+                gpaRecords.forEach { (semId, semResult) ->
+                    item {
                         AmazeCard(modifier = Modifier.fillMaxWidth()) {
                             Column {
-                                Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                                Text(course.courseTitle, style = AmazeTheme.typography.subheading.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 16.sp))
-                                Text("Faculty: ${course.faculty}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                                
-                                Spacer(modifier = Modifier.height(12.dp))
-                                HorizontalDivider(color = colors.border)
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                course.assessments.forEach { assess ->
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(assess.title, style = AmazeTheme.typography.body.copy(fontSize = 14.sp, color = colors.textPrimary))
-                                            Text("Weightage: ${assess.weightagePercent}%", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
-                                        }
-                                        Text("${assess.scoredMark} / ${assess.maxMark}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                    }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(semId, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                    Text("GPA: ${semResult?.gpa ?: "-"}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent))
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            if (gpaRecords.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    Text("No GPA & grade history records.", color = colors.textSecondary)
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    gpaRecords.forEach { (semId, semResult) ->
-                        item {
-                            AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                                Column {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                semResult?.grades?.forEach { grade ->
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                                         horizontalArrangement = Arrangement.SpaceBetween
                                     ) {
-                                        Text(semId, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                        Text("GPA: ${semResult?.gpa ?: "-"}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent))
-                                    }
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    semResult?.grades?.forEach { grade ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 4.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween
-                                        ) {
-                                            Text("${grade.courseCode} - ${grade.courseTitle}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), modifier = Modifier.weight(1f))
-                                            Text("Grade: ${grade.grade}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                        }
+                                        Text("${grade.courseCode} - ${grade.courseTitle}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), modifier = Modifier.weight(1f))
+                                        Text("Grade: ${grade.grade}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                     }
                                 }
                             }
@@ -236,139 +208,75 @@ fun MarksSubScreen() {
                     }
                 }
             }
-        }
-    }
-}
 
-@Composable
-fun TimetableSubScreen() {
-    val colors = AmazeTheme.colors
-    val timetableRes by AppState.timetable.collectAsState()
-    val attendanceRes by AppState.attendance.collectAsState()
-    
-    val timetableCourses = timetableRes?.courseInfo ?: emptyList()
-    val attendanceCourses = attendanceRes?.attendance ?: emptyList()
+            // ── Timetable Section ──
+            item {
+                SectionHeader("Schedule", Icons.Rounded.CalendarMonth)
+            }
 
-    var scale by remember { mutableStateOf(1f) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTransformGestures { _, _, zoom, _ ->
-                    scale = (scale * zoom).coerceIn(0.5f, 3f)
+            if (timetableCourses.isEmpty() && attendanceCourses.isEmpty()) {
+                item {
+                    EmptyState("No timetable data found. Tap refresh to sync.")
                 }
-            }
-            .graphicsLayer(
-                scaleX = scale,
-                scaleY = scale
-            )
-    ) {
-        if (timetableCourses.isEmpty() && attendanceCourses.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No timetable data found. Tap refresh to sync.", color = colors.textSecondary)
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
+            } else {
                 if (timetableCourses.isNotEmpty()) {
-                    items(timetableCourses) { course ->
-                        AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(colors.accent.copy(alpha = 0.1f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(course.slNo, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                                    Text(course.course, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                    Text("Faculty: ${course.facultyDetails ?: "—"}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                                    Text("Slot / Venue: ${course.slotVenue ?: "—"}", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                                }
-                            }
+                    timetableCourses.forEach { c ->
+                        item {
+                            TimetableCard(
+                                code = c.courseCode,
+                                title = c.course,
+                                faculty = c.facultyDetails,
+                                venue = c.slotVenue,
+                                slotCode = c.courseCode.take(4)
+                            )
                         }
                     }
                 } else {
-                    items(attendanceCourses) { course ->
-                        AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(colors.accent.copy(alpha = 0.1f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(course.slotName, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                                    Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                    Text("Faculty: ${course.faculty ?: "—"}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                                    Text("Venue: ${course.slotVenue ?: "—"}", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                                }
-                            }
+                    attendanceCourses.forEach { c ->
+                        item {
+                            TimetableCard(
+                                code = c.courseCode,
+                                title = c.courseTitle,
+                                faculty = c.faculty,
+                                venue = c.slotVenue ?: "—",
+                                slotCode = c.slotName
+                            )
                         }
                     }
                 }
             }
-        }
-    }
-}
 
-// ── 3. HOSTEL SCREEN (Bed / Room portal) ──
+            // ── Academic Calendar Section ──
+            item {
+                SectionHeader("Academic Calendar", Icons.Rounded.Event)
+            }
 
-
-@Composable
-fun CalendarScreen() = AcademicsScreen(initialTab = "Calendar")
-
-@Composable
-fun CalendarSubScreen() {
-    val colors = AmazeTheme.colors
-    val calendarRes by AppState.calendar.collectAsState()
-    val months = calendarRes?.months ?: emptyList()
-
-    if (months.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No calendar events found.", color = colors.textSecondary)
-        }
-    } else {
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(months) { monthData ->
-                AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                    Column {
-                        Text(monthData.month, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        monthData.days.forEach { dayData ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .background(colors.accent.copy(alpha = 0.1f), CircleShape),
-                                    contentAlignment = Alignment.Center
+            if (months.isEmpty()) {
+                item {
+                    EmptyState("No calendar events found.")
+                }
+            } else {
+                items(months) { monthData ->
+                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            Text(monthData.month, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            monthData.days.forEach { dayData ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    Text(dayData.date.toString(), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    dayData.events.forEach { event ->
-                                        Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                                        Text(event.text, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                                    Box(
+                                        modifier = Modifier.size(40.dp).background(colors.accent.copy(alpha = 0.1f), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(dayData.date.toString(), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        dayData.events.forEach { event ->
+                                            Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                                            Text(event.text, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                                        }
                                     }
                                 }
                             }
@@ -376,23 +284,136 @@ fun CalendarSubScreen() {
                     }
                 }
             }
+
+            item { Spacer(modifier = Modifier.height(16.dp)) }
         }
     }
 }
 
 @Composable
-fun QBankSubScreen() {
+private fun SectionHeader(title: String, icon: ImageVector) {
     val colors = AmazeTheme.colors
-    // Minimal mock UI since QBank requires course search
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(64.dp), tint = colors.textMuted)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text("Search for a course to view previous papers", color = colors.textSecondary)
-            Spacer(modifier = Modifier.height(8.dp))
-            AmazeButton(text = "Search Course", onClick = { /* TODO */ })
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(title, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+    }
+}
+
+@Composable
+private fun EmptyState(message: String) {
+    val colors = AmazeTheme.colors
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(message, color = colors.textSecondary)
         }
     }
 }
 
+private fun cgpaFormatted(cgpa: Double): String {
+    val whole = cgpa.toInt()
+    val frac = ((cgpa - whole) * 100).roundToInt()
+    return "$whole.${if (frac < 10) "0" else ""}$frac"
+}
 
+@Composable
+fun StatsOverviewCard(cgpa: Double, attendance: Double, credits: Double, required: Double) {
+    val colors = AmazeTheme.colors
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            StatBox("CGPA", cgpaFormatted(cgpa), Icons.Rounded.EmojiEvents, Color(0xFF10B981))
+            StatBox("Attendance", "${attendance.roundToInt()}%", Icons.Rounded.Percent, colors.accent)
+            StatBox("Credits", "${credits.toInt()}/${required.toInt()}", Icons.Rounded.School, Color(0xFF9333EA))
+        }
+    }
+}
+
+@Composable
+fun StatBox(label: String, value: String, icon: ImageVector, iconColor: Color) {
+    val colors = AmazeTheme.colors
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier.size(32.dp).clip(CircleShape).background(iconColor.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(18.dp))
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(value, style = AmazeTheme.typography.heading.copy(fontSize = 18.sp, color = colors.textPrimary))
+        Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+    }
+}
+
+data class HubCard(
+    val id: String,
+    val title: String,
+    val description: String,
+    val icon: ImageVector,
+    val color: Color,
+    val bgColor: Color,
+    val prominent: Boolean = false
+)
+
+@Composable
+private fun TimetableCard(code: String, title: String, faculty: String, venue: String, slotCode: String) {
+    val colors = AmazeTheme.colors
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(44.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(slotCode, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(code, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Text("Faculty: $faculty", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                Text("Venue: $venue", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+            }
+        }
+    }
+}
+
+@Composable
+fun HubCardItem(card: HubCard, onClick: () -> Unit) {
+    val colors = AmazeTheme.colors
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (card.prominent) colors.accent else colors.surface)
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Column {
+            Box(
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(card.bgColor),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(card.icon, contentDescription = null, tint = card.color, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = card.title,
+                style = AmazeTheme.typography.subheading.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = if (card.prominent) Color.White else colors.textPrimary
+                )
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = card.description,
+                style = AmazeTheme.typography.caption.copy(
+                    color = if (card.prominent) Color.White.copy(alpha = 0.8f) else colors.textSecondary,
+                    lineHeight = 16.sp
+                )
+            )
+        }
+    }
+}
