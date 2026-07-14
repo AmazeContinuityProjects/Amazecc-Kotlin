@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,12 +35,16 @@ import com.amazecc.app.shared.utils.AttendanceDay
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.utils.SlotInfo
+import com.amazecc.app.shared.utils.TimeMath
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun AttendanceScreen() {
+    var activeView by remember { mutableStateOf("Timetable") }
+    val views = listOf("Timetable", "Predictor", "Weekly Grid")
     val colors = AmazeTheme.colors
-    var activeSubTab by remember { mutableStateOf("Timeline") }
-    val tabs = listOf("Timeline", "Predictor", "Timetable Grid")
 
     Column(
         modifier = Modifier
@@ -55,33 +58,30 @@ fun AttendanceScreen() {
             showSyncButton = true
         )
 
-        TabRow(
-            selectedTabIndex = tabs.indexOf(activeSubTab),
-            containerColor = colors.background,
-            contentColor = colors.accent,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[tabs.indexOf(activeSubTab)]),
-                    color = colors.accent
-                )
-            }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            tabs.forEach { tab ->
-                Tab(
-                    selected = activeSubTab == tab,
-                    onClick = { activeSubTab = tab },
-                    text = {
-                        Text(
-                            text = tab,
-                            style = AmazeTheme.typography.body.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        )
-                    },
-                    selectedContentColor = colors.accent,
-                    unselectedContentColor = colors.textSecondary
-                )
+            views.forEach { view ->
+                val isSelected = activeView == view
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isSelected) colors.accent else colors.surface)
+                        .clickable { activeView = view }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        view,
+                        color = if (isSelected) Color.White else colors.textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
 
@@ -90,10 +90,10 @@ fun AttendanceScreen() {
                 .weight(1f)
                 .padding(16.dp)
         ) {
-            when (activeSubTab) {
-                "Timeline" -> DailyPlannerScreen()
+            when (activeView) {
+                "Timetable" -> DailyPlannerScreen()
                 "Predictor" -> OverallPredictorScreen()
-                "Timetable Grid" -> TimetableGridScreen()
+                "Weekly Grid" -> TimetableGridScreen()
             }
         }
     }
@@ -124,7 +124,7 @@ fun FreePeriodBlock(title: String, time: String) {
 fun OverallPredictorScreen() {
     val colors = AmazeTheme.colors
     val attendanceRes by AppState.attendance.collectAsState()
-    val calendarRes by AppState.calendarData.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
     val courses = attendanceRes?.attendance ?: emptyList()
     val calendarMonths = calendarRes?.months ?: emptyList()
 
@@ -220,7 +220,7 @@ fun OverallPredictorScreen() {
                 Text("Predicted Overall Attendance ($selectedMode)", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "%.1f%%".format(overallPct),
+                    text = pctFormatted(overallPct),
                     style = AmazeTheme.typography.heading.copy(
                         color = when {
                             overallPct >= 85 -> Color(0xFF10B981)
@@ -265,6 +265,39 @@ fun OverallPredictorScreen() {
                 text = "Cutoff: ${cutoffDate.month}/${cutoffDate.day}",
                 style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
             )
+        }
+
+        // Calendar working days info
+        val totalWorkingDays = allWorkingDays.size
+        val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+        val todayVal = today.year * 10000 + today.monthNumber * 100 + today.dayOfMonth
+        val remainingDays = allWorkingDays.count { (y, m, d) ->
+            val dateVal = y * 10000 + m * 100 + d
+            dateVal >= todayVal && (cutoffDate == null || dateVal <= cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day)
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.accent.copy(alpha = 0.06f))
+                .border(1.dp, colors.accent.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("$totalWorkingDays", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                Text("Cal. Days", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+            }
+            Box(modifier = Modifier.width(1.dp).height(32.dp).background(colors.border))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("$remainingDays", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Text("Remaining", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+            }
+            Box(modifier = Modifier.width(1.dp).height(32.dp).background(colors.border))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("${calendarMonths.size}", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Text("Months", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+            }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -355,7 +388,7 @@ private fun CoursePredictorCard(
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = "%.1f%%".format(projectedPct),
+                    text = pctFormatted(projectedPct),
                     style = AmazeTheme.typography.subheading.copy(
                         color = when {
                             projectedPct >= 85 -> Color(0xFF10B981)
@@ -366,7 +399,7 @@ private fun CoursePredictorCard(
                     )
                 )
                 Text(
-                    text = "%.1f%% now".format(currentPct),
+                    text = "${pctFormatted(currentPct)} now",
                     style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp)
                 )
             }
@@ -387,6 +420,13 @@ private fun SkipButton(text: String, onClick: () -> Unit, colors: com.amazecc.ap
     ) {
         Text(text, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
     }
+}
+
+private fun pctFormatted(value: Double): String {
+    val intPart = (value * 10).toInt()
+    val whole = intPart / 10
+    val frac = intPart % 10
+    return "$whole.$frac%"
 }
 
 private data class SimpleDate(val month: Int, val day: Int, val year: Int)
@@ -464,11 +504,18 @@ private fun computeFutureClasses(
 
     // Map day number → day abbreviation for dayCardsMap
     fun dayOfWeekToAbbr(y: Int, m: Int, d: Int): String? {
-        // Use Zeller's congruence or kotlinx datetime
         return try {
-            val date = kotlinx.datetime.LocalDate(y, m, d)
-            val names = listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
-            names[date.dayOfWeek.value % 7]
+            val day = kotlinx.datetime.LocalDate(y, m, d).dayOfWeek
+            when (day) {
+                kotlinx.datetime.DayOfWeek.SUNDAY -> "SUN"
+                kotlinx.datetime.DayOfWeek.MONDAY -> "MON"
+                kotlinx.datetime.DayOfWeek.TUESDAY -> "TUE"
+                kotlinx.datetime.DayOfWeek.WEDNESDAY -> "WED"
+                kotlinx.datetime.DayOfWeek.THURSDAY -> "THU"
+                kotlinx.datetime.DayOfWeek.FRIDAY -> "FRI"
+                kotlinx.datetime.DayOfWeek.SATURDAY -> "SAT"
+                else -> null
+            }
         } catch (e: Exception) { null }
     }
 
@@ -486,9 +533,12 @@ private fun computeFutureClasses(
         val courseDayAbbrs = courseDays.map { it.name }
 
         var futureCount = 0
+        val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+        val todayVal = today.year * 10000 + today.monthNumber * 100 + today.dayOfMonth
         for ((y, m, d) in allWorkingDays) {
+            val dateVal = y * 10000 + m * 100 + d
+            if (dateVal < todayVal) continue
             if (cutoffDate != null) {
-                val dateVal = y * 10000 + m * 100 + d
                 val cutoffVal = cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day
                 if (dateVal > cutoffVal) continue
             }

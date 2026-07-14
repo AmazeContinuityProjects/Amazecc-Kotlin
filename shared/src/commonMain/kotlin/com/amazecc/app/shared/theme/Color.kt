@@ -34,13 +34,13 @@ val ColorInfoTextDark = Color(0xFF93C5FD)
 val ColorInfoSurfaceDark = Color(0xFF1E3A8A)
 
 // Neutral Colors - Light Mode
-val NeutralBgLight = Color(0xFFF9FAFB)
-val NeutralSurfaceLight = Color(0xFFFFFFFF)
+val NeutralBgLight = Color(0xFFF1F5F9)
+val NeutralSurfaceLight = Color(0xFFF8FAFC)
 val NeutralElevatedLight = Color(0xFFF3F4F6)
-val NeutralBorderLight = Color(0xFFE5E7EB)
+val NeutralBorderLight = Color(0xFFE2E8F0)
 val NeutralTextPrimaryLight = Color(0xFF111827)
 val NeutralTextSecondaryLight = Color(0xFF4B5563)
-val NeutralTextMutedLight = Color(0xFF9CA3AF)
+val NeutralTextMutedLight = Color(0xFF94A3B8)
 
 // Neutral Colors - Dark Mode
 val NeutralBgDark = Color(0xFF000000)

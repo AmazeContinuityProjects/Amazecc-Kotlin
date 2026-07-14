@@ -30,7 +30,6 @@ import com.amazecc.app.shared.ui.components.MoodleLoginModal
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.utils.IcsUtils
 import com.amazecc.app.shared.utils.ShareIcsButton
-import kotlinx.coroutines.launch
 
 data class ConsolidatedEvent(
     val title: String,
@@ -42,22 +41,12 @@ data class ConsolidatedEvent(
 @Composable
 fun CalendarScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
-    val scope = rememberCoroutineScope()
-
-    val calendarData by AppState.calendarData.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
     val moodleData by AppState.moodleData.collectAsState()
     val examData by AppState.examSchedule.collectAsState()
 
     var showMoodleModal by remember { mutableStateOf(false) }
     var viewMode by remember { mutableStateOf("Grid") } // "Grid" or "List"
-
-    // Load initial data if missing
-    LaunchedEffect(Unit) {
-        if (calendarData == null) {
-            val cal = AmazeClient.getCalendar()
-            AppState.updateCalendarData(cal)
-        }
-    }
 
     if (showMoodleModal) {
         MoodleLoginModal(
@@ -76,7 +65,7 @@ fun CalendarScreen(onBack: () -> Unit) {
     val todayMonthStr = "Jul"
     val todayYearNum = 2026
     
-    val allMonths = calendarData?.months ?: emptyList()
+    val allMonths = calendarRes?.months ?: emptyList()
     var selectedMonthIdx by remember { mutableStateOf(0) }
 
     // If there are months, try to select current month initially
@@ -380,8 +369,8 @@ fun CalendarScreen(onBack: () -> Unit) {
             }
         }
         
-        if (calendarData != null) {
-            val icsString = remember(calendarData) { IcsUtils.generateIcs(calendarData!!) }
+        if (calendarRes != null) {
+            val icsString = remember(calendarRes) { IcsUtils.generateIcs(calendarRes!!) }
             ShareIcsButton(icsContent = icsString)
         }
     }

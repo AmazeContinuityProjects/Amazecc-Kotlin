@@ -348,7 +348,7 @@ object AmazeClient {
         }
     }
 
-    suspend fun getLibrary(): LibraryRes {
+    suspend fun getLibrary(libUsername: String? = null, libPassword: String? = null): LibraryRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return LibraryRes(
                 success = true,
@@ -358,8 +358,17 @@ object AmazeClient {
                 )
             )
         }
+        val creds = if (libUsername != null && libPassword != null) {
+            mapOf("libUsername" to libUsername, "libPassword" to libPassword)
+        } else {
+            val saved = com.amazecc.app.shared.repository.SettingsManager.getLibraryCredentials()
+            if (saved != null) mapOf("libUsername" to saved.first, "libPassword" to saved.second) else emptyMap()
+        }
+        if (creds.isEmpty()) {
+            return LibraryRes(success = false, message = "Library login required", error = "NO_LIB_CREDS")
+        }
         return try {
-            postAuthorized<LibraryRes>("library-due") ?: LibraryRes(success = false, message = "Empty response")
+            postAuthorized<LibraryRes>("library-due", creds) ?: LibraryRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             LibraryRes(success = false, message = e.message, error = e.toString())
         }
@@ -398,6 +407,120 @@ object AmazeClient {
             postAuthorized<TransportRes>("transport") ?: TransportRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             TransportRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getTransportRoutes(): TransportRoutesRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return TransportRoutesRes(
+                success = true,
+                routes = listOf(
+                    BusRouteDetail(
+                        routeNo = "R-01",
+                        routeName = "Katpadi Junction - VIT Campus",
+                        departureTime = "08:15 AM",
+                        stops = listOf(
+                            BusStopDetail("Katpadi Junction", "7:30 AM", 1, "\u20B915"),
+                            BusStopDetail("Gandhi Nagar", "7:45 AM", 2, "\u20B910"),
+                            BusStopDetail("VIT Main Gate", "8:00 AM", 3, "\u20B98"),
+                            BusStopDetail("Academic Block", "8:15 AM", 4, "\u20B95")
+                        ),
+                        driverName = "K. Raman",
+                        driverPhone = "+91 9843210982",
+                        busType = "AC"
+                    ),
+                    BusRouteDetail(
+                        routeNo = "R-12",
+                        routeName = "Vellore New Bus Stand - VIT Campus",
+                        departureTime = "08:00 AM",
+                        stops = listOf(
+                            BusStopDetail("Vellore New Bus Stand", "7:15 AM", 1, "\u20B910"),
+                            BusStopDetail("Library Junction", "7:30 AM", 2, "\u20B98"),
+                            BusStopDetail("South Gate", "7:50 AM", 3, "\u20B96"),
+                            BusStopDetail("VIT Main Campus", "8:10 AM", 4, "\u20B95")
+                        ),
+                        driverName = "S. Kumar",
+                        driverPhone = "+91 9442190831",
+                        busType = "Non-AC"
+                    ),
+                    BusRouteDetail(
+                        routeNo = "R-07",
+                        routeName = "Ranipet - VIT Campus",
+                        departureTime = "07:45 AM",
+                        stops = listOf(
+                            BusStopDetail("Ranipet Bus Stand", "6:45 AM", 1, "\u20B920"),
+                            BusStopDetail("Walajah Road", "7:05 AM", 2, "\u20B915"),
+                            BusStopDetail("VIT Campus", "7:45 AM", 3, "\u20B98")
+                        ),
+                        driverName = "M. Rajesh",
+                        driverPhone = "+91 9876543210",
+                        supervisorName = "A. Venkat",
+                        supervisorPhone = "+91 8765432109",
+                        busType = "AC"
+                    ),
+                    BusRouteDetail(
+                        routeNo = "R-21",
+                        routeName = "Katpadi Railway Station - VIT",
+                        departureTime = "08:30 AM",
+                        stops = listOf(
+                            BusStopDetail("Katpadi Railway Station", "7:45 AM", 1, "\u20B912"),
+                            BusStopDetail("Kannan Koil", "8:00 AM", 2, "\u20B98"),
+                            BusStopDetail("VIT Main Gate", "8:20 AM", 3, "\u20B95"),
+                            BusStopDetail("Academic Block", "8:30 AM", 4, "\u20B95")
+                        ),
+                        driverName = "P. Selvam",
+                        driverPhone = "+91 9988776655",
+                        busType = "Non-AC"
+                    )
+                )
+            )
+        }
+        return try {
+            postAuthorized<TransportRoutesRes>("transport/routes") ?: TransportRoutesRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            TransportRoutesRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun submitTransportRegistration(request: TransportRegRequest): TransportRegSubmitRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return TransportRegSubmitRes(success = true, message = "Transport pass application submitted!", registrationId = "REG-${(1000..9999).random()}")
+        }
+        return try {
+            val params = mapOf(
+                "routeNo" to request.routeNo,
+                "semester" to request.semester,
+                "studentName" to request.studentName,
+                "studentPhone" to request.studentPhone
+            )
+            postAuthorized<TransportRegSubmitRes>("transport/register", params)
+                ?: TransportRegSubmitRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            TransportRegSubmitRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getTransportPass(): TransportPassRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return TransportPassRes(
+                success = true,
+                status = "active",
+                dayBoarderStatus = "APPROVED (Bus Pass Active)",
+                routeNo = "R-12",
+                routeName = "Vellore New Bus Stand - VIT Campus",
+                validUntil = "Dec 2026",
+                studentName = "John Doe",
+                studentPhone = "+91 9876543210",
+                registrations = listOf(
+                    TransportRegItem("1", "Fall 2025", "R-12", "Vellore New Bus Stand - VIT Campus", "Approved", "2025-07-20"),
+                    TransportRegItem("2", "Spring 2025", "R-01", "Katpadi Junction - VIT Campus", "Expired", "2025-01-10")
+                )
+            )
+        }
+        return try {
+            postAuthorized<TransportPassRes>("transport/pass") ?: TransportPassRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            TransportPassRes(success = false, message = e.message, error = e.toString())
         }
     }
 
@@ -463,12 +586,7 @@ object AmazeClient {
             )
         }
         return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/events/profile") // Depending on actual API it might need postAuthorized
-            if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString(response.bodyAsText())
-            } else {
-                EventHubRes(success = false, message = "HTTP ${response.status}")
-            }
+            postAuthorized<EventHubRes>("events/profile") ?: EventHubRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             EventHubRes(success = false, message = e.message, error = e.toString())
         }
@@ -488,12 +606,7 @@ object AmazeClient {
             )
         }
         return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/clubs/details")
-            if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString(response.bodyAsText())
-            } else {
-                ClubsRes(success = false, message = "HTTP ${response.status}")
-            }
+            postAuthorized<ClubsRes>("clubs/details") ?: ClubsRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             ClubsRes(success = false, message = e.message, error = e.toString())
         }
@@ -521,6 +634,17 @@ object AmazeClient {
             postAuthorized<StudentProfileRes>("student") ?: StudentProfileRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             StudentProfileRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getProfileImages(): ProfileImagesRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ProfileImagesRes(success = true)
+        }
+        return try {
+            postAuthorized<ProfileImagesRes>("profile-images") ?: ProfileImagesRes(success = false)
+        } catch (e: Exception) {
+            ProfileImagesRes(success = false, error = e.toString())
         }
     }
 

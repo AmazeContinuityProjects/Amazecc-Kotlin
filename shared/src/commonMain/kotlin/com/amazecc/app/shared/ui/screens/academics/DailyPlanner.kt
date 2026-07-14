@@ -28,7 +28,9 @@ import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.TimeMath
+import kotlinx.datetime.*
 import kotlin.math.max
 
 data class TimelineEvent(
@@ -40,14 +42,74 @@ data class TimelineEvent(
     val course: AttendanceItem? = null
 )
 
+private data class WeekDay(
+    val abbrev: String,
+    val date: Int,
+    val month: Int,
+    val isToday: Boolean
+)
+
 @Composable
 fun DailyPlannerScreen() {
     val colors = AmazeTheme.colors
     val attendanceRes by AppState.attendance.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
     val attendance = attendanceRes?.attendance ?: emptyList()
+    val calendarMonths = calendarRes?.months ?: emptyList()
 
-    val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
-    var selectedDay by remember { mutableStateOf("MON") }
+    val today = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
+    val todayAbbrev = remember(today) {
+        when (today.dayOfWeek) {
+            DayOfWeek.SUNDAY -> "SUN"; DayOfWeek.MONDAY -> "MON"; DayOfWeek.TUESDAY -> "TUE"
+            DayOfWeek.WEDNESDAY -> "WED"; DayOfWeek.THURSDAY -> "THU"; DayOfWeek.FRIDAY -> "FRI"
+            DayOfWeek.SATURDAY -> "SAT"; else -> "MON"
+        }
+    }
+
+    val weekDays = remember(today) {
+        val monday = today.minus(DatePeriod(days = today.dayOfWeek.ordinal))
+        (0..6).map { offset ->
+            val d = monday.plus(DatePeriod(days = offset))
+            val abbr = when (d.dayOfWeek) {
+                DayOfWeek.SUNDAY -> "SUN"; DayOfWeek.MONDAY -> "MON"; DayOfWeek.TUESDAY -> "TUE"
+                DayOfWeek.WEDNESDAY -> "WED"; DayOfWeek.THURSDAY -> "THU"; DayOfWeek.FRIDAY -> "FRI"
+                DayOfWeek.SATURDAY -> "SAT"; else -> "MON"
+            }
+            WeekDay(abbr, d.dayOfMonth, d.monthNumber, d == today)
+        }
+    }
+
+    var selectedDay by remember { mutableStateOf(todayAbbrev) }
+
+    // Check calendar for holiday/working day info
+    val holidayMap = remember(calendarMonths) {
+        val map = mutableMapOf<String, Boolean>()
+        for (m in calendarMonths) {
+            val parts = m.month.split(" ")
+            val monthNum = when (parts.firstOrNull()?.take(3)?.lowercase()) {
+                "jan" -> 1; "feb" -> 2; "mar" -> 3; "apr" -> 4; "may" -> 5; "jun" -> 6
+                "jul" -> 7; "aug" -> 8; "sep" -> 9; "oct" -> 10; "nov" -> 11; "dec" -> 12
+                else -> null
+            }
+            val year = parts.lastOrNull()?.toIntOrNull() ?: continue
+            if (monthNum == null) continue
+            for (day in m.days) {
+                val isHoliday = day.events.any { e ->
+                    e.type.contains("holiday", true) || e.text.contains("holiday", true)
+                }
+                val dayOfWeek = try {
+                    LocalDate(year, monthNum, day.date).dayOfWeek
+                } catch (_: Exception) { null } ?: continue
+                val abbr = when (dayOfWeek) {
+                    DayOfWeek.SUNDAY -> "SUN"; DayOfWeek.MONDAY -> "MON"; DayOfWeek.TUESDAY -> "TUE"
+                    DayOfWeek.WEDNESDAY -> "WED"; DayOfWeek.THURSDAY -> "THU"; DayOfWeek.FRIDAY -> "FRI"
+                    DayOfWeek.SATURDAY -> "SAT"; else -> null
+                } ?: continue
+                if (isHoliday) map[abbr] = true
+            }
+        }
+        map
+    }
 
     fun buildDailySchedule(day: String): List<TimelineEvent> {
         val dayClasses = mutableListOf<TimelineEvent>()
@@ -143,45 +205,81 @@ fun DailyPlannerScreen() {
     val scheduleData = remember(selectedDay, attendance) { buildDailySchedule(selectedDay) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Horizontal Day Selector
+        // Horizontal Day Selector with Dates
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(days) { day ->
-                val isSelected = selectedDay == day
-                val dayMap = SlotMap.map[day] ?: emptyMap()
+            items(weekDays) { wd ->
+                val isSelected = selectedDay == wd.abbrev
+                val dayMap = SlotMap.map[wd.abbrev] ?: emptyMap()
                 val classCount = attendance.count { course ->
                     val slots = course.slotName.split("+").map { it.trim() }
                     slots.any { dayMap.containsKey(it) }
                 }
+                val isHoliday = holidayMap[wd.abbrev] == true
 
                 Column(
                     modifier = Modifier
                         .background(
                             if (isSelected) colors.accent else colors.surface,
-                            RoundedCornerShape(12.dp)
+                            RoundedCornerShape(14.dp)
                         )
-                        .border(1.dp, if (isSelected) colors.accent else colors.border, RoundedCornerShape(12.dp))
-                        .clickable { selectedDay = day }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .border(
+                            1.dp,
+                            when {
+                                isSelected -> colors.accent
+                                wd.isToday -> colors.accent.copy(alpha = 0.4f)
+                                else -> colors.border
+                            },
+                            RoundedCornerShape(14.dp)
+                        )
+                        .clickable { selectedDay = wd.abbrev }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = day,
-                        style = AmazeTheme.typography.caption.copy(
+                        text = wd.abbrev,
+                        style = AmazeTheme.typography.smallLabel.copy(
                             color = if (isSelected) Color.White.copy(alpha=0.8f) else colors.textSecondary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 10.sp
                         )
                     )
                     Text(
-                        text = if (classCount > 0) classCount.toString() else "-",
+                        text = "${wd.date}",
                         style = AmazeTheme.typography.subheading.copy(
                             color = if (isSelected) Color.White else colors.textPrimary,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = if (wd.isToday) FontWeight.Black else FontWeight.Bold,
+                            fontSize = if (wd.isToday) 18.sp else 16.sp
                         )
                     )
+                    if (isHoliday) {
+                        Text(
+                            "Holiday",
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = Color(0xFFEF4444),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 8.sp
+                            )
+                        )
+                    } else if (classCount > 0) {
+                        Text(
+                            "$classCount class${if (classCount != 1) "es" else ""}",
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = if (isSelected) Color.White.copy(alpha=0.7f) else colors.textMuted,
+                                fontSize = 8.sp
+                            )
+                        )
+                    } else {
+                        Text(
+                            "Off",
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = if (isSelected) Color.White.copy(alpha=0.5f) else colors.textMuted.copy(alpha=0.5f),
+                                fontSize = 8.sp
+                            )
+                        )
+                    }
                 }
             }
         }

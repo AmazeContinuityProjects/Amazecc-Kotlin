@@ -24,6 +24,7 @@ import com.amazecc.app.shared.ui.components.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun HostelScreen() {
@@ -163,7 +164,7 @@ fun HostelMessTab() {
     val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     val meals = listOf("Breakfast", "Lunch", "Snacks", "Dinner")
     val todayIndex = try {
-        (Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).dayOfWeek.value - 1).coerceIn(0, 6)
+        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).dayOfWeek.ordinal.coerceIn(0, 6)
     } catch (_: Exception) { 0 }
     var selectedDay by remember { mutableStateOf(todayIndex) }
     var selectedMeal by remember { mutableStateOf(0) }

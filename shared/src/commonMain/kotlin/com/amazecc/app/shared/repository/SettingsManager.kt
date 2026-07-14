@@ -29,6 +29,10 @@ object SettingsManager {
     const val SESSION_AUTHORIZED_ID = "session_authorized_id"
     const val SESSION_CLUB_TOKEN = "session_club_token"
 
+    // Library credentials (separate from VTOP)
+    const val KEY_LIBRARY_USERNAME = "library_username"
+    const val KEY_LIBRARY_PASSWORD = "library_password"
+
     // Cache keys for all data types
     const val CACHE_GRADES = "cache_grades"
     const val CACHE_MARKS = "cache_marks"
@@ -41,6 +45,8 @@ object SettingsManager {
     const val CACHE_PAYMENTS = "cache_payments"
     const val CACHE_LIBRARY = "cache_library"
     const val CACHE_TRANSPORT = "cache_transport"
+    const val CACHE_TRANSPORT_ROUTES = "cache_transport_routes"
+    const val CACHE_TRANSPORT_PASS = "cache_transport_pass"
     const val CACHE_LMS = "cache_lms"
     const val CACHE_EVENTS = "cache_events"
     const val CACHE_CLUBS = "cache_clubs"
@@ -86,5 +92,21 @@ object SettingsManager {
         val u = getNullableString(KEY_USERNAME)
         val p = getNullableString(KEY_PASSWORD)
         return if (u != null && p != null) Pair(u, p) else null
+    }
+
+    fun saveLibraryCredentials(username: String, password: String) {
+        setString(KEY_LIBRARY_USERNAME, username)
+        setString(KEY_LIBRARY_PASSWORD, password)
+    }
+
+    fun getLibraryCredentials(): Pair<String, String>? {
+        val u = getNullableString(KEY_LIBRARY_USERNAME)
+        val p = getNullableString(KEY_LIBRARY_PASSWORD)
+        return if (u != null && p != null) Pair(u, p) else null
+    }
+
+    fun clearLibraryCredentials() {
+        remove(KEY_LIBRARY_USERNAME)
+        remove(KEY_LIBRARY_PASSWORD)
     }
 }

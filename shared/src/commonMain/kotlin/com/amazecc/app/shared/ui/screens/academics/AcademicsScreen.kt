@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -24,11 +25,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.config.SlotMap
 import kotlin.math.roundToInt
 
 @Suppress("unused")
@@ -77,6 +80,7 @@ fun AcademicsScreen() {
     )
 
     var currentView by remember { mutableStateOf<String?>(null) }
+    var showTimetableDialog by remember { mutableStateOf(false) }
     if (currentView == "course-dashboard") {
         CourseDashboardScreen(onBack = { currentView = null })
         return
@@ -211,7 +215,18 @@ fun AcademicsScreen() {
 
             // ── Timetable Section ──
             item {
-                SectionHeader("Schedule", Icons.Rounded.CalendarMonth)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SectionHeader("Schedule", Icons.Rounded.CalendarMonth)
+                    TextButton(onClick = { showTimetableDialog = true }) {
+                        Icon(Icons.Rounded.CalendarViewWeek, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Full Week", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = AmazeTheme.colors.accent))
+                    }
+                }
             }
 
             if (timetableCourses.isEmpty() && attendanceCourses.isEmpty()) {
@@ -227,7 +242,8 @@ fun AcademicsScreen() {
                                 title = c.course,
                                 faculty = c.facultyDetails,
                                 venue = c.slotVenue,
-                                slotCode = c.courseCode.take(4)
+                                slotCode = c.courseCode.take(4),
+                                onClick = { showTimetableDialog = true }
                             )
                         }
                     }
@@ -239,7 +255,8 @@ fun AcademicsScreen() {
                                 title = c.courseTitle,
                                 faculty = c.faculty,
                                 venue = c.slotVenue ?: "—",
-                                slotCode = c.slotName
+                                slotCode = c.slotName,
+                                onClick = { showTimetableDialog = true }
                             )
                         }
                     }
@@ -287,6 +304,14 @@ fun AcademicsScreen() {
 
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
+    }
+
+    if (showTimetableDialog) {
+        TimetableDialog(
+            attendanceCourses = attendanceCourses,
+            timetableCourses = timetableCourses,
+            onDismiss = { showTimetableDialog = false }
+        )
     }
 }
 
@@ -359,9 +384,9 @@ data class HubCard(
 )
 
 @Composable
-private fun TimetableCard(code: String, title: String, faculty: String, venue: String, slotCode: String) {
+private fun TimetableCard(code: String, title: String, faculty: String, venue: String, slotCode: String, onClick: () -> Unit = {}) {
     val colors = AmazeTheme.colors
-    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+    AmazeCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier.size(44.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.1f)),
@@ -375,6 +400,107 @@ private fun TimetableCard(code: String, title: String, faculty: String, venue: S
                 Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Text("Faculty: $faculty", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 Text("Venue: $venue", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+            }
+        }
+    }
+}
+
+@Composable
+fun TimetableDialog(
+    attendanceCourses: List<AttendanceItem>,
+    timetableCourses: List<Any>,
+    onDismiss: () -> Unit
+) {
+    val colors = AmazeTheme.colors
+    val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
+    var selectedDay by remember { mutableStateOf("MON") }
+
+    val dayCourses = remember(selectedDay, attendanceCourses) {
+        attendanceCourses.filter { it.slotName.uppercase().take(3) == selectedDay }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .heightIn(max = 600.dp)
+                .clickable(enabled = false) {},
+            shape = RoundedCornerShape(20.dp),
+            color = colors.background,
+            tonalElevation = 4.dp
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Weekly Timetable", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, null, tint = colors.textSecondary)
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(days) { day ->
+                        val isSelected = selectedDay == day
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) colors.accent else colors.surface)
+                                .clickable { selectedDay = day }
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                day,
+                                color = if (isSelected) Color.White else colors.textPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                if (dayCourses.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        Text("No classes on $selectedDay", color = colors.textMuted)
+                    }
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(dayCourses) { course ->
+                            val time = SlotMap.map[selectedDay]?.get(course.slotName) ?: "—"
+                            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(course.slotName.take(3), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = colors.accent)
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                                        Text(course.courseTitle, fontWeight = FontWeight.Bold, color = colors.textPrimary, maxLines = 1)
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(time, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = colors.accent)
+                                        Text(course.faculty, fontSize = 10.sp, color = colors.textSecondary)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

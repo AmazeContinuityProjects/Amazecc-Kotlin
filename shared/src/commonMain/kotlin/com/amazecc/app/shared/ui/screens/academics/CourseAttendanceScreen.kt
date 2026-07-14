@@ -38,7 +38,7 @@ import kotlinx.serialization.json.*
 fun CourseAttendanceScreen() {
     val colors = AmazeTheme.colors
     val attendanceRes by AppState.attendance.collectAsState()
-    val calendarRes by AppState.calendarData.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
     val courseCode = AppState.selectedCourseCode.value
     val course = attendanceRes?.attendance?.find { it.courseCode == courseCode }
 
@@ -118,7 +118,16 @@ fun CourseAttendanceScreen() {
                 if (dv > cv) continue
             }
             val abbr = kotlinx.datetime.LocalDate(y, m, d).let { dt ->
-                listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")[dt.dayOfWeek.value % 7]
+                when (dt.dayOfWeek) {
+                    kotlinx.datetime.DayOfWeek.SUNDAY -> "SUN"
+                    kotlinx.datetime.DayOfWeek.MONDAY -> "MON"
+                    kotlinx.datetime.DayOfWeek.TUESDAY -> "TUE"
+                    kotlinx.datetime.DayOfWeek.WEDNESDAY -> "WED"
+                    kotlinx.datetime.DayOfWeek.THURSDAY -> "THU"
+                    kotlinx.datetime.DayOfWeek.FRIDAY -> "FRI"
+                    kotlinx.datetime.DayOfWeek.SATURDAY -> "SAT"
+                    else -> ""
+                }
             }
             if (abbr in courseDays) result.add(Triple(y, m, d))
         }
@@ -159,9 +168,9 @@ fun CourseAttendanceScreen() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                PctStat("Current", "%.1f%%".format(currentPct), Color(0xFF3B82F6))
+                PctStat("Current", pctFormatted(currentPct), Color(0xFF3B82F6))
                 PctStat("Future", "$futureCount classes", Color(0xFF8B5CF6))
-                PctStat("Projected", "%.1f%%".format(predictedPct), projectedColor(predictedPct))
+                PctStat("Projected", pctFormatted(predictedPct), projectedColor(predictedPct))
             }
         }
 
@@ -288,9 +297,16 @@ private fun PredictorTab(
                     val skipped = key in skipDates
                     val dateStr = "${m}/${d}/$y"
                     val weekday = try {
-                        listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")[
-                            kotlinx.datetime.LocalDate(y, m, d).dayOfWeek.value % 7
-                        ]
+                        when (kotlinx.datetime.LocalDate(y, m, d).dayOfWeek) {
+                            kotlinx.datetime.DayOfWeek.SUNDAY -> "Sun"
+                            kotlinx.datetime.DayOfWeek.MONDAY -> "Mon"
+                            kotlinx.datetime.DayOfWeek.TUESDAY -> "Tue"
+                            kotlinx.datetime.DayOfWeek.WEDNESDAY -> "Wed"
+                            kotlinx.datetime.DayOfWeek.THURSDAY -> "Thu"
+                            kotlinx.datetime.DayOfWeek.FRIDAY -> "Fri"
+                            kotlinx.datetime.DayOfWeek.SATURDAY -> "Sat"
+                            else -> "?"
+                        }
                     } catch (e: Exception) { "?" }
 
                     Box(
@@ -365,7 +381,7 @@ private fun PredictorTab(
                     Text("$predictedAttended / $predictedTotal", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
                 Text(
-                    "%.1f%%".format(predictedPct),
+                    pctFormatted(predictedPct),
                     style = AmazeTheme.typography.subheading.copy(
                         color = projectedColor(predictedPct),
                         fontWeight = FontWeight.Black,
@@ -570,4 +586,11 @@ private fun buildWorkingDays(months: List<CalendarMonth>): List<Triple<Int, Int,
         }
     }
     return results
+}
+
+private fun pctFormatted(value: Double): String {
+    val intPart = (value * 10).toInt()
+    val whole = intPart / 10
+    val frac = intPart % 10
+    return "$whole.$frac%"
 }

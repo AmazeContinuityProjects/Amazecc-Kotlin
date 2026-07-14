@@ -148,6 +148,32 @@ fun AmazeCard(
     )
 }
 
+// ── GLASS CARD ──
+
+private val GlassWhite = Color.White.copy(alpha = 0.12f)
+private val GlassStroke = Color.White.copy(alpha = 0.25f)
+private val GlassShadow = Color.Black.copy(alpha = 0.15f)
+
+@Composable
+fun AmazeGlassCard(
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(GlassWhite)
+            .border(1.dp, GlassStroke, RoundedCornerShape(24.dp))
+            .shadow(8.dp, RoundedCornerShape(24.dp))
+            .then(
+                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+            )
+            .padding(20.dp),
+        content = content
+    )
+}
+
 @Composable
 fun MetricCard(
     title: String,

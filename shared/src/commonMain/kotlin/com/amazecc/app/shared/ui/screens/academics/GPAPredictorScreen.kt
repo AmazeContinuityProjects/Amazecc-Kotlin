@@ -94,9 +94,9 @@ fun GPAPredictorScreen() {
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    StatItem("Current CGPA", "%.2f".format(currentCgpa), Icons.Rounded.EmojiEvents, Color(0xFF10B981))
-                    StatItem("Credits Earned", "%.0f".format(creditsEarned), Icons.Rounded.School, Color(0xFF3B82F6))
-                    StatItem("Projected", "%.2f".format(projectedCgpa), Icons.AutoMirrored.Rounded.TrendingUp, colors.accent)
+                    StatItem("Current CGPA", fmt2(currentCgpa), Icons.Rounded.EmojiEvents, Color(0xFF10B981))
+                    StatItem("Credits Earned", fmt0(creditsEarned), Icons.Rounded.School, Color(0xFF3B82F6))
+                    StatItem("Projected", fmt2(projectedCgpa), Icons.AutoMirrored.Rounded.TrendingUp, colors.accent)
                 }
             }
 
@@ -450,6 +450,15 @@ private fun WhatIfMode(
         }
     }
 }
+
+private fun fmt2(v: Double): String {
+    val i = (v * 100).toInt()
+    val w = i / 100
+    val f = (i % 100).coerceIn(0, 99)
+    return "$w.${f.toString().padStart(2, '0')}"
+}
+
+private fun fmt0(v: Double): String = v.toInt().toString()
 
 private data class ProjectedCourse(
     val name: String,

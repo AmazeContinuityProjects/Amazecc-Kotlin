@@ -121,14 +121,14 @@ object AppState {
     private val _attendance = MutableStateFlow<AttendanceRes?>(null)
     val attendance: StateFlow<AttendanceRes?> = _attendance.asStateFlow()
 
+    private val _allSemesterAttendance = MutableStateFlow<Map<String, AttendanceRes?>>(emptyMap())
+    val allSemesterAttendance: StateFlow<Map<String, AttendanceRes?>> = _allSemesterAttendance.asStateFlow()
+
     private val _timetable = MutableStateFlow<TimetableRes?>(null)
     val timetable: StateFlow<TimetableRes?> = _timetable.asStateFlow()
 
     private val _marks = MutableStateFlow<MarksRes?>(null)
     val marks: StateFlow<MarksRes?> = _marks
-
-    private val _calendarData = MutableStateFlow<CalendarRes?>(null)
-    val calendarData: StateFlow<CalendarRes?> = _calendarData
 
     private val settings = Settings()
     private val jsonFormat = Json { ignoreUnknownKeys = true }
@@ -174,6 +174,8 @@ object AppState {
         loadCachedData<PaymentsRes>(SettingsManager.CACHE_PAYMENTS, _payments)
         loadCachedData<LibraryRes>(SettingsManager.CACHE_LIBRARY, _library)
         loadCachedData<TransportRes>(SettingsManager.CACHE_TRANSPORT, _transport)
+        loadCachedData<TransportRoutesRes>(SettingsManager.CACHE_TRANSPORT_ROUTES, _transportRoutes)
+        loadCachedData<TransportPassRes>(SettingsManager.CACHE_TRANSPORT_PASS, _transportPass)
         loadCachedData<LMSRes>(SettingsManager.CACHE_LMS, _lms)
         loadCachedData<EventHubRes>(SettingsManager.CACHE_EVENTS, _events)
         loadCachedData<ClubsRes>(SettingsManager.CACHE_CLUBS, _clubs)
@@ -232,8 +234,17 @@ object AppState {
     private val _library = MutableStateFlow<LibraryRes?>(null)
     val library: StateFlow<LibraryRes?> = _library.asStateFlow()
 
+    private val _libraryLoginRequired = MutableStateFlow(false)
+    val libraryLoginRequired: StateFlow<Boolean> = _libraryLoginRequired.asStateFlow()
+
     private val _transport = MutableStateFlow<TransportRes?>(null)
     val transport: StateFlow<TransportRes?> = _transport.asStateFlow()
+
+    private val _transportRoutes = MutableStateFlow<TransportRoutesRes?>(null)
+    val transportRoutes: StateFlow<TransportRoutesRes?> = _transportRoutes.asStateFlow()
+
+    private val _transportPass = MutableStateFlow<TransportPassRes?>(null)
+    val transportPass: StateFlow<TransportPassRes?> = _transportPass.asStateFlow()
 
     private val _lms = MutableStateFlow<LMSRes?>(null)
     val lms: StateFlow<LMSRes?> = _lms.asStateFlow()
@@ -338,8 +349,29 @@ object AppState {
         scope.launch {
             _isLoading.value = true
             _error.value = null
-            _syncStatus.value = "Syncing academic and campus data..."
+            _syncStatus.value = "Refreshing VTOP session..."
             try {
+                // ── Refresh VTOP session before syncing (cookies expire every 10 min) ──
+                val creds = SettingsManager.getCredentials()
+                if (creds != null) {
+                    try {
+                        val loginRes = AmazeClient.login(creds.first, creds.second)
+                        if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
+                            SessionManager.saveSession(
+                                cookies = loginRes.cookies,
+                                csrf = loginRes.csrf,
+                                authorizedID = loginRes.authorizedID,
+                                clubToken = loginRes.clubToken
+                            )
+                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
+                            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
+                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
+                            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                        }
+                    } catch (_: Exception) { /* proceed with existing session if refresh fails */ }
+                }
+
+                _syncStatus.value = "Syncing academic and campus data..."
                 val sem = _selectedSemester.value
 
                 val results = supervisorScope {
@@ -359,6 +391,21 @@ object AppState {
                                     }
                                 }
                             )
+                        },
+                        async {
+                            var failed = false
+                            for (semId in semesterIDs) {
+                                if (semId == sem) continue
+                                try {
+                                    val res = AmazeClient.getAcademicData(semId)
+                                    if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
+                                        val current = _allSemesterAttendance.value.toMutableMap()
+                                        current[semId] = res.attendance
+                                        _allSemesterAttendance.value = current
+                                    }
+                                } catch (_: Exception) { failed = true }
+                            }
+                            SyncModuleResult("All Semesters Attendance", !failed)
                         },
                         async {
                             syncModule(
@@ -445,16 +492,21 @@ object AppState {
                             )
                         },
                         async {
-                            syncModule(
+                            val libRes = syncModule(
                                 name = "Library",
                                 fetch = { AmazeClient.getLibrary() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
                                     _library.value = it
+                                    _libraryLoginRequired.value = false
                                     cacheData(SettingsManager.CACHE_LIBRARY, it)
                                 }
                             )
+                            if (!libRes.success && libRes.message == "NO_LIB_CREDS") {
+                                _libraryLoginRequired.value = true
+                            }
+                            libRes
                         },
                         async {
                             syncModule(
@@ -465,6 +517,30 @@ object AppState {
                                 update = {
                                     _transport.value = it
                                     cacheData(SettingsManager.CACHE_TRANSPORT, it)
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Transport Routes",
+                                fetch = { AmazeClient.getTransportRoutes() },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _transportRoutes.value = it
+                                    cacheData(SettingsManager.CACHE_TRANSPORT_ROUTES, it)
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Transport Pass",
+                                fetch = { AmazeClient.getTransportPass() },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _transportPass.value = it
+                                    cacheData(SettingsManager.CACHE_TRANSPORT_PASS, it)
                                 }
                             )
                         },
@@ -577,9 +653,12 @@ object AppState {
         _payments.value = null
         _library.value = null
         _transport.value = null
+        _transportRoutes.value = null
+        _transportPass.value = null
         _lms.value = null
         _events.value = null
         _clubs.value = null
+        _libraryLoginRequired.value = false
         _error.value = null
         _syncStatus.value = null
 
@@ -595,11 +674,14 @@ object AppState {
         settings.remove(SettingsManager.CACHE_PAYMENTS)
         settings.remove(SettingsManager.CACHE_LIBRARY)
         settings.remove(SettingsManager.CACHE_TRANSPORT)
+        settings.remove(SettingsManager.CACHE_TRANSPORT_ROUTES)
+        settings.remove(SettingsManager.CACHE_TRANSPORT_PASS)
         settings.remove(SettingsManager.CACHE_LMS)
         settings.remove(SettingsManager.CACHE_EVENTS)
         settings.remove(SettingsManager.CACHE_CLUBS)
         settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
         settings.remove(SettingsManager.CACHE_VITOL)
+        SettingsManager.clearLibraryCredentials()
         settings.remove(SettingsManager.SESSION_COOKIES)
         settings.remove(SettingsManager.SESSION_CSRF)
         settings.remove(SettingsManager.SESSION_AUTHORIZED_ID)
@@ -615,10 +697,6 @@ object AppState {
         _marks.value = data
     }
 
-    fun updateCalendarData(data: CalendarRes?) {
-        _calendarData.value = data
-    }
-
     fun updateMoodleData(data: MoodleRes?) {
         _moodleData.value = data
         if (data != null) {
@@ -632,6 +710,22 @@ object AppState {
 
     fun updateVitolData(data: VitolRes?) {
         _vitolData.value = data
+    }
+
+    fun saveLibraryCredentials(username: String, password: String) {
+        SettingsManager.saveLibraryCredentials(username, password)
+        _libraryLoginRequired.value = false
+        scope.launch {
+            _isSyncing.value = true
+            val res = AmazeClient.getLibrary(username, password)
+            if (res.error == null) {
+                _library.value = res
+                cacheData(SettingsManager.CACHE_LIBRARY, res)
+            } else if (res.error == "NO_LIB_CREDS") {
+                _libraryLoginRequired.value = true
+            }
+            _isSyncing.value = false
+        }
     }
 
     fun changeTheme(theme: AppTheme) {

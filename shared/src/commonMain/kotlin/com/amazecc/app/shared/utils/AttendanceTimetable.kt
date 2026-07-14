@@ -1,11 +1,25 @@
 package com.amazecc.app.shared.utils
 
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 enum class AttendanceDay {
     MON, TUE, WED, THU, FRI, SAT, SUN
+}
+
+private fun DayOfWeek.toAttendanceDay(): AttendanceDay {
+    return when (this) {
+        DayOfWeek.SUNDAY -> AttendanceDay.SUN
+        DayOfWeek.MONDAY -> AttendanceDay.MON
+        DayOfWeek.TUESDAY -> AttendanceDay.TUE
+        DayOfWeek.WEDNESDAY -> AttendanceDay.WED
+        DayOfWeek.THURSDAY -> AttendanceDay.THU
+        DayOfWeek.FRIDAY -> AttendanceDay.FRI
+        DayOfWeek.SATURDAY -> AttendanceDay.SAT
+        else -> AttendanceDay.MON
+    }
 }
 
 data class TimeRange(val start: Int, val end: Int)
@@ -44,17 +58,7 @@ object AttendanceTimetable {
     fun getTodayAttendanceDay(): AttendanceDay {
         val currentMoment = Clock.System.now()
         val datetime = currentMoment.toLocalDateTime(TimeZone.currentSystemDefault())
-        // kotlinx.datetime.DayOfWeek is 1=Monday, 7=Sunday
-        return when (datetime.dayOfWeek.value) {
-            1 -> AttendanceDay.MON
-            2 -> AttendanceDay.TUE
-            3 -> AttendanceDay.WED
-            4 -> AttendanceDay.THU
-            5 -> AttendanceDay.FRI
-            6 -> AttendanceDay.SAT
-            7 -> AttendanceDay.SUN
-            else -> AttendanceDay.MON
-        }
+        return datetime.dayOfWeek.toAttendanceDay()
     }
 
     fun buildAttendanceDayCardsMap(
