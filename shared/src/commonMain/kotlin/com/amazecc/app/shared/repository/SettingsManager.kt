@@ -51,7 +51,12 @@ object SettingsManager {
     const val CACHE_EVENTS = "cache_events"
     const val CACHE_CLUBS = "cache_clubs"
     const val CACHE_STUDENT_PROFILE = "cache_student_profile"
+    const val KEY_MOODLE_USERNAME = "moodle_username"
+    const val KEY_MOODLE_PASSWORD = "moodle_password"
     const val CACHE_VITOL = "cache_vitol"
+    const val CACHE_CAB_TRIPS = "cache_cab_trips"
+    const val CACHE_ALL_SEMESTER_ATTENDANCE = "cache_all_semester_attendance"
+    const val CACHE_ALL_SEMESTER_MARKS = "cache_all_semester_marks"
     
     fun setString(key: String, value: String) {
         settings.putString(key, value)
@@ -108,5 +113,21 @@ object SettingsManager {
     fun clearLibraryCredentials() {
         remove(KEY_LIBRARY_USERNAME)
         remove(KEY_LIBRARY_PASSWORD)
+    }
+
+    fun saveMoodleCredentials(username: String, password: String) {
+        setString(KEY_MOODLE_USERNAME, username)
+        setString(KEY_MOODLE_PASSWORD, password)
+    }
+
+    fun getMoodleCredentials(): Pair<String, String>? {
+        val u = getNullableString(KEY_MOODLE_USERNAME)
+        val p = getNullableString(KEY_MOODLE_PASSWORD)
+        return if (u != null && p != null) Pair(u, p) else null
+    }
+
+    fun clearMoodleCredentials() {
+        remove(KEY_MOODLE_USERNAME)
+        remove(KEY_MOODLE_PASSWORD)
     }
 }

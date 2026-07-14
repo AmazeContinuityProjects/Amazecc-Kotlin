@@ -95,7 +95,8 @@ fun AcademicsScreen() {
             title = "Academics Hub",
             description = "Student OS",
             showBackButton = false,
-            showSyncButton = true
+            showSyncButton = true,
+            onRefresh = AppState::refreshCurrentSemester
         )
 
         LazyColumn(

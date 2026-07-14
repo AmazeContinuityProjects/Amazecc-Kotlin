@@ -85,6 +85,34 @@ data class CalendarRes(
 )
 
 @Serializable
+data class NamedCalendar(
+    val name: String,
+    val months: List<CalendarMonth> = emptyList()
+)
+
+@Serializable
+data class CalendarsListRes(
+    val success: Boolean = true,
+    val calendars: List<NamedCalendar> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class QcmTable(
+    val caption: String = "",
+    val rows: List<JsonElement> = emptyList()
+)
+
+@Serializable
+data class QcmViewRes(
+    val success: Boolean = true,
+    val data: List<QcmTable>? = null,
+    val message: String? = null,
+    val error: String? = null
+)
+
+@Serializable
 data class MoodleAssignment(
     val name: String,
     val due: String,
@@ -284,10 +312,10 @@ data class EventHubRes(
 
 @Serializable
 data class ClubItem(
-    val id: String? = null,
-    val name: String? = null,
-    val description: String? = null,
-    val logoUrl: String? = null
+    @SerialName("club_id") val id: String? = null,
+    @SerialName("club_name") val name: String? = null,
+    @SerialName("club_description") val description: String? = null,
+    @SerialName("club_logo") val logoUrl: String? = null
 )
 
 @Serializable
@@ -362,6 +390,79 @@ data class FacultyScrapeRes(
     val success: Boolean = true,
     val faculties: List<FacultyProfile> = emptyList(),
     val error: String? = null
+)
+
+@Serializable
+data class CabTrip(
+    val id: String,
+    val from: String,
+    val to: String,
+    val date: String,
+    val time: String,
+    val seatsTotal: Int,
+    val seatsAvailable: Int,
+    val fare: String,
+    val driverName: String,
+    val driverPhone: String? = null,
+    val driverRating: String? = null,
+    val vehicleModel: String? = null,
+    val vehicleColor: String? = null,
+    val vehiclePlate: String? = null,
+    val status: String = "Scheduled",
+    val isOwnTrip: Boolean = false
+)
+
+@Serializable
+data class CabTripsRes(
+    val success: Boolean = true,
+    val trips: List<CabTrip> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class CabSearchRequest(
+    val from: String,
+    val to: String,
+    val date: String
+)
+
+@Serializable
+data class CabCreateTripRequest(
+    val from: String,
+    val to: String,
+    val date: String,
+    val time: String,
+    val seats: Int,
+    val fare: String,
+    val vehicleModel: String? = null,
+    val vehicleColor: String? = null,
+    val vehiclePlate: String? = null
+)
+
+@Serializable
+data class CabActionRes(
+    val success: Boolean = true,
+    val message: String? = null,
+    val error: String? = null,
+    val tripId: String? = null
+)
+
+@Serializable
+data class CabJoinRequest(
+    val id: String,
+    val tripId: String,
+    val requesterName: String,
+    val seats: Int,
+    val status: String = "Pending"
+)
+
+@Serializable
+data class CabJoinRequestsRes(
+    val success: Boolean = true,
+    val requests: List<CabJoinRequest> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
 )
 
 @Serializable

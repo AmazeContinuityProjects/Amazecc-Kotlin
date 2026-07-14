@@ -44,7 +44,8 @@ fun HostelScreen() {
             title = "Hostel Hub",
             description = "Manage mess, outings, laundry & counseling",
             showBackButton = false,
-            showSyncButton = true
+            showSyncButton = true,
+            onRefresh = AppState::refreshHostel
         )
 
         Column(modifier = Modifier.weight(1f)) {

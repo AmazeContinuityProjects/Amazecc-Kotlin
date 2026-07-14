@@ -1,6 +1,8 @@
 package com.amazecc.app.shared.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -63,7 +65,10 @@ fun AmazeButton(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(targetValue = if (isPressed) 0.96f else 1f)
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+    )
 
     Button(
         onClick = onClick,
@@ -150,22 +155,19 @@ fun AmazeCard(
 
 // ── GLASS CARD ──
 
-private val GlassWhite = Color.White.copy(alpha = 0.12f)
-private val GlassStroke = Color.White.copy(alpha = 0.25f)
-private val GlassShadow = Color.Black.copy(alpha = 0.15f)
-
 @Composable
 fun AmazeGlassCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val colors = AmazeTheme.colors
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
-            .background(GlassWhite)
-            .border(1.dp, GlassStroke, RoundedCornerShape(24.dp))
-            .shadow(8.dp, RoundedCornerShape(24.dp))
+            .background(colors.glassSurface)
+            .border(1.dp, colors.glassBorder, RoundedCornerShape(24.dp))
+            .shadow(8.dp, RoundedCornerShape(24.dp), clip = false)
             .then(
                 if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
             )

@@ -105,6 +105,7 @@ fun App() {
                             Screen.GLASS_MORPH -> GlassMorphismScreen()
                             Screen.GRADES -> GradesScreen()
                             Screen.GPA_PREDICTOR -> GPAPredictorScreen()
+                            Screen.COURSE_DETAIL -> CourseDetailScreen { AppState.navigateTo(Screen.ACADEMICS) }
                             Screen.COURSE_ATTENDANCE -> CourseAttendanceScreen()
                             Screen.ARREAR -> ArrearScreen()
                             Screen.MAKEUP_COMPRE -> MakeupCompreScreen()

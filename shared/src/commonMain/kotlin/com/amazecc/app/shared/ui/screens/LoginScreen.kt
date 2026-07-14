@@ -1,5 +1,8 @@
 package com.amazecc.app.shared.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -115,23 +118,29 @@ fun LoginScreen() {
         Spacer(modifier = Modifier.height(32.dp))
 
         // Error message banner
-        if (errorMessage != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(colors.dangerSurface, shape = MaterialTheme.shapes.small)
-                    .border(1.dp, colors.danger, shape = MaterialTheme.shapes.small)
-                    .padding(12.dp)
-            ) {
-                Text(
-                    text = errorMessage ?: "",
-                    style = AmazeTheme.typography.caption.copy(
-                        color = colors.dangerText,
-                        fontWeight = FontWeight.Bold
+        AnimatedVisibility(
+            visible = errorMessage != null,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Column {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(colors.dangerSurface, shape = MaterialTheme.shapes.small)
+                        .border(1.dp, colors.danger, shape = MaterialTheme.shapes.small)
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = errorMessage ?: "",
+                        style = AmazeTheme.typography.caption.copy(
+                            color = colors.dangerText,
+                            fontWeight = FontWeight.Bold
+                        )
                     )
-                )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // Credentials

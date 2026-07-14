@@ -11,7 +11,13 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.Serializable
+import com.amazecc.app.shared.utils.AnalyzeCalendar
 
 @Serializable
 data class LoginRequest(val username: String, val password: String)
@@ -307,8 +313,17 @@ object AmazeClient {
         }
     }
 
-    suspend fun getCalendar(): CalendarRes {
+    suspend fun getCalendar(type: String = "ALL"): CalendarRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            val extraMonths = if (type != "ALL") listOf(
+                CalendarMonth(
+                    month = "August 2026",
+                    days = listOf(
+                        CalendarDay(5, listOf(CalendarEvent("Instructional Day", "Type: $type"))),
+                        CalendarDay(15, listOf(CalendarEvent("Holiday", "Independence Day", "#ef4444")))
+                    )
+                )
+            ) else emptyList()
             return CalendarRes(
                 success = true,
                 months = listOf(
@@ -320,13 +335,135 @@ object AmazeClient {
                             CalendarDay(20, listOf(CalendarEvent("Other", "Course Registration starts")))
                         )
                     )
-                )
+                ) + extraMonths
             )
         }
         return try {
-            postAuthorized<CalendarRes>("calendar", mapOf("type" to "ALL")) ?: CalendarRes(success = false, message = "Empty response")
+            val rawJson = postAuthorized<JsonElement>("calendar", mapOf("type" to type))
+            if (rawJson != null) {
+                val analysis = AnalyzeCalendar.analyzeAllCalendars(rawJson)
+                if (analysis.results.isNotEmpty()) {
+                    val months = analysis.results.map { res ->
+                        CalendarMonth(
+                            month = "${res.month} ${res.year}",
+                            days = res.days.map { day ->
+                                CalendarDay(
+                                    date = day.date,
+                                    events = day.events.mapNotNull { evElem ->
+                                        val ev = evElem.jsonObject
+                                        val text = ev["text"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                                        val evType = ev["type"]?.jsonPrimitive?.content ?: day.type
+                                        CalendarEvent(type = evType, text = text)
+                                    }
+                                )
+                            }
+                        )
+                    }
+                    return CalendarRes(success = true, months = months)
+                }
+            }
+            CalendarRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             CalendarRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getCalendars(): CalendarsListRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CalendarsListRes(
+                success = true,
+                calendars = listOf(
+                    NamedCalendar(
+                        name = "Academic Calendar",
+                        months = listOf(
+                            CalendarMonth(month = "July 2026", days = listOf(
+                                CalendarDay(1, listOf(CalendarEvent("Instructional Day", "Day Order: Monday (Unit Test starting)"))),
+                                CalendarDay(15, listOf(CalendarEvent("Holiday", "College Foundation Day", "#ef4444"))),
+                                CalendarDay(20, listOf(CalendarEvent("Other", "Course Registration starts")))
+                            )),
+                            CalendarMonth(month = "August 2026", days = listOf(
+                                CalendarDay(15, listOf(CalendarEvent("Holiday", "Independence Day", "#ef4444"))),
+                                CalendarDay(30, listOf(CalendarEvent("Other", "Last day for course withdrawal")))
+                            ))
+                        )
+                    ),
+                    NamedCalendar(
+                        name = "Examination Calendar",
+                        months = listOf(
+                            CalendarMonth(month = "September 2026", days = listOf(
+                                CalendarDay(12, listOf(CalendarEvent("Exam", "CAT 1 begins"))),
+                                CalendarDay(18, listOf(CalendarEvent("Exam", "CAT 1 ends")))
+                            )),
+                            CalendarMonth(month = "November 2026", days = listOf(
+                                CalendarDay(10, listOf(CalendarEvent("Exam", "FAT begins"))),
+                                CalendarDay(25, listOf(CalendarEvent("Exam", "FAT ends")))
+                            ))
+                        )
+                    ),
+                    NamedCalendar(
+                        name = "Semester Calendar",
+                        months = listOf(
+                            CalendarMonth(month = "July 2026", days = listOf(
+                                CalendarDay(1, listOf(CalendarEvent("Instructional Day", "Semester starts"))),
+                                CalendarDay(31, listOf(CalendarEvent("Other", "Last day for registration")))
+                            )),
+                            CalendarMonth(month = "December 2026", days = listOf(
+                                CalendarDay(15, listOf(CalendarEvent("Other", "Semester ends")))
+                            ))
+                        )
+                    ),
+                    NamedCalendar(
+                        name = "Freshers Calendar",
+                        months = listOf(
+                            CalendarMonth(month = "July 2026", days = listOf(
+                                CalendarDay(5, listOf(CalendarEvent("Other", "Freshers orientation"))),
+                                CalendarDay(10, listOf(CalendarEvent("Other", "Campus tour")))
+                            ))
+                        )
+                    )
+                )
+            )
+        }
+        try {
+            val rawJson = postAuthorized<JsonElement>("calender")
+            if (rawJson != null) {
+                val analysis = AnalyzeCalendar.analyzeAllCalendars(rawJson)
+                if (analysis.results.isNotEmpty()) {
+                    val namedCalendars = analysis.results.groupBy { it.year }.map { (year, results) ->
+                        NamedCalendar(
+                            name = "Academic Calendar $year",
+                            months = results.map { res ->
+                                CalendarMonth(
+                                    month = "${res.month} ${res.year}",
+                                    days = res.days.map { day ->
+                                        CalendarDay(
+                                            date = day.date,
+                                            events = day.events.mapNotNull { evElem ->
+                                                val ev = evElem.jsonObject
+                                                val text = ev["text"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                                                val evType = ev["type"]?.jsonPrimitive?.content ?: day.type
+                                                CalendarEvent(type = evType, text = text)
+                                            }
+                                        )
+                                    }
+                                )
+                            }
+                        )
+                    }
+                    return CalendarsListRes(success = true, calendars = namedCalendars)
+                }
+            }
+        } catch (_: Exception) { /* fall through */ }
+        
+        // Fallback: use old getCalendar() and wrap it as a single NamedCalendar
+        val old = getCalendar("ALL")
+        return if (old.success && old.months.isNotEmpty()) {
+            CalendarsListRes(
+                success = true,
+                calendars = listOf(NamedCalendar(name = "Academic Calendar", months = old.months))
+            )
+        } else {
+            CalendarsListRes(success = false, message = old.message ?: "Empty response")
         }
     }
 
@@ -524,6 +661,115 @@ object AmazeClient {
         }
     }
 
+    suspend fun searchCabTrips(from: String, to: String, date: String): CabTripsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabTripsRes(
+                success = true,
+                trips = listOf(
+                    CabTrip(id = "CT-101", from = from, to = to, date = date, time = "2:00 PM", seatsTotal = 4, seatsAvailable = 2, fare = "₹250", driverName = "S. Rajan", driverPhone = "+91 9876543210", driverRating = "4.8", vehicleModel = "Toyota Etios", vehicleColor = "White", vehiclePlate = "TN 01 AB 1234"),
+                    CabTrip(id = "CT-102", from = from, to = to, date = date, time = "3:30 PM", seatsTotal = 4, seatsAvailable = 3, fare = "₹200", driverName = "Priya K.", driverPhone = "+91 9876543211", driverRating = "4.9", vehicleModel = "Honda City", vehicleColor = "Blue", vehiclePlate = "TN 22 CD 5678"),
+                    CabTrip(id = "CT-103", from = from, to = to, date = date, time = "5:00 PM", seatsTotal = 4, seatsAvailable = 1, fare = "₹300", driverName = "Arun M.", driverPhone = "+91 9876543212", driverRating = "4.7", vehicleModel = "Maruti Swift", vehicleColor = "Silver", vehiclePlate = "TN 07 EF 9012"),
+                    CabTrip(id = "CT-104", from = from, to = to, date = date, time = "6:15 PM", seatsTotal = 4, seatsAvailable = 4, fare = "₹180", driverName = "Deepa R.", driverPhone = "+91 9876543213", driverRating = "4.6", vehicleModel = "Hyundai i10", vehicleColor = "Red", vehiclePlate = "TN 11 GH 3456")
+                )
+            )
+        }
+        return try {
+            val params = mapOf("from" to from, "to" to to, "date" to date)
+            postAuthorized<CabTripsRes>("cab/search", params) ?: CabTripsRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabTripsRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun createCabTrip(request: CabCreateTripRequest): CabActionRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabActionRes(success = true, message = "Trip created!", tripId = "CT-${(1000..9999).random()}")
+        }
+        return try {
+            val params = mapOf(
+                "from" to request.from, "to" to request.to, "date" to request.date,
+                "time" to request.time, "seats" to request.seats.toString(), "fare" to request.fare,
+                "vehicleModel" to (request.vehicleModel ?: ""),
+                "vehicleColor" to (request.vehicleColor ?: ""),
+                "vehiclePlate" to (request.vehiclePlate ?: "")
+            )
+            postAuthorized<CabActionRes>("cab/create", params) ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getMyCabTrips(): CabTripsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabTripsRes(
+                success = true,
+                trips = listOf(
+                    CabTrip(id = "CT-201", from = "VIT Chennai", to = "Chennai Airport", date = "2026-07-15", time = "2:00 PM", seatsTotal = 4, seatsAvailable = 2, fare = "₹250", driverName = "You", vehicleModel = "Toyota Etios", vehicleColor = "White", vehiclePlate = "TN 01 AB 1234", status = "Scheduled", isOwnTrip = true),
+                    CabTrip(id = "CT-202", from = "Railway Station", to = "VIT Chennai", date = "2026-07-10", time = "10:00 AM", seatsTotal = 3, seatsAvailable = 0, fare = "₹150", driverName = "You", vehicleModel = "Honda City", vehicleColor = "Blue", vehiclePlate = "TN 22 CD 5678", status = "Completed", isOwnTrip = true)
+                )
+            )
+        }
+        return try {
+            postAuthorized<CabTripsRes>("cab/my-trips") ?: CabTripsRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabTripsRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun requestJoinTrip(tripId: String, seats: Int): CabActionRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabActionRes(success = true, message = "Request sent!", tripId = tripId)
+        }
+        return try {
+            val params = mapOf("tripId" to tripId, "seats" to seats.toString())
+            postAuthorized<CabActionRes>("cab/join", params) ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getCabJoinRequests(tripId: String): CabJoinRequestsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabJoinRequestsRes(
+                success = true,
+                requests = listOf(
+                    CabJoinRequest(id = "REQ-001", tripId = tripId, requesterName = "Vikram S.", seats = 2, status = "Pending"),
+                    CabJoinRequest(id = "REQ-002", tripId = tripId, requesterName = "Neha P.", seats = 1, status = "Pending")
+                )
+            )
+        }
+        return try {
+            val params = mapOf("tripId" to tripId)
+            postAuthorized<CabJoinRequestsRes>("cab/requests", params) ?: CabJoinRequestsRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabJoinRequestsRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun acceptCabJoinRequest(tripId: String, requestId: String): CabActionRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabActionRes(success = true, message = "Request accepted!")
+        }
+        return try {
+            val params = mapOf("tripId" to tripId, "requestId" to requestId)
+            postAuthorized<CabActionRes>("cab/accept", params) ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun rejectCabJoinRequest(tripId: String, requestId: String): CabActionRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabActionRes(success = true, message = "Request rejected")
+        }
+        return try {
+            val params = mapOf("tripId" to tripId, "requestId" to requestId)
+            postAuthorized<CabActionRes>("cab/reject", params) ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
     suspend fun getLMSAssignments(): LMSRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return LMSRes(
@@ -568,6 +814,27 @@ object AmazeClient {
         }
     }
 
+    suspend fun getQcmView(): QcmViewRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return QcmViewRes(
+                success = true,
+                data = listOf(
+                    QcmTable("QCM 1", listOf(
+                        buildJsonObject { put("qcmNo", "1"); put("actionTaken", "Resolved"); put("suggestions", "Improve lab equipment"); put("facultyReply", "Noted") }
+                    )),
+                    QcmTable("QCM 2", listOf(
+                        buildJsonObject { put("qcmNo", "2"); put("actionTaken", "In Progress"); put("suggestions", "More practice sessions"); put("facultyReply", "Will schedule") }
+                    ))
+                )
+            )
+        }
+        return try {
+            postAuthorized<QcmViewRes>("qcm-view") ?: QcmViewRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            QcmViewRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
     suspend fun getEventsProfile(): EventHubRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return EventHubRes(
@@ -586,9 +853,27 @@ object AmazeClient {
             )
         }
         return try {
-            postAuthorized<EventHubRes>("events/profile") ?: EventHubRes(success = false, message = "Empty response")
+            val response: HttpResponse = httpClient.post("$baseUrl/api/events/profile") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("jsessionid", SessionManager.clubToken.value ?: "")
+                })
+            }
+            if (response.status == HttpStatusCode.OK) {
+                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
+                val eventsList = if (element is JsonArray) {
+                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
+                } else if (element.jsonObject["events"] is JsonArray) {
+                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element.jsonObject["events"]!!)
+                } else {
+                    emptyList()
+                }
+                EventHubRes(success = true, events = eventsList)
+            } else {
+                EventHubRes(success = false, message = "HTTP ${response.status}", error = "Server returned status ${response.status}")
+            }
         } catch (e: Exception) {
-            EventHubRes(success = false, message = e.message, error = e.toString())
+            EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
         }
     }
 
@@ -606,9 +891,20 @@ object AmazeClient {
             )
         }
         return try {
-            postAuthorized<ClubsRes>("clubs/details") ?: ClubsRes(success = false, message = "Empty response")
+            val response: HttpResponse = httpClient.get("$baseUrl/api/clubs/details")
+            if (response.status == HttpStatusCode.OK) {
+                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
+                if (element is JsonArray) {
+                    val clubsList = jsonConfig.decodeFromJsonElement<List<ClubItem>>(element)
+                    ClubsRes(success = true, clubs = clubsList)
+                } else {
+                    jsonConfig.decodeFromJsonElement<ClubsRes>(element)
+                }
+            } else {
+                ClubsRes(success = false, message = "HTTP ${response.status}", error = "Server returned status ${response.status}")
+            }
         } catch (e: Exception) {
-            ClubsRes(success = false, message = e.message, error = e.toString())
+            ClubsRes(success = false, message = "Network error: ${e.message}", error = e.toString())
         }
     }
 

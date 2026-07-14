@@ -40,6 +40,10 @@ fun EventHubScreen(initialTab: String = "Events") {
     var activeSubTab by remember(initialTab) { mutableStateOf(initialTab) }
     val tabs = listOf("Events", "Clubs")
 
+    LaunchedEffect(Unit) {
+        AppState.syncEventsAndClubs()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -49,7 +53,8 @@ fun EventHubScreen(initialTab: String = "Events") {
             title = "Events & Clubs",
             description = "Discover tech fests, clubs, and meetups",
             showBackButton = false,
-            showSyncButton = true
+            showSyncButton = true,
+            onRefresh = AppState::syncEventsAndClubs
         )
 
         TabRow(
@@ -110,23 +115,25 @@ private fun EventsTab() {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (events.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Rounded.EventBusy, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("No events available", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
-                    Text("Pull to sync or check back later", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (events.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.EventBusy, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("No events available", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
+                            Text("Check back later or sync from the header", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                    }
                 }
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
+            } else {
                 item {
                     val featured = filteredEvents.firstOrNull()
                     if (featured != null) {
@@ -556,23 +563,25 @@ private fun ClubsTab() {
     var expandedClubId by remember { mutableStateOf<String?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (clubs.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Rounded.Groups, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("No clubs available", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
-                    Text("Sync to load club data", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+        LazyColumn(
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            if (clubs.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.Groups, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("No clubs available", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
+                            Text("Sync from the header to load data", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                    }
                 }
-            }
-        } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
+            } else {
                 item {
                     val featured = clubs.firstOrNull()
                     if (featured != null) {

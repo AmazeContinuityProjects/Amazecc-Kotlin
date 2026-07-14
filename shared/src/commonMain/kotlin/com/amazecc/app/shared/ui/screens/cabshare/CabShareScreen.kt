@@ -27,6 +27,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.model.CabJoinRequest
+import com.amazecc.app.shared.model.CabJoinRequestsRes
+import com.amazecc.app.shared.model.CabTrip
+import com.amazecc.app.shared.model.CabTripsRes
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 
@@ -41,7 +46,8 @@ fun CabShareScreen() {
             title = "Cab Share",
             description = "Find or offer rides to airport, railway station, etc.",
             showBackButton = false,
-            showSyncButton = true
+            showSyncButton = true,
+            onRefresh = AppState::refreshCabShare
         )
 
         Column(modifier = Modifier.weight(1f)) {
@@ -87,29 +93,29 @@ fun CabShareScreen() {
 @Composable
 fun FindRideTab() {
     val colors = AmazeTheme.colors
-    val destinations = listOf("Airport", "Railway Station", "Bus Stand", "City Center")
-    var selectedDestination by remember { mutableStateOf("") }
+    val trips by AppState.cabTrips.collectAsState()
+    val cabLoading by AppState.cabLoading.collectAsState()
+
+    var fromText by remember { mutableStateOf("VIT Chennai") }
+    var toText by remember { mutableStateOf("") }
     var dateText by remember { mutableStateOf("") }
     var hasSearched by remember { mutableStateOf(false) }
-
-    val mockTrips = remember {
-        listOf(
-            TripResult("S. Rajan", "4.8", "2:00 PM", 2, "₹250", "White Toyota Etios · TN 01 AB 1234"),
-            TripResult("Priya K.", "4.9", "3:30 PM", 3, "₹200", "Blue Honda City · TN 22 CD 5678"),
-            TripResult("Arun M.", "4.7", "5:00 PM", 1, "₹300", "Silver Maruti Swift · TN 07 EF 9012"),
-            TripResult("Deepa R.", "4.6", "6:15 PM", 4, "₹180", "Red Hyundai i10 · TN 11 GH 3456")
-        )
-    }
+    var snapshot by remember { mutableStateOf<CabTripsRes?>(null) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                AmazeDropdown(
-                    options = destinations,
-                    selectedOption = selectedDestination.ifEmpty { "Select destination" },
-                    onOptionSelected = { selectedDestination = it },
+                AmazeTextField(
+                    value = toText,
+                    onValueChange = { toText = it },
                     label = "Destination",
-                    displayMapper = { it }
+                    placeholder = "e.g. Chennai Airport, Railway Station"
+                )
+                AmazeTextField(
+                    value = fromText,
+                    onValueChange = { fromText = it },
+                    label = "From",
+                    placeholder = "e.g. VIT Chennai"
                 )
                 AmazeTextField(
                     value = dateText,
@@ -121,9 +127,13 @@ fun FindRideTab() {
                     }
                 )
                 AmazeButton(
-                    text = "Search Rides",
-                    onClick = { hasSearched = true },
+                    text = if (cabLoading) "Searching..." else "Search Rides",
+                    onClick = {
+                        hasSearched = true
+                        AppState.searchCabTrips(fromText, toText, dateText)
+                    },
                     modifier = Modifier.fillMaxWidth(),
+                    enabled = !cabLoading,
                     icon = Icons.Rounded.Search
                 )
             }
@@ -131,76 +141,32 @@ fun FindRideTab() {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (hasSearched && selectedDestination.isNotEmpty()) {
-            Text(
-                text = "Found ${mockTrips.size} trips to $selectedDestination",
-                style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Bold),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+        if (hasSearched) {
+            val data = if (cabLoading) snapshot else trips.also { snapshot = it }
 
-            mockTrips.forEach { trip ->
-                AmazeCard(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                        .background(colors.accent.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Rounded.Person, contentDescription = null, tint = colors.accent, modifier = Modifier.size(22.dp))
-                                }
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Column {
-                                    Text(trip.driverName, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Rounded.Star, contentDescription = null, tint = colors.warning, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(3.dp))
-                                        Text(trip.rating, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-                                    }
-                                }
-                            }
-                            AmazeBadge("${trip.seatsAvailable} SEAT${if (trip.seatsAvailable != 1) "S" else ""} LEFT", variant = if (trip.seatsAvailable <= 1) BadgeVariant.DANGER else BadgeVariant.WARNING)
-                        }
+            if (data != null && data.success && data.trips.isNotEmpty()) {
+                Text(
+                    text = "Found ${data.trips.size} trips to $toText",
+                    style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
 
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Rounded.AccessTime, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(trip.departureTime, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Rounded.DirectionsCar, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(trip.fare, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                                Text(" per seat", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(trip.vehicleInfo, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-
-                        Spacer(modifier = Modifier.height(12.dp))
-                        AmazeButton("Request to Join", onClick = {}, modifier = Modifier.fillMaxWidth())
+                data.trips.forEach { trip ->
+                    CabTripCard(trip = trip)
+                }
+            } else if (!cabLoading) {
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            if (data?.success == false && data.message != null) data.message
+                            else "No rides found. Try a different destination or date.",
+                            style = AmazeTheme.typography.body.copy(color = colors.textSecondary)
+                        )
                     }
                 }
-            }
-        } else if (hasSearched) {
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    Text("Please select a destination to search.", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
+            } else {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Text("Searching...", style = AmazeTheme.typography.body.copy(color = colors.textMuted))
                 }
             }
         }
@@ -208,18 +174,151 @@ fun FindRideTab() {
 }
 
 @Composable
+fun CabTripCard(trip: CabTrip) {
+    val colors = AmazeTheme.colors
+    var showJoinDialog by remember { mutableStateOf(false) }
+    var joinSeats by remember { mutableIntStateOf(1) }
+    var joinMessage by remember { mutableStateOf<String?>(null) }
+
+    AmazeCard(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(colors.accent.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Person, contentDescription = null, tint = colors.accent, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(trip.driverName, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        if (trip.driverRating != null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Star, contentDescription = null, tint = colors.warning, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(trip.driverRating, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                            }
+                        }
+                    }
+                }
+                AmazeBadge("${trip.seatsAvailable} SEAT${if (trip.seatsAvailable != 1) "S" else ""} LEFT", variant = if (trip.seatsAvailable <= 1) BadgeVariant.DANGER else BadgeVariant.WARNING)
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.AccessTime, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(trip.time, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.DirectionsCar, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(trip.fare, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                    Text(" per seat", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                }
+            }
+
+            if (trip.vehicleModel != null) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    buildString {
+                        append(trip.vehicleColor ?: "")
+                        if (trip.vehicleColor != null && trip.vehicleModel != null) append(" ")
+                        append(trip.vehicleModel ?: "")
+                        if (trip.vehiclePlate != null) append(" · $trip.vehiclePlate")
+                    },
+                    style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            AmazeButton(
+                text = "Request to Join",
+                onClick = { showJoinDialog = true },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = trip.seatsAvailable > 0
+            )
+        }
+    }
+
+    if (showJoinDialog) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showJoinDialog = false; joinMessage = null },
+            title = { Text("Join Trip", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("How many seats do you need?", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(
+                            modifier = Modifier.size(40.dp).clip(CircleShape).background(colors.border)
+                                .clickable(enabled = joinSeats > 1) { joinSeats-- },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.Remove, contentDescription = null, tint = if (joinSeats > 1) colors.textPrimary else colors.textMuted)
+                        }
+                        Text("$joinSeats", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Box(
+                            modifier = Modifier.size(40.dp).clip(CircleShape).background(colors.border)
+                                .clickable(enabled = joinSeats < trip.seatsAvailable && joinSeats < 4) { joinSeats++ },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.Add, contentDescription = null, tint = if (joinSeats < trip.seatsAvailable && joinSeats < 4) colors.textPrimary else colors.textMuted)
+                        }
+                    }
+                    if (joinMessage != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(joinMessage!!, style = AmazeTheme.typography.smallLabel.copy(color = if (joinMessage!!.contains("sent", ignoreCase = true)) colors.success else colors.danger))
+                    }
+                }
+            },
+            confirmButton = {
+                AmazeButton("Send Request", onClick = {
+                    AppState.requestJoinTrip(trip.id, joinSeats) { success, msg ->
+                        joinMessage = if (success) "Request sent to ${trip.driverName}!"
+                        else msg
+                    }
+                })
+            },
+            dismissButton = {
+                Text("Cancel", style = AmazeTheme.typography.body.copy(color = colors.textSecondary), modifier = Modifier.clickable { showJoinDialog = false; joinMessage = null })
+            },
+            containerColor = colors.surface
+        )
+    }
+}
+
+@Composable
 fun CreateTripTab() {
     val colors = AmazeTheme.colors
-    var fromText by remember { mutableStateOf("") }
+    val cabLoading by AppState.cabLoading.collectAsState()
+
+    var fromText by remember { mutableStateOf("VIT Chennai") }
     var toText by remember { mutableStateOf("") }
     var tripDate by remember { mutableStateOf("") }
     var departureTime by remember { mutableStateOf("") }
-    var seatsAvailable by remember { mutableStateOf(1) }
+    var seatsAvailable by remember { mutableIntStateOf(3) }
     var farePerPerson by remember { mutableStateOf("") }
     var carModel by remember { mutableStateOf("") }
     var carColor by remember { mutableStateOf("") }
     var plateNumber by remember { mutableStateOf("") }
     var showVehicleFields by remember { mutableStateOf(false) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isSuccess by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -238,7 +337,7 @@ fun CreateTripTab() {
                     value = fromText,
                     onValueChange = { fromText = it },
                     label = "From",
-                    placeholder = "e.g. SRM University"
+                    placeholder = "e.g. VIT Chennai"
                 )
                 AmazeTextField(
                     value = toText,
@@ -340,12 +439,48 @@ fun CreateTripTab() {
             }
         }
 
+        if (statusMessage != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = statusMessage!!,
+                style = AmazeTheme.typography.body.copy(
+                    color = if (isSuccess) colors.success else colors.danger,
+                    fontWeight = FontWeight.Bold
+                )
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         AmazeButton(
-            text = "Publish Trip",
-            onClick = { },
+            text = if (cabLoading) "Publishing..." else "Publish Trip",
+            onClick = {
+                statusMessage = null
+                if (toText.isBlank() || tripDate.isBlank() || departureTime.isBlank() || farePerPerson.isBlank()) {
+                    statusMessage = "Please fill in all required fields"
+                    isSuccess = false
+                    return@AmazeButton
+                }
+                AppState.createCabTrip(
+                    from = fromText, to = toText, date = tripDate, time = departureTime,
+                    seats = seatsAvailable, fare = "₹$farePerPerson",
+                    vehicleModel = carModel.ifBlank { null },
+                    vehicleColor = carColor.ifBlank { null },
+                    vehiclePlate = plateNumber.ifBlank { null },
+                    onSuccess = { tripId ->
+                        statusMessage = "Trip published! ID: $tripId"
+                        isSuccess = true
+                        toText = ""; tripDate = ""; departureTime = ""; farePerPerson = ""
+                        carModel = ""; carColor = ""; plateNumber = ""
+                    },
+                    onError = { msg ->
+                        statusMessage = msg
+                        isSuccess = false
+                    }
+                )
+            },
             modifier = Modifier.fillMaxWidth(),
+            enabled = !cabLoading,
             icon = Icons.Rounded.DirectionsCar
         )
     }
@@ -354,28 +489,17 @@ fun CreateTripTab() {
 @Composable
 fun MyTripsTab() {
     val colors = AmazeTheme.colors
+    val myTrips by AppState.myCabTrips.collectAsState()
+    val joinRequests by AppState.cabJoinRequests.collectAsState()
+
     var selectedSegment by remember { mutableStateOf("Ongoing") }
     val segments = listOf("Ongoing", "History")
 
-    val ongoingTrips = remember {
-        listOf(
-            UserTrip("Chennai Airport", "Jul 15, 2026", "2:00 PM", 2, "Scheduled", false),
-            UserTrip("Railway Station", "Jul 16, 2026", "8:00 AM", 0, "Full", false)
-        )
-    }
+    val ongoing = myTrips?.trips?.filter { it.status != "Completed" && it.status != "Cancelled" } ?: emptyList()
+    val history = myTrips?.trips?.filter { it.status == "Completed" || it.status == "Cancelled" } ?: emptyList()
 
-    val historyTrips = remember {
-        listOf(
-            UserTrip("Bus Stand", "Jul 10, 2026", "10:00 AM", 3, "Completed", true),
-            UserTrip("City Center", "Jul 5, 2026", "4:00 PM", 1, "Cancelled", true)
-        )
-    }
-
-    val matchRequests = remember {
-        listOf(
-            MatchRequest("Vikram S.", "2 seats", "Railway Station · Jul 16"),
-            MatchRequest("Neha P.", "1 seat", "Chennai Airport · Jul 16")
-        )
+    LaunchedEffect(Unit) {
+        AppState.refreshMyCabTrips()
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -408,107 +532,13 @@ fun MyTripsTab() {
         Spacer(modifier = Modifier.height(16.dp))
 
         if (selectedSegment == "Ongoing") {
-            if (ongoingTrips.isNotEmpty()) {
-                ongoingTrips.forEach { trip ->
-                    AmazeCard(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(trip.destination, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                AmazeBadge(
-                                    text = trip.status.uppercase(),
-                                    variant = when (trip.status) {
-                                        "Scheduled" -> BadgeVariant.INFO
-                                        "Full" -> BadgeVariant.WARNING
-                                        "Cancelled" -> BadgeVariant.DANGER
-                                        else -> BadgeVariant.INFO
-                                    }
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Text(trip.date, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-                                    Text(trip.time, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text("Seats left", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-                                    Text(
-                                        "${trip.seatsLeft}",
-                                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = if (trip.seatsLeft == 0) colors.danger else colors.textPrimary)
-                                    )
-                                }
-                            }
-                        }
-                    }
+            if (ongoing.isNotEmpty()) {
+                ongoing.forEach { trip ->
+                    MyTripCard(trip = trip, tripJoinRequests = joinRequests[trip.id])
                 }
             }
 
-            if (matchRequests.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Match Requests",
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                matchRequests.forEach { req ->
-                    AmazeCard(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(CircleShape)
-                                            .background(colors.accent.copy(alpha = 0.15f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Rounded.Person, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
-                                    }
-                                    Spacer(modifier = Modifier.width(10.dp))
-                                    Column {
-                                        Text(req.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                        Text(req.tripInfo, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                                    }
-                                }
-                                Text(req.seats, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                            }
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                AmazeButton(
-                                    text = "Accept",
-                                    onClick = { },
-                                    modifier = Modifier.weight(1f),
-                                    icon = Icons.Rounded.Check
-                                )
-                                AmazeButton(
-                                    text = "Reject",
-                                    onClick = { },
-                                    modifier = Modifier.weight(1f),
-                                    variant = ButtonVariant.SECONDARY,
-                                    icon = Icons.Rounded.Close
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (ongoingTrips.isEmpty() && matchRequests.isEmpty()) {
+            if (ongoing.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.DirectionsCar, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
@@ -518,8 +548,8 @@ fun MyTripsTab() {
                 }
             }
         } else {
-            if (historyTrips.isNotEmpty()) {
-                historyTrips.forEach { trip ->
+            if (history.isNotEmpty()) {
+                history.forEach { trip ->
                     AmazeCard(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
                         Column {
                             Row(
@@ -527,14 +557,17 @@ fun MyTripsTab() {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(trip.destination, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                Text(
+                                    "${trip.from} → ${trip.to}",
+                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                                )
                                 AmazeBadge(
                                     text = trip.status.uppercase(),
                                     variant = if (trip.status == "Completed") BadgeVariant.SUCCESS else BadgeVariant.DANGER
                                 )
                             }
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text("${trip.date} · ${trip.time}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                            Text("${trip.date} · ${trip.time} · ${trip.fare}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                         }
                     }
                 }
@@ -551,26 +584,94 @@ fun MyTripsTab() {
     }
 }
 
-private data class TripResult(
-    val driverName: String,
-    val rating: String,
-    val departureTime: String,
-    val seatsAvailable: Int,
-    val fare: String,
-    val vehicleInfo: String
-)
+@Composable
+fun MyTripCard(trip: CabTrip, tripJoinRequests: CabJoinRequestsRes?) {
+    val colors = AmazeTheme.colors
+    var showRequests by remember { mutableStateOf(false) }
 
-private data class UserTrip(
-    val destination: String,
-    val date: String,
-    val time: String,
-    val seatsLeft: Int,
-    val status: String,
-    val isHistory: Boolean
-)
+    AmazeCard(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "${trip.from} → ${trip.to}",
+                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    )
+                    Text("${trip.date} · ${trip.time}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                }
+                AmazeBadge(
+                    text = trip.status.uppercase(),
+                    variant = when (trip.status) {
+                        "Scheduled" -> BadgeVariant.INFO
+                        "Full" -> BadgeVariant.WARNING
+                        else -> BadgeVariant.INFO
+                    }
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Seats: ${trip.seatsAvailable}/${trip.seatsTotal}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                Text(trip.fare, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+            }
 
-private data class MatchRequest(
-    val name: String,
-    val seats: String,
-    val tripInfo: String
-)
+            if (trip.isOwnTrip && trip.status == "Scheduled") {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = if (showRequests) "Hide Requests" else "View Join Requests",
+                    style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold),
+                    modifier = Modifier.clickable {
+                        showRequests = !showRequests
+                        if (showRequests) {
+                            AppState.refreshJoinRequests(trip.id)
+                        }
+                    }
+                )
+
+                if (showRequests && tripJoinRequests != null && tripJoinRequests.requests.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    for (req in tripJoinRequests.requests) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(req.requesterName, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                Text("${req.seats} seat${if (req.seats != 1) "s" else ""} · ${req.status}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                            }
+                            if (req.status == "Pending") {
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Box(
+                                        modifier = Modifier.size(32.dp).clip(CircleShape).background(colors.success.copy(alpha = 0.15f)).clickable {
+                                            AppState.acceptJoinRequest(trip.id, req.id)
+                                        },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Rounded.Check, contentDescription = "Accept", tint = colors.success, modifier = Modifier.size(18.dp))
+                                    }
+                                    Box(
+                                        modifier = Modifier.size(32.dp).clip(CircleShape).background(colors.danger.copy(alpha = 0.15f)).clickable {
+                                            AppState.rejectJoinRequest(trip.id, req.id)
+                                        },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Rounded.Close, contentDescription = "Reject", tint = colors.danger, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else if (showRequests) {
+                    Text("No join requests yet.", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                }
+            }
+        }
+    }
+}

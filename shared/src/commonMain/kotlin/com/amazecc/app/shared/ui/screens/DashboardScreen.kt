@@ -1,6 +1,8 @@
 @file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,7 +37,9 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.CommandPalette
 import com.amazecc.app.shared.utils.AttendanceTimetable
+import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.utils.SlotInfo
+import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -58,12 +62,12 @@ fun DashboardScreen() {
         courses + semesterCourses
     }
 
-    val overallAttendance = remember(allCourses) {
-        if (allCourses.isEmpty()) 0f
+    val overallAttendance = remember(courses) {
+        if (courses.isEmpty()) 0f
         else {
             var totalAtt = 0
             var totalCls = 0
-            for (item in allCourses) {
+            for (item in courses) {
                 totalAtt += item.attendedClasses ?: 0
                 totalCls += item.totalClasses ?: 0
             }
@@ -165,6 +169,11 @@ fun DashboardScreen() {
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            val animatedAttendance by animateFloatAsState(
+                targetValue = overallAttendance / 100f,
+                animationSpec = tween(1500)
+            )
+
             // ── Attendance Ring Card ──
             Box(
                 modifier = Modifier
@@ -183,11 +192,11 @@ fun DashboardScreen() {
                         modifier = Modifier.size(88.dp)
                     ) {
                         CircularProgressIndicator(
-                            progress = { overallAttendance / 100f },
+                            progress = { animatedAttendance },
                             modifier = Modifier.fillMaxSize(),
-                            color = if (overallAttendance >= 75f) Color(0xFF10B981)
-                            else if (overallAttendance >= 50f) Color(0xFFF59E0B)
-                            else Color(0xFFEF4444),
+                            color = if (overallAttendance >= 75f) colors.success
+                            else if (overallAttendance >= 50f) colors.warning
+                            else colors.danger,
                             trackColor = colors.border,
                             strokeWidth = 8.dp
                         )
@@ -215,9 +224,9 @@ fun DashboardScreen() {
                             else if (overallAttendance >= 50f) "Needs improvement!"
                             else "Critical!",
                             style = AmazeTheme.typography.caption.copy(
-                                color = if (overallAttendance >= 75f) Color(0xFF10B981)
-                                else if (overallAttendance >= 50f) Color(0xFFF59E0B)
-                                else Color(0xFFEF4444),
+                                color = if (overallAttendance >= 75f) colors.success
+                                else if (overallAttendance >= 50f) colors.warning
+                                else colors.danger,
                                 fontWeight = FontWeight.Bold
                             )
                         )
@@ -257,6 +266,21 @@ fun DashboardScreen() {
                     },
                     slotMap = slotMapTyped
                 )
+            }
+
+            var tick by remember { mutableStateOf(0) }
+            LaunchedEffect(Unit) {
+                while (true) {
+                    delay(60_000)
+                    tick++
+                }
+            }
+
+            val currentClass = remember(todayClasses, tick) {
+                AttendanceTimetable.findCurrentClass(todayClasses)
+            }
+            val nextClass = remember(todayClasses, tick) {
+                AttendanceTimetable.findNextClass(todayClasses)
             }
 
             Row(
@@ -310,69 +334,144 @@ fun DashboardScreen() {
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     todayClasses.forEach { cls ->
+                        val isCurrent = cls == currentClass
+                        val isNext = cls == nextClass
                         val pct = cls.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0
+
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(colors.surface)
-                                .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+                                .background(
+                                    if (isCurrent) colors.accent.copy(alpha = 0.06f)
+                                    else colors.surface
+                                )
+                                .border(
+                                    width = if (isCurrent) 1.5.dp else 1.dp,
+                                    color = if (isCurrent) colors.accent.copy(alpha = 0.4f) else colors.border,
+                                    shape = RoundedCornerShape(16.dp)
+                                )
                                 .padding(14.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .width(4.dp)
-                                        .height(40.dp)
-                                        .clip(RoundedCornerShape(2.dp))
-                                        .background(
-                                            if (pct >= 75) Color(0xFF10B981)
-                                            else if (pct >= 50) Color(0xFFF59E0B)
-                                            else Color(0xFFEF4444)
-                                        )
-                                )
-                                Spacer(modifier = Modifier.width(14.dp))
-                                Column(modifier = Modifier.weight(1f)) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (isCurrent) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(colors.accent.copy(alpha = 0.15f))
+                                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(
+                                                "LIVE",
+                                                style = AmazeTheme.typography.smallLabel.copy(
+                                                    color = colors.accent,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 10.sp
+                                                )
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
+                                    if (isNext) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(colors.warning.copy(alpha = 0.15f))
+                                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(
+                                                "UP NEXT",
+                                                style = AmazeTheme.typography.smallLabel.copy(
+                                                    color = colors.warning,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 10.sp
+                                                )
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
                                     Text(
                                         cls.courseTitle ?: "",
                                         style = AmazeTheme.typography.body.copy(
                                             fontWeight = FontWeight.Bold,
                                             color = colors.textPrimary
                                         ),
-                                        maxLines = 1
+                                        maxLines = 1,
+                                        modifier = Modifier.weight(1f)
                                     )
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(
-                                            cls.time,
-                                            style = AmazeTheme.typography.caption.copy(
-                                                color = colors.accent,
-                                                fontWeight = FontWeight.Medium
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                     Box(
+                                        modifier = Modifier
+                                            .background(
+                                                if (pct >= 75) colors.success.copy(alpha = 0.12f)
+                                                else if (pct >= 50) colors.warning.copy(alpha = 0.12f)
+                                                else colors.danger.copy(alpha = 0.12f),
+                                                RoundedCornerShape(10.dp)
                                             )
-                                        )
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
                                         Text(
-                                            cls.slotName ?: "",
-                                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                            "${cls.attendancePercentage ?: "?"}",
+                                            color = if (pct >= 75) colors.success
+                                            else if (pct >= 50) colors.warning
+                                            else colors.danger,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
                                         )
                                     }
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .background(
-                                            if (pct >= 75) Color(0xFF10B981).copy(alpha = 0.12f)
-                                            else if (pct >= 50) Color(0xFFF59E0B).copy(alpha = 0.12f)
-                                            else Color(0xFFEF4444).copy(alpha = 0.12f),
-                                            RoundedCornerShape(10.dp)
-                                        )
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        "${cls.attendancePercentage ?: "?"}",
-                                        color = if (pct >= 75) Color(0xFF10B981)
-                                        else if (pct >= 50) Color(0xFFF59E0B)
-                                        else Color(0xFFEF4444),
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(4.dp)
+                                            .height(if (isCurrent) 36.dp else 32.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(colors.accent)
                                     )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(
+                                                cls.time,
+                                                style = AmazeTheme.typography.caption.copy(
+                                                    color = if (isCurrent) colors.accent else colors.textPrimary,
+                                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium
+                                                )
+                                            )
+                                            Text(
+                                                cls.slotName ?: "",
+                                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                            )
+                                        }
+                                        if (isCurrent) {
+                                            val remaining = remember(tick) {
+                                                AttendanceTimetable.remainingMinutes(cls.time)
+                                            }
+                                            val minsStr = if (remaining >= 60) "${remaining / 60}h ${remaining % 60}m" else "${remaining} min"
+                                            Text(
+                                                "$minsStr left",
+                                                style = AmazeTheme.typography.smallLabel.copy(
+                                                    color = colors.accent,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            )
+                                        }
+                                        if (isNext) {
+                                            val until = remember(tick) {
+                                                AttendanceTimetable.minutesUntil(cls.time)
+                                            }
+                                            val minsStr = if (until >= 60) "${until / 60}h ${until % 60}m" else "${until} min"
+                                            Text(
+                                                "Starts in $minsStr",
+                                                style = AmazeTheme.typography.smallLabel.copy(
+                                                    color = colors.warning,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -466,14 +565,14 @@ fun DashboardScreen() {
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    GlassActionCard(Modifier.weight(1f), "Predict Att.", Icons.Rounded.CheckCircle, colors)
-                    GlassActionCard(Modifier.weight(1f), "GPA Calc", Icons.Rounded.Star, colors)
-                    GlassActionCard(Modifier.weight(1f), "Apply Leave", Icons.AutoMirrored.Rounded.ExitToApp, colors)
+                    GlassActionCard(Modifier.weight(1f), "Predict Att.", Icons.Rounded.CheckCircle, colors, onClick = { AppState.navigateTo(Screen.GPA_PREDICTOR) })
+                    GlassActionCard(Modifier.weight(1f), "GPA Calc", Icons.Rounded.Star, colors, onClick = { AppState.navigateTo(Screen.GRADES) })
+                    GlassActionCard(Modifier.weight(1f), "Apply Leave", Icons.AutoMirrored.Rounded.ExitToApp, colors, onClick = { AppState.navigateTo(Screen.HOSTEL) })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    GlassActionCard(Modifier.weight(1f), "Bus Routes", Icons.Rounded.Info, colors)
-                    GlassActionCard(Modifier.weight(1f), "Wishlist", Icons.Rounded.Favorite, colors)
-                    GlassActionCard(Modifier.weight(1f), "Hostel", Icons.Rounded.Home, colors)
+                    GlassActionCard(Modifier.weight(1f), "Bus Routes", Icons.Rounded.Info, colors, onClick = { AppState.navigateTo(Screen.TRANSPORT) })
+                    GlassActionCard(Modifier.weight(1f), "Wishlist", Icons.Rounded.Favorite, colors, onClick = { AppState.navigateTo(Screen.WISHLIST) })
+                    GlassActionCard(Modifier.weight(1f), "Hostel", Icons.Rounded.Home, colors, onClick = { AppState.navigateTo(Screen.HOSTEL) })
                 }
             }
 
@@ -581,9 +680,9 @@ private fun CourseGlassCard(
 ) {
     val percentage = course.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0
     val badgeColor = when {
-        percentage >= 85.0 -> Color(0xFF10B981)
-        percentage >= 75.0 -> Color(0xFFF59E0B)
-        else -> Color(0xFFEF4444)
+        percentage >= 85.0 -> colors.success
+        percentage >= 75.0 -> colors.warning
+        else -> colors.danger
     }
     val isCritical = percentage < 75.0
 
@@ -591,45 +690,46 @@ private fun CourseGlassCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(if (isCritical) Color(0xFFEF4444).copy(alpha = 0.05f) else colors.surface)
+            .background(if (isCritical) colors.danger.copy(alpha = 0.05f) else colors.glassSurface)
             .border(
                 1.dp,
-                if (isCritical) Color(0xFFEF4444).copy(alpha = 0.2f) else colors.border,
+                if (isCritical) colors.danger.copy(alpha = 0.2f) else colors.glassBorder,
                 RoundedCornerShape(16.dp)
             )
             .clickable { AppState.openCourseAttendance(course.courseCode) }
-            .padding(14.dp)
+            .padding(16.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(badgeColor)
-            )
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                 Text(
                     text = course.courseTitle,
                     style = AmazeTheme.typography.body.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = colors.textPrimary
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary,
+                        fontSize = 15.sp
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Classes: ${course.attendedClasses}/${course.totalClasses}",
-                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                    text = "Classes: ${course.attendedClasses} / ${course.totalClasses}",
+                    style = AmazeTheme.typography.caption.copy(
+                        color = colors.textSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
             Box(
                 modifier = Modifier
-                    .background(badgeColor.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                    .background(badgeColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                    .border(1.dp, badgeColor.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "${percentage.toInt()}%",
@@ -649,14 +749,15 @@ private fun GlassActionCard(
     modifier: Modifier = Modifier,
     title: String,
     icon: ImageVector,
-    colors: com.amazecc.app.shared.theme.AmazeColors
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    onClick: () -> Unit = {}
 ) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .background(colors.surface)
             .border(1.dp, colors.border, RoundedCornerShape(20.dp))
-            .clickable { }
+            .clickable(onClick = onClick)
             .padding(vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
