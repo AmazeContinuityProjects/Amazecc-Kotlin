@@ -5,16 +5,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 object SessionManager {
-    private val _cookies = MutableStateFlow<String?>(null)
+    private val _cookies = MutableStateFlow<String?>(SettingsManager.getNullableString(SettingsManager.SESSION_COOKIES))
     val cookies: StateFlow<String?> = _cookies.asStateFlow()
 
-    private val _csrf = MutableStateFlow<String?>(null)
+    private val _csrf = MutableStateFlow<String?>(SettingsManager.getNullableString(SettingsManager.SESSION_CSRF))
     val csrf: StateFlow<String?> = _csrf.asStateFlow()
 
-    private val _authorizedID = MutableStateFlow<String?>(null)
+    private val _authorizedID = MutableStateFlow<String?>(SettingsManager.getNullableString(SettingsManager.SESSION_AUTHORIZED_ID))
     val authorizedID: StateFlow<String?> = _authorizedID.asStateFlow()
 
-    private val _clubToken = MutableStateFlow<String?>(null)
+    private val _clubToken = MutableStateFlow<String?>(SettingsManager.getNullableString(SettingsManager.SESSION_CLUB_TOKEN))
     val clubToken: StateFlow<String?> = _clubToken.asStateFlow()
 
     // Settings
@@ -29,6 +29,10 @@ object SessionManager {
         _csrf.value = csrf
         _authorizedID.value = authorizedID
         _clubToken.value = clubToken
+        SettingsManager.setString(SettingsManager.SESSION_COOKIES, cookies)
+        SettingsManager.setString(SettingsManager.SESSION_CSRF, csrf)
+        SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, authorizedID)
+        if (clubToken != null) SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, clubToken)
     }
 
     fun clearSession() {
@@ -36,5 +40,10 @@ object SessionManager {
         _csrf.value = null
         _authorizedID.value = null
         _clubToken.value = null
+        SettingsManager.remove(SettingsManager.SESSION_COOKIES)
+        SettingsManager.remove(SettingsManager.SESSION_CSRF)
+        SettingsManager.remove(SettingsManager.SESSION_AUTHORIZED_ID)
+        SettingsManager.remove(SettingsManager.SESSION_CLUB_TOKEN)
     }
 }
+

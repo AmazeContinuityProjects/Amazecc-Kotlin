@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.api
+﻿package com.amazecc.app.shared.api
 
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
@@ -16,6 +16,8 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.Serializable
 import com.amazecc.app.shared.utils.AnalyzeCalendar
 
@@ -43,12 +45,9 @@ private data class AttendanceSyncResponse(
 )
 
 object AmazeClient {
-    private var baseUrl = "https://api.amazecc.com"
+    var baseUrl = "https://api.amazecc.com"
     private var useMockData = false // Toggle for offline testing
 
-    fun setBaseUrl(url: String) {
-        baseUrl = url
-    }
 
     fun setUseMockData(enable: Boolean) {
         useMockData = enable
@@ -313,7 +312,20 @@ object AmazeClient {
         }
     }
 
-    suspend fun getCalendar(type: String = "ALL"): CalendarRes {
+    suspend fun getCurriculum(semesterId: String? = null): CurriculumRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CurriculumRes(success = true, title = "Curriculum Overview") // return empty mock for now
+        }
+        return try {
+            val params = mutableMapOf<String, String>()
+            if (semesterId != null) params["semesterId"] = semesterId
+            postAuthorized<CurriculumRes>("curriculum", params) ?: CurriculumRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CurriculumRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getCalendar(type: String = "ALL", semesterId: String? = null): CalendarRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             val extraMonths = if (type != "ALL") listOf(
                 CalendarMonth(
@@ -339,7 +351,9 @@ object AmazeClient {
             )
         }
         return try {
-            val rawJson = postAuthorized<JsonElement>("calendar", mapOf("type" to type))
+            val params = mutableMapOf("type" to type)
+            if (semesterId != null) params["semesterId"] = semesterId
+            val rawJson = postAuthorized<JsonElement>("calendar", params)
             if (rawJson != null) {
                 val analysis = AnalyzeCalendar.analyzeAllCalendars(rawJson)
                 if (analysis.results.isNotEmpty()) {
@@ -368,7 +382,7 @@ object AmazeClient {
         }
     }
 
-    suspend fun getCalendars(): CalendarsListRes {
+    suspend fun getCalendars(semesterId: String? = null): CalendarsListRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return CalendarsListRes(
                 success = true,
@@ -425,7 +439,9 @@ object AmazeClient {
             )
         }
         try {
-            val rawJson = postAuthorized<JsonElement>("calender")
+            val params = mutableMapOf("type" to "ALL")
+            if (semesterId != null) params["semesterId"] = semesterId
+            val rawJson = postAuthorized<JsonElement>("calendar", params)
             if (rawJson != null) {
                 val analysis = AnalyzeCalendar.analyzeAllCalendars(rawJson)
                 if (analysis.results.isNotEmpty()) {
@@ -456,7 +472,7 @@ object AmazeClient {
         } catch (_: Exception) { /* fall through */ }
         
         // Fallback: use old getCalendar() and wrap it as a single NamedCalendar
-        val old = getCalendar("ALL")
+        val old = getCalendar("ALL", semesterId)
         return if (old.success && old.months.isNotEmpty()) {
             CalendarsListRes(
                 success = true,
@@ -479,7 +495,48 @@ object AmazeClient {
             )
         }
         return try {
-            postAuthorized<PaymentsRes>("payments") ?: PaymentsRes(success = false, message = "Empty response")
+            val duesResp = postAuthorized<kotlinx.serialization.json.JsonObject>("payments")
+            val receiptsResp = postAuthorized<kotlinx.serialization.json.JsonObject>("payment-receipts")
+            val walletResp = postAuthorized<kotlinx.serialization.json.JsonObject>("wallet")
+
+            val paymentsList = mutableListOf<PaymentItem>()
+
+            if (duesResp?.get("hasDues")?.jsonPrimitive?.content?.toBooleanStrictOrNull() == true || duesResp?.get("hasDues")?.jsonPrimitive?.booleanOrNull == true) {
+                paymentsList.add(PaymentItem(
+                    billingId = "due-pending",
+                    description = duesResp?.get("message")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: "Pending Dues",
+                    amount = "Check VTOP",
+                    dueDate = "-",
+                    status = "UNPAID"
+                ))
+            }
+
+            val receiptsArray = receiptsResp?.get("receipts")?.jsonArray
+            receiptsArray?.forEach { r ->
+                val obj = r.jsonObject
+                paymentsList.add(PaymentItem(
+                    billingId = obj["receiptNumber"]?.jsonPrimitive?.content ?: "rec",
+                    description = "Fee Payment",
+                    amount = obj["amount"]?.jsonPrimitive?.content ?: "-",
+                    dueDate = "-",
+                    status = "PAID",
+                    paymentDate = obj["date"]?.jsonPrimitive?.content,
+                    receiptNo = obj["receiptNumber"]?.jsonPrimitive?.content
+                ))
+            }
+
+            val walletLedger = walletResp?.get("ledgerINR")?.jsonArray
+            val balance = if (walletLedger != null && walletLedger.size > 0) {
+                walletLedger[0].jsonObject["bookBalanceAmount"]?.jsonPrimitive?.content
+            } else null
+
+            val hasDuesVal = duesResp?.get("hasDues")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: duesResp?.get("hasDues")?.jsonPrimitive?.booleanOrNull
+            PaymentsRes(
+                success = true,
+                payments = paymentsList,
+                walletBalance = balance,
+                message = if (hasDuesVal == false) duesResp?.get("message")?.jsonPrimitive?.content else null
+            )
         } catch (e: Exception) {
             PaymentsRes(success = false, message = e.message, error = e.toString())
         }
@@ -666,10 +723,10 @@ object AmazeClient {
             return CabTripsRes(
                 success = true,
                 trips = listOf(
-                    CabTrip(id = "CT-101", from = from, to = to, date = date, time = "2:00 PM", seatsTotal = 4, seatsAvailable = 2, fare = "₹250", driverName = "S. Rajan", driverPhone = "+91 9876543210", driverRating = "4.8", vehicleModel = "Toyota Etios", vehicleColor = "White", vehiclePlate = "TN 01 AB 1234"),
-                    CabTrip(id = "CT-102", from = from, to = to, date = date, time = "3:30 PM", seatsTotal = 4, seatsAvailable = 3, fare = "₹200", driverName = "Priya K.", driverPhone = "+91 9876543211", driverRating = "4.9", vehicleModel = "Honda City", vehicleColor = "Blue", vehiclePlate = "TN 22 CD 5678"),
-                    CabTrip(id = "CT-103", from = from, to = to, date = date, time = "5:00 PM", seatsTotal = 4, seatsAvailable = 1, fare = "₹300", driverName = "Arun M.", driverPhone = "+91 9876543212", driverRating = "4.7", vehicleModel = "Maruti Swift", vehicleColor = "Silver", vehiclePlate = "TN 07 EF 9012"),
-                    CabTrip(id = "CT-104", from = from, to = to, date = date, time = "6:15 PM", seatsTotal = 4, seatsAvailable = 4, fare = "₹180", driverName = "Deepa R.", driverPhone = "+91 9876543213", driverRating = "4.6", vehicleModel = "Hyundai i10", vehicleColor = "Red", vehiclePlate = "TN 11 GH 3456")
+                    CabTrip(id = "CT-101", from = from, to = to, date = date, time = "2:00 PM", seatsTotal = 4, seatsAvailable = 2, fare = "â‚¹250", driverName = "S. Rajan", driverPhone = "+91 9876543210", driverRating = "4.8", vehicleModel = "Toyota Etios", vehicleColor = "White", vehiclePlate = "TN 01 AB 1234"),
+                    CabTrip(id = "CT-102", from = from, to = to, date = date, time = "3:30 PM", seatsTotal = 4, seatsAvailable = 3, fare = "â‚¹200", driverName = "Priya K.", driverPhone = "+91 9876543211", driverRating = "4.9", vehicleModel = "Honda City", vehicleColor = "Blue", vehiclePlate = "TN 22 CD 5678"),
+                    CabTrip(id = "CT-103", from = from, to = to, date = date, time = "5:00 PM", seatsTotal = 4, seatsAvailable = 1, fare = "â‚¹300", driverName = "Arun M.", driverPhone = "+91 9876543212", driverRating = "4.7", vehicleModel = "Maruti Swift", vehicleColor = "Silver", vehiclePlate = "TN 07 EF 9012"),
+                    CabTrip(id = "CT-104", from = from, to = to, date = date, time = "6:15 PM", seatsTotal = 4, seatsAvailable = 4, fare = "â‚¹180", driverName = "Deepa R.", driverPhone = "+91 9876543213", driverRating = "4.6", vehicleModel = "Hyundai i10", vehicleColor = "Red", vehiclePlate = "TN 11 GH 3456")
                 )
             )
         }
@@ -704,8 +761,8 @@ object AmazeClient {
             return CabTripsRes(
                 success = true,
                 trips = listOf(
-                    CabTrip(id = "CT-201", from = "VIT Chennai", to = "Chennai Airport", date = "2026-07-15", time = "2:00 PM", seatsTotal = 4, seatsAvailable = 2, fare = "₹250", driverName = "You", vehicleModel = "Toyota Etios", vehicleColor = "White", vehiclePlate = "TN 01 AB 1234", status = "Scheduled", isOwnTrip = true),
-                    CabTrip(id = "CT-202", from = "Railway Station", to = "VIT Chennai", date = "2026-07-10", time = "10:00 AM", seatsTotal = 3, seatsAvailable = 0, fare = "₹150", driverName = "You", vehicleModel = "Honda City", vehicleColor = "Blue", vehiclePlate = "TN 22 CD 5678", status = "Completed", isOwnTrip = true)
+                    CabTrip(id = "CT-201", from = "VIT Chennai", to = "Chennai Airport", date = "2026-07-15", time = "2:00 PM", seatsTotal = 4, seatsAvailable = 2, fare = "â‚¹250", driverName = "You", vehicleModel = "Toyota Etios", vehicleColor = "White", vehiclePlate = "TN 01 AB 1234", status = "Scheduled", isOwnTrip = true),
+                    CabTrip(id = "CT-202", from = "Railway Station", to = "VIT Chennai", date = "2026-07-10", time = "10:00 AM", seatsTotal = 3, seatsAvailable = 0, fare = "â‚¹150", driverName = "You", vehicleModel = "Honda City", vehicleColor = "Blue", vehiclePlate = "TN 22 CD 5678", status = "Completed", isOwnTrip = true)
                 )
             )
         }
@@ -832,6 +889,36 @@ object AmazeClient {
             postAuthorized<QcmViewRes>("qcm-view") ?: QcmViewRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             QcmViewRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getEvents(): EventHubRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return EventHubRes(
+                success = true,
+                events = listOf(
+                    EventHubEvent(eid = "E001", title = "RoboWars 2026", eligibility = "All", type = "Technical", date = "2026-08-20", location = "SJT Ground", price = "Free", time = "10:00 AM"),
+                    EventHubEvent(eid = "E002", title = "Code Sprint", eligibility = "All", type = "Technical", date = "2026-09-05", location = "Anna Auditorium", price = "Free", time = "09:00 AM")
+                )
+            )
+        }
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/events")
+            if (response.status == HttpStatusCode.OK) {
+                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
+                val eventsList = if (element is JsonArray) {
+                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
+                } else if (element.jsonObject["events"] is JsonArray) {
+                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element.jsonObject["events"]!!)
+                } else {
+                    emptyList()
+                }
+                EventHubRes(success = true, events = eventsList)
+            } else {
+                EventHubRes(success = false, message = "HTTP ${response.status}", error = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
         }
     }
 
@@ -1103,7 +1190,7 @@ object AmazeClient {
         return postAuthorized<VitolRes>("vitol") ?: VitolRes(success = false, message = "Empty response")
     }
 
-    // ── Phase 3 endpoints ──
+    // â”€â”€ Phase 3 endpoints â”€â”€
 
     suspend fun getQBankCourses(): QBankCoursesRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
@@ -1269,7 +1356,7 @@ object AmazeClient {
             return ArrearResponse(
                 tables = listOf(ApiTable(title = "Bonafide Certificates", headers = listOf("Request ID", "Purpose", "Status", "Issued Date"), rows = listOf(
                     listOf("BNF-001", "Bank Loan", "Issued", "2026-06-20"),
-                    listOf("BNF-002", "Passport Application", "Processing", "—")
+                    listOf("BNF-002", "Passport Application", "Processing", "â€”")
                 )))
             )
         }
@@ -1302,3 +1389,16 @@ object AmazeClient {
         return postAuthorized<ArrearResponse>("additional-learning") ?: ArrearResponse(success = false, message = "Empty response")
     }
 }
+    suspend fun getFFCSReport(): ByteArray? {
+        return try {
+            val response: HttpResponse = httpClient.get("https://amazecc.vit.ac.in/ffcs/ffcsReport.csv")
+            if (response.status == HttpStatusCode.OK) {
+                response.readBytes()
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+
+

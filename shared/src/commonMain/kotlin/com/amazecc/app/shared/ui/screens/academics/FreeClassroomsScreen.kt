@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.data.CampusSchemas
 import com.amazecc.app.shared.model.CampusSchema
+import com.amazecc.app.shared.repository.SessionManager
+import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeDropdown
@@ -27,6 +30,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import amazecc_app.shared.generated.resources.Res
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.statement.readBytes
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 data class SimpleParsedCourse(
     val code: String,
@@ -35,22 +44,88 @@ data class SimpleParsedCourse(
     val slot: String
 )
 
+private fun timeToMinutes(timeStr: String): Int {
+    if (timeStr.isEmpty()) return 0
+    val parts = timeStr.trim().split(" ")
+    if (parts.size < 2) return 0
+    val time = parts[0]
+    val period = parts[1]
+    val timeParts = time.split(":")
+    if (timeParts.size < 2) return 0
+    var hours = timeParts[0].toIntOrNull() ?: 0
+    val minutes = timeParts[1].toIntOrNull() ?: 0
+    if (period == "PM" && hours != 12) hours += 12
+    if (period == "AM" && hours == 12) hours = 0
+    return hours * 60 + minutes
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalResourceApi::class)
 @Composable
 fun FreeClassroomsScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
+    val authId by SessionManager.authorizedID.collectAsState()
+    
+    if (authId == null) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            ScreenHeader(title = "Free Classrooms", description = "Find an empty spot to sit", showBackButton = true)
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
+                    Icon(Icons.Rounded.MeetingRoom, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text("Login Required", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Spacer(Modifier.height(8.dp))
+                    Text("Please login to VTOP to view free classrooms and your timetable slots.", color = colors.textSecondary, modifier = Modifier.padding(bottom = 24.dp))
+                    Button(onClick = { AppState.navigateTo(Screen.LOGIN) }, colors = ButtonDefaults.buttonColors(containerColor = colors.accent)) {
+                        Text("Go to Login", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+        return
+    }
     
     val json = Json { ignoreUnknownKeys = true }
-    val schema = remember { json.decodeFromString<CampusSchema>(CampusSchemas.CHENNAI_JSON) }
+    val schema = remember { 
+        try {
+            json.decodeFromString<CampusSchema>(CampusSchemas.CHENNAI_JSON) 
+        } catch (e: Exception) {
+            CampusSchema()
+        }
+    }
 
     val days = listOf("mon" to "Monday", "tue" to "Tuesday", "wed" to "Wednesday", "thu" to "Thursday", "fri" to "Friday")
-    var selectedDay by remember { mutableStateOf(days[0].first) }
-    
     val timePeriods = remember(schema) {
-        schema.theory.mapNotNull { if (it.start.isNotEmpty() && it.end.isNotEmpty()) " - " else null }
+        schema.theory.mapNotNull { if (it.start.isNotEmpty() && it.end.isNotEmpty() && it.lunch != true) " - " else null }
     }
+    
+    var selectedDay by remember { mutableStateOf(days[0].first) }
     var selectedTime by remember { mutableStateOf(timePeriods.firstOrNull() ?: "") }
     
+    LaunchedEffect(Unit) {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val dayOfWeek = now.dayOfWeek.isoDayNumber
+        if (dayOfWeek in 1..5) {
+            val dayIndex = dayOfWeek - 1
+            selectedDay = days[dayIndex].first
+            
+            val nowMinutes = now.hour * 60 + now.minute
+            var foundPeriod = ""
+            for (p in schema.theory) {
+                if (p.start.isNotEmpty() && p.end.isNotEmpty() && p.lunch != true) {
+                    val startMins = timeToMinutes(p.start)
+                    val endMins = timeToMinutes(p.end)
+                    if (nowMinutes in (startMins - 15)..endMins) {
+                        foundPeriod = " - "
+                        break
+                    }
+                }
+            }
+            if (foundPeriod.isNotEmpty()) {
+                selectedTime = foundPeriod
+            }
+        }
+    }
+
     val blocks = listOf("All", "AB1", "AB2", "AB3", "SJIT", "TT", "SMV", "SJT", "PRP")
     var selectedBlock by remember { mutableStateOf(blocks[0]) }
 
@@ -61,22 +136,44 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
         loading = true
         try {
             val parsed = withContext(Dispatchers.Default) {
-                val bytes = Res.readBytes("files/ffcsReport.csv")
+                val bytes = try {
+                    HttpClient().use { client ->
+                        client.get("https://amazecc.vit.ac.in/ffcs/ffcsReport.csv").readBytes()
+                    }
+                } catch (e: Exception) {
+                    try {
+                        Res.readBytes("files/ffcsReport.csv")
+                    } catch (innerE: Exception) {
+                        null
+                    }
+                }
+                
+                if (bytes == null) return@withContext emptyList<SimpleParsedCourse>()
+                
                 val text = bytes.decodeToString()
                 val lines = text.split("\n").drop(1)
                 
                 lines.mapNotNull { line ->
-                    // Naive CSV split ignoring quotes for speed since we only need specific columns
-                    // CODE is 1, TYPE is 4, SLOT is 7, VENUE is 8 usually, but FFCS CSV may vary.
-                    // Assuming standard format from AmazeCC: ClassNBR, COURSE CODE, TITLE, ...
-                    val cols = line.split(",(?=([^\"]*\"[^\"]*\")*[^\"]*$)".toRegex()).map { it.replace("\"", "").trim() }
-                    if (cols.size >= 8) {
-                        // Looking at React version: CODE, TITLE, TYPE, CREDITS, ROOM/VENUE, SLOT, FACULTY
-                        // We will just find them roughly if exact index unknown, or hardcode assuming standard format
-                        val code = cols.getOrNull(1) ?: ""
+                    var inQuotes = false
+                    val cols = mutableListOf<String>()
+                    val current = StringBuilder()
+                    for (char in line) {
+                        if (char == '\"') {
+                            inQuotes = !inQuotes
+                        } else if (char == ',' && !inQuotes) {
+                            cols.add(current.toString().trim())
+                            current.clear()
+                        } else {
+                            current.append(char)
+                        }
+                    }
+                    cols.add(current.toString().trim())
+                    
+                    if (cols.size >= 7) {
+                        val code = cols.getOrNull(0) ?: ""
                         val type = cols.getOrNull(2) ?: ""
-                        val slot = cols.getOrNull(5) ?: ""
-                        val room = cols.getOrNull(4) ?: ""
+                        val slot = cols.getOrNull(4) ?: ""
+                        val room = cols.getOrNull(6) ?: ""
                         if (code.isNotEmpty()) SimpleParsedCourse(code, type, room, slot) else null
                     } else null
                 }

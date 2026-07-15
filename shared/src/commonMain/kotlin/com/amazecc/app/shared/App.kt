@@ -97,6 +97,7 @@ fun App() {
                             Screen.MORE -> MoreScreen()
                             Screen.PROFILE -> ProfileScreen()
                             Screen.EVENTS -> EventHubScreen()
+                            Screen.SETTINGS -> com.amazecc.app.shared.ui.screens.settings.SettingsScreen()
                             Screen.QBANK -> QBankScreen()
                             Screen.SOCIAL -> SocialScreen()
                             Screen.FFCS_PLANNER -> FfcsPlannerScreen()

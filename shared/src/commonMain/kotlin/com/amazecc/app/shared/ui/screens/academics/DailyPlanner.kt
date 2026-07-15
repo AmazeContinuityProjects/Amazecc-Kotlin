@@ -46,7 +46,8 @@ private data class WeekDay(
     val abbrev: String,
     val date: Int,
     val month: Int,
-    val isToday: Boolean
+    val isToday: Boolean,
+    val fullDate: LocalDate
 )
 
 @Composable
@@ -75,7 +76,7 @@ fun DailyPlannerScreen() {
                 DayOfWeek.WEDNESDAY -> "WED"; DayOfWeek.THURSDAY -> "THU"; DayOfWeek.FRIDAY -> "FRI"
                 DayOfWeek.SATURDAY -> "SAT"; else -> "MON"
             }
-            WeekDay(abbr, d.dayOfMonth, d.monthNumber, d == today)
+            WeekDay(abbr, d.dayOfMonth, d.monthNumber, d == today, d)
         }
     }
 
@@ -83,7 +84,7 @@ fun DailyPlannerScreen() {
 
     // Check calendar for holiday/working day info
     val holidayMap = remember(calendarMonths) {
-        val map = mutableMapOf<String, Boolean>()
+        val map = mutableMapOf<LocalDate, Boolean>()
         for (m in calendarMonths) {
             val parts = m.month.split(" ")
             val monthNum = when (parts.firstOrNull()?.take(3)?.lowercase()) {
@@ -97,15 +98,10 @@ fun DailyPlannerScreen() {
                 val isHoliday = day.events.any { e ->
                     e.type.contains("holiday", true) || e.text.contains("holiday", true)
                 }
-                val dayOfWeek = try {
-                    LocalDate(year, monthNum, day.date).dayOfWeek
+                val localDate = try {
+                    LocalDate(year, monthNum, day.date)
                 } catch (_: Exception) { null } ?: continue
-                val abbr = when (dayOfWeek) {
-                    DayOfWeek.SUNDAY -> "SUN"; DayOfWeek.MONDAY -> "MON"; DayOfWeek.TUESDAY -> "TUE"
-                    DayOfWeek.WEDNESDAY -> "WED"; DayOfWeek.THURSDAY -> "THU"; DayOfWeek.FRIDAY -> "FRI"
-                    DayOfWeek.SATURDAY -> "SAT"; else -> null
-                } ?: continue
-                if (isHoliday) map[abbr] = true
+                if (isHoliday) map[localDate] = true
             }
         }
         map
@@ -212,12 +208,12 @@ fun DailyPlannerScreen() {
         ) {
             items(weekDays) { wd ->
                 val isSelected = selectedDay == wd.abbrev
-                val dayMap = SlotMap.map[wd.abbrev] ?: emptyMap()
+                val dayMap = SlotMap.map[wd.abbrev] ?: emptyMap<String, String>()
                 val classCount = attendance.count { course ->
                     val slots = course.slotName.split("+").map { it.trim() }
                     slots.any { dayMap.containsKey(it) }
                 }
-                val isHoliday = holidayMap[wd.abbrev] == true
+                val isHoliday = holidayMap[wd.fullDate] == true
 
                 Column(
                     modifier = Modifier

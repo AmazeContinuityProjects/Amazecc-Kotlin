@@ -46,7 +46,6 @@ fun LoginScreen() {
             // Session restored from cache — load data and go to home
             username = creds.first
             password = creds.second
-            AppState.loadAllData()
             AppState.navigateTo(Screen.HOME)
         } else {
             // Try VTOP login with cached credentials
@@ -62,7 +61,6 @@ fun LoginScreen() {
                         SettingsManager.setString(SettingsManager.SESSION_CSRF, response.csrf)
                         SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
                         response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                        AppState.loadAllData()
                         AppState.navigateTo(Screen.HOME)
                     }
                     isSubmitting = false
@@ -218,7 +216,6 @@ fun LoginScreen() {
                                 AmazeClient.setUseMockData(false)
                             }
                             // Load student data and transition to dashboard
-                            AppState.loadAllData()
                             AppState.navigateTo(Screen.HOME)
                         } else {
                             errorMessage = response.message.ifBlank { "Authentication failed." }
@@ -256,7 +253,6 @@ fun LoginScreen() {
                                 SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, authId)
                                 SettingsManager.saveCredentials("DEMO123", "password")
                                 AmazeClient.setUseMockData(true)
-                                AppState.loadAllData()
                                 AppState.navigateTo(Screen.HOME)
                             }
                         }

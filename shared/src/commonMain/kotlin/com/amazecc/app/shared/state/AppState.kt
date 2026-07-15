@@ -27,7 +27,7 @@ enum class Screen { SPLASH,
     COURSE_ATTENDANCE, ARREAR, MAKEUP_COMPRE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
     MARKS_TIMELINE, VITOL, FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
     FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, ACTIVITY_TREE,
-    COURSE_DETAIL
+    COURSE_DETAIL, SETTINGS
 }
 
 object AppState {
@@ -147,6 +147,16 @@ object AppState {
         _syncExam.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_EXAM, true)
         _syncProfile.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_PROFILE, true)
         _syncAdditional.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, true)
+
+        val savedNav = SettingsManager.getString(SettingsManager.KEY_NAVBAR_ITEMS, "")
+        if (savedNav.isNotEmpty()) {
+            val tabs = savedNav.split(",").mapNotNull { name ->
+                try { Screen.valueOf(name) } catch (e: Exception) { null }
+            }
+            if (tabs.isNotEmpty()) {
+                _pinnedNavTabs.value = tabs.take(4)
+            }
+        }
     }
 
     private fun loadCachedString(key: String): String? {
@@ -172,6 +182,7 @@ object AppState {
         loadCachedData<HostelLeaveRes>(SettingsManager.CACHE_HOSTEL_LEAVES, _hostelLeaves)
         loadCachedData<ExamScheduleRes>(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule)
         loadCachedData<CalendarRes>(SettingsManager.CACHE_CALENDAR, _calendar)
+        loadCachedData<CurriculumRes>(SettingsManager.CACHE_CURRICULUM, _curriculum)
         loadCachedData<PaymentsRes>(SettingsManager.CACHE_PAYMENTS, _payments)
         loadCachedData<LibraryRes>(SettingsManager.CACHE_LIBRARY, _library)
         loadCachedData<TransportRes>(SettingsManager.CACHE_TRANSPORT, _transport)
@@ -201,7 +212,7 @@ object AppState {
         }
     }
 
-    private fun cacheData(key: String, value: Any?) {
+    private inline fun <reified T> cacheData(key: String, value: T?) {
         if (value != null) {
             try {
                 settings[key] = jsonFormat.encodeToString(value)
@@ -238,6 +249,9 @@ object AppState {
 
     private val _calendar = MutableStateFlow<CalendarRes?>(null)
     val calendar: StateFlow<CalendarRes?> = _calendar.asStateFlow()
+
+    private val _curriculum = MutableStateFlow<CurriculumRes?>(null)
+    val curriculum: StateFlow<CurriculumRes?> = _curriculum.asStateFlow()
 
     private val _payments = MutableStateFlow<PaymentsRes?>(null)
     val payments: StateFlow<PaymentsRes?> = _payments.asStateFlow()
@@ -478,6 +492,18 @@ object AppState {
                         },
                         async {
                             syncModule(
+                                name = "Curriculum",
+                                fetch = { AmazeClient.getCurriculum(semesterId = sem) },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _curriculum.value = it
+                                    cacheData(SettingsManager.CACHE_CURRICULUM, it)
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
                                 name = "Hostel details",
                                 fetch = { AmazeClient.getHostelDetails() },
                                 isSuccess = { it.error == null },
@@ -515,7 +541,7 @@ object AppState {
                         async {
                             syncModule(
                                 name = "Academic calendar",
-                                fetch = { AmazeClient.getCalendar() },
+                                fetch = { AmazeClient.getCalendar(semesterId = sem) },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
@@ -851,7 +877,7 @@ object AppState {
             try {
                 val result = syncModule(
                     name = "Academic calendar",
-                    fetch = { AmazeClient.getCalendar() },
+                    fetch = { AmazeClient.getCalendar(semesterId = _selectedSemester.value) },
                     isSuccess = { it.error == null },
                     errorMessage = { it.error },
                     update = {
@@ -860,7 +886,36 @@ object AppState {
                     }
                 )
                 updateSyncSummary(listOf(result))
-            } finally { _isLoading.value = false }
+            } catch (e: Exception) {
+                _syncStatus.value = "Calendar sync failed"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun refreshCurriculum() {
+        if (_isLoading.value) return
+        scope.launch {
+            _isLoading.value = true
+            _syncStatus.value = "Syncing curriculum..."
+            try {
+                val result = syncModule(
+                    name = "Curriculum",
+                    fetch = { AmazeClient.getCurriculum(semesterId = _selectedSemester.value) },
+                    isSuccess = { it.error == null },
+                    errorMessage = { it.error },
+                    update = {
+                        _curriculum.value = it
+                        cacheData(SettingsManager.CACHE_CURRICULUM, it)
+                    }
+                )
+                updateSyncSummary(listOf(result))
+            } catch (e: Exception) {
+                _syncStatus.value = "Curriculum sync failed"
+            } finally {
+                _isLoading.value = false
+            }
         }
     }
 
@@ -1115,6 +1170,7 @@ object AppState {
         settings.remove(SettingsManager.CACHE_HOSTEL_LEAVES)
         settings.remove(SettingsManager.CACHE_EXAM_SCHEDULE)
         settings.remove(SettingsManager.CACHE_CALENDAR)
+        settings.remove(SettingsManager.CACHE_CURRICULUM)
         settings.remove(SettingsManager.CACHE_PAYMENTS)
         settings.remove(SettingsManager.CACHE_LIBRARY)
         settings.remove(SettingsManager.CACHE_TRANSPORT)
@@ -1259,7 +1315,7 @@ object AppState {
     fun syncEventsAndClubs() {
         scope.launch {
             try {
-                val eventsRes = AmazeClient.getEventsProfile()
+                val eventsRes = AmazeClient.getEvents()
                 if (eventsRes.error == null) {
                     _events.value = eventsRes
                     cacheData(SettingsManager.CACHE_EVENTS, eventsRes)
@@ -1322,6 +1378,7 @@ object AppState {
     fun setPinnedNavTabs(tabs: List<Screen>) {
         if (tabs.size <= 4) {
             _pinnedNavTabs.value = tabs
+            SettingsManager.setString(SettingsManager.KEY_NAVBAR_ITEMS, tabs.joinToString(",") { it.name })
         }
     }
 

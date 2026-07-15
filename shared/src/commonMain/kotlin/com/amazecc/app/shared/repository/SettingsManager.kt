@@ -22,6 +22,7 @@ object SettingsManager {
     const val KEY_SYNC_EXAM = "sync_exam"
     const val KEY_SYNC_PROFILE = "sync_profile"
     const val KEY_SYNC_ADDITIONAL = "sync_additional"
+    const val KEY_NAVBAR_ITEMS = "navbar_items"
 
     // Session cache (VTOP credentials)
     const val SESSION_COOKIES = "session_cookies"
@@ -42,6 +43,7 @@ object SettingsManager {
     const val CACHE_HOSTEL_LEAVES = "cache_hostel_leaves"
     const val CACHE_EXAM_SCHEDULE = "cache_exam_schedule"
     const val CACHE_CALENDAR = "cache_calendar"
+    const val CACHE_CURRICULUM = "cache_curriculum"
     const val CACHE_PAYMENTS = "cache_payments"
     const val CACHE_LIBRARY = "cache_library"
     const val CACHE_TRANSPORT = "cache_transport"

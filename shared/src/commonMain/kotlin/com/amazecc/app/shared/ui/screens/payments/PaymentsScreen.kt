@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -34,6 +35,12 @@ fun PaymentsScreen() {
     val payments = paymentsRes?.payments ?: emptyList()
 
     var subTab by remember { mutableStateOf("due") }
+
+    LaunchedEffect(paymentsRes) {
+        if (paymentsRes == null) {
+            AppState.refreshPayments()
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(
@@ -63,7 +70,7 @@ fun PaymentsScreen() {
                 Column {
                     Text("Wallet Balance", color = colors.textSecondary, fontSize = 11.sp)
                     Text(
-                        paymentsRes?.walletBalance?.replace("â‚¹", "\u20B9") ?: "\u20B9 0.00",
+                        paymentsRes?.walletBalance?.replace("Rs.", "\u20B9")?.replace("INR", "\u20B9") ?: "\u20B9 0.00",
                         fontWeight = FontWeight.Bold, fontSize = 22.sp, color = colors.accent
                     )
                 }
@@ -89,12 +96,15 @@ fun PaymentsScreen() {
             }
         }
 
+        val dues = payments.filter { it.status != "PAID" }
+        val receipts = payments.filter { it.status == "PAID" }
+
         when (subTab) {
             "receipts" -> {
-                if (payments.isEmpty()) {
+                if (receipts.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Rounded.ReceiptLong, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                            Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                             Spacer(Modifier.height(8.dp))
                             Text("No receipts found", color = colors.textMuted)
                         }
@@ -105,7 +115,7 @@ fun PaymentsScreen() {
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(bottom = 30.dp)
                     ) {
-                        items(payments) { payment ->
+                        items(receipts) { payment ->
                             PaymentReceiptCard(payment, colors)
                         }
                     }
@@ -121,14 +131,26 @@ fun PaymentsScreen() {
                 }
             }
             else -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF10B981), modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.height(8.dp))
-                        Text("All clear — no pending dues", color = colors.textMuted)
-                        paymentsRes?.let { res ->
-                            Spacer(Modifier.height(4.dp))
-                            Text("${payments.size} past receipts", color = colors.textSecondary, fontSize = 12.sp)
+                if (dues.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF10B981), modifier = Modifier.size(48.dp))
+                            Spacer(Modifier.height(8.dp))
+                            Text("All clear — no pending dues", color = colors.textMuted)
+                            if (receipts.isNotEmpty()) {
+                                Spacer(Modifier.height(4.dp))
+                                Text("${receipts.size} past receipts", color = colors.textSecondary, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 30.dp)
+                    ) {
+                        items(dues) { payment ->
+                            PaymentReceiptCard(payment, colors)
                         }
                     }
                 }
@@ -157,7 +179,7 @@ private fun PaymentReceiptCard(payment: PaymentItem, colors: com.amazecc.app.sha
             Text(payment.paymentDate ?: payment.dueDate ?: "", color = colors.textMuted, fontSize = 11.sp)
             Spacer(Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-                Text(payment.amount.replace("â‚¹", "\u20B9"), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = colors.accent)
+                Text(payment.amount.replace("Rs.", "\u20B9").replace("INR", "\u20B9"), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = colors.accent)
                 AmazeButton("Receipt", icon = Icons.Rounded.Download, onClick = { /* TODO: download PDF */ }, variant = ButtonVariant.SECONDARY, modifier = Modifier.height(34.dp))
             }
         }

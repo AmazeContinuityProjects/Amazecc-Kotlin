@@ -533,3 +533,44 @@ data class ProfileImagesRes(
     val error: String? = null
 )
 
+
+@Serializable
+data class CurriculumCategory(
+    val code: String = "",
+    val name: String = "",
+    val credits: Int = 0,
+    val maxCredits: Int = 0
+)
+
+@Serializable
+data class CurriculumBasketItem(
+    val code: String = "",
+    val name: String = "",
+    val credits: Int = 0,
+    val type: String? = null
+)
+
+@Serializable
+data class CurriculumBasket(
+    val title: String = "",
+    val credits: Int = 0,
+    val items: List<CurriculumBasketItem> = emptyList()
+)
+
+@Serializable
+data class CategoryDetail(
+    val code: String = "",
+    val name: String = "",
+    val baskets: List<CurriculumBasket> = emptyList()
+)
+
+@Serializable
+data class CurriculumRes(
+    val success: Boolean = false,
+    val message: String? = null,
+    val error: String? = null,
+    val title: String = "",
+    val totalCredits: Int = 0,
+    val categories: List<CurriculumCategory> = emptyList(),
+    val details: List<CategoryDetail> = emptyList()
+)

@@ -50,6 +50,7 @@ fun CalendarScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
     val moodleData by AppState.moodleData.collectAsState()
     val examData by AppState.examSchedule.collectAsState()
+    val selectedSemester by AppState.selectedSemester.collectAsState()
 
     var showMoodleModal by remember { mutableStateOf(false) }
     var viewMode by remember { mutableStateOf("Grid") }
@@ -61,11 +62,11 @@ fun CalendarScreen(onBack: () -> Unit) {
     var selectedCalIdx by remember { mutableStateOf(0) }
     var refreshTrigger by remember { mutableStateOf(0) }
 
-    LaunchedEffect(Unit, refreshTrigger) {
+    LaunchedEffect(selectedSemester, refreshTrigger) {
         loading = true
         errorMsg = null
         try {
-            val res = AmazeClient.getCalendars()
+            val res = AmazeClient.getCalendars(semesterId = selectedSemester)
             if (res.success && res.calendars.isNotEmpty()) {
                 calendars = res.calendars
             } else {
@@ -134,8 +135,12 @@ fun CalendarScreen(onBack: () -> Unit) {
         activeMonth.days.forEach { day ->
             val list = map.getOrPut(day.date) { mutableListOf() }
             day.events.forEach { ev ->
-                val col = if (ev.text.contains("Holiday", true)) Color.Red else colors.accent
-                list.add(ConsolidatedEvent(ev.text, "Holiday", ev.category ?: "", col))
+                val type = if (ev.type.isNotBlank()) ev.type else "Event"
+                val col = try { 
+                    ev.color?.let { Color(it.removePrefix("#").toLong(16) or 0xFF000000) } 
+                } catch (e: Exception) { null } ?: (if (ev.text.contains("Holiday", true)) Color.Red else colors.accent)
+                
+                list.add(ConsolidatedEvent(ev.text, type, ev.category ?: "", col))
             }
         }
 

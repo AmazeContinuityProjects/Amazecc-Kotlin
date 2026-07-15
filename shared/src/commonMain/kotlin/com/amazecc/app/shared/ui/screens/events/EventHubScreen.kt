@@ -1,4 +1,4 @@
-@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
+﻿@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens.events
 
 import androidx.compose.foundation.background
@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +34,8 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import io.kamel.image.KamelImage
+import io.kamel.image.asyncPainterResource
 
 @Composable
 fun EventHubScreen(initialTab: String = "Events") {
@@ -95,9 +98,9 @@ fun EventHubScreen(initialTab: String = "Events") {
     }
 }
 
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  Events Tab
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @Composable
 private fun EventsTab() {
@@ -202,9 +205,9 @@ private fun EventsTab() {
     }
 }
 
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  Event Cards
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @Composable
 private fun FeaturedEventCard(
@@ -393,9 +396,9 @@ private fun EventCard(
     }
 }
 
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  Event Detail Bottom Sheet
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -430,6 +433,30 @@ private fun EventDetailSheet(
                     .clip(RoundedCornerShape(2.dp))
                     .background(colors.border)
                     .align(Alignment.CenterHorizontally)
+            )
+
+            // Poster image
+            val posterId = event.id ?: event.registeredDetails?.get("id")?.let { if (it is kotlinx.serialization.json.JsonPrimitive) it.content else it.toString() } ?: event.eid
+            val posterUrl = "https://eventhubcc.vit.ac.in/EventHub/image/?id=$posterId"
+            KamelImage(
+                resource = asyncPainterResource(data = posterUrl),
+                contentDescription = "Event Poster",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(colors.border.copy(alpha = 0.5f)),
+                contentScale = ContentScale.Crop,
+                onLoading = {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(24.dp))
+                    }
+                },
+                onFailure = {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.ImageNotSupported, null, tint = colors.textMuted)
+                    }
+                }
             )
 
             // Title & type
@@ -550,9 +577,9 @@ private fun DetailRow(icon: ImageVector, label: String, value: String) {
     }
 }
 
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  Clubs Tab
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @Composable
 private fun ClubsTab() {
@@ -761,3 +788,4 @@ private fun ClubCard(club: ClubItem, isEnrolled: Boolean, isExpanded: Boolean, o
         }
     }
 }
+

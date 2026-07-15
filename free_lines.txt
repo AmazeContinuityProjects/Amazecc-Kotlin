@@ -1,0 +1,4 @@
+Line 349: Icon(Icons.Rounded.FreeBreakfast, null, tint = colors.textMuted, modifier = Modifier.size(36.dp))
+Line 602: // ── Free Classrooms Widget ──
+Line 609: .clickable { AppState.navigateTo(Screen.FREE_CLASSROOMS) }
+Line 625: "Find Free Classrooms",

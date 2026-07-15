@@ -139,6 +139,27 @@ fun DashboardScreen() {
                     )
                 }
                 IconButton(
+                    onClick = { AppState.loadAllData() },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.surface)
+                        .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+                ) {
+                    val isSyncing by AppState.isLoading.collectAsState()
+                    if (isSyncing) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = colors.accent, strokeWidth = 2.dp)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Sync,
+                            contentDescription = "Sync All Data",
+                            tint = colors.textPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(
                     onClick = { showCommandPalette = true },
                     modifier = Modifier
                         .size(44.dp)
@@ -585,7 +606,7 @@ fun DashboardScreen() {
                     .clip(RoundedCornerShape(20.dp))
                     .background(colors.surface)
                     .border(1.dp, colors.border, RoundedCornerShape(20.dp))
-                    .clickable { }
+                    .clickable { AppState.navigateTo(Screen.FREE_CLASSROOMS) }
                     .padding(16.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

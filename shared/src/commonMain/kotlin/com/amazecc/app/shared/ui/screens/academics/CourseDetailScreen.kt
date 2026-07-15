@@ -581,10 +581,10 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
                 day.events.forEach { ev ->
                     val t = ev.text.lowercase()
                     when {
-                        "cat i" in t || "cat 1" in t -> map["CAT1"] = Triple(y, monthNum, day.date)
-                        "cat ii" in t || "cat 2" in t -> map["CAT2"] = Triple(y, monthNum, day.date)
-                        "lid for laboratory" in t -> map["LID_LAB"] = Triple(y, monthNum, day.date)
-                        "lid for theory" in t -> map["LID_TH"] = Triple(y, monthNum, day.date)
+                        "cat i" in t || "cat 1" in t || "continuous assessment test - i" in t || "cat-i" in t -> map["CAT1"] = Triple(y, monthNum, day.date)
+                        "cat ii" in t || "cat 2" in t || "continuous assessment test - ii" in t || "cat-ii" in t -> map["CAT2"] = Triple(y, monthNum, day.date)
+                        "lid for laboratory" in t || ("last instructional day" in t && "laboratory" in t) -> map["LID_LAB"] = Triple(y, monthNum, day.date)
+                        "lid for theory" in t || ("last instructional day" in t && "theory" in t) -> map["LID_TH"] = Triple(y, monthNum, day.date)
                     }
                 }
             }
@@ -592,8 +592,12 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
         map
     }
 
+    val isLab = course.courseType.contains("Lab", ignoreCase = true) || course.courseType.contains("Embedded", ignoreCase = true)
+
     val cutoff = when (mode) {
-        "CAT1" -> keyDates["CAT1"]; "CAT2" -> keyDates["CAT2"]; "LID" -> keyDates["LID_TH"] ?: keyDates["LID_LAB"]
+        "CAT1" -> keyDates["CAT1"]
+        "CAT2" -> keyDates["CAT2"]
+        "LID" -> if (isLab) keyDates["LID_LAB"] else keyDates["LID_TH"]
         else -> null
     }
 
@@ -610,7 +614,7 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
             val m = month.month.lowercase().take(3); val monthNum = monthIndex[m] ?: continue
             val y = month.month.split(" ").lastOrNull()?.toIntOrNull() ?: continue
             for (day in month.days) {
-                val isWorking = day.events.any { it.type.lowercase() == "instructional day" }
+                val isWorking = day.events.any { it.type.lowercase() == "instructional day" || it.type.lowercase().contains("working") }
                 val isHoliday = day.events.any { it.type.lowercase().contains("holiday") }
                 if (isWorking && !isHoliday) results.add(Triple(y, monthNum, day.date))
             }
@@ -635,7 +639,6 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
         }
     }
 
-    val isLab = course.courseType == "Lab"
     val multiplier = if (isLab) 2 else 1
     val futureCount = futureClassDates.size * multiplier
     val skipCount = skipDates.size * multiplier

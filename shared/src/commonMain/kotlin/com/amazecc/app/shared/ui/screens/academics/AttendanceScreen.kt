@@ -676,13 +676,16 @@ fun TimetableGridScreen() {
     }
 
     var selectedDay by remember { mutableStateOf<String?>(null) }
+    var showTimetableDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Day selector
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             days.forEach { day ->
                 val isSelected = selectedDay == day
                 Box(
@@ -845,4 +848,14 @@ fun TimetableGridScreen() {
             }
         }
     }
+
+    if (showTimetableDialog) {
+        TimetableDialog(
+            attendanceCourses = courses,
+            timetableCourses = timetableRes?.courseInfo ?: emptyList(),
+            onDismiss = { showTimetableDialog = false }
+        )
+    }
+}
+
 }

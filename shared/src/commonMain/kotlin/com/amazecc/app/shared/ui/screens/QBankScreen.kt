@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -31,6 +32,9 @@ fun QBankScreen() {
     var courses by remember { mutableStateOf<List<QBankCourse>>(emptyList()) }
     var selectedCourse by remember { mutableStateOf<QBankCourse?>(null) }
     var questions by remember { mutableStateOf<List<QBankQuestion>>(emptyList()) }
+    var activeQuestionIndex by remember { mutableStateOf<Int?>(null) }
+    val userAnswers = remember { mutableStateMapOf<String, String>() }
+    val showAnswer = remember { mutableStateMapOf<String, Boolean>() }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
@@ -61,7 +65,13 @@ fun QBankScreen() {
                 modifier = Modifier.fillMaxWidth().background(colors.accent.copy(alpha = 0.08f)).padding(horizontal = 4.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { selectedCourse = null; questions = emptyList() }) {
+                IconButton(onClick = { 
+                    if (activeQuestionIndex != null) {
+                        activeQuestionIndex = null
+                    } else {
+                        selectedCourse = null; questions = emptyList() 
+                    }
+                }) {
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = colors.textPrimary)
                 }
                 Spacer(Modifier.width(4.dp))
@@ -114,9 +124,24 @@ fun QBankScreen() {
                             }
                         }
                     }
+                } else if (activeQuestionIndex != null) {
+                    val qIndex = activeQuestionIndex!!
+                    item {
+                        QuestionDetailView(
+                            question = questions[qIndex],
+                            index = qIndex,
+                            total = questions.size,
+                            userAnswer = userAnswers[questions[qIndex].question_id] ?: "",
+                            onAnswerChange = { userAnswers[questions[qIndex].question_id] = it },
+                            showCorrect = showAnswer[questions[qIndex].question_id] ?: false,
+                            onShowCorrect = { showAnswer[questions[qIndex].question_id] = true },
+                            onNext = { if (qIndex < questions.size - 1) activeQuestionIndex = qIndex + 1 },
+                            onPrev = { if (qIndex > 0) activeQuestionIndex = qIndex - 1 }
+                        )
+                    }
                 } else {
-                    items(questions) { q ->
-                        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    itemsIndexed(questions) { index, q ->
+                        AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { activeQuestionIndex = index }) {
                             Column {
                                 Text(q.question_text, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                 Spacer(Modifier.height(8.dp))
@@ -134,6 +159,97 @@ fun QBankScreen() {
                     }
                 }
                 item { Spacer(Modifier.height(16.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuestionDetailView(
+    question: QBankQuestion,
+    index: Int,
+    total: Int,
+    userAnswer: String,
+    onAnswerChange: (String) -> Unit,
+    showCorrect: Boolean,
+    onShowCorrect: () -> Unit,
+    onNext: () -> Unit,
+    onPrev: () -> Unit
+) {
+    val colors = AmazeTheme.colors
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text("Question ${index + 1} of $total", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+            Spacer(Modifier.height(8.dp))
+            Text(question.question_text, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Spacer(Modifier.height(16.dp))
+            
+            if (!question.options.isNullOrEmpty()) {
+                question.options.forEach { (key, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(8.dp)).background(colors.surface).clickable { onAnswerChange(key) }.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(
+                            selected = userAnswer == key,
+                            onClick = null,
+                            colors = RadioButtonDefaults.colors(selectedColor = colors.accent, unselectedColor = colors.textMuted)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(value, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                    }
+                }
+            } else {
+                OutlinedTextField(
+                    value = userAnswer,
+                    onValueChange = onAnswerChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("Type your answer here...", color = colors.textMuted) },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.accent,
+                        unfocusedBorderColor = colors.border,
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary
+                    )
+                )
+            }
+            
+            Spacer(Modifier.height(24.dp))
+            
+            if (showCorrect) {
+                val isCorrect = userAnswer.trim().equals(question.correct_answer?.trim() ?: "", ignoreCase = true)
+                Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (isCorrect) colors.success.copy(alpha=0.1f) else colors.danger.copy(alpha=0.1f)).padding(12.dp)) {
+                    Text(if (isCorrect) "Correct!" else "Incorrect", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = if (isCorrect) colors.success else colors.danger))
+                    Spacer(Modifier.height(8.dp))
+                    Text("Correct Answer: ${question.correct_answer ?: "Not provided"}", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                }
+            } else {
+                Button(
+                    onClick = onShowCorrect,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
+                ) {
+                    Text("Check Answer", color = colors.background)
+                }
+            }
+            
+            Spacer(Modifier.height(24.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Button(
+                    onClick = onPrev,
+                    enabled = index > 0,
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.surface, contentColor = colors.textPrimary, disabledContainerColor = colors.surface.copy(alpha=0.5f))
+                ) {
+                    Text("Previous")
+                }
+                Button(
+                    onClick = onNext,
+                    enabled = index < total - 1,
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.surface, contentColor = colors.textPrimary, disabledContainerColor = colors.surface.copy(alpha=0.5f))
+                ) {
+                    Text("Next")
+                }
             }
         }
     }

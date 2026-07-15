@@ -188,7 +188,7 @@ fun MoreScreen() {
                             suffix = { Text("%", style = AmazeTheme.typography.caption.copy(color = colors.textMuted)) }
                         )
                     }
-                    ClickableRow(title = "App Settings", icon = Icons.Rounded.Settings, onClick = { /* TODO: Settings screen */ })
+                    ClickableRow(title = "App Settings", icon = Icons.Rounded.Settings, onClick = { AppState.navigateTo(Screen.SETTINGS) })
                     ClickableRow(title = "Activity Tree", icon = Icons.Rounded.GridView, onClick = { AppState.navigateTo(Screen.ACTIVITY_TREE) })
                     ClickableRow(title = "About AmazeCC", icon = Icons.Rounded.Info, onClick = { AppState.navigateTo(Screen.ABOUT) })
                     ClickableRow(title = "Fresher's Welcome", icon = Icons.Rounded.Star, onClick = { AppState.navigateTo(Screen.FRESHER_WELCOME) })
