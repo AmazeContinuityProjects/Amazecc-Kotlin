@@ -35,7 +35,10 @@ import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.utils.IcsUtils
 import com.amazecc.app.shared.utils.ShareIcsButton
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.toLocalDateTime
 
 data class ConsolidatedEvent(
@@ -46,7 +49,7 @@ data class ConsolidatedEvent(
 )
 
 @Composable
-fun CalendarScreen(onBack: () -> Unit) {
+fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
     val colors = AmazeTheme.colors
     val moodleData by AppState.moodleData.collectAsState()
     val examData by AppState.examSchedule.collectAsState()
@@ -72,8 +75,8 @@ fun CalendarScreen(onBack: () -> Unit) {
             } else {
                 errorMsg = res.message ?: "No calendars available"
             }
-        } catch (e: Exception) {
-            errorMsg = e.message ?: "Network error"
+        } catch (_: Exception) {
+            errorMsg = "Network error"
         }
         loading = false
     }
@@ -138,7 +141,7 @@ fun CalendarScreen(onBack: () -> Unit) {
                 val type = if (ev.type.isNotBlank()) ev.type else "Event"
                 val col = try { 
                     ev.color?.let { Color(it.removePrefix("#").toLong(16) or 0xFF000000) } 
-                } catch (e: Exception) { null } ?: (if (ev.text.contains("Holiday", true)) Color.Red else colors.accent)
+                } catch (_: Exception) { null } ?: (if (ev.text.contains("Holiday", true)) Color.Red else colors.accent)
                 
                 list.add(ConsolidatedEvent(ev.text, type, ev.category ?: "", col))
             }
@@ -322,23 +325,36 @@ fun CalendarScreen(onBack: () -> Unit) {
                         Spacer(modifier = Modifier.height(8.dp))
 
                         val daysInMonth = activeMonth?.days?.maxOfOrNull { it.date } ?: 31
+                        val monthParts = activeMonth?.month?.split(" ") ?: emptyList()
+                        val monthNumber = when (monthParts.firstOrNull()?.lowercase()?.take(3)) {
+                            "jan" -> 1; "feb" -> 2; "mar" -> 3; "apr" -> 4
+                            "may" -> 5; "jun" -> 6; "jul" -> 7; "aug" -> 8
+                            "sep" -> 9; "oct" -> 10; "nov" -> 11; "dec" -> 12
+                            else -> 1
+                        }
+                        val gridYearNum = monthParts.lastOrNull()?.toIntOrNull() ?: now.year
+                        val startCol = if (gridYearNum > 0)
+                            LocalDate(gridYearNum, monthNumber, 1).dayOfWeek.isoDayNumber % 7
+                        else 0
                         var currentDay = 1
-                        for (row in 0..4) {
+                        val totalRows = (daysInMonth + startCol + 6) / 7
+                        for (row in 0 until totalRows) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 for (col in 0..6) {
-                                    if (currentDay <= daysInMonth) {
-                                        val dayEvents = activeMonthEvents[currentDay] ?: emptyList()
-                                        val d = currentDay
+                                    val dayNumber = if (row == 0 && col < startCol) 0 else currentDay
+                                    if (dayNumber in 1..daysInMonth) {
+                                        val dayEvents = activeMonthEvents[dayNumber] ?: emptyList()
+                                        val d = dayNumber
                                         Box(
                                             modifier = Modifier
                                                 .weight(1f).aspectRatio(1f).padding(2.dp)
                                                 .clip(RoundedCornerShape(8.dp))
-                                                .background(if (selectedDay == currentDay) colors.accent.copy(alpha = 0.2f) else colors.surface)
+                                                .background(if (selectedDay == dayNumber) colors.accent.copy(alpha = 0.2f) else colors.surface)
                                                 .clickable { selectedDay = d },
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Text(currentDay.toString(), color = colors.textPrimary, fontWeight = if (dayEvents.isNotEmpty()) FontWeight.Bold else FontWeight.Normal)
+                                                Text(dayNumber.toString(), color = colors.textPrimary, fontWeight = if (dayEvents.isNotEmpty()) FontWeight.Bold else FontWeight.Normal)
                                                 if (dayEvents.isNotEmpty()) {
                                                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.padding(top = 2.dp)) {
                                                         dayEvents.take(3).forEach { ev -> Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(ev.color)) }
@@ -346,7 +362,7 @@ fun CalendarScreen(onBack: () -> Unit) {
                                                 }
                                             }
                                         }
-                                        currentDay++
+                                        if (row > 0 || col >= startCol) currentDay++
                                     } else {
                                         Spacer(modifier = Modifier.weight(1f).aspectRatio(1f).padding(2.dp))
                                     }

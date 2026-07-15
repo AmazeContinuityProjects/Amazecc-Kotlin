@@ -24,8 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
-import com.amazecc.app.shared.model.CalendarDay
-import com.amazecc.app.shared.model.CalendarEvent
 import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.model.ExamItem
 import com.amazecc.app.shared.model.ExamScheduleRes
@@ -39,8 +37,11 @@ import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.utils.SlotInfo
 import com.amazecc.app.shared.utils.TimeMath
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+
 
 @Composable
 fun AttendanceScreen() {
@@ -275,7 +276,7 @@ fun OverallPredictorScreen() {
         }
 
         val totalWorkingDays = allWorkingDays.size
-        val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         val todayVal = today.year * 10000 + today.monthNumber * 100 + today.dayOfMonth
         val remainingDays = allWorkingDays.count { (y, m, d) ->
             val dateVal = y * 10000 + m * 100 + d
@@ -537,8 +538,6 @@ private fun computeImportantDates(months: List<CalendarMonth>, examSchedule: Map
     return imp
 }
 
-private fun parseDate(date: SimpleDate): SimpleDate? = date
-
 private fun buildWorkingDays(months: List<CalendarMonth>): List<Triple<Int, Int, Int>> {
     val monthIndex = mapOf(
         "jan" to 1, "feb" to 2, "mar" to 3, "apr" to 4, "may" to 5, "jun" to 6,
@@ -576,18 +575,18 @@ private fun computeFutureClasses(
 ): Map<String, FutureClassInfo> {
     fun dayOfWeekToAbbr(y: Int, m: Int, d: Int): String? {
         return try {
-            val day = kotlinx.datetime.LocalDate(y, m, d).dayOfWeek
+            val day = LocalDate(y, m, d).dayOfWeek
             when (day) {
-                kotlinx.datetime.DayOfWeek.SUNDAY -> "SUN"
-                kotlinx.datetime.DayOfWeek.MONDAY -> "MON"
-                kotlinx.datetime.DayOfWeek.TUESDAY -> "TUE"
-                kotlinx.datetime.DayOfWeek.WEDNESDAY -> "WED"
-                kotlinx.datetime.DayOfWeek.THURSDAY -> "THU"
-                kotlinx.datetime.DayOfWeek.FRIDAY -> "FRI"
-                kotlinx.datetime.DayOfWeek.SATURDAY -> "SAT"
+                DayOfWeek.SUNDAY -> "SUN"
+                DayOfWeek.MONDAY -> "MON"
+                DayOfWeek.TUESDAY -> "TUE"
+                DayOfWeek.WEDNESDAY -> "WED"
+                DayOfWeek.THURSDAY -> "THU"
+                DayOfWeek.FRIDAY -> "FRI"
+                DayOfWeek.SATURDAY -> "SAT"
                 else -> null
             }
-        } catch (e: Exception) { null }
+        } catch (_: Exception) { null }
     }
 
     fun dayAbbrToName(abbr: String): String = when (abbr) {
@@ -608,7 +607,7 @@ private fun computeFutureClasses(
         val courseDayAbbrs = courseDays.map { it.name }
 
         val futureDates = mutableListOf<FutureDate>()
-        val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         val todayVal = today.year * 10000 + today.monthNumber * 100 + today.dayOfMonth
         for ((y, m, d) in allWorkingDays) {
             val dateVal = y * 10000 + m * 100 + d

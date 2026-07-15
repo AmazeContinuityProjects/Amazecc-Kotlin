@@ -1,4 +1,4 @@
-﻿@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
+@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens.events
 
 import androidx.compose.foundation.background
@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,7 +31,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
@@ -587,7 +587,7 @@ private fun ClubsTab() {
     val clubsRes by AppState.clubs.collectAsState()
     val clubs = clubsRes?.clubs ?: emptyList()
     var enrolledClubs by remember { mutableStateOf(setOf<String>()) }
-    var expandedClubId by remember { mutableStateOf<String?>(null) }
+    var selectedClub by remember { mutableStateOf<ClubItem?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -615,28 +615,107 @@ private fun ClubsTab() {
                         FeaturedClubCard(
                             club = featured,
                             isEnrolled = featured.id in enrolledClubs,
-                            onEnroll = {
-                                featured.id?.let { id ->
-                                    enrolledClubs = if (id in enrolledClubs) enrolledClubs - id else enrolledClubs + id
-                                }
-                            }
+                            onClick = { selectedClub = featured }
                         )
                     }
                 }
                 items(clubs) { club ->
                     val isEnrolled = club.id in enrolledClubs
-                    val isExpanded = expandedClubId == club.id
                     ClubCard(
                         club = club,
                         isEnrolled = isEnrolled,
-                        isExpanded = isExpanded,
-                        onEnroll = {
-                            club.id?.let { id ->
-                                enrolledClubs = if (id in enrolledClubs) enrolledClubs - id else enrolledClubs + id
-                            }
-                        },
-                        onToggleExpand = { expandedClubId = if (isExpanded) null else club.id }
+                        onClick = { selectedClub = club }
                     )
+                }
+            }
+        }
+
+        selectedClub?.let { club ->
+            ClubDetailsModal(
+                club = club,
+                isEnrolled = club.id in enrolledClubs,
+                onDismiss = { selectedClub = null },
+                onEnrollToggle = {
+                    club.id?.let { id ->
+                        enrolledClubs = if (id in enrolledClubs) enrolledClubs - id else enrolledClubs + id
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun ClubDetailsModal(club: ClubItem, isEnrolled: Boolean, onDismiss: () -> Unit, onEnrollToggle: () -> Unit) {
+    val colors = AmazeTheme.colors
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f))
+            .clickable(onClick = onDismiss),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.9f)
+                .fillMaxHeight(0.85f)
+                .clip(RoundedCornerShape(24.dp))
+                .background(colors.surface)
+                .clickable { /* prevent dismiss */ }
+                .padding(24.dp)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                    Box(
+                        modifier = Modifier.size(80.dp).clip(RoundedCornerShape(20.dp)).background(colors.accent.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!club.logoUrl.isNullOrEmpty()) {
+                            KamelImage(
+                                resource = asyncPainterResource(data = club.logoUrl),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize(),
+                                onLoading = { CircularProgressIndicator(modifier = Modifier.size(24.dp), color = colors.accent) },
+                                onFailure = {
+                                    Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent))
+                                }
+                            )
+                        } else {
+                            Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent))
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Rounded.Close, null, tint = colors.textSecondary)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(club.name ?: "Unnamed Club", style = AmazeTheme.typography.heading.copy(color = colors.textPrimary))
+                Spacer(modifier = Modifier.height(16.dp))
+                
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    item {
+                        Text(
+                            text = club.description ?: "No description provided.",
+                            style = AmazeTheme.typography.body.copy(color = colors.textSecondary, lineHeight = 24.sp)
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onEnrollToggle,
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isEnrolled) colors.border else colors.accent,
+                        contentColor = if (isEnrolled) colors.textSecondary else Color.White
+                    )
+                ) {
+                    Icon(if (isEnrolled) Icons.Rounded.CheckCircle else Icons.Rounded.Add, null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (isEnrolled) "Enrolled" else "Enroll in Club", style = AmazeTheme.typography.subheading)
                 }
             }
         }
@@ -644,7 +723,7 @@ private fun ClubsTab() {
 }
 
 @Composable
-private fun FeaturedClubCard(club: ClubItem, isEnrolled: Boolean, onEnroll: () -> Unit) {
+private fun FeaturedClubCard(club: ClubItem, isEnrolled: Boolean, onClick: () -> Unit) {
     val colors = AmazeTheme.colors
     Box(
         modifier = Modifier
@@ -652,6 +731,7 @@ private fun FeaturedClubCard(club: ClubItem, isEnrolled: Boolean, onEnroll: () -
             .clip(RoundedCornerShape(20.dp))
             .background(colors.accent.copy(alpha = 0.1f))
             .border(1.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
             .padding(20.dp)
     ) {
         Column {
@@ -665,13 +745,21 @@ private fun FeaturedClubCard(club: ClubItem, isEnrolled: Boolean, onEnroll: () -
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(colors.accent),
+                        .background(colors.accent.copy(alpha=0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        club.name?.firstOrNull()?.uppercase() ?: "C",
-                        style = AmazeTheme.typography.body.copy(color = Color.White, fontWeight = FontWeight.Bold)
-                    )
+                    if (!club.logoUrl.isNullOrEmpty()) {
+                        KamelImage(
+                            resource = asyncPainterResource(data = club.logoUrl),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            onFailure = {
+                                Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                            }
+                        )
+                    } else {
+                        Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(10.dp))
@@ -683,36 +771,12 @@ private fun FeaturedClubCard(club: ClubItem, isEnrolled: Boolean, onEnroll: () -
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(club.description, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 13.sp), maxLines = 2)
             }
-            Spacer(modifier = Modifier.height(14.dp))
-            if (isEnrolled) {
-                Button(
-                    onClick = onEnroll,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.border),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Rounded.CheckCircle, null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Enrolled", fontWeight = FontWeight.Bold)
-                }
-            } else {
-                Button(
-                    onClick = onEnroll,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                ) {
-                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Enroll", fontWeight = FontWeight.Bold)
-                }
-            }
         }
     }
 }
 
 @Composable
-private fun ClubCard(club: ClubItem, isEnrolled: Boolean, isExpanded: Boolean, onEnroll: () -> Unit, onToggleExpand: () -> Unit) {
+private fun ClubCard(club: ClubItem, isEnrolled: Boolean, onClick: () -> Unit) {
     val colors = AmazeTheme.colors
     Box(
         modifier = Modifier
@@ -720,70 +784,44 @@ private fun ClubCard(club: ClubItem, isEnrolled: Boolean, isExpanded: Boolean, o
             .clip(RoundedCornerShape(18.dp))
             .background(colors.surface)
             .border(1.dp, colors.border, RoundedCornerShape(18.dp))
-            .clickable(onClick = onToggleExpand)
+            .clickable(onClick = onClick)
             .padding(16.dp)
     ) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(colors.accent.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        club.name?.firstOrNull()?.uppercase() ?: "C",
-                        style = AmazeTheme.typography.subheading.copy(color = colors.accent, fontWeight = FontWeight.Bold)
+                if (!club.logoUrl.isNullOrEmpty()) {
+                    KamelImage(
+                        resource = asyncPainterResource(data = club.logoUrl),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                        onFailure = {
+                            Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.subheading.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                        }
                     )
+                } else {
+                    Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.subheading.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                 }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(club.name ?: "Unnamed Club", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    if (!club.description.isNullOrEmpty()) {
-                        Text(club.description, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = if (isExpanded) Int.MAX_VALUE else 1)
-                    }
-                }
-                if (isEnrolled) {
-                    Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
-                }
-                Icon(
-                    if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    null,
-                    tint = colors.textMuted,
-                    modifier = Modifier.size(20.dp)
-                )
             }
-            if (isExpanded) {
-                Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onEnroll,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isEnrolled) colors.border else colors.accent,
-                            contentColor = if (isEnrolled) colors.textSecondary else Color.White
-                        ),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        Icon(
-                            if (isEnrolled) Icons.Rounded.CheckCircle else Icons.Rounded.Add,
-                            null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            if (isEnrolled) "Enrolled" else "Enroll",
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(club.name ?: "Unnamed Club", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1)
+                if (!club.description.isNullOrEmpty()) {
+                    Text(club.description, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1)
                 }
+            }
+            if (isEnrolled) {
+                Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
+            } else {
+                Icon(Icons.Rounded.ArrowForward, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
             }
         }
     }

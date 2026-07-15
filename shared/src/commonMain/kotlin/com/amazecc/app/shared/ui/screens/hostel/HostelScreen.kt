@@ -24,7 +24,6 @@ import com.amazecc.app.shared.ui.components.*
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun HostelScreen() {
@@ -112,18 +111,18 @@ fun HostelDetailsTab(hostelDetails: com.amazecc.app.shared.model.HostelDetails?,
                     Text("Block / Room", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     Text(
                         if (hostelDetails?.blockName.isNullOrEmpty()) "N/A" 
-                        else "${hostelDetails?.blockName} / ${hostelDetails?.roomNo}", 
+                        else "${hostelDetails.blockName} / ${hostelDetails.roomNo}", 
                         style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Gender", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                    Text(if (hostelDetails?.gender.isNullOrEmpty()) "N/A" else hostelDetails?.gender!!, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                    Text(if (hostelDetails?.gender.isNullOrEmpty()) "N/A" else hostelDetails.gender!!, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
             Text("Mess Facility", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-            Text(if (hostelDetails?.messInfo.isNullOrEmpty()) "Not Enrolled" else hostelDetails?.messInfo!!, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Text(if (hostelDetails?.messInfo.isNullOrEmpty()) "Not Enrolled" else hostelDetails.messInfo!!, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         }
     }
 

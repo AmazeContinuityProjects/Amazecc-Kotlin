@@ -35,6 +35,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.readBytes
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.toLocalDateTime
 
 data class SimpleParsedCourse(

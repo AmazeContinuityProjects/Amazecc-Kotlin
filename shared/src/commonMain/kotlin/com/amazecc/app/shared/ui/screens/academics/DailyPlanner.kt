@@ -356,8 +356,8 @@ fun TimelineRow(item: TimelineEvent) {
                 "class" -> {
                     Column {
                         val c = item.course!!
-                        val total = c.totalClasses ?: 0
-                        val attended = c.attendedClasses ?: 0
+                        val total = c.totalClasses
+                        val attended = c.attendedClasses
                         val attPct = if (total > 0) ((attended.toFloat() / total) * 100).toInt() else 0
                         val isSafe = attPct >= 75
                         

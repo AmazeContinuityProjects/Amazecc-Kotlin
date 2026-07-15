@@ -37,7 +37,6 @@ private val gradePointMap = mapOf(
 fun GPAPredictorScreen() {
     val colors = AmazeTheme.colors
     val marksRes by AppState.marks.collectAsState()
-    val allGradesRes by AppState.allGrades.collectAsState()
 
     val currentCgpa = marksRes?.cgpa?.cgpa?.toDoubleOrNull() ?: 0.0
     val creditsEarned = marksRes?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
@@ -638,33 +637,34 @@ private fun CourseTargetMode(
             val neededTheoryFatMarks = (requiredTotal - theoryInternal) / 0.4
             isPossible = neededTheoryFatMarks <= 100
             val actualNeed = neededTheoryFatMarks.coerceAtLeast(0.0)
+            val maxAchievable = theoryInternal + (100 * 0.4)
             message = if (isPossible) {
-                "You need  / 100 in Theory FAT."
+                "You need ${fmt2(actualNeed)} / 100 in Theory FAT."
             } else {
-                "Not mathematically possible. Max achievable is ."
+                "Not mathematically possible to get $targetGrade. Max achievable total marks is ${fmt2(maxAchievable)}."
             }
         } else if (courseType == "Lab") {
             val neededLabFatMarks = (requiredTotal - l) / 0.4
             isPossible = neededLabFatMarks <= 100
             val actualNeed = neededLabFatMarks.coerceAtLeast(0.0)
+            val maxAchievable = l + (100 * 0.4)
             message = if (isPossible) {
-                "You need  / 100 in Lab FAT."
+                "You need ${fmt2(actualNeed)} / 100 in Lab FAT."
             } else {
-                "Not mathematically possible. Max achievable is ."
+                "Not mathematically possible to get $targetGrade. Max achievable total marks is ${fmt2(maxAchievable)}."
             }
         } else if (courseType == "Embedded") {
             // Typical embedded weight: Theory 75%, Lab 25% or Theory 60%, Lab 40% depending on credits.
             // Let's assume generic 75% Theory, 25% Lab.
             val totalInternal = (theoryInternal * 0.75) + (l * 0.25)
-            // FAT is out of 100, wait, FAT is for Theory, maybe Lab FAT too?
-            // Usually embedded means there is no Lab FAT or Theory FAT encompasses both, let's just ask them for Theory FAT.
             val neededFat = (requiredTotal - totalInternal) / 0.4
             isPossible = neededFat <= 100
             val actualNeed = neededFat.coerceAtLeast(0.0)
+            val maxAchievable = totalInternal + (100 * 0.4)
             message = if (isPossible) {
-                "Assuming 75/25 weightage. You need  / 100 in FAT."
+                "Assuming 75/25 weightage. You need ${fmt2(actualNeed)} / 100 in FAT."
             } else {
-                "Not mathematically possible to get ."
+                "Not mathematically possible to get $targetGrade. Max achievable total marks is ${fmt2(maxAchievable)}."
             }
         }
         

@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -155,6 +156,7 @@ fun AmazeCard(
 
 // ── GLASS CARD ──
 
+@Suppress("unused")
 @Composable
 fun AmazeGlassCard(
     modifier: Modifier = Modifier,
@@ -176,6 +178,7 @@ fun AmazeGlassCard(
     )
 }
 
+@Suppress("unused")
 @Composable
 fun MetricCard(
     title: String,
@@ -202,7 +205,7 @@ fun MetricCard(
                         fontWeight = FontWeight.SemiBold
                     ),
                     maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
@@ -234,7 +237,7 @@ fun MetricCard(
                         text = caption,
                         style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
                         maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -242,7 +245,7 @@ fun MetricCard(
                 Box(
                     modifier = Modifier
                         .size(12.dp)
-                        .clip(androidx.compose.foundation.shape.CircleShape)
+                        .clip(CircleShape)
                         .background(circleColor)
                         .align(Alignment.TopEnd)
                 )
@@ -487,6 +490,7 @@ fun AmazeDropdown(
 
 // ── PAGE HEADER CONTAINER ──
 
+@Suppress("unused")
 @Composable
 fun PageHeaderContainer(
     title: String,

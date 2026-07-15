@@ -38,7 +38,7 @@ data class CourseAttendanceInfo(
 )
 
 object AttendanceTimetable {
-    val ATTENDANCE_DAYS = AttendanceDay.values().toList()
+    val ATTENDANCE_DAYS = AttendanceDay.entries.toList()
 
     fun parseAttendanceTime(timeStr: String): Int {
         val parts = timeStr.trim().split(":")

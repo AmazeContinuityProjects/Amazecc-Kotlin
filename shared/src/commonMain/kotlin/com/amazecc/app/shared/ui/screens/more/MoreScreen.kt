@@ -61,7 +61,8 @@ fun MoreScreen() {
                 Pair(Screen.QBANK, Icons.Rounded.Topic to "QBank"),
                 Pair(Screen.SOCIAL, Icons.Rounded.People to "Social"),
                 Pair(Screen.FFCS_PLANNER, Icons.Rounded.ViewTimeline to "FFCS"),
-                Pair(Screen.FREE_CLASSROOMS, Icons.Rounded.MeetingRoom to "Classes")
+                Pair(Screen.FREE_CLASSROOMS, Icons.Rounded.MeetingRoom to "Classes"),
+                Pair(Screen.MOODLE, Icons.Rounded.MenuBook to "Moodle")
             )
 
             val chunkedModules = modules.chunked(3)

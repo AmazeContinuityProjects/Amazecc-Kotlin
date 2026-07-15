@@ -43,37 +43,43 @@ fun getAmazeTypography(): AmazeTypography {
             fontFamily = displayFont,
             fontWeight = FontWeight.Black,
             fontSize = 32.sp,
-            lineHeight = 40.sp
+            lineHeight = 36.sp,
+            letterSpacing = (-0.5).sp
         ),
         heading = TextStyle(
             fontFamily = displayFont,
             fontWeight = FontWeight.Bold,
             fontSize = 24.sp,
-            lineHeight = 32.sp
+            lineHeight = 30.sp,
+            letterSpacing = (-0.3).sp
         ),
         subheading = TextStyle(
             fontFamily = bodyFont,
             fontWeight = FontWeight.SemiBold,
             fontSize = 20.sp,
-            lineHeight = 28.sp
+            lineHeight = 28.sp,
+            letterSpacing = (-0.2).sp
         ),
         body = TextStyle(
             fontFamily = bodyFont,
             fontWeight = FontWeight.Normal,
             fontSize = 16.sp,
-            lineHeight = 24.sp
+            lineHeight = 24.sp,
+            letterSpacing = 0.1.sp
         ),
         caption = TextStyle(
             fontFamily = bodyFont,
             fontWeight = FontWeight.Normal,
             fontSize = 14.sp,
-            lineHeight = 20.sp
+            lineHeight = 20.sp,
+            letterSpacing = 0.2.sp
         ),
         smallLabel = TextStyle(
             fontFamily = bodyFont,
             fontWeight = FontWeight.Medium,
             fontSize = 12.sp,
-            lineHeight = 16.sp
+            lineHeight = 16.sp,
+            letterSpacing = 0.5.sp
         )
     )
 }

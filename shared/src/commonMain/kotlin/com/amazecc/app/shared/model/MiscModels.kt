@@ -1,8 +1,10 @@
 package com.amazecc.app.shared.model
 
+import kotlinx.serialization.Contextual
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+
 
 @Serializable
 data class LoginResponse(
@@ -101,6 +103,7 @@ data class CalendarsListRes(
 @Serializable
 data class QcmTable(
     val caption: String = "",
+    @Contextual
     val rows: List<JsonElement> = emptyList()
 )
 

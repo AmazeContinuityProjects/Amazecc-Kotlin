@@ -263,8 +263,8 @@ private fun OverviewTab(
                         qcmLoading -> CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
                         qcmError != null -> Text(qcmError!!, color = colors.textMuted, fontSize = 12.sp)
                         qcmTables.isEmpty() -> Text("Tap Load to fetch QCM data", color = colors.textMuted, fontSize = 12.sp)
-                        else -> qcmTables.forEach { table ->
-                            table.rows.forEach { rowJson ->
+                        else -> for (table in qcmTables) {
+                            for (rowJson in table.rows) {
                                 val obj = rowJson.jsonObject
                                 val qcmNo = obj["qcmNo"]?.jsonPrimitive?.contentOrNull ?: obj["QCM No"]?.jsonPrimitive?.contentOrNull
                                 val action = obj["actionTaken"]?.jsonPrimitive?.contentOrNull ?: obj["Action Taken"]?.jsonPrimitive?.contentOrNull

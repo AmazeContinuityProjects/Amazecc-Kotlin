@@ -68,8 +68,8 @@ fun DashboardScreen() {
             var totalAtt = 0
             var totalCls = 0
             for (item in courses) {
-                totalAtt += item.attendedClasses ?: 0
-                totalCls += item.totalClasses ?: 0
+                    totalAtt += item.attendedClasses
+                    totalCls += item.totalClasses
             }
             if (totalCls == 0) 0f else (totalAtt.toFloat() / totalCls.toFloat()) * 100f
         }
@@ -183,8 +183,8 @@ fun DashboardScreen() {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                item { GlassMetricCard("CGPA", cgpa.toString(), Icons.Rounded.Star, colors) }
-                item { GlassMetricCard("Credits", credits.toString(), Icons.Rounded.Info, colors) }
+                item { GlassMetricCard("CGPA", cgpa, Icons.Rounded.Star, colors) }
+                item { GlassMetricCard("Credits", credits, Icons.Rounded.Info, colors) }
                 item { GlassMetricCard("ODs", "0", Icons.Rounded.CheckCircle, colors) }
             }
 

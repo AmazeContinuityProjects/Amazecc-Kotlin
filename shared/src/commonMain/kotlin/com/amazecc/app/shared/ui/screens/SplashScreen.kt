@@ -23,7 +23,7 @@ fun SplashScreen() {
     val colors = AmazeTheme.colors
 
     LaunchedEffect(Unit) {
-        delay(1500)
+        delay(1500L)
         AppState.navigateTo(Screen.LOGIN)
     }
 

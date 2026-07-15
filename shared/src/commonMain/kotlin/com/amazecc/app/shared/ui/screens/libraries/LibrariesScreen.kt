@@ -7,11 +7,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,7 +30,6 @@ import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.BookItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import kotlinx.coroutines.launch
 
 @Composable
@@ -96,7 +94,7 @@ fun LibrariesScreen() {
                             .background(Color.White.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.LibraryBooks, null, tint = Color.White, modifier = Modifier.size(26.dp))
+                        Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null, tint = Color.White, modifier = Modifier.size(26.dp))
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column {
@@ -189,7 +187,7 @@ private fun LibraryLoginDialog(
                         .background(colors.accent.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Rounded.LibraryBooks, null, tint = colors.accent, modifier = Modifier.size(32.dp))
+                    Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null, tint = colors.accent, modifier = Modifier.size(32.dp))
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -302,7 +300,7 @@ private fun IssuedBooksTab(
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Rounded.LibraryBooks, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
+                Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     "Library Login Required",
@@ -320,7 +318,7 @@ private fun IssuedBooksTab(
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
                 ) {
-                    Icon(Icons.Rounded.Login, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Rounded.Login, null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Sign In", fontWeight = FontWeight.Bold)
                 }
@@ -518,7 +516,7 @@ private fun CatalogSearchTab() {
                             errorMessage = null
                             try {
                                 val res = AmazeClient.searchLibrary(searchQuery)
-                                searchResults = res.searchResults ?: emptyList()
+                                searchResults = res.searchResults
                                 if (res.error != null) errorMessage = res.error
                             } catch (e: Exception) {
                                 errorMessage = e.message ?: "Search failed"
@@ -611,7 +609,7 @@ private fun CatalogSearchTab() {
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.MenuBook, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                        Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                         Spacer(modifier = Modifier.height(12.dp))
                         Text("Search the library catalog", style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
                         Text("Find books by title, author, or ISBN", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
@@ -650,7 +648,7 @@ private fun SearchResultCard(book: BookItem, colors: com.amazecc.app.shared.them
                     .background(colors.accent.copy(alpha = 0.08f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.MenuBook, null, tint = colors.accent, modifier = Modifier.size(24.dp))
+                Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.accent, modifier = Modifier.size(24.dp))
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {

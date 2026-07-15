@@ -114,6 +114,7 @@ object AmazeClient {
         }
     }
 
+    @Suppress("unused")
     suspend fun getAttendance(semesterId: String? = null): AttendanceRes {
         return getAcademicData(semesterId).attendance
     }
@@ -1020,6 +1021,7 @@ object AmazeClient {
         }
     }
 
+    @Suppress("unused")
     suspend fun getProfileImages(): ProfileImagesRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return ProfileImagesRes(success = true)
@@ -1179,6 +1181,7 @@ object AmazeClient {
         return postAuthorized<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
     }
 
+    @Suppress("unused")
     suspend fun getVitol(): VitolRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return VitolRes(
@@ -1388,17 +1391,19 @@ object AmazeClient {
         }
         return postAuthorized<ArrearResponse>("additional-learning") ?: ArrearResponse(success = false, message = "Empty response")
     }
-}
+
+    @Suppress("unused")
     suspend fun getFFCSReport(): ByteArray? {
         return try {
             val response: HttpResponse = httpClient.get("https://amazecc.vit.ac.in/ffcs/ffcsReport.csv")
             if (response.status == HttpStatusCode.OK) {
                 response.readBytes()
             } else null
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
+}
 
 
 

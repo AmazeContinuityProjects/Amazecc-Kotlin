@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -19,7 +18,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
@@ -200,9 +198,8 @@ fun CourseAttendanceScreen() {
 
         when (activeTab) {
             "Predictor" -> {
-                PredictorTab(
-                    course = course,
-                    mode = mode,
+            PredictorTab(
+                mode = mode,
                     onModeChange = { mode = it },
                     futureDates = futureClassDates,
                     skipDates = skipDates,
@@ -243,7 +240,6 @@ private fun projectedColor(pct: Double): Color = when {
 
 @Composable
 private fun PredictorTab(
-    course: AttendanceItem,
     mode: String,
     onModeChange: (String) -> Unit,
     futureDates: List<Triple<Int, Int, Int>>,
@@ -307,7 +303,7 @@ private fun PredictorTab(
                             kotlinx.datetime.DayOfWeek.SATURDAY -> "Sat"
                             else -> "?"
                         }
-                    } catch (e: Exception) { "?" }
+                    } catch (_: Exception) { "?" }
 
                     Box(
                         modifier = Modifier
@@ -408,7 +404,7 @@ private fun LogTab(
                 val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                 Pair(date, status)
             } ?: emptyList()
-        } catch (e: Exception) { emptyList() }
+        } catch (_: Exception) { emptyList() }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -492,8 +488,6 @@ private fun NotesTab(
     courseCode: String,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    // In-memory notes per course
-    val notesKey = "attendance_notes_$courseCode"
     val saved = remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {

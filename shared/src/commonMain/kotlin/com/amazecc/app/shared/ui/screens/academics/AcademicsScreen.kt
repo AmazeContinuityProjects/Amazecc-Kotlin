@@ -53,7 +53,6 @@ fun AcademicsScreen() {
 
     val courses = marksRes?.marks ?: emptyList()
     val gpaRecords = allGradesRes?.grades ?: emptyMap()
-    val timetableCourses = timetableRes?.courseInfo ?: emptyList()
     val attendanceCourses = attendanceRes?.attendance ?: emptyList()
     val months = calendarRes?.months ?: emptyList()
 
