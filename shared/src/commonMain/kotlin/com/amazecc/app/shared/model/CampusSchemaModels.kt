@@ -12,5 +12,6 @@ data class CampusSchema(
 data class TimetablePeriod(
     val start: String,
     val end: String,
-    val days: Map<String, String> = emptyMap()
+    val days: Map<String, String> = emptyMap(),
+    val lunch: Boolean? = null
 )

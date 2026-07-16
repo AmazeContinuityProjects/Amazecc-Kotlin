@@ -1,6 +1,8 @@
 @file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,52 +21,68 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.components.AmazeCard
-import com.amazecc.app.shared.ui.components.AmazeBadge
-import com.amazecc.app.shared.ui.components.BadgeVariant
 import com.amazecc.app.shared.ui.components.CommandPalette
-import com.amazecc.app.shared.config.SlotMap
-import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.utils.SlotInfo
+import kotlinx.coroutines.delay
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun DashboardScreen() {
     val colors = AmazeTheme.colors
     val authorizedID by SessionManager.authorizedID.collectAsState()
-    
+    val profile by AppState.studentProfile.collectAsState()
+
     val attendanceRes by AppState.attendance.collectAsState()
     val marksRes by AppState.marks.collectAsState()
-    val syncStatus by AppState.syncStatus.collectAsState()
-    
-    val overallAttendance = remember(attendanceRes) {
-        val list = attendanceRes?.attendance ?: emptyList()
-        if (list.isEmpty()) 0f
+    val allSemesterAttendance by AppState.allSemesterAttendance.collectAsState()
+
+    val courses = attendanceRes?.attendance ?: emptyList()
+    val allCourses = remember(allSemesterAttendance, courses) {
+        val semesterCourses = allSemesterAttendance.values
+            .filterNotNull()
+            .flatMap { it.attendance.orEmpty() }
+        courses + semesterCourses
+    }
+
+    val overallAttendance = remember(courses) {
+        if (courses.isEmpty()) 0f
         else {
             var totalAtt = 0
             var totalCls = 0
-            for (item in list) {
-                totalAtt += item.attendedClasses ?: 0
-                totalCls += item.totalClasses ?: 0
+            for (item in courses) {
+                    totalAtt += item.attendedClasses
+                    totalCls += item.totalClasses
             }
             if (totalCls == 0) 0f else (totalAtt.toFloat() / totalCls.toFloat()) * 100f
         }
     }
-    
+
     val cgpa = marksRes?.cgpa?.cgpa ?: "—"
     val credits = marksRes?.cgpa?.creditsEarned ?: "—"
-    
-    val courses = attendanceRes?.attendance ?: emptyList()
+
+    val avatarText = (profile?.name ?: authorizedID ?: "U").take(2).uppercase()
+    val greeting = remember {
+        "Good ${getGreeting()}${if (profile?.name != null) ", ${profile!!.name.split(" ").first()}" else ""}"
+    }
+
     var showCommandPalette by remember { mutableStateOf(false) }
 
     Column(
@@ -72,122 +90,143 @@ fun DashboardScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        // Space at top
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        // Custom Header
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(colors.accent.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = (authorizedID ?: "U").take(2).uppercase(),
-                    color = colors.accent,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Good Evening,", // Placeholder for dynamic greeting
-                    style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
-                )
-                Text(
-                    text = authorizedID ?: "User",
-                    style = AmazeTheme.typography.subheading.copy(
-                        color = colors.textPrimary,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
-            }
-            IconButton(
-                onClick = { /* Refresh logic */ },
-                modifier = Modifier
-                    .size(40.dp)
-                    .background(colors.surface, CircleShape)
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Refresh,
-                    contentDescription = "Refresh",
-                    tint = colors.textPrimary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
-            
-            // Spotlight Search
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(colors.surface)
-                    .clickable { showCommandPalette = true }
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Search,
-                    contentDescription = "Search",
-                    tint = colors.textMuted,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Spotlight Search (Cmd + K)",
-                    style = AmazeTheme.typography.body.copy(color = colors.textMuted)
-                )
-            }
-
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Quick Insights Dock (Short Cards)
+            // ── Profile Header ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.sweepGradient(
+                                listOf(colors.accent, colors.accent.copy(alpha = 0.6f), Color.White.copy(alpha = 0.3f), colors.accent)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = avatarText,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                }
+                Spacer(modifier = Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = greeting,
+                        style = AmazeTheme.typography.body.copy(
+                            color = colors.textSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                    Text(
+                        text = profile?.regNo ?: authorizedID ?: "Student",
+                        style = AmazeTheme.typography.subheading.copy(
+                            color = colors.textPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+                IconButton(
+                    onClick = { AppState.loadAllData() },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.surface)
+                        .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+                ) {
+                    val isSyncing by AppState.isLoading.collectAsState()
+                    if (isSyncing) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = colors.accent, strokeWidth = 2.dp)
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.Sync,
+                            contentDescription = "Sync All Data",
+                            tint = colors.textPrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(
+                    onClick = { showCommandPalette = true },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(colors.surface)
+                        .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = "Search",
+                        tint = colors.textSecondary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ── Metric Cards Row ──
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                item { InsightCard("CGPA", cgpa, Icons.Rounded.Star) }
-                item { InsightCard("Credits", credits.toString(), Icons.Rounded.Info) }
-                item { InsightCard("ODs", "0 Approved", Icons.Rounded.CheckCircle) }
+                item { GlassMetricCard("CGPA", cgpa, Icons.Rounded.Star, colors) }
+                item { GlassMetricCard("Credits", credits, Icons.Rounded.Info, colors) }
+                item { GlassMetricCard("ODs", "0", Icons.Rounded.CheckCircle, colors) }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Attendance Summary
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            val animatedAttendance by animateFloatAsState(
+                targetValue = overallAttendance / 100f,
+                animationSpec = tween(1500)
+            )
+
+            // ── Attendance Ring Card ──
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(colors.surface)
+                    .border(1.dp, colors.border, RoundedCornerShape(24.dp))
+                    .padding(20.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(contentAlignment = Alignment.Center, modifier = Modifier.size(80.dp)) {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier.size(88.dp)
+                    ) {
                         CircularProgressIndicator(
-                            progress = { overallAttendance / 100f },
+                            progress = { animatedAttendance },
                             modifier = Modifier.fillMaxSize(),
-                            color = if (overallAttendance >= 75f) colors.success else colors.danger,
+                            color = if (overallAttendance >= 75f) colors.success
+                            else if (overallAttendance >= 50f) colors.warning
+                            else colors.danger,
                             trackColor = colors.border,
                             strokeWidth = 8.dp
                         )
                         Text(
-                            text = "%",
+                            text = "${overallAttendance.toInt()}%",
                             style = AmazeTheme.typography.subheading.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = colors.textPrimary
+                                color = colors.textPrimary,
+                                fontSize = 16.sp
                             )
                         )
                     }
@@ -195,33 +234,46 @@ fun DashboardScreen() {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Overall Attendance",
-                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                            style = AmazeTheme.typography.body.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = colors.textPrimary
+                            )
                         )
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = if (overallAttendance >= 75f) "You're on track!" else "Critical condition!",
-                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            text = if (overallAttendance >= 75f) "You're on track!"
+                            else if (overallAttendance >= 50f) "Needs improvement!"
+                            else "Critical!",
+                            style = AmazeTheme.typography.caption.copy(
+                                color = if (overallAttendance >= 75f) colors.success
+                                else if (overallAttendance >= 50f) colors.warning
+                                else colors.danger,
+                                fontWeight = FontWeight.Bold
+                            )
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
                         Button(
-                            onClick = { AppState.navigateTo(Screen.ATTENDANCE) }, // Will change to Hub
-                            shape = RoundedCornerShape(8.dp),
+                            onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
+                            shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                            modifier = Modifier.height(32.dp)
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                            modifier = Modifier.height(36.dp)
                         ) {
-                            Text("Predict Attendance", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Predict", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Today's Classes
-            val todayClasses = remember(courses) {
-                val slotMapTyped = SlotMap.map.mapValues { (_, inner) ->
+            // ── Today's Classes ──
+            val slotMapTyped = remember {
+                SlotMap.map.mapValues { (_, inner) ->
                     inner.mapValues { (_, time) -> SlotInfo(time) }
                 }
+            }
+            val todayClasses = remember(courses) {
                 AttendanceTimetable.getTodayAttendanceClasses(
                     attendance = courses.map { item ->
                         mapOf(
@@ -229,7 +281,7 @@ fun DashboardScreen() {
                             "courseTitle" to item.courseTitle,
                             "courseType" to item.courseType,
                             "faculty" to item.faculty,
-                            "slotName" to (item.slotVenue?.split("\\s+".toRegex())?.firstOrNull() ?: item.slotName),
+                            "slotName" to (item.slotName ?: ""),
                             "attendancePercentage" to item.attendancePercentage
                         )
                     },
@@ -237,45 +289,210 @@ fun DashboardScreen() {
                 )
             }
 
-            Text(
-                text = "Today's Classes (${todayClasses.size})",
-                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-            )
+            var tick by remember { mutableStateOf(0) }
+            LaunchedEffect(Unit) {
+                while (true) {
+                    delay(60_000)
+                    tick++
+                }
+            }
+
+            val currentClass = remember(todayClasses, tick) {
+                AttendanceTimetable.findCurrentClass(todayClasses)
+            }
+            val nextClass = remember(todayClasses, tick) {
+                AttendanceTimetable.findNextClass(todayClasses)
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Today's Classes",
+                    style = AmazeTheme.typography.subheading.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary
+                    )
+                )
+                if (todayClasses.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.accent.copy(alpha = 0.12f))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            "${todayClasses.size} classes",
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = colors.accent,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                    }
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
 
             if (todayClasses.isEmpty()) {
-                AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.FreeBreakfast, null, tint = colors.textMuted, modifier = Modifier.size(32.dp))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("No classes scheduled for today!", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(colors.surface)
+                        .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.FreeBreakfast, null, tint = colors.textMuted, modifier = Modifier.size(36.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("No classes today!", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
                         Text("Enjoy your day off", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     }
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     todayClasses.forEach { cls ->
+                        val isCurrent = cls == currentClass
+                        val isNext = cls == nextClass
                         val pct = cls.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0
-                        AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(cls.courseTitle ?: "", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1)
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(cls.time, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Medium))
-                                        Text(cls.slotName ?: "", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    if (isCurrent) colors.accent.copy(alpha = 0.06f)
+                                    else colors.surface
+                                )
+                                .border(
+                                    width = if (isCurrent) 1.5.dp else 1.dp,
+                                    color = if (isCurrent) colors.accent.copy(alpha = 0.4f) else colors.border,
+                                    shape = RoundedCornerShape(16.dp)
+                                )
+                                .padding(14.dp)
+                        ) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (isCurrent) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(colors.accent.copy(alpha = 0.15f))
+                                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(
+                                                "LIVE",
+                                                style = AmazeTheme.typography.smallLabel.copy(
+                                                    color = colors.accent,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 10.sp
+                                                )
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
+                                    if (isNext) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(colors.warning.copy(alpha = 0.15f))
+                                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                        ) {
+                                            Text(
+                                                "UP NEXT",
+                                                style = AmazeTheme.typography.smallLabel.copy(
+                                                    color = colors.warning,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 10.sp
+                                                )
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    }
+                                    Text(
+                                        cls.courseTitle ?: "",
+                                        style = AmazeTheme.typography.body.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = colors.textPrimary
+                                        ),
+                                        maxLines = 1,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                     Box(
+                                        modifier = Modifier
+                                            .background(
+                                                if (pct >= 75) colors.success.copy(alpha = 0.12f)
+                                                else if (pct >= 50) colors.warning.copy(alpha = 0.12f)
+                                                else colors.danger.copy(alpha = 0.12f),
+                                                RoundedCornerShape(10.dp)
+                                            )
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            "${cls.attendancePercentage ?: "?"}",
+                                            color = if (pct >= 75) colors.success
+                                            else if (pct >= 50) colors.warning
+                                            else colors.danger,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
                                 }
-                                Box(
-                                    modifier = Modifier
-                                        .background(
-                                            if (pct >= 75) Color(0xFF10B981).copy(alpha = 0.12f)
-                                            else if (pct >= 50) Color(0xFFF59E0B).copy(alpha = 0.12f)
-                                            else Color(0xFFEF4444).copy(alpha = 0.12f),
-                                            RoundedCornerShape(8.dp)
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text("${cls.attendancePercentage ?: "?"}", color = if (pct >= 75) Color(0xFF10B981) else if (pct >= 50) Color(0xFFF59E0B) else Color(0xFFEF4444), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(4.dp)
+                                            .height(if (isCurrent) 36.dp else 32.dp)
+                                            .clip(RoundedCornerShape(2.dp))
+                                            .background(colors.accent)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(
+                                                cls.time,
+                                                style = AmazeTheme.typography.caption.copy(
+                                                    color = if (isCurrent) colors.accent else colors.textPrimary,
+                                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium
+                                                )
+                                            )
+                                            Text(
+                                                cls.slotName ?: "",
+                                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                            )
+                                        }
+                                        if (isCurrent) {
+                                            val remaining = remember(tick) {
+                                                AttendanceTimetable.remainingMinutes(cls.time)
+                                            }
+                                            val minsStr = if (remaining >= 60) "${remaining / 60}h ${remaining % 60}m" else "${remaining} min"
+                                            Text(
+                                                "$minsStr left",
+                                                style = AmazeTheme.typography.smallLabel.copy(
+                                                    color = colors.accent,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            )
+                                        }
+                                        if (isNext) {
+                                            val until = remember(tick) {
+                                                AttendanceTimetable.minutesUntil(cls.time)
+                                            }
+                                            val minsStr = if (until >= 60) "${until / 60}h ${until % 60}m" else "${until} min"
+                                            Text(
+                                                "Starts in $minsStr",
+                                                style = AmazeTheme.typography.smallLabel.copy(
+                                                    color = colors.warning,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -283,75 +500,148 @@ fun DashboardScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Course Attendance
-            Text(
-                text = "Course Attendance",
-                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-            )
+            // ── Course Attendance ──
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Course Attendance",
+                    style = AmazeTheme.typography.subheading.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary
+                    )
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(colors.surface)
+                        .border(1.dp, colors.border, RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        "${allCourses.size} courses",
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            color = colors.textSecondary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
-            if (courses.isEmpty()) {
-                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+
+            if (allCourses.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(colors.surface)
+                        .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+                        .padding(24.dp)
+                ) {
                     Text("No course data available.", color = colors.textSecondary)
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    courses.take(4).forEach { course ->
-                        CourseAttendanceRow(course)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    allCourses.take(4).forEach { course ->
+                        CourseGlassCard(course, colors)
                     }
-                    if (courses.size > 4) {
-                        TextButton(
-                            onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
-                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                    if (allCourses.size > 4) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(colors.surface)
+                                .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+                                .clickable { AppState.navigateTo(Screen.ATTENDANCE) }
+                                .padding(vertical = 14.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text("View All Courses", color = colors.accent, fontWeight = FontWeight.Bold)
+                            Text(
+                                "View All ${allCourses.size} Courses",
+                                style = AmazeTheme.typography.body.copy(
+                                    color = colors.accent,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // Quick Actions Grid
+            // ── Quick Actions ──
             Text(
                 text = "Quick Actions",
-                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                style = AmazeTheme.typography.subheading.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
             )
             Spacer(modifier = Modifier.height(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    QuickActionBtn(Modifier.weight(1f), "Predict Att.", Icons.Rounded.CheckCircle)
-                    QuickActionBtn(Modifier.weight(1f), "GPA Calc", Icons.Rounded.Star)
-                    QuickActionBtn(Modifier.weight(1f), "Apply Leave", Icons.AutoMirrored.Rounded.ExitToApp)
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    GlassActionCard(Modifier.weight(1f), "Predict Att.", Icons.Rounded.CheckCircle, colors, onClick = { AppState.navigateTo(Screen.COURSE_ATTENDANCE) })
+                    GlassActionCard(Modifier.weight(1f), "GPA Calc", Icons.Rounded.Star, colors, onClick = { AppState.navigateTo(Screen.GRADES) })
+                    GlassActionCard(Modifier.weight(1f), "Apply Leave", Icons.AutoMirrored.Rounded.ExitToApp, colors, onClick = { AppState.navigateTo(Screen.HOSTEL) })
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    QuickActionBtn(Modifier.weight(1f), "Bus Routes", Icons.Rounded.Info)
-                    QuickActionBtn(Modifier.weight(1f), "Wishlist", Icons.Rounded.Favorite)
-                    QuickActionBtn(Modifier.weight(1f), "Hostel", Icons.Rounded.Home)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    GlassActionCard(Modifier.weight(1f), "Bus Routes", Icons.Rounded.Info, colors, onClick = { AppState.navigateTo(Screen.TRANSPORT) })
+                    GlassActionCard(Modifier.weight(1f), "Wishlist", Icons.Rounded.Favorite, colors, onClick = { AppState.navigateTo(Screen.WISHLIST) })
+                    GlassActionCard(Modifier.weight(1f), "Hostel", Icons.Rounded.Home, colors, onClick = { AppState.navigateTo(Screen.HOSTEL) })
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Free Classrooms Widget
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            // ── Free Classrooms Widget ──
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(colors.surface)
+                    .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+                    .clickable { AppState.navigateTo(Screen.FREE_CLASSROOMS) }
+                    .padding(16.dp)
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier.size(40.dp).background(colors.accent.copy(alpha=0.15f), RoundedCornerShape(8.dp)),
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(colors.accent.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.MeetingRoom, contentDescription = null, tint = colors.accent)
+                        Icon(Icons.Rounded.MeetingRoom, null, tint = colors.accent, modifier = Modifier.size(24.dp))
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Find Free Classrooms", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Text("Locate an empty spot to sit and study.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        Text(
+                            "Find Free Classrooms",
+                            style = AmazeTheme.typography.body.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = colors.textPrimary
+                            )
+                        )
+                        Text(
+                            "Locate an empty spot to sit and study.",
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                        )
                     }
-                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null, tint = colors.textMuted)
+                    Icon(
+                        Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                        null,
+                        tint = colors.textMuted,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(40.dp))
         }
     }
@@ -361,95 +651,154 @@ fun DashboardScreen() {
     }
 }
 
+private fun getGreeting(): String {
+    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+    return when {
+        now.hour < 12 -> "Morning"
+        now.hour < 17 -> "Afternoon"
+        else -> "Evening"
+    }
+}
+
 @Composable
-fun InsightCard(title: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    val colors = AmazeTheme.colors
-    Row(
+private fun GlassMetricCard(title: String, value: String, icon: ImageVector, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    Box(
         modifier = Modifier
-            .background(colors.surface, RoundedCornerShape(12.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clip(RoundedCornerShape(20.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+            .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
-        Icon(icon, contentDescription = title, tint = colors.accent, modifier = Modifier.size(16.dp))
-        Spacer(modifier = Modifier.width(8.dp))
         Column {
-            Text(title, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    title,
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        color = colors.textMuted,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                value,
+                style = AmazeTheme.typography.subheading.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary,
+                    fontSize = 22.sp
+                )
+            )
         }
     }
 }
 
 @Composable
-fun CourseAttendanceRow(course: AttendanceItem) {
-    val colors = AmazeTheme.colors
-    val percentage = course.attendancePercentage?.toDoubleOrNull() ?: 0.0
-    
+private fun CourseGlassCard(
+    course: AttendanceItem,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val percentage = course.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0
     val badgeColor = when {
         percentage >= 85.0 -> colors.success
         percentage >= 75.0 -> colors.warning
         else -> colors.danger
     }
-    
     val isCritical = percentage < 75.0
 
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                if (isCritical) colors.danger.copy(alpha = 0.05f) else colors.surface, 
-                RoundedCornerShape(12.dp)
-            )
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (isCritical) colors.danger.copy(alpha = 0.05f) else colors.glassSurface)
             .border(
-                1.dp, 
-                if (isCritical) colors.danger.copy(alpha = 0.2f) else colors.border, 
-                RoundedCornerShape(12.dp)
+                1.dp,
+                if (isCritical) colors.danger.copy(alpha = 0.2f) else colors.glassBorder,
+                RoundedCornerShape(16.dp)
             )
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .clickable { AppState.openCourseAttendance(course.courseCode) }
+            .padding(16.dp)
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = course.courseTitle,
-                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "Classes: /",
-                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Box(
-            modifier = Modifier
-                .background(badgeColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                .padding(horizontal = 8.dp, vertical = 4.dp)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Text(
-                text = "%",
-                style = AmazeTheme.typography.caption.copy(color = badgeColor, fontWeight = FontWeight.Bold)
-            )
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(
+                    text = course.courseTitle,
+                    style = AmazeTheme.typography.body.copy(
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.textPrimary,
+                        fontSize = 15.sp
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Classes: ${course.attendedClasses} / ${course.totalClasses}",
+                    style = AmazeTheme.typography.caption.copy(
+                        color = colors.textSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .background(badgeColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                    .border(1.dp, badgeColor.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "${percentage.toInt()}%",
+                    style = AmazeTheme.typography.caption.copy(
+                        color = badgeColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                )
+            }
         }
     }
 }
 
 @Composable
-fun QuickActionBtn(modifier: Modifier = Modifier, title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    val colors = AmazeTheme.colors
+private fun GlassActionCard(
+    modifier: Modifier = Modifier,
+    title: String,
+    icon: ImageVector,
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    onClick: () -> Unit = {}
+) {
     Column(
         modifier = modifier
-            .background(colors.surface, RoundedCornerShape(12.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
-            .clickable { /* action */ }
-            .padding(vertical = 12.dp),
+            .clip(RoundedCornerShape(20.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(icon, contentDescription = title, tint = colors.textPrimary, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(title, style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(colors.accent.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = colors.accent, modifier = Modifier.size(22.dp))
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        Text(
+            title,
+            style = AmazeTheme.typography.caption.copy(
+                color = colors.textPrimary,
+                fontWeight = FontWeight.Medium
+            ),
+            maxLines = 1
+        )
     }
 }
-
-

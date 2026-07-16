@@ -1,5 +1,7 @@
 package com.amazecc.app.shared.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,14 +30,15 @@ fun BottomNavigationBar() {
     val pinnedTabs by AppState.pinnedNavTabs.collectAsState()
     if (currentScreen == Screen.LOGIN || currentScreen == Screen.ONBOARDING) return
 
+    val colors = AmazeTheme.colors
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .clip(RoundedCornerShape(32.dp))
-            .background(Color(0xFF0F0F12))
-            .border(1.dp, Color(0xFF262626), RoundedCornerShape(32.dp))
-            .padding(vertical = 12.dp, horizontal = 20.dp),
+            .background(colors.navBackground)
+            .border(1.dp, colors.navBorder, RoundedCornerShape(32.dp))
+            .padding(vertical = 10.dp, horizontal = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -94,15 +97,27 @@ fun BottomNavItem(
     onClick: () -> Unit
 ) {
     val colors = AmazeTheme.colors
-    val color = if (isSelected) colors.accent else colors.textMuted
+    val iconColor by animateColorAsState(
+        targetValue = if (isSelected) colors.background else colors.textMuted,
+        animationSpec = tween(200)
+    )
+    val bgColor by animateColorAsState(
+        targetValue = if (isSelected) colors.accent else Color.Transparent,
+        animationSpec = tween(200)
+    )
     
     Box(
-        modifier = Modifier.clickable(onClick = onClick).padding(8.dp)
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(bgColor)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,
             contentDescription = contentDesc,
-            tint = color,
+            tint = iconColor,
             modifier = Modifier.size(24.dp)
         )
     }

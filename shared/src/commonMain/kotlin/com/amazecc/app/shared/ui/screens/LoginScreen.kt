@@ -1,5 +1,8 @@
 package com.amazecc.app.shared.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -43,7 +46,6 @@ fun LoginScreen() {
             // Session restored from cache — load data and go to home
             username = creds.first
             password = creds.second
-            AppState.loadAllData()
             AppState.navigateTo(Screen.HOME)
         } else {
             // Try VTOP login with cached credentials
@@ -59,7 +61,6 @@ fun LoginScreen() {
                         SettingsManager.setString(SettingsManager.SESSION_CSRF, response.csrf)
                         SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
                         response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                        AppState.loadAllData()
                         AppState.navigateTo(Screen.HOME)
                     }
                     isSubmitting = false
@@ -115,23 +116,29 @@ fun LoginScreen() {
         Spacer(modifier = Modifier.height(32.dp))
 
         // Error message banner
-        if (errorMessage != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(colors.dangerSurface, shape = MaterialTheme.shapes.small)
-                    .border(1.dp, colors.danger, shape = MaterialTheme.shapes.small)
-                    .padding(12.dp)
-            ) {
-                Text(
-                    text = errorMessage ?: "",
-                    style = AmazeTheme.typography.caption.copy(
-                        color = colors.dangerText,
-                        fontWeight = FontWeight.Bold
+        AnimatedVisibility(
+            visible = errorMessage != null,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Column {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(colors.dangerSurface, shape = MaterialTheme.shapes.small)
+                        .border(1.dp, colors.danger, shape = MaterialTheme.shapes.small)
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = errorMessage ?: "",
+                        style = AmazeTheme.typography.caption.copy(
+                            color = colors.dangerText,
+                            fontWeight = FontWeight.Bold
+                        )
                     )
-                )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
-            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // Credentials
@@ -209,7 +216,6 @@ fun LoginScreen() {
                                 AmazeClient.setUseMockData(false)
                             }
                             // Load student data and transition to dashboard
-                            AppState.loadAllData()
                             AppState.navigateTo(Screen.HOME)
                         } else {
                             errorMessage = response.message.ifBlank { "Authentication failed." }
@@ -247,7 +253,6 @@ fun LoginScreen() {
                                 SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, authId)
                                 SettingsManager.saveCredentials("DEMO123", "password")
                                 AmazeClient.setUseMockData(true)
-                                AppState.loadAllData()
                                 AppState.navigateTo(Screen.HOME)
                             }
                         }

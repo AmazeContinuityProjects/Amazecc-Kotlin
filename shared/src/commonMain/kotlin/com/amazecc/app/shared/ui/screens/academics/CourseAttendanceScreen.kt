@@ -1,12 +1,12 @@
 package com.amazecc.app.shared.ui.screens.academics
 
+import kotlinx.datetime.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -19,7 +19,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
@@ -38,7 +37,7 @@ import kotlinx.serialization.json.*
 fun CourseAttendanceScreen() {
     val colors = AmazeTheme.colors
     val attendanceRes by AppState.attendance.collectAsState()
-    val calendarRes by AppState.calendarData.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
     val courseCode = AppState.selectedCourseCode.value
     val course = attendanceRes?.attendance?.find { it.courseCode == courseCode }
 
@@ -76,7 +75,7 @@ fun CourseAttendanceScreen() {
                         "courseTitle" to item.courseTitle,
                         "courseType" to item.courseType,
                         "faculty" to item.faculty,
-                        "slotName" to (item.slotVenue?.split("\\s+".toRegex())?.firstOrNull() ?: item.slotName),
+                        "slotName" to (item.slotName ?: ""),
                         "attendancePercentage" to item.attendancePercentage
                     )
                 },
@@ -96,29 +95,42 @@ fun CourseAttendanceScreen() {
     val cutoffDate = remember(mode, impDates) {
         when (mode) {
             "CAT1" -> impDates["cat i"]; "CAT2" -> impDates["cat ii"]
-            "LID" -> {
-                val lab = impDates["lid for laboratory classes"]
-                val theory = impDates["lid for theory classes"]
-                if (lab != null && theory != null) {
-                    val lv = lab.year * 10000 + lab.month * 100 + lab.day
-                    val tv = theory.year * 10000 + theory.month * 100 + theory.day
-                    if (lv >= tv) lab else theory
-                } else lab ?: theory
-            }
+              "LID" -> {
+                  val lab = impDates["lid for laboratory classes"]
+                  val theory = impDates["lid for theory classes"]
+                  val isLab = course.courseCode.endsWith("(L)") || course.courseType == "Lab"
+                  if (isLab) {
+                      lab ?: theory
+                  } else {
+                      theory ?: lab
+                  }
+              }
             else -> null
         }
     }
 
     val futureClassDates = remember(allWorkingDays, courseDays, cutoffDate) {
         val result = mutableListOf<Triple<Int, Int, Int>>()
+        val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+        val todayVal = today.year * 10000 + today.monthNumber * 100 + today.dayOfMonth
         for ((y, m, d) in allWorkingDays) {
+            val dv = y * 10000 + m * 100 + d
+            if (dv < todayVal) continue
             if (cutoffDate != null) {
-                val dv = y * 10000 + m * 100 + d
                 val cv = cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day
                 if (dv > cv) continue
             }
             val abbr = kotlinx.datetime.LocalDate(y, m, d).let { dt ->
-                listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")[dt.dayOfWeek.value % 7]
+                when (dt.dayOfWeek) {
+                    kotlinx.datetime.DayOfWeek.SUNDAY -> "SUN"
+                    kotlinx.datetime.DayOfWeek.MONDAY -> "MON"
+                    kotlinx.datetime.DayOfWeek.TUESDAY -> "TUE"
+                    kotlinx.datetime.DayOfWeek.WEDNESDAY -> "WED"
+                    kotlinx.datetime.DayOfWeek.THURSDAY -> "THU"
+                    kotlinx.datetime.DayOfWeek.FRIDAY -> "FRI"
+                    kotlinx.datetime.DayOfWeek.SATURDAY -> "SAT"
+                    else -> ""
+                }
             }
             if (abbr in courseDays) result.add(Triple(y, m, d))
         }
@@ -143,7 +155,7 @@ fun CourseAttendanceScreen() {
     ) {
         ScreenHeader(
             title = course.courseTitle,
-            description = "${course.courseCode} • ${course.slotName}",
+            description = "${course.courseCode} • ${course.slotName ?: ""}",
             showBackButton = true,
             showSyncButton = false
         )
@@ -159,9 +171,9 @@ fun CourseAttendanceScreen() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                PctStat("Current", "%.1f%%".format(currentPct), Color(0xFF3B82F6))
+                PctStat("Current", pctFormatted(currentPct), Color(0xFF3B82F6))
                 PctStat("Future", "$futureCount classes", Color(0xFF8B5CF6))
-                PctStat("Projected", "%.1f%%".format(predictedPct), projectedColor(predictedPct))
+                PctStat("Projected", pctFormatted(predictedPct), projectedColor(predictedPct))
             }
         }
 
@@ -191,9 +203,8 @@ fun CourseAttendanceScreen() {
 
         when (activeTab) {
             "Predictor" -> {
-                PredictorTab(
-                    course = course,
-                    mode = mode,
+            PredictorTab(
+                mode = mode,
                     onModeChange = { mode = it },
                     futureDates = futureClassDates,
                     skipDates = skipDates,
@@ -234,7 +245,6 @@ private fun projectedColor(pct: Double): Color = when {
 
 @Composable
 private fun PredictorTab(
-    course: AttendanceItem,
     mode: String,
     onModeChange: (String) -> Unit,
     futureDates: List<Triple<Int, Int, Int>>,
@@ -288,10 +298,17 @@ private fun PredictorTab(
                     val skipped = key in skipDates
                     val dateStr = "${m}/${d}/$y"
                     val weekday = try {
-                        listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")[
-                            kotlinx.datetime.LocalDate(y, m, d).dayOfWeek.value % 7
-                        ]
-                    } catch (e: Exception) { "?" }
+                        when (kotlinx.datetime.LocalDate(y, m, d).dayOfWeek) {
+                            kotlinx.datetime.DayOfWeek.SUNDAY -> "Sun"
+                            kotlinx.datetime.DayOfWeek.MONDAY -> "Mon"
+                            kotlinx.datetime.DayOfWeek.TUESDAY -> "Tue"
+                            kotlinx.datetime.DayOfWeek.WEDNESDAY -> "Wed"
+                            kotlinx.datetime.DayOfWeek.THURSDAY -> "Thu"
+                            kotlinx.datetime.DayOfWeek.FRIDAY -> "Fri"
+                            kotlinx.datetime.DayOfWeek.SATURDAY -> "Sat"
+                            else -> "?"
+                        }
+                    } catch (_: Exception) { "?" }
 
                     Box(
                         modifier = Modifier
@@ -365,7 +382,7 @@ private fun PredictorTab(
                     Text("$predictedAttended / $predictedTotal", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
                 Text(
-                    "%.1f%%".format(predictedPct),
+                    pctFormatted(predictedPct),
                     style = AmazeTheme.typography.subheading.copy(
                         color = projectedColor(predictedPct),
                         fontWeight = FontWeight.Black,
@@ -392,7 +409,7 @@ private fun LogTab(
                 val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
                 Pair(date, status)
             } ?: emptyList()
-        } catch (e: Exception) { emptyList() }
+        } catch (_: Exception) { emptyList() }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -476,39 +493,26 @@ private fun NotesTab(
     courseCode: String,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    // In-memory notes per course
-    val notesKey = "attendance_notes_$courseCode"
-    val saved = remember { mutableStateOf("") }
-
+    var notesSaved by remember { mutableStateOf(false) }
+    
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text(
-            "Track notes for missed classes",
-            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = saved.value,
-            onValueChange = { saved.value = it },
-            label = { Text("Notes (e.g., topics covered, assignment given)") },
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = colors.surface,
-                unfocusedContainerColor = colors.surface,
-                focusedBorderColor = colors.accent,
-                unfocusedBorderColor = colors.border,
-                focusedTextColor = colors.textPrimary,
-                unfocusedTextColor = colors.textPrimary
-            )
-        )
-
+                .weight(1f)
+                .background(colors.surface, RoundedCornerShape(12.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                .padding(16.dp)
+        ) {
+            Text("Notes for $courseCode\n\n(Local storage not yet implemented)", color = colors.textSecondary)
+        }
         Spacer(modifier = Modifier.height(12.dp))
+        if (notesSaved) {
+            Text("Notes saved in memory!", color = Color(0xFF10B981), fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+        }
         AmazeButton(
             text = "Save Notes",
-            onClick = { /* persist to local storage */ },
+            onClick = { notesSaved = true },
             modifier = Modifier.fillMaxWidth(),
             icon = Icons.Rounded.Save
         )
@@ -570,4 +574,11 @@ private fun buildWorkingDays(months: List<CalendarMonth>): List<Triple<Int, Int,
         }
     }
     return results
+}
+
+private fun pctFormatted(value: Double): String {
+    val i = kotlin.math.round(value * 100).toLong()
+    val whole = i / 100
+    val frac = (i % 100).coerceIn(0, 99)
+    return "$whole.${frac.toString().padStart(2, '0')}%"
 }

@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.api
+﻿package com.amazecc.app.shared.api
 
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
@@ -11,7 +11,15 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.Serializable
+import com.amazecc.app.shared.utils.AnalyzeCalendar
 
 @Serializable
 data class LoginRequest(val username: String, val password: String)
@@ -37,12 +45,9 @@ private data class AttendanceSyncResponse(
 )
 
 object AmazeClient {
-    private var baseUrl = "https://api.amazecc.com"
+    var baseUrl = "https://api.amazecc.com"
     private var useMockData = false // Toggle for offline testing
 
-    fun setBaseUrl(url: String) {
-        baseUrl = url
-    }
 
     fun setUseMockData(enable: Boolean) {
         useMockData = enable
@@ -109,6 +114,7 @@ object AmazeClient {
         }
     }
 
+    @Suppress("unused")
     suspend fun getAttendance(semesterId: String? = null): AttendanceRes {
         return getAcademicData(semesterId).attendance
     }
@@ -307,8 +313,30 @@ object AmazeClient {
         }
     }
 
-    suspend fun getCalendar(): CalendarRes {
+    suspend fun getCurriculum(semesterId: String? = null): CurriculumRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CurriculumRes(success = true, title = "Curriculum Overview") // return empty mock for now
+        }
+        return try {
+            val params = mutableMapOf<String, String>()
+            if (semesterId != null) params["semesterId"] = semesterId
+            postAuthorized<CurriculumRes>("curriculum", params) ?: CurriculumRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CurriculumRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getCalendar(type: String = "ALL", semesterId: String? = null): CalendarRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            val extraMonths = if (type != "ALL") listOf(
+                CalendarMonth(
+                    month = "August 2026",
+                    days = listOf(
+                        CalendarDay(5, listOf(CalendarEvent("Instructional Day", "Type: $type"))),
+                        CalendarDay(15, listOf(CalendarEvent("Holiday", "Independence Day", "#ef4444")))
+                    )
+                )
+            ) else emptyList()
             return CalendarRes(
                 success = true,
                 months = listOf(
@@ -320,13 +348,139 @@ object AmazeClient {
                             CalendarDay(20, listOf(CalendarEvent("Other", "Course Registration starts")))
                         )
                     )
-                )
+                ) + extraMonths
             )
         }
         return try {
-            postAuthorized<CalendarRes>("calendar", mapOf("type" to "ALL")) ?: CalendarRes(success = false, message = "Empty response")
+            val params = mutableMapOf("type" to type)
+            if (semesterId != null) params["semesterId"] = semesterId
+            val rawJson = postAuthorized<JsonElement>("calendar", params)
+            if (rawJson != null) {
+                val analysis = AnalyzeCalendar.analyzeAllCalendars(rawJson)
+                if (analysis.results.isNotEmpty()) {
+                    val months = analysis.results.map { res ->
+                        CalendarMonth(
+                            month = "${res.month} ${res.year}",
+                            days = res.days.map { day ->
+                                CalendarDay(
+                                    date = day.date,
+                                    events = day.events.mapNotNull { evElem ->
+                                        val ev = evElem.jsonObject
+                                        val text = ev["text"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                                        val evType = ev["type"]?.jsonPrimitive?.content ?: day.type
+                                        CalendarEvent(type = evType, text = text)
+                                    }
+                                )
+                            }
+                        )
+                    }
+                    return CalendarRes(success = true, months = months)
+                }
+            }
+            CalendarRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             CalendarRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getCalendars(semesterId: String? = null): CalendarsListRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CalendarsListRes(
+                success = true,
+                calendars = listOf(
+                    NamedCalendar(
+                        name = "Academic Calendar",
+                        months = listOf(
+                            CalendarMonth(month = "July 2026", days = listOf(
+                                CalendarDay(1, listOf(CalendarEvent("Instructional Day", "Day Order: Monday (Unit Test starting)"))),
+                                CalendarDay(15, listOf(CalendarEvent("Holiday", "College Foundation Day", "#ef4444"))),
+                                CalendarDay(20, listOf(CalendarEvent("Other", "Course Registration starts")))
+                            )),
+                            CalendarMonth(month = "August 2026", days = listOf(
+                                CalendarDay(15, listOf(CalendarEvent("Holiday", "Independence Day", "#ef4444"))),
+                                CalendarDay(30, listOf(CalendarEvent("Other", "Last day for course withdrawal")))
+                            ))
+                        )
+                    ),
+                    NamedCalendar(
+                        name = "Examination Calendar",
+                        months = listOf(
+                            CalendarMonth(month = "September 2026", days = listOf(
+                                CalendarDay(12, listOf(CalendarEvent("Exam", "CAT 1 begins"))),
+                                CalendarDay(18, listOf(CalendarEvent("Exam", "CAT 1 ends")))
+                            )),
+                            CalendarMonth(month = "November 2026", days = listOf(
+                                CalendarDay(10, listOf(CalendarEvent("Exam", "FAT begins"))),
+                                CalendarDay(25, listOf(CalendarEvent("Exam", "FAT ends")))
+                            ))
+                        )
+                    ),
+                    NamedCalendar(
+                        name = "Semester Calendar",
+                        months = listOf(
+                            CalendarMonth(month = "July 2026", days = listOf(
+                                CalendarDay(1, listOf(CalendarEvent("Instructional Day", "Semester starts"))),
+                                CalendarDay(31, listOf(CalendarEvent("Other", "Last day for registration")))
+                            )),
+                            CalendarMonth(month = "December 2026", days = listOf(
+                                CalendarDay(15, listOf(CalendarEvent("Other", "Semester ends")))
+                            ))
+                        )
+                    ),
+                    NamedCalendar(
+                        name = "Freshers Calendar",
+                        months = listOf(
+                            CalendarMonth(month = "July 2026", days = listOf(
+                                CalendarDay(5, listOf(CalendarEvent("Other", "Freshers orientation"))),
+                                CalendarDay(10, listOf(CalendarEvent("Other", "Campus tour")))
+                            ))
+                        )
+                    )
+                )
+            )
+        }
+        try {
+            val params = mutableMapOf("type" to "ALL")
+            if (semesterId != null) params["semesterId"] = semesterId
+            val rawJson = postAuthorized<JsonElement>("calendar", params)
+            if (rawJson != null) {
+                val analysis = AnalyzeCalendar.analyzeAllCalendars(rawJson)
+                if (analysis.results.isNotEmpty()) {
+                    val namedCalendars = analysis.results.groupBy { it.year }.map { (year, results) ->
+                        NamedCalendar(
+                            name = "Academic Calendar $year",
+                            months = results.map { res ->
+                                CalendarMonth(
+                                    month = "${res.month} ${res.year}",
+                                    days = res.days.map { day ->
+                                        CalendarDay(
+                                            date = day.date,
+                                            events = day.events.mapNotNull { evElem ->
+                                                val ev = evElem.jsonObject
+                                                val text = ev["text"]?.jsonPrimitive?.content ?: return@mapNotNull null
+                                                val evType = ev["type"]?.jsonPrimitive?.content ?: day.type
+                                                CalendarEvent(type = evType, text = text)
+                                            }
+                                        )
+                                    }
+                                )
+                            }
+                        )
+                    }
+                    return CalendarsListRes(success = true, calendars = namedCalendars)
+                }
+            }
+        } catch (_: Exception) { /* fall through */ }
+        
+        // Fallback: use old getCalendar() and wrap it as a single NamedCalendar
+        val old = getCalendar("ALL", semesterId)
+        return if (old.success && old.months.isNotEmpty()) {
+            CalendarsListRes(
+                success = true,
+                calendars = listOf(NamedCalendar(name = "Academic Calendar", months = old.months))
+            )
+        } else {
+            CalendarsListRes(success = false, message = old.message ?: "Empty response")
         }
     }
 
@@ -342,13 +496,54 @@ object AmazeClient {
             )
         }
         return try {
-            postAuthorized<PaymentsRes>("payments") ?: PaymentsRes(success = false, message = "Empty response")
+            val duesResp = postAuthorized<kotlinx.serialization.json.JsonObject>("payments")
+            val receiptsResp = postAuthorized<kotlinx.serialization.json.JsonObject>("payment-receipts")
+            val walletResp = postAuthorized<kotlinx.serialization.json.JsonObject>("wallet")
+
+            val paymentsList = mutableListOf<PaymentItem>()
+
+            if (duesResp?.get("hasDues")?.jsonPrimitive?.content?.toBooleanStrictOrNull() == true || duesResp?.get("hasDues")?.jsonPrimitive?.booleanOrNull == true) {
+                paymentsList.add(PaymentItem(
+                    billingId = "due-pending",
+                    description = duesResp?.get("message")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: "Pending Dues",
+                    amount = "Check VTOP",
+                    dueDate = "-",
+                    status = "UNPAID"
+                ))
+            }
+
+            val receiptsArray = receiptsResp?.get("receipts")?.jsonArray
+            receiptsArray?.forEach { r ->
+                val obj = r.jsonObject
+                paymentsList.add(PaymentItem(
+                    billingId = obj["receiptNumber"]?.jsonPrimitive?.content ?: "rec",
+                    description = "Fee Payment",
+                    amount = obj["amount"]?.jsonPrimitive?.content ?: "-",
+                    dueDate = "-",
+                    status = "PAID",
+                    paymentDate = obj["date"]?.jsonPrimitive?.content,
+                    receiptNo = obj["receiptNumber"]?.jsonPrimitive?.content
+                ))
+            }
+
+            val walletLedger = walletResp?.get("ledgerINR")?.jsonArray
+            val balance = if (walletLedger != null && walletLedger.size > 0) {
+                walletLedger[0].jsonObject["bookBalanceAmount"]?.jsonPrimitive?.content
+            } else null
+
+            val hasDuesVal = duesResp?.get("hasDues")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: duesResp?.get("hasDues")?.jsonPrimitive?.booleanOrNull
+            PaymentsRes(
+                success = true,
+                payments = paymentsList,
+                walletBalance = balance,
+                message = if (hasDuesVal == false) duesResp?.get("message")?.jsonPrimitive?.content else null
+            )
         } catch (e: Exception) {
             PaymentsRes(success = false, message = e.message, error = e.toString())
         }
     }
 
-    suspend fun getLibrary(): LibraryRes {
+    suspend fun getLibrary(libUsername: String? = null, libPassword: String? = null): LibraryRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return LibraryRes(
                 success = true,
@@ -358,8 +553,17 @@ object AmazeClient {
                 )
             )
         }
+        val creds = if (libUsername != null && libPassword != null) {
+            mapOf("libUsername" to libUsername, "libPassword" to libPassword)
+        } else {
+            val saved = com.amazecc.app.shared.repository.SettingsManager.getLibraryCredentials()
+            if (saved != null) mapOf("libUsername" to saved.first, "libPassword" to saved.second) else emptyMap()
+        }
+        if (creds.isEmpty()) {
+            return LibraryRes(success = false, message = "Library login required", error = "NO_LIB_CREDS")
+        }
         return try {
-            postAuthorized<LibraryRes>("library-due") ?: LibraryRes(success = false, message = "Empty response")
+            postAuthorized<LibraryRes>("library-due", creds) ?: LibraryRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             LibraryRes(success = false, message = e.message, error = e.toString())
         }
@@ -398,6 +602,229 @@ object AmazeClient {
             postAuthorized<TransportRes>("transport") ?: TransportRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             TransportRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getTransportRoutes(): TransportRoutesRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return TransportRoutesRes(
+                success = true,
+                routes = listOf(
+                    BusRouteDetail(
+                        routeNo = "R-01",
+                        routeName = "Katpadi Junction - VIT Campus",
+                        departureTime = "08:15 AM",
+                        stops = listOf(
+                            BusStopDetail("Katpadi Junction", "7:30 AM", 1, "\u20B915"),
+                            BusStopDetail("Gandhi Nagar", "7:45 AM", 2, "\u20B910"),
+                            BusStopDetail("VIT Main Gate", "8:00 AM", 3, "\u20B98"),
+                            BusStopDetail("Academic Block", "8:15 AM", 4, "\u20B95")
+                        ),
+                        driverName = "K. Raman",
+                        driverPhone = "+91 9843210982",
+                        busType = "AC"
+                    ),
+                    BusRouteDetail(
+                        routeNo = "R-12",
+                        routeName = "Vellore New Bus Stand - VIT Campus",
+                        departureTime = "08:00 AM",
+                        stops = listOf(
+                            BusStopDetail("Vellore New Bus Stand", "7:15 AM", 1, "\u20B910"),
+                            BusStopDetail("Library Junction", "7:30 AM", 2, "\u20B98"),
+                            BusStopDetail("South Gate", "7:50 AM", 3, "\u20B96"),
+                            BusStopDetail("VIT Main Campus", "8:10 AM", 4, "\u20B95")
+                        ),
+                        driverName = "S. Kumar",
+                        driverPhone = "+91 9442190831",
+                        busType = "Non-AC"
+                    ),
+                    BusRouteDetail(
+                        routeNo = "R-07",
+                        routeName = "Ranipet - VIT Campus",
+                        departureTime = "07:45 AM",
+                        stops = listOf(
+                            BusStopDetail("Ranipet Bus Stand", "6:45 AM", 1, "\u20B920"),
+                            BusStopDetail("Walajah Road", "7:05 AM", 2, "\u20B915"),
+                            BusStopDetail("VIT Campus", "7:45 AM", 3, "\u20B98")
+                        ),
+                        driverName = "M. Rajesh",
+                        driverPhone = "+91 9876543210",
+                        supervisorName = "A. Venkat",
+                        supervisorPhone = "+91 8765432109",
+                        busType = "AC"
+                    ),
+                    BusRouteDetail(
+                        routeNo = "R-21",
+                        routeName = "Katpadi Railway Station - VIT",
+                        departureTime = "08:30 AM",
+                        stops = listOf(
+                            BusStopDetail("Katpadi Railway Station", "7:45 AM", 1, "\u20B912"),
+                            BusStopDetail("Kannan Koil", "8:00 AM", 2, "\u20B98"),
+                            BusStopDetail("VIT Main Gate", "8:20 AM", 3, "\u20B95"),
+                            BusStopDetail("Academic Block", "8:30 AM", 4, "\u20B95")
+                        ),
+                        driverName = "P. Selvam",
+                        driverPhone = "+91 9988776655",
+                        busType = "Non-AC"
+                    )
+                )
+            )
+        }
+        return try {
+            postAuthorized<TransportRoutesRes>("transport/routes") ?: TransportRoutesRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            TransportRoutesRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun submitTransportRegistration(request: TransportRegRequest): TransportRegSubmitRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return TransportRegSubmitRes(success = true, message = "Transport pass application submitted!", registrationId = "REG-${(1000..9999).random()}")
+        }
+        return try {
+            val params = mapOf(
+                "routeNo" to request.routeNo,
+                "semester" to request.semester,
+                "studentName" to request.studentName,
+                "studentPhone" to request.studentPhone
+            )
+            postAuthorized<TransportRegSubmitRes>("transport/register", params)
+                ?: TransportRegSubmitRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            TransportRegSubmitRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getTransportPass(): TransportPassRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return TransportPassRes(
+                success = true,
+                status = "active",
+                dayBoarderStatus = "APPROVED (Bus Pass Active)",
+                routeNo = "R-12",
+                routeName = "Vellore New Bus Stand - VIT Campus",
+                validUntil = "Dec 2026",
+                studentName = "John Doe",
+                studentPhone = "+91 9876543210",
+                registrations = listOf(
+                    TransportRegItem("1", "Fall 2025", "R-12", "Vellore New Bus Stand - VIT Campus", "Approved", "2025-07-20"),
+                    TransportRegItem("2", "Spring 2025", "R-01", "Katpadi Junction - VIT Campus", "Expired", "2025-01-10")
+                )
+            )
+        }
+        return try {
+            postAuthorized<TransportPassRes>("transport/pass") ?: TransportPassRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            TransportPassRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun searchCabTrips(from: String, to: String, date: String): CabTripsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabTripsRes(
+                success = true,
+                trips = listOf(
+                    CabTrip(id = "CT-101", from = from, to = to, date = date, time = "2:00 PM", seatsTotal = 4, seatsAvailable = 2, fare = "â‚¹250", driverName = "S. Rajan", driverPhone = "+91 9876543210", driverRating = "4.8", vehicleModel = "Toyota Etios", vehicleColor = "White", vehiclePlate = "TN 01 AB 1234"),
+                    CabTrip(id = "CT-102", from = from, to = to, date = date, time = "3:30 PM", seatsTotal = 4, seatsAvailable = 3, fare = "â‚¹200", driverName = "Priya K.", driverPhone = "+91 9876543211", driverRating = "4.9", vehicleModel = "Honda City", vehicleColor = "Blue", vehiclePlate = "TN 22 CD 5678"),
+                    CabTrip(id = "CT-103", from = from, to = to, date = date, time = "5:00 PM", seatsTotal = 4, seatsAvailable = 1, fare = "â‚¹300", driverName = "Arun M.", driverPhone = "+91 9876543212", driverRating = "4.7", vehicleModel = "Maruti Swift", vehicleColor = "Silver", vehiclePlate = "TN 07 EF 9012"),
+                    CabTrip(id = "CT-104", from = from, to = to, date = date, time = "6:15 PM", seatsTotal = 4, seatsAvailable = 4, fare = "â‚¹180", driverName = "Deepa R.", driverPhone = "+91 9876543213", driverRating = "4.6", vehicleModel = "Hyundai i10", vehicleColor = "Red", vehiclePlate = "TN 11 GH 3456")
+                )
+            )
+        }
+        return try {
+            val params = mapOf("from" to from, "to" to to, "date" to date)
+            postAuthorized<CabTripsRes>("cab/search", params) ?: CabTripsRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabTripsRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun createCabTrip(request: CabCreateTripRequest): CabActionRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabActionRes(success = true, message = "Trip created!", tripId = "CT-${(1000..9999).random()}")
+        }
+        return try {
+            val params = mapOf(
+                "from" to request.from, "to" to request.to, "date" to request.date,
+                "time" to request.time, "seats" to request.seats.toString(), "fare" to request.fare,
+                "vehicleModel" to (request.vehicleModel ?: ""),
+                "vehicleColor" to (request.vehicleColor ?: ""),
+                "vehiclePlate" to (request.vehiclePlate ?: "")
+            )
+            postAuthorized<CabActionRes>("cab/create", params) ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getMyCabTrips(): CabTripsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabTripsRes(
+                success = true,
+                trips = listOf(
+                    CabTrip(id = "CT-201", from = "VIT Chennai", to = "Chennai Airport", date = "2026-07-15", time = "2:00 PM", seatsTotal = 4, seatsAvailable = 2, fare = "â‚¹250", driverName = "You", vehicleModel = "Toyota Etios", vehicleColor = "White", vehiclePlate = "TN 01 AB 1234", status = "Scheduled", isOwnTrip = true),
+                    CabTrip(id = "CT-202", from = "Railway Station", to = "VIT Chennai", date = "2026-07-10", time = "10:00 AM", seatsTotal = 3, seatsAvailable = 0, fare = "â‚¹150", driverName = "You", vehicleModel = "Honda City", vehicleColor = "Blue", vehiclePlate = "TN 22 CD 5678", status = "Completed", isOwnTrip = true)
+                )
+            )
+        }
+        return try {
+            postAuthorized<CabTripsRes>("cab/my-trips") ?: CabTripsRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabTripsRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun requestJoinTrip(tripId: String, seats: Int): CabActionRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabActionRes(success = true, message = "Request sent!", tripId = tripId)
+        }
+        return try {
+            val params = mapOf("tripId" to tripId, "seats" to seats.toString())
+            postAuthorized<CabActionRes>("cab/join", params) ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getCabJoinRequests(tripId: String): CabJoinRequestsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabJoinRequestsRes(
+                success = true,
+                requests = listOf(
+                    CabJoinRequest(id = "REQ-001", tripId = tripId, requesterName = "Vikram S.", seats = 2, status = "Pending"),
+                    CabJoinRequest(id = "REQ-002", tripId = tripId, requesterName = "Neha P.", seats = 1, status = "Pending")
+                )
+            )
+        }
+        return try {
+            val params = mapOf("tripId" to tripId)
+            postAuthorized<CabJoinRequestsRes>("cab/requests", params) ?: CabJoinRequestsRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabJoinRequestsRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun acceptCabJoinRequest(tripId: String, requestId: String): CabActionRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabActionRes(success = true, message = "Request accepted!")
+        }
+        return try {
+            val params = mapOf("tripId" to tripId, "requestId" to requestId)
+            postAuthorized<CabActionRes>("cab/accept", params) ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun rejectCabJoinRequest(tripId: String, requestId: String): CabActionRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabActionRes(success = true, message = "Request rejected")
+        }
+        return try {
+            val params = mapOf("tripId" to tripId, "requestId" to requestId)
+            postAuthorized<CabActionRes>("cab/reject", params) ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message, error = e.toString())
         }
     }
 
@@ -445,6 +872,57 @@ object AmazeClient {
         }
     }
 
+    suspend fun getQcmView(): QcmViewRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return QcmViewRes(
+                success = true,
+                data = listOf(
+                    QcmTable("QCM 1", listOf(
+                        buildJsonObject { put("qcmNo", "1"); put("actionTaken", "Resolved"); put("suggestions", "Improve lab equipment"); put("facultyReply", "Noted") }
+                    )),
+                    QcmTable("QCM 2", listOf(
+                        buildJsonObject { put("qcmNo", "2"); put("actionTaken", "In Progress"); put("suggestions", "More practice sessions"); put("facultyReply", "Will schedule") }
+                    ))
+                )
+            )
+        }
+        return try {
+            postAuthorized<QcmViewRes>("qcm-view") ?: QcmViewRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            QcmViewRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getEvents(): EventHubRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return EventHubRes(
+                success = true,
+                events = listOf(
+                    EventHubEvent(eid = "E001", title = "RoboWars 2026", eligibility = "All", type = "Technical", date = "2026-08-20", location = "SJT Ground", price = "Free", time = "10:00 AM"),
+                    EventHubEvent(eid = "E002", title = "Code Sprint", eligibility = "All", type = "Technical", date = "2026-09-05", location = "Anna Auditorium", price = "Free", time = "09:00 AM")
+                )
+            )
+        }
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/events")
+            if (response.status == HttpStatusCode.OK) {
+                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
+                val eventsList = if (element is JsonArray) {
+                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
+                } else if (element.jsonObject["events"] is JsonArray) {
+                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element.jsonObject["events"]!!)
+                } else {
+                    emptyList()
+                }
+                EventHubRes(success = true, events = eventsList)
+            } else {
+                EventHubRes(success = false, message = "HTTP ${response.status}", error = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
+        }
+    }
+
     suspend fun getEventsProfile(): EventHubRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return EventHubRes(
@@ -463,14 +941,27 @@ object AmazeClient {
             )
         }
         return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/events/profile") // Depending on actual API it might need postAuthorized
+            val response: HttpResponse = httpClient.post("$baseUrl/api/events/profile") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("jsessionid", SessionManager.clubToken.value ?: "")
+                })
+            }
             if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString(response.bodyAsText())
+                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
+                val eventsList = if (element is JsonArray) {
+                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
+                } else if (element.jsonObject["events"] is JsonArray) {
+                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element.jsonObject["events"]!!)
+                } else {
+                    emptyList()
+                }
+                EventHubRes(success = true, events = eventsList)
             } else {
-                EventHubRes(success = false, message = "HTTP ${response.status}")
+                EventHubRes(success = false, message = "HTTP ${response.status}", error = "Server returned status ${response.status}")
             }
         } catch (e: Exception) {
-            EventHubRes(success = false, message = e.message, error = e.toString())
+            EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
         }
     }
 
@@ -490,12 +981,18 @@ object AmazeClient {
         return try {
             val response: HttpResponse = httpClient.get("$baseUrl/api/clubs/details")
             if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString(response.bodyAsText())
+                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
+                if (element is JsonArray) {
+                    val clubsList = jsonConfig.decodeFromJsonElement<List<ClubItem>>(element)
+                    ClubsRes(success = true, clubs = clubsList)
+                } else {
+                    jsonConfig.decodeFromJsonElement<ClubsRes>(element)
+                }
             } else {
-                ClubsRes(success = false, message = "HTTP ${response.status}")
+                ClubsRes(success = false, message = "HTTP ${response.status}", error = "Server returned status ${response.status}")
             }
         } catch (e: Exception) {
-            ClubsRes(success = false, message = e.message, error = e.toString())
+            ClubsRes(success = false, message = "Network error: ${e.message}", error = e.toString())
         }
     }
 
@@ -521,6 +1018,18 @@ object AmazeClient {
             postAuthorized<StudentProfileRes>("student") ?: StudentProfileRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             StudentProfileRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    @Suppress("unused")
+    suspend fun getProfileImages(): ProfileImagesRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return ProfileImagesRes(success = true)
+        }
+        return try {
+            postAuthorized<ProfileImagesRes>("profile-images") ?: ProfileImagesRes(success = false)
+        } catch (e: Exception) {
+            ProfileImagesRes(success = false, error = e.toString())
         }
     }
 
@@ -672,6 +1181,7 @@ object AmazeClient {
         return postAuthorized<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
     }
 
+    @Suppress("unused")
     suspend fun getVitol(): VitolRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return VitolRes(
@@ -683,7 +1193,7 @@ object AmazeClient {
         return postAuthorized<VitolRes>("vitol") ?: VitolRes(success = false, message = "Empty response")
     }
 
-    // ── Phase 3 endpoints ──
+    // â”€â”€ Phase 3 endpoints â”€â”€
 
     suspend fun getQBankCourses(): QBankCoursesRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
@@ -849,7 +1359,7 @@ object AmazeClient {
             return ArrearResponse(
                 tables = listOf(ApiTable(title = "Bonafide Certificates", headers = listOf("Request ID", "Purpose", "Status", "Issued Date"), rows = listOf(
                     listOf("BNF-001", "Bank Loan", "Issued", "2026-06-20"),
-                    listOf("BNF-002", "Passport Application", "Processing", "—")
+                    listOf("BNF-002", "Passport Application", "Processing", "â€”")
                 )))
             )
         }
@@ -881,4 +1391,19 @@ object AmazeClient {
         }
         return postAuthorized<ArrearResponse>("additional-learning") ?: ArrearResponse(success = false, message = "Empty response")
     }
+
+    @Suppress("unused")
+    suspend fun getFFCSReport(): ByteArray? {
+        return try {
+            val response: HttpResponse = httpClient.get("https://amazecc.vit.ac.in/ffcs/ffcsReport.csv")
+            if (response.status == HttpStatusCode.OK) {
+                response.readBytes()
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
 }
+
+
+

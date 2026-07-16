@@ -43,7 +43,8 @@ fun HostelScreen() {
             title = "Hostel Hub",
             description = "Manage mess, outings, laundry & counseling",
             showBackButton = false,
-            showSyncButton = true
+            showSyncButton = true,
+            onRefresh = AppState::refreshHostel
         )
 
         Column(modifier = Modifier.weight(1f)) {
@@ -110,18 +111,18 @@ fun HostelDetailsTab(hostelDetails: com.amazecc.app.shared.model.HostelDetails?,
                     Text("Block / Room", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     Text(
                         if (hostelDetails?.blockName.isNullOrEmpty()) "N/A" 
-                        else "${hostelDetails?.blockName} / ${hostelDetails?.roomNo}", 
+                        else "${hostelDetails.blockName} / ${hostelDetails.roomNo}", 
                         style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Gender", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                    Text(if (hostelDetails?.gender.isNullOrEmpty()) "N/A" else hostelDetails?.gender!!, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                    Text(if (hostelDetails?.gender.isNullOrEmpty()) "N/A" else hostelDetails.gender!!, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
             Text("Mess Facility", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-            Text(if (hostelDetails?.messInfo.isNullOrEmpty()) "Not Enrolled" else hostelDetails?.messInfo!!, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Text(if (hostelDetails?.messInfo.isNullOrEmpty()) "Not Enrolled" else hostelDetails.messInfo!!, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         }
     }
 
@@ -163,7 +164,7 @@ fun HostelMessTab() {
     val days = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
     val meals = listOf("Breakfast", "Lunch", "Snacks", "Dinner")
     val todayIndex = try {
-        (Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).dayOfWeek.value - 1).coerceIn(0, 6)
+        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).dayOfWeek.ordinal.coerceIn(0, 6)
     } catch (_: Exception) { 0 }
     var selectedDay by remember { mutableStateOf(todayIndex) }
     var selectedMeal by remember { mutableStateOf(0) }

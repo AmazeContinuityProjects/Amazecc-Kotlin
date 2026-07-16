@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -24,11 +25,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.config.SlotMap
 import kotlin.math.roundToInt
 
 @Suppress("unused")
@@ -50,7 +53,6 @@ fun AcademicsScreen() {
 
     val courses = marksRes?.marks ?: emptyList()
     val gpaRecords = allGradesRes?.grades ?: emptyMap()
-    val timetableCourses = timetableRes?.courseInfo ?: emptyList()
     val attendanceCourses = attendanceRes?.attendance ?: emptyList()
     val months = calendarRes?.months ?: emptyList()
 
@@ -91,7 +93,8 @@ fun AcademicsScreen() {
             title = "Academics Hub",
             description = "Student OS",
             showBackButton = false,
-            showSyncButton = true
+            showSyncButton = true,
+            onRefresh = AppState::refreshCurrentSemester
         )
 
         LazyColumn(
@@ -209,85 +212,11 @@ fun AcademicsScreen() {
                 }
             }
 
-            // ── Timetable Section ──
-            item {
-                SectionHeader("Schedule", Icons.Rounded.CalendarMonth)
-            }
-
-            if (timetableCourses.isEmpty() && attendanceCourses.isEmpty()) {
-                item {
-                    EmptyState("No timetable data found. Tap refresh to sync.")
-                }
-            } else {
-                if (timetableCourses.isNotEmpty()) {
-                    timetableCourses.forEach { c ->
-                        item {
-                            TimetableCard(
-                                code = c.courseCode,
-                                title = c.course,
-                                faculty = c.facultyDetails,
-                                venue = c.slotVenue,
-                                slotCode = c.courseCode.take(4)
-                            )
-                        }
-                    }
-                } else {
-                    attendanceCourses.forEach { c ->
-                        item {
-                            TimetableCard(
-                                code = c.courseCode,
-                                title = c.courseTitle,
-                                faculty = c.faculty,
-                                venue = c.slotVenue ?: "—",
-                                slotCode = c.slotName
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ── Academic Calendar Section ──
-            item {
-                SectionHeader("Academic Calendar", Icons.Rounded.Event)
-            }
-
-            if (months.isEmpty()) {
-                item {
-                    EmptyState("No calendar events found.")
-                }
-            } else {
-                items(months) { monthData ->
-                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                        Column {
-                            Text(monthData.month, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            monthData.days.forEach { dayData ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier.size(40.dp).background(colors.accent.copy(alpha = 0.1f), CircleShape),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(dayData.date.toString(), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                                    }
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        dayData.events.forEach { event ->
-                                            Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                                            Text(event.text, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
     }
+
+
 }
 
 @Composable
@@ -312,9 +241,10 @@ private fun EmptyState(message: String) {
 }
 
 private fun cgpaFormatted(cgpa: Double): String {
-    val whole = cgpa.toInt()
-    val frac = ((cgpa - whole) * 100).roundToInt()
-    return "$whole.${if (frac < 10) "0" else ""}$frac"
+    val i = kotlin.math.round(cgpa * 100).toLong()
+    val whole = i / 100
+    val frac = (i % 100).coerceIn(0, 99)
+    return "$whole.${frac.toString().padStart(2, '0')}"
 }
 
 @Composable
@@ -358,27 +288,9 @@ data class HubCard(
     val prominent: Boolean = false
 )
 
-@Composable
-private fun TimetableCard(code: String, title: String, faculty: String, venue: String, slotCode: String) {
-    val colors = AmazeTheme.colors
-    AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(44.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(slotCode, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(code, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Text("Faculty: $faculty", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                Text("Venue: $venue", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-            }
-        }
-    }
-}
+
+
+
 
 @Composable
 fun HubCardItem(card: HubCard, onClick: () -> Unit) {

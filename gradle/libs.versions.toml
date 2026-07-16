@@ -1,8 +1,9 @@
 [versions]
+kamel = "0.9.4"
 multiplatformSettings = "1.1.1"
 kotlin = "2.0.0"
 compose = "1.6.10"
-agp = "8.2.2"
+agp = "8.13.2"
 ktor = "2.3.11"
 coroutines = "1.8.1"
 serialization = "1.6.3"
@@ -11,6 +12,7 @@ androidx-appcompat = "1.6.1"
 datetime = "0.6.0"
 
 [libraries]
+kamel-image = { module = "media.kamel:kamel-image", version.ref = "kamel" }
 multiplatform-settings = { module = "com.russhwolf:multiplatform-settings", version.ref = "multiplatformSettings" }
 multiplatform-settings-no-arg = { module = "com.russhwolf:multiplatform-settings-no-arg", version.ref = "multiplatformSettings" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }

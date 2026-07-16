@@ -36,6 +36,7 @@ import com.amazecc.app.shared.ui.screens.academics.*
 import com.amazecc.app.shared.ui.screens.cabshare.CabShareScreen
 import com.amazecc.app.shared.ui.screens.events.EventHubScreen
 import com.amazecc.app.shared.ui.screens.hostel.HostelScreen
+import com.amazecc.app.shared.ui.screens.moodle.MoodleScreen
 import com.amazecc.app.shared.ui.screens.more.MoreScreen
 import com.amazecc.app.shared.ui.screens.onboarding.OnboardingScreen
 import com.amazecc.app.shared.ui.screens.payments.PaymentsScreen
@@ -97,6 +98,7 @@ fun App() {
                             Screen.MORE -> MoreScreen()
                             Screen.PROFILE -> ProfileScreen()
                             Screen.EVENTS -> EventHubScreen()
+                            Screen.SETTINGS -> com.amazecc.app.shared.ui.screens.settings.SettingsScreen()
                             Screen.QBANK -> QBankScreen()
                             Screen.SOCIAL -> SocialScreen()
                             Screen.FFCS_PLANNER -> FfcsPlannerScreen()
@@ -105,6 +107,7 @@ fun App() {
                             Screen.GLASS_MORPH -> GlassMorphismScreen()
                             Screen.GRADES -> GradesScreen()
                             Screen.GPA_PREDICTOR -> GPAPredictorScreen()
+                            Screen.COURSE_DETAIL -> CourseDetailScreen { AppState.navigateTo(Screen.ACADEMICS) }
                             Screen.COURSE_ATTENDANCE -> CourseAttendanceScreen()
                             Screen.ARREAR -> ArrearScreen()
                             Screen.MAKEUP_COMPRE -> MakeupCompreScreen()
@@ -123,6 +126,7 @@ fun App() {
                             Screen.DOCUMENTS -> DocumentsScreen()
                             Screen.ABOUT -> AboutScreen()
                             Screen.ACTIVITY_TREE -> ActivityTreeScreen()
+                            Screen.MOODLE -> MoodleScreen()
                         }
                     }
                     }

@@ -43,7 +43,8 @@ fun ScreenHeader(
     title: String,
     description: String,
     showBackButton: Boolean = true,
-    showSyncButton: Boolean = true
+    showSyncButton: Boolean = true,
+    onRefresh: (() -> Unit)? = null
 ) {
     val colors = AmazeTheme.colors
     val isLoading by AppState.isLoading.collectAsState()
@@ -100,8 +101,9 @@ fun ScreenHeader(
             }
             
             if (showSyncButton) {
+                val syncAction = onRefresh ?: { AppState.loadAllData() }
                 IconButton(
-                    onClick = { AppState.loadAllData() },
+                    onClick = syncAction,
                     enabled = !isLoading,
                     modifier = Modifier
                         .size(44.dp)

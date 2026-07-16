@@ -128,7 +128,7 @@ fun VitolScreen() {
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        "%.0f%% of your limit used".format(usagePct * 100),
+                        "${(usagePct * 100).toInt()}% of your limit used",
                         style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                     )
                 }

@@ -1,7 +1,10 @@
 package com.amazecc.app.shared.model
 
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+
 
 @Serializable
 data class LoginResponse(
@@ -84,6 +87,35 @@ data class CalendarRes(
 )
 
 @Serializable
+data class NamedCalendar(
+    val name: String,
+    val months: List<CalendarMonth> = emptyList()
+)
+
+@Serializable
+data class CalendarsListRes(
+    val success: Boolean = true,
+    val calendars: List<NamedCalendar> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class QcmTable(
+    val caption: String = "",
+    @Contextual
+    val rows: List<JsonElement> = emptyList()
+)
+
+@Serializable
+data class QcmViewRes(
+    val success: Boolean = true,
+    val data: List<QcmTable>? = null,
+    val message: String? = null,
+    val error: String? = null
+)
+
+@Serializable
 data class MoodleAssignment(
     val name: String,
     val due: String,
@@ -160,6 +192,79 @@ data class TransportRes(
 )
 
 @Serializable
+data class BusStopDetail(
+    val stopName: String,
+    val pickupTime: String,
+    val stopOrder: Int,
+    val fare: String? = null
+)
+
+@Serializable
+data class BusRouteDetail(
+    val routeNo: String,
+    val routeName: String,
+    val departureTime: String,
+    val stops: List<BusStopDetail> = emptyList(),
+    val driverName: String? = null,
+    val driverPhone: String? = null,
+    val supervisorName: String? = null,
+    val supervisorPhone: String? = null,
+    val busType: String? = null,
+    val busLocation: String? = null,
+    val fare: String? = null
+)
+
+@Serializable
+data class TransportRoutesRes(
+    val success: Boolean = true,
+    val routes: List<BusRouteDetail> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class TransportRegItem(
+    val id: String,
+    val semester: String,
+    val routeNo: String,
+    val routeName: String,
+    val status: String,
+    val appliedOn: String? = null
+)
+
+@Serializable
+data class TransportPassRes(
+    val success: Boolean = true,
+    val status: String = "inactive",
+    val dayBoarderStatus: String? = null,
+    val routeNo: String? = null,
+    val routeName: String? = null,
+    val validFrom: String? = null,
+    val validUntil: String? = null,
+    val studentName: String? = null,
+    val studentPhone: String? = null,
+    val registrations: List<TransportRegItem> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class TransportRegRequest(
+    val routeNo: String,
+    val semester: String,
+    val studentName: String,
+    val studentPhone: String
+)
+
+@Serializable
+data class TransportRegSubmitRes(
+    val success: Boolean = true,
+    val message: String? = null,
+    val error: String? = null,
+    val registrationId: String? = null
+)
+
+@Serializable
 data class LMSAssignment(
     val assignmentId: String,
     val courseCode: String,
@@ -210,10 +315,10 @@ data class EventHubRes(
 
 @Serializable
 data class ClubItem(
-    val id: String? = null,
-    val name: String? = null,
-    val description: String? = null,
-    val logoUrl: String? = null
+    @SerialName("club_id") val id: String? = null,
+    @SerialName("club_name") val name: String? = null,
+    @SerialName("club_description") val description: String? = null,
+    @SerialName("club_logo") val logoUrl: String? = null
 )
 
 @Serializable
@@ -237,11 +342,11 @@ data class QBankCoursesRes(
 
 @Serializable
 data class StudentProfile(
-    val regNo: String = "",
+    @SerialName("applicationNumber") val regNo: String = "",
     val name: String = "",
     val email: String = "",
-    val mobile: String = "",
-    val program: String = "",
+    @SerialName("mobileNumber") val mobile: String = "",
+    @SerialName("appliedDegree") val program: String = "",
     val campus: String = "",
     val batch: String = "",
     val section: String? = null,
@@ -252,6 +357,7 @@ data class StudentProfile(
 @Serializable
 data class StudentProfileRes(
     val success: Boolean = true,
+    @SerialName("profile")
     val data: StudentProfile? = null,
     val message: String? = null,
     val error: String? = null
@@ -290,6 +396,79 @@ data class FacultyScrapeRes(
 )
 
 @Serializable
+data class CabTrip(
+    val id: String,
+    val from: String,
+    val to: String,
+    val date: String,
+    val time: String,
+    val seatsTotal: Int,
+    val seatsAvailable: Int,
+    val fare: String,
+    val driverName: String,
+    val driverPhone: String? = null,
+    val driverRating: String? = null,
+    val vehicleModel: String? = null,
+    val vehicleColor: String? = null,
+    val vehiclePlate: String? = null,
+    val status: String = "Scheduled",
+    val isOwnTrip: Boolean = false
+)
+
+@Serializable
+data class CabTripsRes(
+    val success: Boolean = true,
+    val trips: List<CabTrip> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class CabSearchRequest(
+    val from: String,
+    val to: String,
+    val date: String
+)
+
+@Serializable
+data class CabCreateTripRequest(
+    val from: String,
+    val to: String,
+    val date: String,
+    val time: String,
+    val seats: Int,
+    val fare: String,
+    val vehicleModel: String? = null,
+    val vehicleColor: String? = null,
+    val vehiclePlate: String? = null
+)
+
+@Serializable
+data class CabActionRes(
+    val success: Boolean = true,
+    val message: String? = null,
+    val error: String? = null,
+    val tripId: String? = null
+)
+
+@Serializable
+data class CabJoinRequest(
+    val id: String,
+    val tripId: String,
+    val requesterName: String,
+    val seats: Int,
+    val status: String = "Pending"
+)
+
+@Serializable
+data class CabJoinRequestsRes(
+    val success: Boolean = true,
+    val requests: List<CabJoinRequest> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
 data class VitolData(
     val balance: String,
     val limit: String,
@@ -305,3 +484,96 @@ data class VitolRes(
     val error: String? = null
 )
 
+@Serializable
+data class ProfileImagesCredential(
+    val account: String = "",
+    val username: String = "",
+    val defaultCredentials: String = "",
+    val url: String? = null,
+    val venueDate: String = "",
+    val seatLocation: String = ""
+)
+
+@Serializable
+data class ProfileImagesRank(
+    val name: String = "",
+    val rank: String = ""
+)
+
+@Serializable
+data class ProfileImagesCredentials(
+    val title: String = "",
+    val credentials: List<ProfileImagesCredential> = emptyList(),
+    val ranks: List<ProfileImagesRank> = emptyList()
+)
+
+@Serializable
+data class ProfileImagesProctor(
+    val title: String = "",
+    val photoBase64: String? = null,
+    val details: Map<String, String> = emptyMap()
+)
+
+@Serializable
+data class ProfileImagesHodDeanPerson(
+    val role: String = "",
+    val details: Map<String, String> = emptyMap(),
+    val photoBase64: String? = null
+)
+
+@Serializable
+data class ProfileImagesHodDean(
+    val title: String = "",
+    val people: List<ProfileImagesHodDeanPerson> = emptyList()
+)
+
+@Serializable
+data class ProfileImagesRes(
+    val success: Boolean = true,
+    val proctor: ProfileImagesProctor? = null,
+    val hodDean: ProfileImagesHodDean? = null,
+    val credentials: ProfileImagesCredentials? = null,
+    val error: String? = null
+)
+
+
+@Serializable
+data class CurriculumCategory(
+    val code: String = "",
+    val name: String = "",
+    val credits: Int = 0,
+    val maxCredits: Int = 0
+)
+
+@Serializable
+data class CurriculumBasketItem(
+    val code: String = "",
+    val name: String = "",
+    val credits: Int = 0,
+    val type: String? = null
+)
+
+@Serializable
+data class CurriculumBasket(
+    val title: String = "",
+    val credits: Int = 0,
+    val items: List<CurriculumBasketItem> = emptyList()
+)
+
+@Serializable
+data class CategoryDetail(
+    val code: String = "",
+    val name: String = "",
+    val baskets: List<CurriculumBasket> = emptyList()
+)
+
+@Serializable
+data class CurriculumRes(
+    val success: Boolean = false,
+    val message: String? = null,
+    val error: String? = null,
+    val title: String = "",
+    val totalCredits: Int = 0,
+    val categories: List<CurriculumCategory> = emptyList(),
+    val details: List<CategoryDetail> = emptyList()
+)

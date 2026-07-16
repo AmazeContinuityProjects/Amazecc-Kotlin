@@ -21,44 +21,22 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
-
+import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.repository.SessionManager
+import androidx.compose.ui.platform.LocalUriHandler
 private const val TARGET_CREDITS = 160
 
-private val mockCurriculum = listOf(
-    CurriculumItem(basketTitle = "University Core", creditsRequired = "22", creditsEarned = "22"),
-    CurriculumItem(basketTitle = "Program Core", creditsRequired = "48", creditsEarned = "45"),
-    CurriculumItem(basketTitle = "Program Elective", creditsRequired = "24", creditsEarned = "18"),
-    CurriculumItem(basketTitle = "Open Elective", creditsRequired = "12", creditsEarned = "9"),
-    CurriculumItem(basketTitle = "Skill Development", creditsRequired = "10", creditsEarned = "10"),
-    CurriculumItem(basketTitle = "Humanities & Social Sci.", creditsRequired = "12", creditsEarned = "8"),
-    CurriculumItem(basketTitle = "Project Work", creditsRequired = "20", creditsEarned = "10"),
-    CurriculumItem(basketTitle = "Internship", creditsRequired = "12", creditsEarned = "6")
-)
 
-private data class SemesterSummary(
-    val semesterId: String,
-    val semesterName: String,
-    val gpa: String,
-    val credits: Int
-)
-
-private val mockSemesters = listOf(
-    SemesterSummary("CH20232401", "Fall 2023-24", "8.24", 22),
-    SemesterSummary("CH20232405", "Winter 2023-24", "7.86", 23),
-    SemesterSummary("CH20242501", "Fall 2024-25", "8.52", 22),
-    SemesterSummary("CH20242505", "Winter 2024-25", "7.94", 20),
-    SemesterSummary("CH20252601", "Fall 2025-26", "8.10", 21),
-    SemesterSummary("CH20252605", "Winter 2025-26", "7.45", 18)
-)
 
 @Composable
 fun CurriculumScreen() {
     val colors = AmazeTheme.colors
+    val curriculumData by AppState.curriculum.collectAsState()
     val allGrades by AppState.allGrades.collectAsState()
-    val marks by AppState.marks.collectAsState()
 
-    val totalEarned = mockCurriculum.sumOf { it.creditsEarned.toIntOrNull() ?: 0 }
-    val totalRequired = mockCurriculum.sumOf { it.creditsRequired.toIntOrNull() ?: 0 }
+    val categories = curriculumData?.categories ?: emptyList()
+    val totalEarned = curriculumData?.totalCredits ?: 0
+    val totalRequired = TARGET_CREDITS
 
     val semesterList = remember(allGrades) {
         val gradesData = allGrades
@@ -70,9 +48,11 @@ fun CurriculumScreen() {
                 SemesterSummary(semId, name, gpa, credits)
             }.sortedByDescending { it.semesterId }
         } else {
-            mockSemesters
+            emptyList()
         }
     }
+
+    val uriHandler = LocalUriHandler.current
 
     Column(
         modifier = Modifier
@@ -92,20 +72,51 @@ fun CurriculumScreen() {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { DegreeProgressCard(earned = totalEarned, target = TARGET_CREDITS, colors = colors) }
-            item { CategoriesSection(items = mockCurriculum, colors = colors) }
-            item {
-                Text(
-                    text = "Semester Breakdown",
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                    modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-                )
+            if (curriculumData == null) {
+                item {
+                    Text("No curriculum data found. Tap refresh to sync.", color = colors.textSecondary, modifier = Modifier.padding(top = 40.dp))
+                }
+            } else {
+                item { 
+                    Button(
+                        onClick = {
+                            val downloadUrl = "${AmazeClient.baseUrl}/api/curriculum/download?authorizedID=${SessionManager.authorizedID.value}"
+                            try {
+                                uriHandler.openUri(downloadUrl)
+                            } catch (_: Exception) {}
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
+                    ) {
+                        Icon(Icons.Rounded.School, contentDescription = null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Download Curriculum PDF", fontWeight = FontWeight.Bold)
+                    }
+                }
+                item { DegreeProgressCard(earned = totalEarned, target = TARGET_CREDITS, colors = colors) }
+                item { CategoriesSection(categories = categories, colors = colors) }
             }
-            items(semesterList) { sem -> SemesterCard(semester = sem, colors = colors) }
+            if (semesterList.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Semester Breakdown",
+                        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+                    )
+                }
+                items(semesterList) { sem -> SemesterCard(semester = sem, colors = colors) }
+            }
             item { Spacer(modifier = Modifier.height(16.dp)) }
         }
     }
 }
+
+private data class SemesterSummary(
+    val semesterId: String,
+    val semesterName: String,
+    val gpa: String,
+    val credits: Int
+)
 
 @Composable
 private fun DegreeProgressCard(
@@ -156,7 +167,7 @@ private fun DegreeProgressCard(
 
 @Composable
 private fun CategoriesSection(
-    items: List<CurriculumItem>,
+    categories: List<CurriculumCategory>,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -166,9 +177,9 @@ private fun CategoriesSection(
                 style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
             )
 
-            items.forEach { item ->
-                val required = item.creditsRequired.toIntOrNull() ?: 0
-                val earned = item.creditsEarned.toIntOrNull() ?: 0
+            categories.forEach { item ->
+                val required = item.maxCredits
+                val earned = item.credits
                 val catProgress = if (required > 0) (earned.toFloat() / required).coerceIn(0f, 1f) else 0f
                 val complete = earned >= required
 
@@ -184,7 +195,7 @@ private fun CategoriesSection(
                                 Spacer(modifier = Modifier.width(6.dp))
                             }
                             Text(
-                                text = item.basketTitle,
+                                text = item.name,
                                 style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium)
                             )
                         }

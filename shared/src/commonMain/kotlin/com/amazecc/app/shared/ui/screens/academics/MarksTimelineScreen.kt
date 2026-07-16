@@ -42,7 +42,8 @@ fun MarksTimelineScreen() {
             title = "Marks Timeline",
             description = "Assessment and grade history",
             showBackButton = true,
-            showSyncButton = true
+            showSyncButton = true,
+            onRefresh = AppState::refreshCurrentSemester
         )
 
         if (marksRes == null && allGradesRes == null) {

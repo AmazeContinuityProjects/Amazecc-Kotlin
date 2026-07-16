@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.model
+﻿package com.amazecc.app.shared.model
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
@@ -6,6 +6,7 @@ import kotlinx.serialization.json.JsonObject
 @Serializable
 data class EventHubEvent(
     val eid: String,
+    val id: String? = null,
     val title: String,
     val eligibility: String,
     val type: String,
@@ -20,7 +21,9 @@ data class EventHubEvent(
 @Serializable
 data class EventHubPreview(
     val eid: String,
+    val id: String? = null,
     val imageSrc: String? = null,
     val description: String? = null,
     val metaDetails: Map<String, String>? = null
 )
+

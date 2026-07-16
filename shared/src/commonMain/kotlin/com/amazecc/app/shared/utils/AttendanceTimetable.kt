@@ -1,11 +1,25 @@
 package com.amazecc.app.shared.utils
 
 import kotlinx.datetime.Clock
+import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 enum class AttendanceDay {
     MON, TUE, WED, THU, FRI, SAT, SUN
+}
+
+private fun DayOfWeek.toAttendanceDay(): AttendanceDay {
+    return when (this) {
+        DayOfWeek.SUNDAY -> AttendanceDay.SUN
+        DayOfWeek.MONDAY -> AttendanceDay.MON
+        DayOfWeek.TUESDAY -> AttendanceDay.TUE
+        DayOfWeek.WEDNESDAY -> AttendanceDay.WED
+        DayOfWeek.THURSDAY -> AttendanceDay.THU
+        DayOfWeek.FRIDAY -> AttendanceDay.FRI
+        DayOfWeek.SATURDAY -> AttendanceDay.SAT
+        else -> AttendanceDay.MON
+    }
 }
 
 data class TimeRange(val start: Int, val end: Int)
@@ -24,7 +38,7 @@ data class CourseAttendanceInfo(
 )
 
 object AttendanceTimetable {
-    val ATTENDANCE_DAYS = AttendanceDay.values().toList()
+    val ATTENDANCE_DAYS = AttendanceDay.entries.toList()
 
     fun parseAttendanceTime(timeStr: String): Int {
         val parts = timeStr.trim().split(":")
@@ -44,17 +58,7 @@ object AttendanceTimetable {
     fun getTodayAttendanceDay(): AttendanceDay {
         val currentMoment = Clock.System.now()
         val datetime = currentMoment.toLocalDateTime(TimeZone.currentSystemDefault())
-        // kotlinx.datetime.DayOfWeek is 1=Monday, 7=Sunday
-        return when (datetime.dayOfWeek.value) {
-            1 -> AttendanceDay.MON
-            2 -> AttendanceDay.TUE
-            3 -> AttendanceDay.WED
-            4 -> AttendanceDay.THU
-            5 -> AttendanceDay.FRI
-            6 -> AttendanceDay.SAT
-            7 -> AttendanceDay.SUN
-            else -> AttendanceDay.MON
-        }
+        return datetime.dayOfWeek.toAttendanceDay()
     }
 
     fun buildAttendanceDayCardsMap(
@@ -148,5 +152,38 @@ object AttendanceTimetable {
     ): List<CourseAttendanceInfo> {
         val dayCardsMap = buildAttendanceDayCardsMap(attendance, slotMap)
         return dayCardsMap[getTodayAttendanceDay()] ?: emptyList()
+    }
+
+    fun currentTimeInMinutes(): Int {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        return now.hour * 60 + now.minute
+    }
+
+    fun findCurrentClass(classes: List<CourseAttendanceInfo>): CourseAttendanceInfo? {
+        val now = currentTimeInMinutes()
+        return classes.firstOrNull { cls ->
+            val range = getAttendanceTimeRange(cls.time)
+            now in range.start until range.end
+        }
+    }
+
+    fun findNextClass(classes: List<CourseAttendanceInfo>): CourseAttendanceInfo? {
+        val now = currentTimeInMinutes()
+        return classes.firstOrNull { cls ->
+            val range = getAttendanceTimeRange(cls.time)
+            range.start > now
+        }
+    }
+
+    fun remainingMinutes(timeRange: String): Int {
+        val now = currentTimeInMinutes()
+        val range = getAttendanceTimeRange(timeRange)
+        return (range.end - now).coerceAtLeast(0)
+    }
+
+    fun minutesUntil(timeRange: String): Int {
+        val now = currentTimeInMinutes()
+        val range = getAttendanceTimeRange(timeRange)
+        return (range.start - now).coerceAtLeast(0)
     }
 }

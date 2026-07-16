@@ -36,7 +36,11 @@ class AmazeColors(
     dangerText: Color,
     info: Color,
     infoSurface: Color,
-    infoText: Color
+    infoText: Color,
+    navBackground: Color,
+    navBorder: Color,
+    glassSurface: Color,
+    glassBorder: Color
 ) {
     var background by mutableStateOf(background)
         private set
@@ -78,6 +82,14 @@ class AmazeColors(
         private set
     var infoText by mutableStateOf(infoText)
         private set
+    var navBackground by mutableStateOf(navBackground)
+        private set
+    var navBorder by mutableStateOf(navBorder)
+        private set
+    var glassSurface by mutableStateOf(glassSurface)
+        private set
+    var glassBorder by mutableStateOf(glassBorder)
+        private set
 
     fun copy(
         background: Color = this.background,
@@ -99,10 +111,15 @@ class AmazeColors(
         dangerText: Color = this.dangerText,
         info: Color = this.info,
         infoSurface: Color = this.infoSurface,
-        infoText: Color = this.infoText
+        infoText: Color = this.infoText,
+        navBackground: Color = this.navBackground,
+        navBorder: Color = this.navBorder,
+        glassSurface: Color = this.glassSurface,
+        glassBorder: Color = this.glassBorder
     ) = AmazeColors(
         background, surface, elevatedSurface, border, textPrimary, textSecondary, textMuted, accent,
-        success, successSurface, successText, warning, warningSurface, warningText, danger, dangerSurface, dangerText, info, infoSurface, infoText
+        success, successSurface, successText, warning, warningSurface, warningText, danger, dangerSurface, dangerText, info, infoSurface, infoText,
+        navBackground, navBorder, glassSurface, glassBorder
     )
 
     fun updateWith(other: AmazeColors) {
@@ -126,6 +143,10 @@ class AmazeColors(
         info = other.info
         infoSurface = other.infoSurface
         infoText = other.infoText
+        navBackground = other.navBackground
+        navBorder = other.navBorder
+        glassSurface = other.glassSurface
+        glassBorder = other.glassBorder
     }
 }
 
@@ -192,7 +213,11 @@ fun AmazeTheme(
             dangerText = ColorDangerTextLight,
             info = ColorInfo,
             infoSurface = ColorInfoSurfaceLight,
-            infoText = ColorInfoTextLight
+            infoText = ColorInfoTextLight,
+            navBackground = NavBgLight,
+            navBorder = NavBorderLight,
+            glassSurface = GlassSurfaceLight,
+            glassBorder = GlassBorderLight
         )
         AppTheme.DARK -> AmazeColors(
             background = NeutralBgDark,
@@ -214,7 +239,11 @@ fun AmazeTheme(
             dangerText = ColorDangerTextDark,
             info = ColorInfo,
             infoSurface = ColorInfoSurfaceDark,
-            infoText = ColorInfoTextDark
+            infoText = ColorInfoTextDark,
+            navBackground = NavBgDark,
+            navBorder = NavBorderDark,
+            glassSurface = GlassSurfaceDark,
+            glassBorder = GlassBorderDark
         )
         AppTheme.SYSTEM -> error("System theme must be resolved before selecting colors")
     }

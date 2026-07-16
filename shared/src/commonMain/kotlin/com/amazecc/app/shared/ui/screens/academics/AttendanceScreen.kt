@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,23 +24,31 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
-import com.amazecc.app.shared.model.CalendarDay
-import com.amazecc.app.shared.model.CalendarEvent
 import com.amazecc.app.shared.model.CalendarMonth
+import com.amazecc.app.shared.model.ExamItem
+import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.utils.AttendanceDay
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.utils.SlotInfo
+import com.amazecc.app.shared.utils.TimeMath
+import kotlinx.datetime.Clock
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+
 
 @Composable
 fun AttendanceScreen() {
+    var activeView by remember { mutableStateOf("Timetable") }
+    val views = listOf("Timetable", "Predictor", "Weekly Grid")
     val colors = AmazeTheme.colors
-    var activeSubTab by remember { mutableStateOf("Timeline") }
-    val tabs = listOf("Timeline", "Predictor", "Timetable Grid")
 
     Column(
         modifier = Modifier
@@ -52,36 +59,34 @@ fun AttendanceScreen() {
             title = "Attendance Hub",
             description = "Track your attendance, view timelines and predict shortfalls",
             showBackButton = true,
-            showSyncButton = true
+            showSyncButton = true,
+            onRefresh = AppState::refreshCurrentSemester
         )
 
-        TabRow(
-            selectedTabIndex = tabs.indexOf(activeSubTab),
-            containerColor = colors.background,
-            contentColor = colors.accent,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[tabs.indexOf(activeSubTab)]),
-                    color = colors.accent
-                )
-            }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            tabs.forEach { tab ->
-                Tab(
-                    selected = activeSubTab == tab,
-                    onClick = { activeSubTab = tab },
-                    text = {
-                        Text(
-                            text = tab,
-                            style = AmazeTheme.typography.body.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        )
-                    },
-                    selectedContentColor = colors.accent,
-                    unselectedContentColor = colors.textSecondary
-                )
+            views.forEach { view ->
+                val isSelected = activeView == view
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isSelected) colors.accent else colors.surface)
+                        .clickable { activeView = view }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        view,
+                        color = if (isSelected) Color.White else colors.textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                }
             }
         }
 
@@ -90,10 +95,10 @@ fun AttendanceScreen() {
                 .weight(1f)
                 .padding(16.dp)
         ) {
-            when (activeSubTab) {
-                "Timeline" -> DailyPlannerScreen()
+            when (activeView) {
+                "Timetable" -> DailyPlannerScreen()
                 "Predictor" -> OverallPredictorScreen()
-                "Timetable Grid" -> TimetableGridScreen()
+                "Weekly Grid" -> TimetableGridScreen()
             }
         }
     }
@@ -114,7 +119,7 @@ fun FreePeriodBlock(title: String, time: String) {
         Icon(Icons.Rounded.Info, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = " ()",
+            text = "$title ($time)",
             style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium, color = colors.textMuted)
         )
     }
@@ -124,26 +129,29 @@ fun FreePeriodBlock(title: String, time: String) {
 fun OverallPredictorScreen() {
     val colors = AmazeTheme.colors
     val attendanceRes by AppState.attendance.collectAsState()
-    val calendarRes by AppState.calendarData.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
+    val examScheduleRes by AppState.examSchedule.collectAsState()
     val courses = attendanceRes?.attendance ?: emptyList()
     val calendarMonths = calendarRes?.months ?: emptyList()
+    val examSchedule = examScheduleRes?.schedule ?: emptyMap()
 
     var selectedMode by remember { mutableStateOf("LID") }
-    var skips by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    var skipDates by remember { mutableStateOf<Map<String, Set<String>>>(emptyMap()) }
+    var expandedCourse by remember { mutableStateOf<String?>(null) }
     var resetTrigger by remember { mutableStateOf(0) }
 
-    // Compute important event dates from calendar
-    val impDates = remember(calendarMonths) {
-        computeImportantDates(calendarMonths)
+    val impDates = remember(calendarMonths, examSchedule) {
+        computeImportantDates(calendarMonths, examSchedule)
     }
 
     val cutoffDate = remember(selectedMode, impDates) {
         when (selectedMode) {
-            "CAT1" -> impDates["cat i"]?.let { parseDate(it) }
-            "CAT2" -> impDates["cat ii"]?.let { parseDate(it) }
+            "CAT1" -> impDates["cat i"]?.let { it }
+            "CAT2" -> impDates["cat ii"]?.let { it }
+            "FAT" -> impDates["fat"]?.let { it }
             "LID" -> {
-                val labDate = impDates["lid for laboratory classes"]?.let { parseDate(it) }
-                val theoryDate = impDates["lid for theory classes"]?.let { parseDate(it) }
+                val labDate = impDates["lid for laboratory classes"]
+                val theoryDate = impDates["lid for theory classes"]
                 if (labDate != null && theoryDate != null) {
                     val labVal = labDate.year * 10000 + labDate.month * 100 + labDate.day
                     val theoryVal = theoryDate.year * 10000 + theoryDate.month * 100 + theoryDate.day
@@ -155,7 +163,6 @@ fun OverallPredictorScreen() {
         }
     }
 
-    // Build day cards map for course-weekday mapping
     val slotMapTyped = remember {
         SlotMap.map.mapValues { (_, inner) ->
             inner.mapValues { (_, time) -> SlotInfo(time) }
@@ -169,7 +176,7 @@ fun OverallPredictorScreen() {
                     "courseTitle" to item.courseTitle,
                     "courseType" to item.courseType,
                     "faculty" to item.faculty,
-                    "slotName" to (item.slotVenue?.split("\\s+".toRegex())?.firstOrNull() ?: item.slotName),
+                    "slotName" to (item.slotName ?: ""),
                     "attendancePercentage" to item.attendancePercentage
                 )
             },
@@ -177,30 +184,29 @@ fun OverallPredictorScreen() {
         )
     }
 
-    // All working days from calendar months
     val allWorkingDays = remember(calendarMonths) {
         buildWorkingDays(calendarMonths)
     }
 
-    // Future classes per course
-    val futureClassesMap = remember(allWorkingDays, dayCardsMap, cutoffDate, resetTrigger) {
-        computeFutureClasses(courses, dayCardsMap, allWorkingDays, cutoffDate)
+    val futureClassesMap = remember(allWorkingDays, dayCardsMap, selectedMode, impDates, resetTrigger) {
+        computeFutureClasses(courses, dayCardsMap, allWorkingDays, selectedMode, impDates)
     }
 
-    // Predictions per course
-    val predictions = remember(skips, futureClassesMap, courses) {
+    val predictions = remember(skipDates, futureClassesMap, courses) {
         courses.map { course ->
             val code = course.courseCode
             val attended = course.attendedClasses
             val total = course.totalClasses
             val futureInfo = futureClassesMap[code]
             val futureCount = futureInfo?.total ?: 0
-            val skipCount = skips[code] ?: 0
+            val futureDates = futureInfo?.dates ?: emptyList()
+            val skippedSkipDates = skipDates[code] ?: emptySet()
+            val skipCount = futureDates.count { it.display in skippedSkipDates }
             val effectiveAttend = futureCount - skipCount.coerceIn(0, futureCount)
             val predictedAttended = attended + effectiveAttend
             val predictedTotal = total + futureCount
             val predictedPct = if (predictedTotal > 0) (predictedAttended.toDouble() / predictedTotal * 100) else 0.0
-            CoursePrediction(course, futureCount, skipCount, predictedAttended, predictedTotal, predictedPct)
+            CoursePrediction(course, futureCount, skipCount, predictedAttended, predictedTotal, predictedPct, futureDates)
         }
     }
 
@@ -208,19 +214,18 @@ fun OverallPredictorScreen() {
     val totalPredictedTotal = predictions.sumOf { it.predictedTotal }
     val overallPct = if (totalPredictedTotal > 0) totalPredictedAttended.toDouble() / totalPredictedTotal * 100 else 0.0
 
-    val modes = listOf("CAT1", "CAT2", "LID")
+    val modes = listOf("CAT1", "CAT2", "FAT", "LID")
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Overall summary card
         AmazeCard(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 0.dp),
             backgroundColor = colors.surface
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Text("Predicted Overall Attendance ($selectedMode)", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "%.1f%%".format(overallPct),
+                    text = pctFormatted(overallPct),
                     style = AmazeTheme.typography.heading.copy(
                         color = when {
                             overallPct >= 85 -> Color(0xFF10B981)
@@ -240,7 +245,6 @@ fun OverallPredictorScreen() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Mode selector
         Text("Cutoff Target", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         Spacer(modifier = Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -254,46 +258,94 @@ fun OverallPredictorScreen() {
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(mode, color = if (isSelected) Color.White else colors.textPrimary, fontWeight = FontWeight.Bold)
+                    Text(mode, color = if (isSelected) Color.White else colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
             }
         }
 
-        // Cutoff date info
         if (cutoffDate != null) {
+            val examLabel = when (selectedMode) {
+                "CAT1" -> "CAT I"
+                "CAT2" -> "CAT II"
+                "FAT" -> "FAT"
+                else -> "LID"
+            }
             Text(
-                text = "Cutoff: ${cutoffDate.month}/${cutoffDate.day}",
+                text = "$examLabel cutoff: ${cutoffDate.month}/${cutoffDate.day}",
                 style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
             )
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        val totalWorkingDays = allWorkingDays.size
+        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val todayVal = today.year * 10000 + today.monthNumber * 100 + today.dayOfMonth
+        val remainingDays = allWorkingDays.count { (y, m, d) ->
+            val dateVal = y * 10000 + m * 100 + d
+            dateVal >= todayVal && (cutoffDate == null || dateVal <= cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day)
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.accent.copy(alpha = 0.06f))
+                .border(1.dp, colors.accent.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("$totalWorkingDays", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                Text("Cal. Days", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+            }
+            Box(modifier = Modifier.width(1.dp).height(32.dp).background(colors.border))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("$remainingDays", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Text("Remaining", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+            }
+            Box(modifier = Modifier.width(1.dp).height(32.dp).background(colors.border))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("${calendarMonths.size}", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Text("Months", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+            }
+        }
 
-        // Reset button
+        Spacer(modifier = Modifier.height(4.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            Text(
+                "Tap a course to choose which dates to skip",
+                style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+            )
             TextButton(onClick = {
-                skips = emptyMap()
+                skipDates = emptyMap()
                 resetTrigger++
             }) {
                 Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Reset Skips", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
+                Text("Reset", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
             }
         }
 
-        // Course list
         LazyColumn(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(predictions) { pred ->
-                CoursePredictorCard(
+                val isExpanded = expandedCourse == pred.course.courseCode
+                ExpandedCoursePredictorCard(
                     prediction = pred,
-                    onSkipChange = { newSkip ->
-                        skips = skips + (pred.course.courseCode to newSkip.coerceIn(0, pred.futureClasses))
+                    isExpanded = isExpanded,
+                    skipDates = skipDates[pred.course.courseCode] ?: emptySet(),
+                    onToggleExpand = {
+                        expandedCourse = if (isExpanded) null else pred.course.courseCode
+                    },
+                    onToggleSkipDate = { dateKey ->
+                        val current = skipDates[pred.course.courseCode]?.toMutableSet() ?: mutableSetOf()
+                        if (dateKey in current) current.remove(dateKey) else current.add(dateKey)
+                        skipDates = skipDates + (pred.course.courseCode to current)
                     },
                     colors = colors
                 )
@@ -308,13 +360,17 @@ private data class CoursePrediction(
     val skipCount: Int,
     val predictedAttended: Int,
     val predictedTotal: Int,
-    val predictedPct: Double
+    val predictedPct: Double,
+    val futureDates: List<FutureDate> = emptyList()
 )
 
 @Composable
-private fun CoursePredictorCard(
+private fun ExpandedCoursePredictorCard(
     prediction: CoursePrediction,
-    onSkipChange: (Int) -> Unit,
+    isExpanded: Boolean,
+    skipDates: Set<String>,
+    onToggleExpand: () -> Unit,
+    onToggleSkipDate: (String) -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val course = prediction.course
@@ -323,52 +379,93 @@ private fun CoursePredictorCard(
 
     AmazeCard(
         modifier = Modifier.fillMaxWidth(),
-        onClick = { AppState.openCourseAttendance(course.courseCode) }
+        onClick = onToggleExpand
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1)
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Current: ${course.attendedClasses}/${course.totalClasses}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                    Text("•", color = colors.textMuted)
-                    Text("Future: ${prediction.futureClasses}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    SkipButton("-", onClick = { onSkipChange(prediction.skipCount - 1) }, colors)
-                    Box(
-                        modifier = Modifier
-                            .background(colors.background, RoundedCornerShape(6.dp))
-                            .border(1.dp, colors.border, RoundedCornerShape(6.dp))
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
-                    ) {
-                        Text("${prediction.skipCount}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1)
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Current: ${course.attendedClasses}/${course.totalClasses}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        Text(if (prediction.skipCount > 0) "Skips: ${prediction.skipCount}" else "", style = AmazeTheme.typography.caption.copy(color = if (prediction.skipCount > 0) Color(0xFFEF4444) else colors.textSecondary))
                     }
-                    SkipButton("+", onClick = { onSkipChange(prediction.skipCount + 1) }, colors)
-                    Spacer(modifier = Modifier.width(4.dp))
+                }
+                Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        "skip${if (prediction.skipCount != 1) "s" else ""}",
-                        style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+                        text = pctFormatted(projectedPct),
+                        style = AmazeTheme.typography.subheading.copy(
+                            color = when {
+                                projectedPct >= 85 -> Color(0xFF10B981)
+                                projectedPct >= 75 -> Color(0xFFF59E0B)
+                                else -> Color(0xFFEF4444)
+                            },
+                            fontWeight = FontWeight.Black
+                        )
+                    )
+                    Text(
+                        text = "${pctFormatted(currentPct)} now",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp)
                     )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    null,
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(20.dp)
+                )
             }
-            Column(horizontalAlignment = Alignment.End) {
+
+            if (isExpanded && prediction.futureDates.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "%.1f%%".format(projectedPct),
-                    style = AmazeTheme.typography.subheading.copy(
-                        color = when {
-                            projectedPct >= 85 -> Color(0xFF10B981)
-                            projectedPct >= 75 -> Color(0xFFF59E0B)
-                            else -> Color(0xFFEF4444)
-                        },
-                        fontWeight = FontWeight.Black
-                    )
+                    "Future classes — tap to mark skip",
+                    style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
                 )
-                Text(
-                    text = "%.1f%% now".format(currentPct),
-                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp)
-                )
+                Spacer(modifier = Modifier.height(6.dp))
+                prediction.futureDates.forEach { fd ->
+                    val isSkipped = fd.display in skipDates
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { onToggleSkipDate(fd.display) }
+                            .background(if (isSkipped) Color(0xFFEF4444).copy(alpha = 0.08f) else Color.Transparent)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isSkipped) Color(0xFFEF4444) else Color(0xFF10B981))
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(fd.display, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
+                                Text(fd.dayAbbr, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp))
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isSkipped) Color(0xFFEF4444).copy(alpha = 0.15f) else Color(0xFF10B981).copy(alpha = 0.12f))
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                if (isSkipped) "SKIP" else "ATTEND",
+                                color = if (isSkipped) Color(0xFFEF4444) else Color(0xFF10B981),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -389,15 +486,22 @@ private fun SkipButton(text: String, onClick: () -> Unit, colors: com.amazecc.ap
     }
 }
 
+private fun pctFormatted(value: Double): String {
+    val i = kotlin.math.round(value * 100).toLong()
+    val whole = i / 100
+    val frac = (i % 100).coerceIn(0, 99)
+    return "$whole.${frac.toString().padStart(2, '0')}%"
+}
+
 private data class SimpleDate(val month: Int, val day: Int, val year: Int)
 
-private fun computeImportantDates(months: List<CalendarMonth>): Map<String, SimpleDate> {
+private fun computeImportantDates(months: List<CalendarMonth>, examSchedule: Map<String, List<ExamItem>> = emptyMap()): Map<String, SimpleDate> {
     val monthIndex = mapOf(
         "jan" to 1, "feb" to 2, "mar" to 3, "apr" to 4, "may" to 5, "jun" to 6,
         "jul" to 7, "aug" to 8, "sep" to 9, "oct" to 10, "nov" to 11, "dec" to 12
     )
     val imp = mutableMapOf<String, SimpleDate>()
-    val keywords = listOf("cat i", "cat ii", "lid for laboratory classes", "lid for theory classes")
+    val keywords = listOf("cat i", "cat ii", "fat", "lid for laboratory classes", "lid for theory classes")
     for (month in months) {
         val monthStr = month.month.lowercase()
         val m = monthIndex[monthStr.take(3)] ?: continue
@@ -413,10 +517,27 @@ private fun computeImportantDates(months: List<CalendarMonth>): Map<String, Simp
             }
         }
     }
+    // Fallback: try to extract CAT/FAT dates from exam schedule
+    if (!imp.containsKey("cat i") || !imp.containsKey("cat ii") || !imp.containsKey("fat")) {
+        for ((_, items) in examSchedule) {
+            for (item in items) {
+                val parts = item.examDate.split("-")
+                if (parts.size == 3) {
+                    val ey = parts[0].toIntOrNull() ?: continue
+                    val em = parts[1].toIntOrNull() ?: continue
+                    val ed = parts[2].toIntOrNull() ?: continue
+                    val label = item.courseTitle.lowercase()
+                    when {
+                        label.contains("cat 1") || label.contains("cat i") -> if (!imp.containsKey("cat i")) imp["cat i"] = SimpleDate(em, ed, ey)
+                        label.contains("cat 2") || label.contains("cat ii") -> if (!imp.containsKey("cat ii")) imp["cat ii"] = SimpleDate(em, ed, ey)
+                        label.contains("fat") -> if (!imp.containsKey("fat")) imp["fat"] = SimpleDate(em, ed, ey)
+                    }
+                }
+            }
+        }
+    }
     return imp
 }
-
-private fun parseDate(date: SimpleDate): SimpleDate? = date
 
 private fun buildWorkingDays(months: List<CalendarMonth>): List<Triple<Int, Int, Int>> {
     val monthIndex = mapOf(
@@ -451,109 +572,304 @@ private fun computeFutureClasses(
     courses: List<AttendanceItem>,
     dayCardsMap: Map<AttendanceDay, List<CourseAttendanceInfo>>,
     allWorkingDays: List<Triple<Int, Int, Int>>,
-    cutoffDate: SimpleDate?
+    selectedMode: String,
+    impDates: Map<String, SimpleDate>
 ): Map<String, FutureClassInfo> {
-    val weekdayNameMap = mapOf(
-        1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun"
-    )
-    val day3toFull = mapOf(
-        "MON" to AttendanceDay.MON, "TUE" to AttendanceDay.TUE, "WED" to AttendanceDay.WED,
-        "THU" to AttendanceDay.THU, "FRI" to AttendanceDay.FRI, "SAT" to AttendanceDay.SAT,
-        "SUN" to AttendanceDay.SUN
-    )
-
-    // Map day number → day abbreviation for dayCardsMap
     fun dayOfWeekToAbbr(y: Int, m: Int, d: Int): String? {
-        // Use Zeller's congruence or kotlinx datetime
         return try {
-            val date = kotlinx.datetime.LocalDate(y, m, d)
-            val names = listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT")
-            names[date.dayOfWeek.value % 7]
-        } catch (e: Exception) { null }
+            val day = LocalDate(y, m, d).dayOfWeek
+            when (day) {
+                DayOfWeek.SUNDAY -> "SUN"
+                DayOfWeek.MONDAY -> "MON"
+                DayOfWeek.TUESDAY -> "TUE"
+                DayOfWeek.WEDNESDAY -> "WED"
+                DayOfWeek.THURSDAY -> "THU"
+                DayOfWeek.FRIDAY -> "FRI"
+                DayOfWeek.SATURDAY -> "SAT"
+                else -> null
+            }
+        } catch (_: Exception) { null }
+    }
+
+    fun dayAbbrToName(abbr: String): String = when (abbr) {
+        "MON" -> "Monday"; "TUE" -> "Tuesday"; "WED" -> "Wednesday"
+        "THU" -> "Thursday"; "FRI" -> "Friday"; "SAT" -> "Saturday"
+        "SUN" -> "Sunday"; else -> abbr
     }
 
     val result = mutableMapOf<String, FutureClassInfo>()
 
     for (course in courses) {
         val code = course.courseCode
-        val slotRaw = course.slotVenue?.split("\\s+".toRegex())?.firstOrNull() ?: course.slotName
         val isLab = code.endsWith("(L)") || course.courseType == "Lab"
 
-        // Find which days this course has classes
+        val courseCutoff = when (selectedMode) {
+            "CAT1" -> impDates["cat i"]
+            "CAT2" -> impDates["cat ii"]
+            "FAT" -> impDates["fat"]
+            "LID" -> if (isLab) impDates["lid for laboratory classes"] else impDates["lid for theory classes"]
+            else -> null
+        }
+
         val courseDays = dayCardsMap.entries
             .filter { (_, list) -> list.any { it.courseCode == code } }
             .map { it.key }
         val courseDayAbbrs = courseDays.map { it.name }
 
-        var futureCount = 0
+        val futureDates = mutableListOf<FutureDate>()
+        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val todayVal = today.year * 10000 + today.monthNumber * 100 + today.dayOfMonth
         for ((y, m, d) in allWorkingDays) {
-            if (cutoffDate != null) {
-                val dateVal = y * 10000 + m * 100 + d
-                val cutoffVal = cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day
+            val dateVal = y * 10000 + m * 100 + d
+            if (dateVal < todayVal) continue
+            if (courseCutoff != null) {
+                val cutoffVal = courseCutoff.year * 10000 + courseCutoff.month * 100 + courseCutoff.day
                 if (dateVal > cutoffVal) continue
             }
             val abbr = dayOfWeekToAbbr(y, m, d) ?: continue
             if (abbr in courseDayAbbrs) {
-                futureCount++
+                val display = "${m}/${d}"
+                futureDates.add(FutureDate(dateVal, display, dayAbbrToName(abbr)))
+                if (isLab) futureDates.add(FutureDate(dateVal, "$display (Lab)", dayAbbrToName(abbr)))
             }
         }
 
-        if (isLab) futureCount *= 2
-        result[code] = FutureClassInfo(futureCount)
+        val count = futureDates.size
+        result[code] = FutureClassInfo(count, futureDates)
     }
 
     return result
 }
 
-private data class FutureClassInfo(val total: Int)
+private data class FutureDate(val dateVal: Int, val display: String, val dayAbbr: String)
+private data class FutureClassInfo(val total: Int, val dates: List<FutureDate> = emptyList())
 
 @Composable
 fun TimetableGridScreen() {
     val colors = AmazeTheme.colors
     val attendanceRes by AppState.attendance.collectAsState()
+    val timetableRes by AppState.timetable.collectAsState()
     val courses = attendanceRes?.attendance ?: emptyList()
-    
-    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item {
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    "Weekly Matrix View", 
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Matrix view is optimized for large screens or horizontal orientation. Here are your listed courses:",
-                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                )
+
+    val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT")
+    val dayFull = mapOf("MON" to "Monday", "TUE" to "Tuesday", "WED" to "Wednesday", "THU" to "Thursday", "FRI" to "Friday", "SAT" to "Saturday")
+
+    // Build a map: day -> (slotCode -> courseInfo)
+    val daySlotMap = remember(courses, timetableRes) {
+        val map = mutableMapOf<String, MutableMap<String, AttendanceItem>>()
+        for (day in days) {
+            map[day] = mutableMapOf()
+            val daySlots = SlotMap.map[day] ?: continue
+            for (course in courses) {
+                val slotRaw = (course.slotName ?: "")
+                val slots = slotRaw.split("+")
+                for (slot in slots) {
+                    val trimmed = slot.trim().uppercase()
+                    if (trimmed in daySlots) {
+                        map[day]?.set(trimmed, course)
+                    }
+                }
             }
         }
-        
-        item {
-            Text("Course Reference", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+        map
+    }
+
+    // Collect all unique time ranges per day, sorted
+    val dayTimeSlots = remember {
+        val map = mutableMapOf<String, List<Pair<String, String>>>() // day -> list of (slotCode, timeRange)
+        for (day in days) {
+            val slots = SlotMap.map[day]?.entries?.sortedBy { TimeMath.toMinutes(it.value.split("-")[0]) } ?: emptyList()
+            map[day] = slots.map { it.key to it.value }
         }
-        
-        items(courses) { course ->
-            AmazeCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { AppState.openCourseAttendance(course.courseCode) }
-            ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .background(colors.accent, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = Color.White, fontWeight = FontWeight.Bold))
+        map
+    }
+
+        var selectedDay by remember { mutableStateOf<String?>(null) }
+    var showTimetableDialog by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        AmazeButton(
+            text = "View Full Timetable",
+            onClick = { showTimetableDialog = true },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        )
+        // Day selector
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            days.forEach { day ->
+                val isSelected = selectedDay == day
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (isSelected) colors.accent else colors.surface)
+                        .border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(8.dp))
+                        .clickable { selectedDay = if (isSelected) null else day }
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        day.take(3),
+                        color = if (isSelected) Color.White else colors.textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+        }
+
+        if (selectedDay == null) {
+            // Overview: show all days summary
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(days) { day ->
+                    val dayCourses = daySlotMap[day]?.values?.distinct() ?: emptyList()
+                    val daySlots = dayTimeSlots[day] ?: emptyList()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(colors.surface)
+                            .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+                            .padding(12.dp)
+                    ) {
+                        Column {
+                            Text(
+                                dayFull[day] ?: day,
+                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            if (dayCourses.isEmpty()) {
+                                Text("No classes", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                            } else {
+                                dayCourses.forEach { course ->
+                                    val slotRaw = (course.slotName ?: "")
+                                    val slots = slotRaw.split("+")
+                                    val times = slots.mapNotNull { s ->
+                                        val trimmed = s.trim().uppercase()
+                                        daySlots.firstOrNull { it.first == trimmed }?.second
+                                    }
+                                    val timeStr = if (times.isNotEmpty()) times.joinToString(", ") else slotRaw
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .clip(CircleShape)
+                                                .background(colors.accent)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                            Text(course.courseTitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1)
+                                        }
+                                        Text(timeStr, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontSize = 10.sp))
+                                    }
+                                }
+                            }
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Attended: ${course.attendedClasses}/${course.totalClasses} (${course.attendancePercentage})", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                }
+            }
+        } else {
+            // Detailed day view: show each time slot
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.accent.copy(alpha = 0.08f))
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            "${dayFull[selectedDay] ?: selectedDay} — ${dayTimeSlots[selectedDay]?.size ?: 0} slots",
+                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                }
+                val slots = dayTimeSlots[selectedDay] ?: emptyList()
+                items(slots) { (slotCode, timeRange) ->
+                    val course = daySlotMap[selectedDay]?.get(slotCode)
+                    val hasClass = course != null
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (hasClass) colors.accent.copy(alpha = 0.06f) else colors.surface)
+                            .border(1.dp, if (hasClass) colors.accent.copy(alpha = 0.2f) else colors.border, RoundedCornerShape(10.dp))
+                            .padding(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.width(64.dp)) {
+                                Text(slotCode, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = if (hasClass) colors.accent else colors.textMuted))
+                                Text(timeRange, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            if (hasClass) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.accent)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary), maxLines = 1)
+                                    Text("${course.courseCode} • ${course.attendedClasses}/${course.totalClasses}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(
+                                            when {
+                                                (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 85 -> Color(0xFF10B981).copy(alpha = 0.12f)
+                                                (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 75 -> Color(0xFFF59E0B).copy(alpha = 0.12f)
+                                                else -> Color(0xFFEF4444).copy(alpha = 0.12f)
+                                            }
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        course.attendancePercentage,
+                                        color = when {
+                                            (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 85 -> Color(0xFF10B981)
+                                            (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 75 -> Color(0xFFF59E0B)
+                                            else -> Color(0xFFEF4444)
+                                        },
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            } else {
+                                Text(
+                                    "Free",
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
+
+    if (showTimetableDialog) {
+        TimetableDialog(
+            attendanceCourses = courses,
+            timetableCourses = timetableRes?.courseInfo ?: emptyList(),
+            onDismiss = { showTimetableDialog = false }
+        )
+    }
+}
+
 }
