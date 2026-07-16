@@ -27,9 +27,7 @@ jobs:
       - name: Extract Version Info
         id: version_info
         run: |
-          source version.properties
-          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
-          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+          cat version.properties | tr -d '\r' >> $GITHUB_ENV
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew

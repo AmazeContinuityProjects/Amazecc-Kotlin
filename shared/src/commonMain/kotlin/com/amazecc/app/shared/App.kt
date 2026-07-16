@@ -103,7 +103,7 @@ fun App() {
                             Screen.SOCIAL -> SocialScreen()
                             Screen.FFCS_PLANNER -> FfcsPlannerScreen()
                             Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateTo(Screen.ACADEMICS) }
-                            Screen.CALENDAR -> CalendarScreen { AppState.navigateTo(Screen.ACADEMICS) }
+                            Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateTo(Screen.ACADEMICS) })
                             Screen.GLASS_MORPH -> GlassMorphismScreen()
                             Screen.GRADES -> GradesScreen()
                             Screen.GPA_PREDICTOR -> GPAPredictorScreen()

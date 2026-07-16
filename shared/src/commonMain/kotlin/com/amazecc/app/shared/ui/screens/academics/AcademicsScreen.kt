@@ -38,9 +38,7 @@ import kotlin.math.roundToInt
 @Composable
 fun MarksGradesScreen() = AcademicsScreen()
 
-@Suppress("unused")
-@Composable
-fun CalendarScreen() = AcademicsScreen()
+
 
 @Composable
 fun AcademicsScreen() {

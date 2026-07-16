@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.api
+package com.amazecc.app.shared.api
 
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
@@ -920,6 +920,42 @@ object AmazeClient {
             }
         } catch (e: Exception) {
             EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
+        }
+    }
+
+    suspend fun getEventPreview(eid: String): EventHubPreview? {
+        return try {
+            val response = httpClient.post("$baseUrl/api/events/preview") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("eid", eid)
+                    put("username", "")
+                    put("password", "")
+                })
+            }
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString<EventHubPreview>(response.bodyAsText())
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun registerForEvent(eid: String): EventHubRegisterRes? {
+        return try {
+            val response = httpClient.post("$baseUrl/api/events/register") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("eid", eid)
+                    put("username", "")
+                    put("password", "")
+                })
+            }
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString<EventHubRegisterRes>(response.bodyAsText())
+            } else null
+        } catch (e: Exception) {
+            null
         }
     }
 

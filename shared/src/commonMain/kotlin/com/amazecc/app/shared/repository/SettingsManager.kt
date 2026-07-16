@@ -7,7 +7,7 @@ import com.russhwolf.settings.Settings
  * It provides synchronous read/write access to cached API responses and user preferences.
  */
 object SettingsManager {
-    private val settings: Settings = Settings()
+    private val settings: Settings by lazy { Settings() }
 
     // Key constants mirroring web app
     @Suppress("unused")

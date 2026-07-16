@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -411,6 +412,18 @@ private fun EventDetailSheet(
     val colors = AmazeTheme.colors
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    var previewData by remember { mutableStateOf<com.amazecc.app.shared.model.EventHubPreview?>(null) }
+    var isLoadingPreview by remember { mutableStateOf(true) }
+    var registrationRes by remember { mutableStateOf<com.amazecc.app.shared.model.EventHubRegisterRes?>(null) }
+    var isRegistering by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(event.eid) {
+        isLoadingPreview = true
+        previewData = com.amazecc.app.shared.api.AmazeClient.getEventPreview(event.eid)
+        isLoadingPreview = false
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -436,8 +449,7 @@ private fun EventDetailSheet(
             )
 
             // Poster image
-            val posterId = event.id ?: event.registeredDetails?.get("id")?.let { if (it is kotlinx.serialization.json.JsonPrimitive) it.content else it.toString() } ?: event.eid
-            val posterUrl = "https://eventhubcc.vit.ac.in/EventHub/image/?id=$posterId"
+            val posterUrl = previewData?.imageSrc ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
             KamelImage(
                 resource = asyncPainterResource(data = posterUrl),
                 contentDescription = "Event Poster",
@@ -522,32 +534,52 @@ private fun EventDetailSheet(
             }
 
             // Register button
-            Button(
-                onClick = {
-                    onRegister()
-                    onDismiss()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isRegistered) Color(0xFF10B981) else colors.accent,
-                    disabledContainerColor = colors.border
-                ),
-                enabled = !isRegistered && event.isPastEvent != true
-            ) {
-                Icon(
-                    if (isRegistered) Icons.Rounded.CheckCircle else Icons.Rounded.HowToReg,
-                    null,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+            if (registrationRes != null) {
                 Text(
-                    if (isRegistered) "Registered" else "Register Now",
+                    text = "Event Registration Initiated (Status: ${registrationRes?.status})",
+                    color = colors.accent,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
                 )
+            } else {
+                Button(
+                    onClick = {
+                        isRegistering = true
+                        scope.launch {
+                            val res = com.amazecc.app.shared.api.AmazeClient.registerForEvent(event.eid)
+                            if (res != null) {
+                                registrationRes = res
+                                onRegister()
+                            }
+                            isRegistering = false
+                        }
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isRegistered) Color(0xFF10B981) else colors.accent,
+                        disabledContainerColor = colors.border
+                    ),
+                    enabled = !isRegistered && event.isPastEvent != true && !isRegistering
+                ) {
+                    if (isRegistering) {
+                        CircularProgressIndicator(color = colors.background, modifier = Modifier.size(20.dp))
+                    } else {
+                        Icon(
+                            if (isRegistered) Icons.Rounded.CheckCircle else Icons.Rounded.HowToReg,
+                            null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            if (isRegistered) "Registered" else "Register Now",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
+                    }
+                }
             }
         }
     }

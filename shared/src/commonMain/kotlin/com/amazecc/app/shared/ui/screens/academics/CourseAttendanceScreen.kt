@@ -70,14 +70,22 @@ fun CourseAttendanceScreen() {
         attendanceRes?.attendance?.let { att ->
             AttendanceTimetable.buildAttendanceDayCardsMap(
                 attendance = att.map { item ->
-                    mapOf(
-                        "courseCode" to item.courseCode,
-                        "courseTitle" to item.courseTitle,
-                        "courseType" to item.courseType,
-                        "faculty" to item.faculty,
-                        "slotName" to (item.slotName ?: ""),
-                        "attendancePercentage" to item.attendancePercentage
-                    )
+                        val shortType = when (item.courseType.lowercase()) {
+                            "embedded theory" -> "ETH"
+                            "embedded lab" -> "ELA"
+                            "theory only" -> "TO"
+                            "lab only" -> "LO"
+                            "soft skill" -> "SS"
+                            else -> item.courseType
+                        }
+                        mapOf(
+                            "courseCode" to item.courseCode,
+                            "courseTitle" to item.courseTitle,
+                            "courseType" to shortType,
+                            "faculty" to item.faculty,
+                            "slotName" to (item.slotName ?: ""),
+                            "attendancePercentage" to item.attendancePercentage
+                        )
                 },
                 slotMap = slotMapTyped
             )

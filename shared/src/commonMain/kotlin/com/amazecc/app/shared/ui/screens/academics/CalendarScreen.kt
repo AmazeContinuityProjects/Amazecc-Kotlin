@@ -49,7 +49,7 @@ data class ConsolidatedEvent(
 )
 
 @Composable
-fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
+fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader: Boolean = true) {
     val colors = AmazeTheme.colors
     val moodleData by AppState.moodleData.collectAsState()
     val examData by AppState.examSchedule.collectAsState()
@@ -179,13 +179,15 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
     var selectedDay by remember { mutableStateOf<Int?>(null) }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScreenHeader(
-            title = "Academic Calendar",
-            description = "Track schedule, exams, & LMS",
-            showBackButton = true,
-            showSyncButton = true,
-            onRefresh = { refreshTrigger++ }
-        )
+        if (showHeader) {
+            ScreenHeader(
+                title = "Academic Calendar",
+                description = "Track schedule, exams, & LMS",
+                showBackButton = true,
+                showSyncButton = true,
+                onRefresh = { refreshTrigger++ }
+            )
+        }
 
         // ── Calendar name tabs from API ──
         if (calendars.isNotEmpty()) {

@@ -1323,6 +1323,7 @@ object AppState {
 
     fun syncEventsAndClubs() {
         scope.launch {
+            _isLoading.value = true
             try {
                 val eventsRes = AmazeClient.getEvents()
                 if (eventsRes.error == null) {
@@ -1337,6 +1338,7 @@ object AppState {
                     cacheData(SettingsManager.CACHE_CLUBS, clubsRes)
                 }
             } catch (_: Exception) {}
+            _isLoading.value = false
         }
     }
 
