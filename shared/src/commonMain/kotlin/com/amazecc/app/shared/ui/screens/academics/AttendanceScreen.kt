@@ -29,6 +29,7 @@ import com.amazecc.app.shared.model.ExamItem
 import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.utils.AttendanceDay
@@ -118,7 +119,7 @@ fun FreePeriodBlock(title: String, time: String) {
         Icon(Icons.Rounded.Info, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = " ()",
+            text = "$title ($time)",
             style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium, color = colors.textMuted)
         )
     }
@@ -175,7 +176,7 @@ fun OverallPredictorScreen() {
                     "courseTitle" to item.courseTitle,
                     "courseType" to item.courseType,
                     "faculty" to item.faculty,
-                    "slotName" to (item.slotVenue?.split("\\s+".toRegex())?.firstOrNull() ?: item.slotName),
+                    "slotName" to (item.slotName ?: ""),
                     "attendancePercentage" to item.attendancePercentage
                 )
             },
@@ -187,8 +188,8 @@ fun OverallPredictorScreen() {
         buildWorkingDays(calendarMonths)
     }
 
-    val futureClassesMap = remember(allWorkingDays, dayCardsMap, cutoffDate, resetTrigger) {
-        computeFutureClasses(courses, dayCardsMap, allWorkingDays, cutoffDate)
+    val futureClassesMap = remember(allWorkingDays, dayCardsMap, selectedMode, impDates, resetTrigger) {
+        computeFutureClasses(courses, dayCardsMap, allWorkingDays, selectedMode, impDates)
     }
 
     val predictions = remember(skipDates, futureClassesMap, courses) {
@@ -486,10 +487,10 @@ private fun SkipButton(text: String, onClick: () -> Unit, colors: com.amazecc.ap
 }
 
 private fun pctFormatted(value: Double): String {
-    val intPart = (value * 10).toInt()
-    val whole = intPart / 10
-    val frac = intPart % 10
-    return "$whole.$frac%"
+    val i = kotlin.math.round(value * 100).toLong()
+    val whole = i / 100
+    val frac = (i % 100).coerceIn(0, 99)
+    return "$whole.${frac.toString().padStart(2, '0')}%"
 }
 
 private data class SimpleDate(val month: Int, val day: Int, val year: Int)
@@ -571,7 +572,8 @@ private fun computeFutureClasses(
     courses: List<AttendanceItem>,
     dayCardsMap: Map<AttendanceDay, List<CourseAttendanceInfo>>,
     allWorkingDays: List<Triple<Int, Int, Int>>,
-    cutoffDate: SimpleDate?
+    selectedMode: String,
+    impDates: Map<String, SimpleDate>
 ): Map<String, FutureClassInfo> {
     fun dayOfWeekToAbbr(y: Int, m: Int, d: Int): String? {
         return try {
@@ -601,6 +603,14 @@ private fun computeFutureClasses(
         val code = course.courseCode
         val isLab = code.endsWith("(L)") || course.courseType == "Lab"
 
+        val courseCutoff = when (selectedMode) {
+            "CAT1" -> impDates["cat i"]
+            "CAT2" -> impDates["cat ii"]
+            "FAT" -> impDates["fat"]
+            "LID" -> if (isLab) impDates["lid for laboratory classes"] else impDates["lid for theory classes"]
+            else -> null
+        }
+
         val courseDays = dayCardsMap.entries
             .filter { (_, list) -> list.any { it.courseCode == code } }
             .map { it.key }
@@ -612,8 +622,8 @@ private fun computeFutureClasses(
         for ((y, m, d) in allWorkingDays) {
             val dateVal = y * 10000 + m * 100 + d
             if (dateVal < todayVal) continue
-            if (cutoffDate != null) {
-                val cutoffVal = cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day
+            if (courseCutoff != null) {
+                val cutoffVal = courseCutoff.year * 10000 + courseCutoff.month * 100 + courseCutoff.day
                 if (dateVal > cutoffVal) continue
             }
             val abbr = dayOfWeekToAbbr(y, m, d) ?: continue
@@ -651,7 +661,7 @@ fun TimetableGridScreen() {
             map[day] = mutableMapOf()
             val daySlots = SlotMap.map[day] ?: continue
             for (course in courses) {
-                val slotRaw = (course.slotVenue?.split("\\s+".toRegex())?.firstOrNull() ?: course.slotName)
+                val slotRaw = (course.slotName ?: "")
                 val slots = slotRaw.split("+")
                 for (slot in slots) {
                     val trimmed = slot.trim().uppercase()
@@ -674,10 +684,15 @@ fun TimetableGridScreen() {
         map
     }
 
-    var selectedDay by remember { mutableStateOf<String?>(null) }
+        var selectedDay by remember { mutableStateOf<String?>(null) }
     var showTimetableDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        AmazeButton(
+            text = "View Full Timetable",
+            onClick = { showTimetableDialog = true },
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        )
         // Day selector
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -731,7 +746,7 @@ fun TimetableGridScreen() {
                                 Text("No classes", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                             } else {
                                 dayCourses.forEach { course ->
-                                    val slotRaw = (course.slotVenue?.split("\\s+".toRegex())?.firstOrNull() ?: course.slotName)
+                                    val slotRaw = (course.slotName ?: "")
                                     val slots = slotRaw.split("+")
                                     val times = slots.mapNotNull { s ->
                                         val trimmed = s.trim().uppercase()

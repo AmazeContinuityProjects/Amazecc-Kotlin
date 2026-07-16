@@ -157,10 +157,10 @@ fun GPAPredictorScreen() {
                         if (target != null && future != null && future > 0.0) {
                             val neededPoints = target * (creditsEarned + future) - totalOldPoints
                             val avgGradePoint = neededPoints / future
-                            neededGrade = gradePointMap.entries
+                            val achievableEntry = gradePointMap.entries
                                 .filter { it.value <= avgGradePoint + 0.5 }
                                 .maxByOrNull { it.value }
-                                ?.key ?: "S"
+                            neededGrade = achievableEntry?.key ?: "Impossible"
                         }
                     },
                     neededGrade = neededGrade,
@@ -462,7 +462,7 @@ private fun WhatIfMode(
 }
 
 private fun fmt2(v: Double): String {
-    val i = (v * 100).toInt()
+    val i = kotlin.math.round(v * 100).toLong()
     val w = i / 100
     val f = (i % 100).coerceIn(0, 99)
     return "$w.${f.toString().padStart(2, '0')}"
@@ -626,8 +626,8 @@ private fun CourseTargetMode(
         val q = quizMarks.toDoubleOrNull() ?: 0.0
         val l = labInternals.toDoubleOrNull() ?: 0.0
         
-        // Theory internal = (c1 * 0.3) + (c2 * 0.3) + q
-        val theoryInternal = (c1 * 0.3) + (c2 * 0.3) + q
+        // Theory internal: CAT1 & CAT2 are each out of 50, contributing 30 marks each. Quiz contributes directly.
+        val theoryInternal = (c1 / 50.0 * 30.0) + (c2 / 50.0 * 30.0) + q
         val requiredTotal = gradeTargetPoints
         
         var message = ""

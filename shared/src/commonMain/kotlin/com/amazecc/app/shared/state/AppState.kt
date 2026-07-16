@@ -1152,6 +1152,15 @@ object AppState {
         _lms.value = null
         _events.value = null
         _clubs.value = null
+        
+        _moodleData.value = null
+        _vitolData.value = null
+        _cachedStudentProfile.value = null
+        _curriculum.value = null
+        _selectedSemester.value = "CH20262701"
+        _selectedCourseCode.value = null
+        _selectedCourseSemester.value = null
+        _isLoading.value = false
         _cabTrips.value = null
         _myCabTrips.value = null
         _cabJoinRequests.value = emptyMap()

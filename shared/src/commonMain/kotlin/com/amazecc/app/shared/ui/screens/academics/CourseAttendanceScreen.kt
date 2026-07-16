@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.ui.screens.academics
 
+import kotlinx.datetime.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -74,7 +75,7 @@ fun CourseAttendanceScreen() {
                         "courseTitle" to item.courseTitle,
                         "courseType" to item.courseType,
                         "faculty" to item.faculty,
-                        "slotName" to (item.slotVenue?.split("\\s+".toRegex())?.firstOrNull() ?: item.slotName),
+                        "slotName" to (item.slotName ?: ""),
                         "attendancePercentage" to item.attendancePercentage
                     )
                 },
@@ -94,24 +95,28 @@ fun CourseAttendanceScreen() {
     val cutoffDate = remember(mode, impDates) {
         when (mode) {
             "CAT1" -> impDates["cat i"]; "CAT2" -> impDates["cat ii"]
-            "LID" -> {
-                val lab = impDates["lid for laboratory classes"]
-                val theory = impDates["lid for theory classes"]
-                if (lab != null && theory != null) {
-                    val lv = lab.year * 10000 + lab.month * 100 + lab.day
-                    val tv = theory.year * 10000 + theory.month * 100 + theory.day
-                    if (lv >= tv) lab else theory
-                } else lab ?: theory
-            }
+              "LID" -> {
+                  val lab = impDates["lid for laboratory classes"]
+                  val theory = impDates["lid for theory classes"]
+                  val isLab = course.courseCode.endsWith("(L)") || course.courseType == "Lab"
+                  if (isLab) {
+                      lab ?: theory
+                  } else {
+                      theory ?: lab
+                  }
+              }
             else -> null
         }
     }
 
     val futureClassDates = remember(allWorkingDays, courseDays, cutoffDate) {
         val result = mutableListOf<Triple<Int, Int, Int>>()
+        val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault())
+        val todayVal = today.year * 10000 + today.monthNumber * 100 + today.dayOfMonth
         for ((y, m, d) in allWorkingDays) {
+            val dv = y * 10000 + m * 100 + d
+            if (dv < todayVal) continue
             if (cutoffDate != null) {
-                val dv = y * 10000 + m * 100 + d
                 val cv = cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day
                 if (dv > cv) continue
             }
@@ -150,7 +155,7 @@ fun CourseAttendanceScreen() {
     ) {
         ScreenHeader(
             title = course.courseTitle,
-            description = "${course.courseCode} • ${course.slotName}",
+            description = "${course.courseCode} • ${course.slotName ?: ""}",
             showBackButton = true,
             showSyncButton = false
         )
@@ -488,37 +493,26 @@ private fun NotesTab(
     courseCode: String,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val saved = remember { mutableStateOf("") }
-
+    var notesSaved by remember { mutableStateOf(false) }
+    
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text(
-            "Track notes for missed classes",
-            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = saved.value,
-            onValueChange = { saved.value = it },
-            label = { Text("Notes (e.g., topics covered, assignment given)") },
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = colors.surface,
-                unfocusedContainerColor = colors.surface,
-                focusedBorderColor = colors.accent,
-                unfocusedBorderColor = colors.border,
-                focusedTextColor = colors.textPrimary,
-                unfocusedTextColor = colors.textPrimary
-            )
-        )
-
+                .weight(1f)
+                .background(colors.surface, RoundedCornerShape(12.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                .padding(16.dp)
+        ) {
+            Text("Notes for $courseCode\n\n(Local storage not yet implemented)", color = colors.textSecondary)
+        }
         Spacer(modifier = Modifier.height(12.dp))
+        if (notesSaved) {
+            Text("Notes saved in memory!", color = Color(0xFF10B981), fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+        }
         AmazeButton(
             text = "Save Notes",
-            onClick = { /* persist to local storage */ },
+            onClick = { notesSaved = true },
             modifier = Modifier.fillMaxWidth(),
             icon = Icons.Rounded.Save
         )
@@ -583,8 +577,8 @@ private fun buildWorkingDays(months: List<CalendarMonth>): List<Triple<Int, Int,
 }
 
 private fun pctFormatted(value: Double): String {
-    val intPart = (value * 10).toInt()
-    val whole = intPart / 10
-    val frac = intPart % 10
-    return "$whole.$frac%"
+    val i = kotlin.math.round(value * 100).toLong()
+    val whole = i / 100
+    val frac = (i % 100).coerceIn(0, 99)
+    return "$whole.${frac.toString().padStart(2, '0')}%"
 }

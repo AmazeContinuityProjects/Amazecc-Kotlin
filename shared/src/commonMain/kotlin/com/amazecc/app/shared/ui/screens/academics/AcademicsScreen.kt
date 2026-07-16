@@ -241,9 +241,10 @@ private fun EmptyState(message: String) {
 }
 
 private fun cgpaFormatted(cgpa: Double): String {
-    val whole = cgpa.toInt()
-    val frac = ((cgpa - whole) * 100).roundToInt()
-    return "$whole.${if (frac < 10) "0" else ""}$frac"
+    val i = kotlin.math.round(cgpa * 100).toLong()
+    val whole = i / 100
+    val frac = (i % 100).coerceIn(0, 99)
+    return "$whole.${frac.toString().padStart(2, '0')}"
 }
 
 @Composable

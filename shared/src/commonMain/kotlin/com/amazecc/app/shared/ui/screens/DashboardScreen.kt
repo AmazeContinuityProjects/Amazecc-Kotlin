@@ -281,7 +281,7 @@ fun DashboardScreen() {
                             "courseTitle" to item.courseTitle,
                             "courseType" to item.courseType,
                             "faculty" to item.faculty,
-                            "slotName" to (item.slotVenue?.split("\\s+".toRegex())?.firstOrNull() ?: item.slotName),
+                            "slotName" to (item.slotName ?: ""),
                             "attendancePercentage" to item.attendancePercentage
                         )
                     },
@@ -586,7 +586,7 @@ fun DashboardScreen() {
 
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    GlassActionCard(Modifier.weight(1f), "Predict Att.", Icons.Rounded.CheckCircle, colors, onClick = { AppState.navigateTo(Screen.GPA_PREDICTOR) })
+                    GlassActionCard(Modifier.weight(1f), "Predict Att.", Icons.Rounded.CheckCircle, colors, onClick = { AppState.navigateTo(Screen.COURSE_ATTENDANCE) })
                     GlassActionCard(Modifier.weight(1f), "GPA Calc", Icons.Rounded.Star, colors, onClick = { AppState.navigateTo(Screen.GRADES) })
                     GlassActionCard(Modifier.weight(1f), "Apply Leave", Icons.AutoMirrored.Rounded.ExitToApp, colors, onClick = { AppState.navigateTo(Screen.HOSTEL) })
                 }
