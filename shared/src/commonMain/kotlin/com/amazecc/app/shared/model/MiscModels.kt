@@ -317,8 +317,8 @@ data class EventHubRes(
 data class ClubItem(
     @SerialName("club_id") val id: String? = null,
     @SerialName("club_name") val name: String? = null,
-    @SerialName("club_description") val description: String? = null,
-    @SerialName("club_logo") val logoUrl: String? = null
+    @SerialName("description") val description: String? = null,
+    @SerialName("logo_url") val logoUrl: String? = null
 )
 
 @Serializable
