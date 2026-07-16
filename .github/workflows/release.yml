@@ -32,10 +32,14 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      - name: Build Android Release APK & AAB
+      - name: Build and Sign Android Release APK & AAB
         run: |
-          ./gradlew :androidApp:assembleRelease
-          ./gradlew :androidApp:bundleRelease
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+          ./gradlew :androidApp:assembleRelease :androidApp:bundleRelease \
+            -Pandroid.injected.signing.store.file=$(pwd)/keystore.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -48,3 +52,12 @@ jobs:
           files: |
             androidApp/build/outputs/apk/release/androidApp-release.apk
             androidApp/build/outputs/bundle/release/androidApp-release.aab
+
+      - name: Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: amazecc-release-v${{ env.VERSION_NAME }}
+          path: |
+            androidApp/build/outputs/apk/release/androidApp-release.apk
+            androidApp/build/outputs/bundle/release/androidApp-release.aab
+          retention-days: 90
