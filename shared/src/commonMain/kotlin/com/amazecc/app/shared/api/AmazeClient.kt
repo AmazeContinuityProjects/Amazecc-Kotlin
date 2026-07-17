@@ -943,12 +943,13 @@ object AmazeClient {
 
     suspend fun registerForEvent(eid: String): EventHubRegisterRes? {
         return try {
+            val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
             val response = httpClient.post("$baseUrl/api/events/register") {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject {
                     put("eid", eid)
-                    put("username", "")
-                    put("password", "")
+                    put("username", creds?.first ?: "")
+                    put("password", creds?.second ?: "")
                 })
             }
             if (response.status == HttpStatusCode.OK) {

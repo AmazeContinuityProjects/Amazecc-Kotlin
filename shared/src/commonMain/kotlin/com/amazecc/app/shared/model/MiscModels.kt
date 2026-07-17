@@ -351,7 +351,8 @@ data class StudentProfile(
     val batch: String = "",
     val section: String? = null,
     val advisorName: String? = null,
-    val bloodGroup: String? = null
+    val bloodGroup: String? = null,
+    val photoBase64: String? = null
 )
 
 @Serializable

@@ -180,7 +180,7 @@ private fun EventsTab() {
                         }
                     }
                 } else {
-                    items(filteredEvents) { event ->
+                    items(filteredEvents.drop(1)) { event ->
                         EventCard(
                             event = event,
                             isRegistered = event.eid in registeredEvents,
@@ -227,24 +227,35 @@ private fun FeaturedEventCard(
             )
             .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
             .clickable(onClick = onViewDetails)
-            .padding(20.dp)
     ) {
         Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Featured Event", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                Badge(
-                    containerColor = colors.accent.copy(alpha = 0.2f),
-                    contentColor = colors.accent
+            val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() } ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
+            KamelImage(
+                resource = asyncPainterResource(data = imgUrl),
+                contentDescription = "Featured Event Image",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp),
+                onLoading = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) },
+                onFailure = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
+            )
+            Column(modifier = Modifier.padding(20.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(event.type, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Featured Event", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                    Badge(
+                        containerColor = colors.accent.copy(alpha = 0.2f),
+                        contentColor = colors.accent
+                    ) {
+                        Text(event.type, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
                 event.title,
                 style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 20.sp)
             )
@@ -275,6 +286,7 @@ private fun FeaturedEventCard(
                 Text("View Details", fontWeight = FontWeight.Bold)
             }
         }
+        }
     }
 }
 
@@ -300,6 +312,7 @@ private fun EventCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top
         ) {
+            val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() } ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
             Box(
                 modifier = Modifier
                     .size(52.dp)
@@ -307,7 +320,14 @@ private fun EventCard(
                     .background(colors.accent.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp))
+                KamelImage(
+                    resource = asyncPainterResource(data = imgUrl),
+                    contentDescription = "Event Image",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    onLoading = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) },
+                    onFailure = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) }
+                )
             }
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -449,7 +469,7 @@ private fun EventDetailSheet(
             )
 
             // Poster image
-            val posterUrl = previewData?.imageSrc ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
+            val posterUrl = previewData?.posterUrl?.takeIf { it.isNotEmpty() } ?: event.posterUrl?.takeIf { it.isNotEmpty() } ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
             KamelImage(
                 resource = asyncPainterResource(data = posterUrl),
                 contentDescription = "Event Poster",
@@ -535,12 +555,25 @@ private fun EventDetailSheet(
 
             // Register button
             if (registrationRes != null) {
-                Text(
-                    text = "Event Registration Initiated (Status: ${registrationRes?.status})",
-                    color = colors.accent,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
-                )
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                    Text(
+                        text = registrationRes?.message ?: "Event Registration Initiated (Status: ${registrationRes?.status})",
+                        color = colors.accent,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    )
+                    if (registrationRes?.url != null) {
+                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                        Button(
+                            onClick = { uriHandler.openUri(registrationRes?.url!!) },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
+                        ) {
+                            Text("Open Payment Gateway", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             } else {
                 Button(
                     onClick = {
@@ -609,9 +642,9 @@ private fun DetailRow(icon: ImageVector, label: String, value: String) {
     }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ----------------------------------------------------------------------------------------------------
 //  Clubs Tab
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ----------------------------------------------------------------------------------------------------
 
 @Composable
 private fun ClubsTab() {
@@ -619,7 +652,6 @@ private fun ClubsTab() {
     val clubsRes by AppState.clubs.collectAsState()
     val clubs = clubsRes?.clubs ?: emptyList()
     var enrolledClubs by remember { mutableStateOf(setOf<String>()) }
-    var selectedClub by remember { mutableStateOf<ClubItem?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -647,107 +679,17 @@ private fun ClubsTab() {
                         FeaturedClubCard(
                             club = featured,
                             isEnrolled = featured.id in enrolledClubs,
-                            onClick = { selectedClub = featured }
+                            onClick = { AppState.openClubDetail(featured.id ?: "") }
                         )
                     }
                 }
-                items(clubs) { club ->
+                items(clubs.drop(1)) { club ->
                     val isEnrolled = club.id in enrolledClubs
                     ClubCard(
                         club = club,
                         isEnrolled = isEnrolled,
-                        onClick = { selectedClub = club }
+                        onClick = { AppState.openClubDetail(club.id ?: "") }
                     )
-                }
-            }
-        }
-
-        selectedClub?.let { club ->
-            ClubDetailsModal(
-                club = club,
-                isEnrolled = club.id in enrolledClubs,
-                onDismiss = { selectedClub = null },
-                onEnrollToggle = {
-                    club.id?.let { id ->
-                        enrolledClubs = if (id in enrolledClubs) enrolledClubs - id else enrolledClubs + id
-                    }
-                }
-            )
-        }
-    }
-}
-
-@Composable
-private fun ClubDetailsModal(club: ClubItem, isEnrolled: Boolean, onDismiss: () -> Unit, onEnrollToggle: () -> Unit) {
-    val colors = AmazeTheme.colors
-    
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.6f))
-            .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .fillMaxHeight(0.85f)
-                .clip(RoundedCornerShape(24.dp))
-                .background(colors.surface)
-                .clickable { /* prevent dismiss */ }
-                .padding(24.dp)
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                    Box(
-                        modifier = Modifier.size(80.dp).clip(RoundedCornerShape(20.dp)).background(colors.accent.copy(alpha = 0.1f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (!club.logoUrl.isNullOrEmpty()) {
-                            KamelImage(
-                                resource = asyncPainterResource(data = club.logoUrl),
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize(),
-                                onLoading = { CircularProgressIndicator(modifier = Modifier.size(24.dp), color = colors.accent) },
-                                onFailure = {
-                                    Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent))
-                                }
-                            )
-                        } else {
-                            Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent))
-                        }
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Rounded.Close, null, tint = colors.textSecondary)
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(20.dp))
-                Text(club.name ?: "Unnamed Club", style = AmazeTheme.typography.heading.copy(color = colors.textPrimary))
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    item {
-                        Text(
-                            text = club.description ?: "No description provided.",
-                            style = AmazeTheme.typography.body.copy(color = colors.textSecondary, lineHeight = 24.sp)
-                        )
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                Button(
-                    onClick = onEnrollToggle,
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isEnrolled) colors.border else colors.accent,
-                        contentColor = if (isEnrolled) colors.textSecondary else Color.White
-                    )
-                ) {
-                    Icon(if (isEnrolled) Icons.Rounded.CheckCircle else Icons.Rounded.Add, null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (isEnrolled) "Enrolled" else "Enroll in Club", style = AmazeTheme.typography.subheading)
                 }
             }
         }

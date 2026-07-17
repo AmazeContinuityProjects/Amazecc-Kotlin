@@ -72,7 +72,7 @@ fun CourseDetailScreen(onBack: () -> Unit) {
         findCourseGroup(courseCode, mainSemesterId, allSemesterMarks, allSemesterAttendance, marksRes, attendanceRes, timetable)
     }
 
-    val isEmbedded = group?.theory != null && group?.lab != null
+    val isEmbedded = (group?.theory != null && group?.lab != null) || (group?.theoryAtt != null && group?.labAtt != null)
 
     // Fetch QCM data for this course
     var qcmTables by remember { mutableStateOf<List<QcmTable>>(emptyList()) }
@@ -465,12 +465,12 @@ private fun AttendanceTab(
     calendar: CalendarRes?,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    var scope by remember { mutableStateOf("all") }
+    var scope by remember(isEmbedded) { mutableStateOf(if (isEmbedded) "theory" else "all") }
 
     Column(modifier = Modifier.fillMaxSize()) {
         if (isEmbedded) {
             Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("all" to "All", "theory" to "Theory", "lab" to "Lab").forEach { (key, label) ->
+                listOf("theory" to "Theory", "lab" to "Lab").forEach { (key, label) ->
                     val sel = scope == key
                     Box(
                         modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (sel) colors.accent else colors.surface)
@@ -495,12 +495,12 @@ private fun AttendanceTab(
 
         val historyList = remember(activeAtt.viewLinkRaw) {
             try {
-                activeAtt.viewLinkRaw?.jsonArray?.mapNotNull { elem ->
-                    val obj = elem.jsonObject
-                    val date = obj["date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                    val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                    date to status
-                } ?: emptyList()
+                val list = mutableListOf<Pair<String, String>>()
+                activeAtt.viewLinkRaw?.jsonObject?.forEach { (date, statusElem) ->
+                    val stat = statusElem.jsonPrimitive.content
+                    list.add(date to stat)
+                }
+                list
             } catch (_: Exception) { emptyList() }
         }
 

@@ -6,4 +6,5 @@ build/
 local.properties
 *.iml
 .DS_Store
-
+keystore_base64.txt
+release.keystore

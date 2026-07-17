@@ -151,13 +151,19 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
             try {
                 val parts = m.due.split("-", "T", " ")
                 if (parts.size >= 3) {
-                    val y = parts[0].toInt(); val mNum = parts[1].toInt(); val dNum = parts[2].substring(0, 2).toInt()
+                    val y = parts[0].toInt()
+                    val mNum = parts[1].toInt()
+                    val dNum = parts[2].substring(0, 2).toInt()
                     if (y == yearNum && mNum == monthNum && !m.done && !m.hidden) {
                         val list = map.getOrPut(dNum) { mutableListOf() }
-                        list.add(ConsolidatedEvent(m.name, "Moodle", "Due: ", Color(0xFF9C27B0)))
+                        val nameParts = m.name.split("/")
+                        val taskName = if (nameParts.size >= 3) nameParts.drop(2).joinToString("/") else m.name
+                        list.add(ConsolidatedEvent(taskName, "Moodle", "Due: ", Color(0xFF9C27B0)))
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                // ignore
+            }
         }
 
         examData?.schedule?.forEach { (type, exams) ->
@@ -221,16 +227,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AmazeCard(
-                    modifier = Modifier.clickable { showMoodleModal = true },
-                    backgroundColor = colors.accent.copy(alpha = 0.1f)
-                ) {
-                    Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.CloudSync, contentDescription = null, tint = colors.accent, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Sync LMS", color = colors.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
+
                 AmazeCard(modifier = Modifier.clickable { }, backgroundColor = colors.surface) {
                     Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Download, contentDescription = null, tint = colors.textPrimary, modifier = Modifier.size(16.dp))

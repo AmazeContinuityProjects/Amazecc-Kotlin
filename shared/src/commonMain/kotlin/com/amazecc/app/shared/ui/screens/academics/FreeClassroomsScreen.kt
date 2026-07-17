@@ -1,4 +1,4 @@
-﻿@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
+@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
@@ -96,7 +96,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
 
     val days = listOf("mon" to "Monday", "tue" to "Tuesday", "wed" to "Wednesday", "thu" to "Thursday", "fri" to "Friday")
     val timePeriods = remember(schema) {
-        schema.theory.mapNotNull { if (it.start.isNotEmpty() && it.end.isNotEmpty() && it.lunch != true) " - " else null }
+        schema.theory.mapNotNull { if (it.start.isNotEmpty() && it.end.isNotEmpty() && it.lunch != true) "${it.start} - ${it.end}" else null }
     }
     
     var selectedDay by remember { mutableStateOf(days[0].first) }
@@ -116,7 +116,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                     val startMins = timeToMinutes(p.start)
                     val endMins = timeToMinutes(p.end)
                     if (nowMinutes in (startMins - 15)..endMins) {
-                        foundPeriod = " - "
+                        foundPeriod = "${p.start} - ${p.end}"
                         break
                     }
                 }
@@ -194,13 +194,33 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
         if (reqTimeSplit.size < 2) return@remember emptyList<Pair<String, String>>()
         val reqStart = reqTimeSplit[0]
         val reqEnd = reqTimeSplit[1]
+        val reqStartMin = timeToMinutes(reqStart)
+        val reqEndMin = timeToMinutes(reqEnd)
         
         val targetSlots = mutableSetOf<String>()
-        val theoryP = schema.theory.find { it.start == reqStart && it.end == reqEnd }
-        if (theoryP?.days?.containsKey(selectedDay) == true) targetSlots.add(theoryP.days[selectedDay]!!)
+        schema.theory.forEach { p ->
+            if (p.start.isNotEmpty() && p.end.isNotEmpty()) {
+                val pStart = timeToMinutes(p.start)
+                val pEnd = timeToMinutes(p.end)
+                if (pStart < reqEndMin && pEnd > reqStartMin) {
+                    if (p.days.containsKey(selectedDay)) {
+                        p.days[selectedDay]!!.split("+").forEach { targetSlots.add(it.trim()) }
+                    }
+                }
+            }
+        }
         
-        val labP = schema.lab.find { it.start == reqStart && it.end == reqEnd }
-        if (labP?.days?.containsKey(selectedDay) == true) targetSlots.add(labP.days[selectedDay]!!)
+        schema.lab.forEach { p ->
+            if (p.start.isNotEmpty() && p.end.isNotEmpty()) {
+                val pStart = timeToMinutes(p.start)
+                val pEnd = timeToMinutes(p.end)
+                if (pStart < reqEndMin && pEnd > reqStartMin) {
+                    if (p.days.containsKey(selectedDay)) {
+                        p.days[selectedDay]!!.split("+").forEach { targetSlots.add(it.trim()) }
+                    }
+                }
+            }
+        }
         
         if (targetSlots.isEmpty()) return@remember emptyList<Pair<String, String>>()
         
@@ -253,14 +273,6 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 }
                 Box(modifier = Modifier.weight(1f)) {
                     AmazeDropdown(
-                        label = "Time",
-                        selectedOption = selectedTime,
-                        options = timePeriods,
-                        onOptionSelected = { selectedTime = it }
-                    )
-                }
-                Box(modifier = Modifier.weight(1f)) {
-                    AmazeDropdown(
                         label = "Block",
                         selectedOption = selectedBlock,
                         options = blocks,
@@ -268,6 +280,14 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                     )
                 }
             }
+            Spacer(modifier = Modifier.height(12.dp))
+            AmazeDropdown(
+                label = "Time",
+                selectedOption = selectedTime,
+                options = timePeriods,
+                onOptionSelected = { selectedTime = it },
+                modifier = Modifier.fillMaxWidth()
+            )
             
             Spacer(modifier = Modifier.height(16.dp))
             

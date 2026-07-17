@@ -26,7 +26,7 @@ enum class Screen { SPLASH,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GLASS_MORPH, GRADES, GPA_PREDICTOR,
     COURSE_ATTENDANCE, ARREAR, MAKEUP_COMPRE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
     MARKS_TIMELINE, VITOL, FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
-    FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, ACTIVITY_TREE,
+    FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, ACTIVITY_TREE, CLUB_DETAIL,
     COURSE_DETAIL, SETTINGS, MOODLE
 }
 
@@ -192,6 +192,7 @@ object AppState {
         loadCachedData<EventHubRes>(SettingsManager.CACHE_EVENTS, _events)
         loadCachedData<ClubsRes>(SettingsManager.CACHE_CLUBS, _clubs)
         loadCachedData<StudentProfileRes>(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile)
+        _studentProfile.value = _cachedStudentProfile.value?.data
         loadCachedData<VitolRes>(SettingsManager.CACHE_VITOL, _vitolData)
         loadCachedData<CabTripsRes>(SettingsManager.CACHE_CAB_TRIPS, _cabTrips)
         // Load all semesters attendance & marks cache
@@ -299,6 +300,14 @@ object AppState {
     fun openCourseAttendance(courseCode: String) {
         _selectedCourseCode.value = courseCode
         navigateTo(Screen.COURSE_ATTENDANCE)
+    }
+
+    private val _selectedClubId = MutableStateFlow<String?>(null)
+    val selectedClubId: StateFlow<String?> = _selectedClubId.asStateFlow()
+
+    fun openClubDetail(clubId: String) {
+        _selectedClubId.value = clubId
+        navigateTo(Screen.CLUB_DETAIL)
     }
 
     // Cab Share state

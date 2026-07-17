@@ -126,6 +126,7 @@ fun App() {
                             Screen.DOCUMENTS -> DocumentsScreen()
                             Screen.ABOUT -> AboutScreen()
                             Screen.ACTIVITY_TREE -> ActivityTreeScreen()
+                            Screen.CLUB_DETAIL -> com.amazecc.app.shared.ui.screens.events.ClubDetailScreen()
                             Screen.MOODLE -> MoodleScreen()
                         }
                     }

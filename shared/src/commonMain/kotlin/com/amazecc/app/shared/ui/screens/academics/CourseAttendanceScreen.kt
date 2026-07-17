@@ -84,7 +84,8 @@ fun CourseAttendanceScreen() {
                             "courseType" to shortType,
                             "faculty" to item.faculty,
                             "slotName" to (item.slotName ?: ""),
-                            "attendancePercentage" to item.attendancePercentage
+                            "attendancePercentage" to item.attendancePercentage,
+                            "venue" to (item.slotVenue ?: "")
                         )
                 },
                 slotMap = slotMapTyped
