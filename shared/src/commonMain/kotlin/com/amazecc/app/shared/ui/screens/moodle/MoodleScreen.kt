@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -98,7 +99,7 @@ fun MoodleLoginView(onLoginSuccess: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Rounded.MenuBook, null, tint = colors.accent, modifier = Modifier.size(64.dp))
+        Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.accent, modifier = Modifier.size(64.dp))
         Spacer(modifier = Modifier.height(24.dp))
         Text("Connect to Moodle", style = AmazeTheme.typography.heading.copy(color = colors.textPrimary))
         Text("Enter your V-TOP credentials to sync", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
@@ -175,38 +176,67 @@ fun MoodleLoginView(onLoginSuccess: () -> Unit) {
 @Composable
 fun MoodleAssignmentCard(assignment: MoodleAssignment) {
     val colors = AmazeTheme.colors
+    
+    val parts = assignment.name.split("/")
+    val courseName = if (parts.size >= 2) "${parts[0]} - ${parts[1]}" else assignment.name
+    val taskName = if (parts.size >= 3) parts.drop(2).joinToString("/") else ""
+    
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = assignment.name,
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                if (assignment.teachers.isNotEmpty()) {
-                    Text(
-                        text = assignment.teachers.joinToString(", "),
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                    )
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f)) {
+                    if (taskName.isNotEmpty()) {
+                        Text(
+                            text = courseName,
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = taskName,
+                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    } else {
+                        Text(
+                            text = assignment.name,
+                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                            maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                    
+                    if (assignment.teachers.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = assignment.teachers.joinToString(", "),
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                if (assignment.done) {
+                    Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText)
+                } else {
+                    Icon(Icons.Rounded.Warning, null, tint = colors.warningText)
                 }
             }
-            if (assignment.done) {
-                Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText)
-            } else {
-                Icon(Icons.Rounded.Warning, null, tint = colors.warningText)
-            }
-        }
-        Spacer(modifier = Modifier.height(12.dp))
-        HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
-        Spacer(modifier = Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Schedule, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(assignment.due, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium, color = colors.textSecondary))
-            }
-            if (!assignment.url.isNullOrEmpty()) {
-                Text("Open in Browser", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Schedule, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(assignment.due, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium, color = colors.textSecondary))
+                }
+                if (!assignment.url.isNullOrEmpty()) {
+                    Text("Open in Browser", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                }
             }
         }
     }

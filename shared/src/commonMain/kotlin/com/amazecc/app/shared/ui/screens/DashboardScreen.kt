@@ -43,6 +43,9 @@ import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import io.kamel.image.KamelImage
+import io.kamel.image.asyncPainterResource
+import io.ktor.util.decodeBase64Bytes
 
 @Composable
 fun DashboardScreen() {
@@ -79,8 +82,13 @@ fun DashboardScreen() {
     val credits = marksRes?.cgpa?.creditsEarned ?: "—"
 
     val avatarText = (profile?.name ?: authorizedID ?: "U").take(2).uppercase()
-    val greeting = remember {
-        "Good ${getGreeting()}${if (profile?.name != null) ", ${profile!!.name.split(" ").first()}" else ""}"
+    val nameToDisplay = remember(profile?.name, authorizedID) {
+        val n = profile?.name
+        if (n.isNullOrBlank() || n.equals(authorizedID, ignoreCase = true)) ""
+        else n.split(" ").firstOrNull { it.isNotBlank() }?.lowercase()?.replaceFirstChar { it.uppercase() } ?: ""
+    }
+    val greeting = remember(nameToDisplay) {
+        "Good ${getGreeting()}${if (nameToDisplay.isNotEmpty()) ", $nameToDisplay" else ""}"
     }
 
     var showCommandPalette by remember { mutableStateOf(false) }
@@ -114,27 +122,38 @@ fun DashboardScreen() {
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = avatarText,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
-                    )
+                    if (profile?.photoBase64 != null) {
+                        val cleanBase64 = profile!!.photoBase64!!.substringAfter("base64,")
+                        KamelImage(
+                            resource = asyncPainterResource(data = cleanBase64.decodeBase64Bytes()),
+                            contentDescription = "Profile Image",
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            text = avatarText,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 20.sp
+                        )
+                    }
                 }
                 Spacer(modifier = Modifier.width(14.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = greeting,
+                        text = "Good ${getGreeting()}",
                         style = AmazeTheme.typography.body.copy(
                             color = colors.textSecondary,
                             fontWeight = FontWeight.Medium
                         )
                     )
                     Text(
-                        text = profile?.regNo ?: authorizedID ?: "Student",
+                        text = nameToDisplay.ifEmpty { "Student" },
                         style = AmazeTheme.typography.subheading.copy(
+                            fontWeight = FontWeight.Bold,
                             color = colors.textPrimary,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 24.sp
                         )
                     )
                 }
@@ -282,7 +301,8 @@ fun DashboardScreen() {
                             "courseType" to item.courseType,
                             "faculty" to item.faculty,
                             "slotName" to (item.slotName ?: ""),
-                            "attendancePercentage" to item.attendancePercentage
+                            "attendancePercentage" to item.attendancePercentage,
+                            "venue" to (item.slotVenue ?: "")
                         )
                     },
                     slotMap = slotMapTyped
@@ -461,10 +481,16 @@ fun DashboardScreen() {
                                                     fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium
                                                 )
                                             )
-                                            Text(
-                                                cls.slotName ?: "",
-                                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                                            )
+                                            val detailsStr = listOfNotNull(
+                                                cls.slotName?.takeIf { it.isNotBlank() },
+                                                cls.venue?.takeIf { it.isNotBlank() }
+                                            ).joinToString(" • ")
+                                            if (detailsStr.isNotEmpty()) {
+                                                Text(
+                                                    detailsStr,
+                                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                                )
+                                            }
                                         }
                                         if (isCurrent) {
                                             val remaining = remember(tick) {

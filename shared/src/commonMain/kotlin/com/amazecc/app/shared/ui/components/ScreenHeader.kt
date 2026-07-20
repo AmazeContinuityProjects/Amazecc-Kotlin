@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -44,16 +45,37 @@ fun ScreenHeader(
     description: String,
     showBackButton: Boolean = true,
     showSyncButton: Boolean = true,
-    onRefresh: (() -> Unit)? = null
+    onRefresh: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    LaunchedEffect(title, description, showBackButton, showSyncButton, onRefresh) {
+        AppState.headerTitle.value = title
+        AppState.headerDescription.value = description
+        AppState.headerShowBack.value = showBackButton
+        AppState.headerShowSync.value = showSyncButton
+        AppState.headerOnRefresh.value = onRefresh
+    }
+    Spacer(modifier = modifier.fillMaxWidth().height(105.dp))
+}
+
+@Composable
+fun FloatingScreenHeader(
+    title: String,
+    description: String,
+    showBackButton: Boolean = true,
+    showSyncButton: Boolean = true,
+    onRefresh: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
     val colors = AmazeTheme.colors
     val isLoading by AppState.isLoading.collectAsState()
     val syncStatus by AppState.syncStatus.collectAsState()
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .background(colors.accent.copy(alpha = 0.08f))
+            .background(colors.background.copy(alpha = 0.85f))
+            .border(1.dp, colors.accent.copy(alpha = 0.15f), RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
             .padding(top = 16.dp, bottom = 16.dp, start = 8.dp, end = 16.dp)
     ) {
         Row(

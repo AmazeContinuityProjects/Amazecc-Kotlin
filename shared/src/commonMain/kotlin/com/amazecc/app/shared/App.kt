@@ -75,8 +75,7 @@ fun App() {
                     com.amazecc.app.shared.ui.components.SyncNotification()
 
                     // Crossfade screen transitions
-                    val navBottomPadding = if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) 80.dp else 0.dp
-                    Box(modifier = Modifier.padding(bottom = navBottomPadding)) {
+                    Box(modifier = Modifier.fillMaxSize()) {
                         AnimatedContent(
                             targetState = currentScreen,
                             transitionSpec = {
@@ -126,9 +125,29 @@ fun App() {
                             Screen.DOCUMENTS -> DocumentsScreen()
                             Screen.ABOUT -> AboutScreen()
                             Screen.ACTIVITY_TREE -> ActivityTreeScreen()
+                            Screen.CLUB_DETAIL -> com.amazecc.app.shared.ui.screens.events.ClubDetailScreen()
                             Screen.MOODLE -> MoodleScreen()
                         }
                     }
+                    }
+
+                    // Floating top header overlay
+                    if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH && currentScreen != Screen.HOME) {
+                        val headerTitle by AppState.headerTitle.collectAsState()
+                        if (headerTitle.isNotEmpty()) {
+                            val headerDesc by AppState.headerDescription.collectAsState()
+                            val headerBack by AppState.headerShowBack.collectAsState()
+                            val headerSync by AppState.headerShowSync.collectAsState()
+                            val headerRefresh by AppState.headerOnRefresh.collectAsState()
+                            com.amazecc.app.shared.ui.components.FloatingScreenHeader(
+                                title = headerTitle,
+                                description = headerDesc,
+                                showBackButton = headerBack,
+                                showSyncButton = headerSync,
+                                onRefresh = headerRefresh,
+                                modifier = Modifier.align(Alignment.TopCenter)
+                            )
+                        }
                     }
 
                     // Floating nav bar overlay

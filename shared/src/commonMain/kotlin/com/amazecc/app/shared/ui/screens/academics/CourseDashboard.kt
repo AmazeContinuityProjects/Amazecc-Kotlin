@@ -154,7 +154,7 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
 
     val theoryAtt = course.theoryAtt
     val labAtt = course.labAtt
-    val isEmbedded = course.theory != null && course.lab != null
+    val isEmbedded = (course.theory != null && course.lab != null) || (course.theoryAtt != null && course.labAtt != null)
 
     val attPct = if (isEmbedded) {
         val tPct = theoryAtt?.attendancePercentage?.toDoubleOrNull() ?: 0.0

@@ -10,8 +10,8 @@ data class CampusSchema(
 
 @Serializable
 data class TimetablePeriod(
-    val start: String,
-    val end: String,
+    val start: String = "",
+    val end: String = "",
     val days: Map<String, String> = emptyMap(),
     val lunch: Boolean? = null
 )

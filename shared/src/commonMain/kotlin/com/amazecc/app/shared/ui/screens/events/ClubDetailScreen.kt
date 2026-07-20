@@ -1,0 +1,156 @@
+package com.amazecc.app.shared.ui.screens.events
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.model.ClubItem
+import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.ScreenHeader
+import io.kamel.image.KamelImage
+import io.kamel.image.asyncPainterResource
+
+@Composable
+fun ClubDetailScreen() {
+    val colors = AmazeTheme.colors
+    val clubsRes by AppState.clubs.collectAsState()
+    val clubId by AppState.selectedClubId.collectAsState()
+    
+    val club = clubsRes?.clubs?.find { it.id == clubId }
+
+    if (club == null) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            ScreenHeader(title = "Club Details", description = "Club not found", showBackButton = true, showSyncButton = false)
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Club not found", color = colors.textMuted)
+            }
+        }
+        return
+    }
+
+    var isEnrolled by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
+        ScreenHeader(title = club.name ?: "Club Details", description = "Club Information", showBackButton = true, showSyncButton = false)
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(100.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(colors.accent.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (!club.logoUrl.isNullOrEmpty()) {
+                            KamelImage(
+                                resource = asyncPainterResource(data = club.logoUrl),
+                                contentDescription = "Club Logo",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                onLoading = { CircularProgressIndicator(modifier = Modifier.size(24.dp), color = colors.accent) },
+                                onFailure = { Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent, fontSize = 40.sp)) }
+                            )
+                        } else {
+                            Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent, fontSize = 40.sp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(20.dp))
+                    Column {
+                        Text(club.name ?: "Unnamed Club", style = AmazeTheme.typography.heading.copy(color = colors.textPrimary, fontSize = 24.sp))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("VIT Chennai Chapter", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Icon(Icons.Rounded.Language, contentDescription = "Website", tint = colors.accent, modifier = Modifier.size(24.dp).clickable { /* Open website */ })
+                            Icon(Icons.Rounded.CameraAlt, contentDescription = "Instagram", tint = colors.accent, modifier = Modifier.size(24.dp).clickable { /* Open Insta */ })
+                        }
+                    }
+                }
+            }
+            
+            item {
+                HorizontalDivider(color = colors.border, thickness = 1.dp)
+            }
+            
+            item {
+                Text("About Us", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = club.description ?: "No description provided.",
+                    style = AmazeTheme.typography.body.copy(color = colors.textSecondary, lineHeight = 24.sp)
+                )
+            }
+            
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surface).padding(16.dp)
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.WorkOutline, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Hiring Information", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("Currently recruiting for technical and management roles. Check out our feed for application links!", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    }
+                }
+            }
+
+            item {
+                Text("Club Feed", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Spacer(modifier = Modifier.height(8.dp))
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(16.dp)).background(colors.surface),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Feed Integration Coming Soon", color = colors.textMuted)
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = { isEnrolled = !isEnrolled },
+                    modifier = Modifier.fillMaxWidth().height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isEnrolled) colors.border else colors.accent,
+                        contentColor = if (isEnrolled) colors.textSecondary else Color.White
+                    )
+                ) {
+                    Icon(if (isEnrolled) Icons.Rounded.CheckCircle else Icons.Rounded.Add, null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (isEnrolled) "Enrolled" else "Enroll in Club", style = AmazeTheme.typography.subheading)
+                }
+                Spacer(modifier = Modifier.height(40.dp))
+            }
+        }
+    }
+}

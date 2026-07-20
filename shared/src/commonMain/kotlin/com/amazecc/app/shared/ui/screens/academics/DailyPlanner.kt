@@ -362,7 +362,10 @@ fun TimelineRow(item: TimelineEvent) {
                         val isSafe = attPct >= 75
                         
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(item.slots.joinToString(" + "), style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                            val slotStr = item.slots.joinToString(" + ")
+                            val venue = c.slotVenue
+                            val slotAndVenue = if (!venue.isNullOrBlank()) "$slotStr • $venue" else slotStr
+                            Text(slotAndVenue, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                             Text("${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                         }
                         Spacer(modifier = Modifier.height(8.dp))

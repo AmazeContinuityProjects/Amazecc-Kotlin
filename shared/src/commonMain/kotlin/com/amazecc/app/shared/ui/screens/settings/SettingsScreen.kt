@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,11 +21,29 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.getScreenIconAndLabel
+import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.model.NamedCalendar
+import com.amazecc.app.shared.repository.SettingsManager
+import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsScreen() {
     val colors = AmazeTheme.colors
     val pinnedTabs by AppState.pinnedNavTabs.collectAsState()
+    val selectedSemester by AppState.selectedSemester.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    // Calendar preference
+    var availableCalendars by remember { mutableStateOf<List<NamedCalendar>>(emptyList()) }
+    var preferredCalendarName by remember { mutableStateOf(SettingsManager.getPreferredCalendar() ?: "") }
+    LaunchedEffect(selectedSemester) {
+        scope.launch {
+            try {
+                val res = AmazeClient.getCalendars(semesterId = selectedSemester)
+                if (res.success) availableCalendars = res.calendars
+            } catch (_: Exception) {}
+        }
+    }
     
     // Maintain a local mutable copy of selections for immediate UI feedback
     var selectedTabs by remember { mutableStateOf(pinnedTabs.toSet()) }
@@ -46,7 +65,7 @@ fun SettingsScreen() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = { AppState.navigateBack() }) {
-                Icon(Icons.Rounded.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
             }
             Spacer(modifier = Modifier.width(8.dp))
             Column {
@@ -149,6 +168,54 @@ fun SettingsScreen() {
                 }
             }
             item { 
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "Academic Calendar",
+                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                )
+                Text(
+                    text = "Choose which calendar to display by default",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
+                    modifier = Modifier.padding(top = 2.dp, bottom = 8.dp)
+                )
+                if (availableCalendars.isEmpty()) {
+                    Text("Loading calendars…", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                } else {
+                    availableCalendars.forEachIndexed { _, cal ->
+                        val isSelected = preferredCalendarName == cal.name ||
+                            (preferredCalendarName.isEmpty() && availableCalendars.firstOrNull() == cal)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) colors.accent.copy(alpha = 0.12f) else colors.surface)
+                                .clickable {
+                                    preferredCalendarName = cal.name
+                                    SettingsManager.savePreferredCalendar(cal.name)
+                                }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier.size(10.dp).clip(RoundedCornerShape(3.dp))
+                                    .background(if (isSelected) colors.accent else colors.border)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = cal.name,
+                                style = AmazeTheme.typography.body.copy(
+                                    color = if (isSelected) colors.accent else colors.textPrimary,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                ),
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isSelected) {
+                                Icon(Icons.Rounded.Check, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                }
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
                     text = "Data Sync",

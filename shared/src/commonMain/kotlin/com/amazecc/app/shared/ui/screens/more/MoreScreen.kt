@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -62,7 +63,7 @@ fun MoreScreen() {
                 Pair(Screen.SOCIAL, Icons.Rounded.People to "Social"),
                 Pair(Screen.FFCS_PLANNER, Icons.Rounded.ViewTimeline to "FFCS"),
                 Pair(Screen.FREE_CLASSROOMS, Icons.Rounded.MeetingRoom to "Classes"),
-                Pair(Screen.MOODLE, Icons.Rounded.MenuBook to "Moodle")
+                Pair(Screen.MOODLE, Icons.AutoMirrored.Rounded.MenuBook to "Moodle")
             )
 
             val chunkedModules = modules.chunked(3)

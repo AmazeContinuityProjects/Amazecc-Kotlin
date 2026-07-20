@@ -26,7 +26,7 @@ enum class Screen { SPLASH,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GLASS_MORPH, GRADES, GPA_PREDICTOR,
     COURSE_ATTENDANCE, ARREAR, MAKEUP_COMPRE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
     MARKS_TIMELINE, VITOL, FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
-    FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, ACTIVITY_TREE,
+    FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, ACTIVITY_TREE, CLUB_DETAIL,
     COURSE_DETAIL, SETTINGS, MOODLE
 }
 
@@ -36,6 +36,13 @@ object AppState {
     // Navigation
     private val _currentScreen = MutableStateFlow(Screen.SPLASH)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
+    
+    // Floating Header State
+    val headerTitle = MutableStateFlow("")
+    val headerDescription = MutableStateFlow("")
+    val headerShowBack = MutableStateFlow(true)
+    val headerShowSync = MutableStateFlow(true)
+    val headerOnRefresh = MutableStateFlow<(() -> Unit)?>(null)
     
     private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
@@ -182,16 +189,17 @@ object AppState {
         loadCachedData<HostelLeaveRes>(SettingsManager.CACHE_HOSTEL_LEAVES, _hostelLeaves)
         loadCachedData<ExamScheduleRes>(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule)
         loadCachedData<CalendarRes>(SettingsManager.CACHE_CALENDAR, _calendar)
+        loadCachedData<CalendarsListRes>(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList)
         loadCachedData<CurriculumRes>(SettingsManager.CACHE_CURRICULUM, _curriculum)
         loadCachedData<PaymentsRes>(SettingsManager.CACHE_PAYMENTS, _payments)
         loadCachedData<LibraryRes>(SettingsManager.CACHE_LIBRARY, _library)
-        loadCachedData<TransportRes>(SettingsManager.CACHE_TRANSPORT, _transport)
-        loadCachedData<TransportRoutesRes>(SettingsManager.CACHE_TRANSPORT_ROUTES, _transportRoutes)
-        loadCachedData<TransportPassRes>(SettingsManager.CACHE_TRANSPORT_PASS, _transportPass)
+        loadCachedData<TransportDataRes>(SettingsManager.CACHE_TRANSPORT_DATA, _transportData)
+        loadCachedData<BusesRes>(SettingsManager.CACHE_BUSES, _buses)
         loadCachedData<LMSRes>(SettingsManager.CACHE_LMS, _lms)
         loadCachedData<EventHubRes>(SettingsManager.CACHE_EVENTS, _events)
         loadCachedData<ClubsRes>(SettingsManager.CACHE_CLUBS, _clubs)
         loadCachedData<StudentProfileRes>(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile)
+        _studentProfile.value = _cachedStudentProfile.value?.data
         loadCachedData<VitolRes>(SettingsManager.CACHE_VITOL, _vitolData)
         loadCachedData<CabTripsRes>(SettingsManager.CACHE_CAB_TRIPS, _cabTrips)
         // Load all semesters attendance & marks cache
@@ -250,6 +258,9 @@ object AppState {
     private val _calendar = MutableStateFlow<CalendarRes?>(null)
     val calendar: StateFlow<CalendarRes?> = _calendar.asStateFlow()
 
+    private val _calendarsList = MutableStateFlow<CalendarsListRes?>(null)
+    val calendarsList: StateFlow<CalendarsListRes?> = _calendarsList.asStateFlow()
+
     private val _curriculum = MutableStateFlow<CurriculumRes?>(null)
     val curriculum: StateFlow<CurriculumRes?> = _curriculum.asStateFlow()
 
@@ -262,14 +273,11 @@ object AppState {
     private val _libraryLoginRequired = MutableStateFlow(false)
     val libraryLoginRequired: StateFlow<Boolean> = _libraryLoginRequired.asStateFlow()
 
-    private val _transport = MutableStateFlow<TransportRes?>(null)
-    val transport: StateFlow<TransportRes?> = _transport.asStateFlow()
+    private val _transportData = MutableStateFlow<TransportDataRes?>(null)
+    val transportData: StateFlow<TransportDataRes?> = _transportData.asStateFlow()
 
-    private val _transportRoutes = MutableStateFlow<TransportRoutesRes?>(null)
-    val transportRoutes: StateFlow<TransportRoutesRes?> = _transportRoutes.asStateFlow()
-
-    private val _transportPass = MutableStateFlow<TransportPassRes?>(null)
-    val transportPass: StateFlow<TransportPassRes?> = _transportPass.asStateFlow()
+    private val _buses = MutableStateFlow<BusesRes?>(null)
+    val buses: StateFlow<BusesRes?> = _buses.asStateFlow()
 
     private val _lms = MutableStateFlow<LMSRes?>(null)
     val lms: StateFlow<LMSRes?> = _lms.asStateFlow()
@@ -299,6 +307,14 @@ object AppState {
     fun openCourseAttendance(courseCode: String) {
         _selectedCourseCode.value = courseCode
         navigateTo(Screen.COURSE_ATTENDANCE)
+    }
+
+    private val _selectedClubId = MutableStateFlow<String?>(null)
+    val selectedClubId: StateFlow<String?> = _selectedClubId.asStateFlow()
+
+    fun openClubDetail(clubId: String) {
+        _selectedClubId.value = clubId
+        navigateTo(Screen.CLUB_DETAIL)
     }
 
     // Cab Share state
@@ -581,37 +597,25 @@ object AppState {
                         },
                         async {
                             syncModule(
-                                name = "Transport",
-                                fetch = { AmazeClient.getTransport() },
+                                name = "Transport Data",
+                                fetch = { AmazeClient.getTransportData() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _transport.value = it
-                                    cacheData(SettingsManager.CACHE_TRANSPORT, it)
+                                    _transportData.value = it
+                                    cacheData(SettingsManager.CACHE_TRANSPORT_DATA, it)
                                 }
                             )
                         },
                         async {
                             syncModule(
-                                name = "Transport Routes",
-                                fetch = { AmazeClient.getTransportRoutes() },
+                                name = "Buses",
+                                fetch = { AmazeClient.getBuses() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _transportRoutes.value = it
-                                    cacheData(SettingsManager.CACHE_TRANSPORT_ROUTES, it)
-                                }
-                            )
-                        },
-                        async {
-                            syncModule(
-                                name = "Transport Pass",
-                                fetch = { AmazeClient.getTransportPass() },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
-                                update = {
-                                    _transportPass.value = it
-                                    cacheData(SettingsManager.CACHE_TRANSPORT_PASS, it)
+                                    _buses.value = it
+                                    cacheData(SettingsManager.CACHE_BUSES, it)
                                 }
                             )
                         },
@@ -894,6 +898,26 @@ object AppState {
         }
     }
 
+    fun refreshCalendarsList() {
+        if (_isLoading.value) return
+        scope.launch {
+            _isLoading.value = true
+            _syncStatus.value = "Syncing calendars..."
+            try {
+                val res = AmazeClient.getCalendars(semesterId = _selectedSemester.value)
+                if (res.success) {
+                    _calendarsList.value = res
+                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, res)
+                }
+                _syncStatus.value = if (res.success) "Calendars synced" else "Calendar sync failed"
+            } catch (e: Exception) {
+                _syncStatus.value = "Calendar sync failed"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
     fun refreshCurriculum() {
         if (_isLoading.value) return
         scope.launch {
@@ -996,37 +1020,25 @@ object AppState {
                     listOf(
                         async {
                             syncModule(
-                                name = "Transport",
-                                fetch = { AmazeClient.getTransport() },
+                                name = "Transport Data",
+                                fetch = { AmazeClient.getTransportData() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _transport.value = it
-                                    cacheData(SettingsManager.CACHE_TRANSPORT, it)
+                                    _transportData.value = it
+                                    cacheData(SettingsManager.CACHE_TRANSPORT_DATA, it)
                                 }
                             )
                         },
                         async {
                             syncModule(
-                                name = "Transport Routes",
-                                fetch = { AmazeClient.getTransportRoutes() },
+                                name = "Buses",
+                                fetch = { AmazeClient.getBuses() },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _transportRoutes.value = it
-                                    cacheData(SettingsManager.CACHE_TRANSPORT_ROUTES, it)
-                                }
-                            )
-                        },
-                        async {
-                            syncModule(
-                                name = "Transport Pass",
-                                fetch = { AmazeClient.getTransportPass() },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
-                                update = {
-                                    _transportPass.value = it
-                                    cacheData(SettingsManager.CACHE_TRANSPORT_PASS, it)
+                                    _buses.value = it
+                                    cacheData(SettingsManager.CACHE_BUSES, it)
                                 }
                             )
                         }
@@ -1146,9 +1158,8 @@ object AppState {
         _calendar.value = null
         _payments.value = null
         _library.value = null
-        _transport.value = null
-        _transportRoutes.value = null
-        _transportPass.value = null
+        _transportData.value = null
+        _buses.value = null
         _lms.value = null
         _events.value = null
         _clubs.value = null

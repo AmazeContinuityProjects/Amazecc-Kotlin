@@ -34,7 +34,8 @@ data class CourseAttendanceInfo(
     var slotName: String?,
     var time: String,
     val attendancePercentage: String?,
-    val cls: String?
+    val cls: String?,
+    val venue: String? = null
 )
 
 object AttendanceTimetable {
@@ -90,7 +91,8 @@ object AttendanceTimetable {
                             slotName = cleanSlot,
                             time = info.time,
                             attendancePercentage = course["attendancePercentage"] as? String,
-                            cls = cls
+                            cls = cls,
+                            venue = course["venue"] as? String
                         )
                         map[day]?.add(courseInfo)
                     }

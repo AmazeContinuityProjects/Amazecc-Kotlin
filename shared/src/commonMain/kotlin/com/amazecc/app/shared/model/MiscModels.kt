@@ -174,76 +174,58 @@ data class LibraryRes(
 )
 
 @Serializable
-data class BusItem(
-    val routeNo: String,
-    val routeName: String,
-    val time: String,
-    val driverName: String? = null,
-    val driverPhone: String? = null
-)
-
-@Serializable
-data class TransportRes(
-    val success: Boolean = true,
-    val buses: List<BusItem> = emptyList(),
-    val dayBoarderStatus: String? = null,
-    val error: String? = null,
-    val message: String? = null
-)
-
-@Serializable
-data class BusStopDetail(
-    val stopName: String,
-    val pickupTime: String,
+data class BusStop(
     val stopOrder: Int,
-    val fare: String? = null
+    val stopName: String,
+    val pickupTime: String? = null
 )
 
 @Serializable
-data class BusRouteDetail(
-    val routeNo: String,
-    val routeName: String,
-    val departureTime: String,
-    val stops: List<BusStopDetail> = emptyList(),
-    val driverName: String? = null,
-    val driverPhone: String? = null,
+data class BusPlacement(
+    val zone: String,
+    val dispersalTime: String
+)
+
+@Serializable
+data class BusRoute(
+    val id: String,
+    val type: String,
+    val route: String,
+    val boardingPoints: List<String> = emptyList(),
+    val driverPhone: String,
+    val driverName: String,
+    val whatsappGroup: String,
+    val busLocation: String,
     val supervisorName: String? = null,
     val supervisorPhone: String? = null,
-    val busType: String? = null,
-    val busLocation: String? = null,
-    val fare: String? = null
+    val driverInchargeName: String? = null,
+    val driverInchargePhone: String? = null,
+    val stops: List<BusStop> = emptyList(),
+    val placements: List<BusPlacement> = emptyList()
 )
 
 @Serializable
-data class TransportRoutesRes(
+data class BusesRes(
     val success: Boolean = true,
-    val routes: List<BusRouteDetail> = emptyList(),
+    val buses: List<BusRoute> = emptyList(),
     val error: String? = null,
     val message: String? = null
 )
 
 @Serializable
-data class TransportRegItem(
-    val id: String,
-    val semester: String,
-    val routeNo: String,
-    val routeName: String,
-    val status: String,
-    val appliedOn: String? = null
-)
-
-@Serializable
-data class TransportPassRes(
+data class TransportDataRes(
     val success: Boolean = true,
-    val status: String = "inactive",
-    val dayBoarderStatus: String? = null,
-    val routeNo: String? = null,
-    val routeName: String? = null,
-    val validFrom: String? = null,
-    val validUntil: String? = null,
-    val studentName: String? = null,
-    val studentPhone: String? = null,
-    val registrations: List<TransportRegItem> = emptyList(),
+    val hasRegistration: Boolean = false,
+    val registerNumber: String? = null,
+    val name: String? = null,
+    val programme: String? = null,
+    val branch: String? = null,
+    val routeSelected: String? = null,
+    val fpReference: String? = null,
+    val paymentStatus: String? = null,
+    val busRouteId: String? = null,
+    val qrCode: String? = null,
+    val pageCsrf: String? = null,
     val error: String? = null,
     val message: String? = null
 )
@@ -351,7 +333,8 @@ data class StudentProfile(
     val batch: String = "",
     val section: String? = null,
     val advisorName: String? = null,
-    val bloodGroup: String? = null
+    val bloodGroup: String? = null,
+    val photoBase64: String? = null
 )
 
 @Serializable
