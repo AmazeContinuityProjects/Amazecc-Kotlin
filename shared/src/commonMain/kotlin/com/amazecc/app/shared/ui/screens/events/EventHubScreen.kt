@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -37,6 +38,46 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
+import com.amazecc.app.shared.api.AmazeClient
+
+@Composable
+internal fun AuthKamelImage(
+    url: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+    onLoading: @Composable () -> Unit = {},
+    onFailure: @Composable () -> Unit = {}
+) {
+    var bytes by remember(url) { mutableStateOf<ByteArray?>(null) }
+    var loadState by remember(url) { mutableStateOf<AuthImageState>(AuthImageState.Loading) }
+
+    LaunchedEffect(url) {
+        loadState = AuthImageState.Loading
+        bytes = null
+        val result = AmazeClient.getImageBytes(url)
+        if (result != null) {
+            bytes = result
+            loadState = AuthImageState.Success
+        } else {
+            loadState = AuthImageState.Error
+        }
+    }
+
+    when (loadState) {
+        AuthImageState.Loading -> onLoading()
+        AuthImageState.Error -> onFailure()
+        AuthImageState.Success -> KamelImage(
+            resource = asyncPainterResource(data = bytes!!),
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = contentScale,
+            onFailure = { onFailure() }
+        )
+    }
+}
+
+private enum class AuthImageState { Loading, Success, Error }
 
 @Composable
 fun EventHubScreen(initialTab: String = "Events") {
@@ -229,17 +270,30 @@ private fun FeaturedEventCard(
             .clickable(onClick = onViewDetails)
     ) {
         Column {
-            val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() } ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
-            KamelImage(
-                resource = asyncPainterResource(data = imgUrl),
-                contentDescription = "Featured Event Image",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp),
-                onLoading = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) },
-                onFailure = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
-            )
+            val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() }
+            if (imgUrl != null) {
+                KamelImage(
+                    resource = asyncPainterResource(data = imgUrl),
+                    contentDescription = "Featured Event Image",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    onLoading = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) },
+                    onFailure = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
+                )
+            } else {
+                AuthKamelImage(
+                    url = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
+                    contentDescription = "Featured Event Image",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    onLoading = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) },
+                    onFailure = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
+                )
+            }
             Column(modifier = Modifier.padding(20.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -312,7 +366,7 @@ private fun EventCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top
         ) {
-            val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() } ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
+            val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() }
             Box(
                 modifier = Modifier
                     .size(52.dp)
@@ -320,14 +374,25 @@ private fun EventCard(
                     .background(colors.accent.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
-                KamelImage(
-                    resource = asyncPainterResource(data = imgUrl),
-                    contentDescription = "Event Image",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                    onLoading = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) },
-                    onFailure = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) }
-                )
+                if (imgUrl != null) {
+                    KamelImage(
+                        resource = asyncPainterResource(data = imgUrl),
+                        contentDescription = "Event Image",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        onLoading = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) },
+                        onFailure = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) }
+                    )
+                } else {
+                    AuthKamelImage(
+                        url = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
+                        contentDescription = "Event Image",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        onLoading = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) },
+                        onFailure = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) }
+                    )
+                }
             }
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -469,27 +534,50 @@ private fun EventDetailSheet(
             )
 
             // Poster image
-            val posterUrl = previewData?.posterUrl?.takeIf { it.isNotEmpty() } ?: event.posterUrl?.takeIf { it.isNotEmpty() } ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
-            KamelImage(
-                resource = asyncPainterResource(data = posterUrl),
-                contentDescription = "Event Poster",
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(200.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(colors.border.copy(alpha = 0.5f)),
-                contentScale = ContentScale.Crop,
-                onLoading = {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(24.dp))
+            val apiPosterUrl = previewData?.posterUrl?.takeIf { it.isNotEmpty() } ?: event.posterUrl?.takeIf { it.isNotEmpty() }
+            if (apiPosterUrl != null) {
+                KamelImage(
+                    resource = asyncPainterResource(data = apiPosterUrl),
+                    contentDescription = "Event Poster",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(colors.border.copy(alpha = 0.5f)),
+                    contentScale = ContentScale.Crop,
+                    onLoading = {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(24.dp))
+                        }
+                    },
+                    onFailure = {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.ImageNotSupported, null, tint = colors.textMuted)
+                        }
                     }
-                },
-                onFailure = {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.ImageNotSupported, null, tint = colors.textMuted)
+                )
+            } else {
+                AuthKamelImage(
+                    url = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
+                    contentDescription = "Event Poster",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(colors.border.copy(alpha = 0.5f)),
+                    contentScale = ContentScale.Crop,
+                    onLoading = {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(24.dp))
+                        }
+                    },
+                    onFailure = {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.ImageNotSupported, null, tint = colors.textMuted)
+                        }
                     }
-                }
-            )
+                )
+            }
 
             // Title & type
             Row(
@@ -795,7 +883,7 @@ private fun ClubCard(club: ClubItem, isEnrolled: Boolean, onClick: () -> Unit) {
             if (isEnrolled) {
                 Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
             } else {
-                Icon(Icons.Rounded.ArrowForward, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
             }
         }
     }

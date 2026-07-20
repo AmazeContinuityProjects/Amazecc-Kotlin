@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -28,16 +29,17 @@ import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.ScreenHeader
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
 @Composable
 fun TransportScreen() {
     val colors = AmazeTheme.colors
-    val transportRoutesRes by AppState.transportRoutes.collectAsState()
-    val transportPassRes by AppState.transportPass.collectAsState()
-    val routes = transportRoutesRes?.routes ?: emptyList()
-    val passInfo = transportPassRes
+    val transportDataRes by AppState.transportData.collectAsState()
+    val busesRes by AppState.buses.collectAsState()
+    val routes = busesRes?.buses ?: emptyList()
+    val transportData = transportDataRes
     
     var searchQuery by remember { mutableStateOf("") }
     var expandedRouteNo by remember { mutableStateOf<String?>(null) }
@@ -47,8 +49,8 @@ fun TransportScreen() {
     val filteredRoutes = remember(routes, searchQuery) {
         if (searchQuery.isBlank()) routes
         else routes.filter {
-            it.routeNo.contains(searchQuery, ignoreCase = true) ||
-            it.routeName.contains(searchQuery, ignoreCase = true) ||
+            it.route.contains(searchQuery, ignoreCase = true) ||
+            it.id.contains(searchQuery, ignoreCase = true) ||
             it.stops.any { s -> s.stopName.contains(searchQuery, ignoreCase = true) }
         }
     }
@@ -65,61 +67,26 @@ fun TransportScreen() {
             contentPadding = PaddingValues(bottom = 30.dp)
         ) {
             item {
-                // Header
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(colors.accent, colors.accent.copy(alpha = 0.7f), colors.accent.copy(alpha = 0.0f))
-                            )
-                        )
-                        .padding(horizontal = 20.dp)
-                        .padding(top = 16.dp, bottom = 8.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color.White.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Rounded.DirectionsBus, null, tint = Color.White, modifier = Modifier.size(26.dp))
-                        }
-                        Spacer(modifier = Modifier.width(14.dp))
-                        Column {
-                            Text(
-                                "Dayscholar Bus Hub",
-                                style = AmazeTheme.typography.subheading.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    fontSize = 22.sp
-                                )
-                            )
-                            val subtitle = if (passInfo?.status == "active") {
-                                "${passInfo.routeNo ?: ""} - ${passInfo.routeName ?: "Pass Active"}"
-                            } else if (routes.isNotEmpty()) {
-                                "${routes.size} routes available"
-                            } else {
-                                "Search and explore bus routes"
-                            }
-                            Text(
-                                subtitle,
-                                style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.8f))
-                            )
-                        }
-                    }
-                }
+                ScreenHeader(
+                    title = "Dayscholar Bus Hub",
+                    description = if (transportData?.hasRegistration == true) {
+                        "${transportData.busRouteId ?: ""} - Pass Active"
+                    } else if (routes.isNotEmpty()) {
+                        "${routes.size} routes available"
+                    } else {
+                        "Search and explore bus routes"
+                    },
+                    showSyncButton = true,
+                    onRefresh = { AppState.refreshTransport() }
+                )
             }
             
             item {
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                     TransportRegistrationCard(
-                        passInfo = passInfo,
+                        transportData = transportData,
                         colors = colors,
-                        onApplyClick = { showRegistrationForm = true },
-                        onHistoryClick = { showHistoryDialog = true }
+                        onApplyClick = { showRegistrationForm = true }
                     )
                 }
             }
@@ -160,13 +127,13 @@ fun TransportScreen() {
                     }
                 }
             } else {
-                items(filteredRoutes, key = { it.routeNo }) { route ->
-                    val isExpanded = expandedRouteNo == route.routeNo
+                items(filteredRoutes, key = { it.id }) { route ->
+                    val isExpanded = expandedRouteNo == route.id
                     Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                         BusRouteCard(
                             route = route,
                             isExpanded = isExpanded,
-                            onClick = { expandedRouteNo = if (isExpanded) null else route.routeNo },
+                            onClick = { expandedRouteNo = if (isExpanded) null else route.id },
                             colors = colors
                         )
                     }
@@ -182,166 +149,172 @@ fun TransportScreen() {
             onDismiss = { showRegistrationForm = false }
         )
     }
-
-    if (showHistoryDialog) {
-        HistoryDialog(
-            registrations = passInfo?.registrations ?: emptyList(),
-            colors = colors,
-            onDismiss = { showHistoryDialog = false }
-        )
-    }
 }
 
 @Composable
 private fun TransportRegistrationCard(
-    passInfo: TransportPassRes?,
+    transportData: TransportDataRes?,
     colors: com.amazecc.app.shared.theme.AmazeColors,
-    onApplyClick: () -> Unit,
-    onHistoryClick: () -> Unit
+    onApplyClick: () -> Unit
 ) {
-    val status = passInfo?.status ?: "inactive"
-    val isActive = status == "active"
-    val isPending = status == "pending"
-
-    val passState = when {
-        isActive -> "active"
-        isPending -> "pending"
-        else -> "inactive"
-    }
+    val isActive = transportData?.hasRegistration == true
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(
-                when (passState) {
-                    "active" -> Brush.linearGradient(listOf(Color(0xFF059669), Color(0xFF10B981)))
-                    "pending" -> Brush.linearGradient(listOf(Color(0xFFD97706), Color(0xFFF59E0B)))
-                    else -> Brush.linearGradient(listOf(colors.surface, colors.background))
-                }
+                Brush.linearGradient(
+                    if (isActive) listOf(colors.accent.copy(alpha = 0.15f), colors.accent.copy(alpha = 0.05f))
+                    else listOf(colors.surface.copy(alpha = 0.8f), colors.background)
+                )
             )
             .border(
                 1.dp,
-                when (passState) {
-                    "active" -> Color(0xFF10B981).copy(alpha = 0.3f)
-                    "pending" -> Color(0xFFF59E0B).copy(alpha = 0.3f)
-                    else -> colors.border
-                },
-                RoundedCornerShape(20.dp)
+                if (isActive) colors.accent.copy(alpha = 0.3f) else colors.border,
+                RoundedCornerShape(24.dp)
             )
-            .padding(20.dp)
     ) {
-        if (passState == "inactive") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFF59E0B).copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.BusAlert, null, tint = Color(0xFFD97706), modifier = Modifier.size(24.dp))
-                    }
-                    Spacer(modifier = Modifier.width(14.dp))
-                    Column {
-                        Text(
-                            "No Bus Registration",
-                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                        )
-                        Text(
-                            "Apply for a new pass to view it here.",
-                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Button(
-                    onClick = onApplyClick,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
-                ) {
-                    Text("Apply", fontWeight = FontWeight.Bold)
-                }
-            }
-        } else {
-            Column(modifier = Modifier.fillMaxWidth()) {
+        // Background blob for glassmorphism effect
+        if (isActive) {
+            Box(
+                modifier = Modifier
+                    .size(150.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 50.dp, y = (-50).dp)
+                    .background(colors.accent.copy(alpha = 0.2f), shape = CircleShape)
+                    .blur(40.dp)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp)
+        ) {
+            if (!isActive) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                         Box(
                             modifier = Modifier
-                                .size(48.dp)
+                                .size(42.dp)
                                 .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.2f)),
+                                .background(Color(0xFFF59E0B).copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                if (passState == "active") Icons.Rounded.CheckCircle else Icons.Rounded.Schedule,
-                                null,
-                                tint = Color.White,
-                                modifier = Modifier.size(28.dp)
-                            )
+                            Icon(Icons.Rounded.BusAlert, null, tint = Color(0xFFD97706), modifier = Modifier.size(24.dp))
                         }
                         Spacer(modifier = Modifier.width(14.dp))
                         Column {
                             Text(
-                                "Transport Pass",
-                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = Color.White, fontSize = 20.sp)
+                                "No Bus Registration",
+                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                             )
+                            Text(
+                                "Apply for a new pass to view it here.",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = onApplyClick,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
+                    ) {
+                        Text("Apply", fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .padding(top = 4.dp)
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Color.White.copy(alpha = 0.2f))
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.accent.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    if (passState == "active") "Active" else "Pending Approval",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                                Icon(
+                                    Icons.Rounded.DirectionsBus,
+                                    null,
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(28.dp)
                                 )
+                            }
+                            Spacer(modifier = Modifier.width(14.dp))
+                            Column {
+                                Text(
+                                    "Dayscholar Transport",
+                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 20.sp)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(colors.accent)
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        "Registration Active",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
                             }
                         }
                     }
-                    if (passInfo?.registrations?.isNotEmpty() == true) {
-                        IconButton(onClick = onHistoryClick, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Rounded.History, "History", tint = Color.White.copy(alpha = 0.8f))
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "STUDENT",
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
+                            )
+                            transportData?.name?.let {
+                                Text(it, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.SemiBold))
+                            }
+                            transportData?.registerNumber?.let {
+                                Text(it, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                "ROUTE",
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
+                            )
+                            transportData?.routeSelected?.let {
+                                Text(it, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.SemiBold))
+                            }
+                            transportData?.busRouteId?.let {
+                                Text("Bus $it", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                            }
                         }
                     }
-                }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text(
-                            "ROUTE",
-                            style = AmazeTheme.typography.smallLabel.copy(color = Color.White.copy(alpha = 0.7f))
-                        )
-                        passInfo?.routeName?.let {
-                            Text(it, style = AmazeTheme.typography.body.copy(color = Color.White, fontWeight = FontWeight.SemiBold))
-                        }
-                        passInfo?.routeNo?.let {
-                            Text("Route $it", style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.9f)))
-                        }
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            "VALID UNTIL",
-                            style = AmazeTheme.typography.smallLabel.copy(color = Color.White.copy(alpha = 0.7f))
-                        )
-                        passInfo?.validUntil?.let {
-                            Text(it, style = AmazeTheme.typography.body.copy(color = Color.White, fontWeight = FontWeight.SemiBold))
-                        }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Button(
+                        onClick = { /* TODO: Implement tracking or open VTOP */ },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
+                    ) {
+                        Icon(Icons.Rounded.LocationOn, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Track Bus", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -351,7 +324,7 @@ private fun TransportRegistrationCard(
 
 @Composable
 private fun RegistrationDialog(
-    routes: List<BusRouteDetail>,
+    routes: List<BusRoute>,
     colors: com.amazecc.app.shared.theme.AmazeColors,
     onDismiss: () -> Unit
 ) {
@@ -365,7 +338,7 @@ private fun RegistrationDialog(
     var submitting by remember { mutableStateOf(false) }
 
     val routeOptions = remember(routes) {
-        routes.map { it.routeNo to "${it.routeNo} - ${it.routeName}" }
+        routes.map { it.id to "${it.id} - ${it.route}" }
     }
     val semesters = remember {
         listOf(
@@ -561,122 +534,13 @@ private fun RegistrationDialog(
 }
 
 @Composable
-private fun HistoryDialog(
-    registrations: List<TransportRegItem>,
-    colors: com.amazecc.app.shared.theme.AmazeColors,
-    onDismiss: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .fillMaxHeight(0.7f)
-                .clip(RoundedCornerShape(24.dp))
-                .background(colors.surface)
-                .padding(24.dp)
-        ) {
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "Registration History",
-                        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Rounded.Close, null, tint = colors.textMuted)
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(registrations, key = { it.id }) { reg ->
-                        RegistrationHistoryCard(reg = reg, colors = colors)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RegistrationHistoryCard(
-    reg: TransportRegItem,
-    colors: com.amazecc.app.shared.theme.AmazeColors
-) {
-    val statusColor = when {
-        reg.status.contains("Approved", ignoreCase = true) || reg.status.contains("Active", ignoreCase = true) -> Color(0xFF10B981)
-        reg.status.contains("Pending", ignoreCase = true) -> Color(0xFFF59E0B)
-        reg.status.contains("Expired", ignoreCase = true) || reg.status.contains("Rejected", ignoreCase = true) -> Color(0xFFEF4444)
-        else -> colors.textMuted
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(colors.background)
-            .border(1.dp, colors.border, RoundedCornerShape(16.dp))
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(statusColor)
-                )
-                Spacer(modifier = Modifier.width(14.dp))
-                Column {
-                    Text(
-                        reg.semester,
-                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
-                    )
-                    Text(
-                        "${reg.routeNo} - ${reg.routeName}",
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                        maxLines = 1
-                    )
-                    if (!reg.appliedOn.isNullOrBlank()) {
-                        Text(
-                            "Applied: ${reg.appliedOn}",
-                            style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp)
-                        )
-                    }
-                }
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(statusColor.copy(alpha = 0.12f))
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            ) {
-                Text(
-                    reg.status,
-                    color = statusColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun BusRouteCard(
-    route: BusRouteDetail,
+    route: BusRoute,
     isExpanded: Boolean,
     onClick: () -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val isAC = route.busType?.contains("AC", ignoreCase = true) == true
+    val isAC = route.type.contains("AC", ignoreCase = true) == true
     val gradientColors = if (isAC) {
         listOf(Color(0xFF3B82F6).copy(alpha = 0.15f), Color(0xFF60A5FA).copy(alpha = 0.05f))
     } else {
@@ -694,6 +558,16 @@ private fun BusRouteCard(
             .border(1.dp, themeColor.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
     ) {
+        // Blob effect
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .align(Alignment.BottomStart)
+                .offset(x = (-30).dp, y = 30.dp)
+                .background(themeColor.copy(alpha = 0.15f), shape = CircleShape)
+                .blur(40.dp)
+        )
+
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -709,19 +583,19 @@ private fun BusRouteCard(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "#${route.routeNo}",
+                            "#${route.id}",
                             style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = themeColor)
                         )
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column {
                         Text(
-                            route.routeName,
+                            route.route,
                             style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
                             maxLines = 1
                         )
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                            if (!route.busType.isNullOrBlank()) {
+                            if (route.type.isNotBlank()) {
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
@@ -729,7 +603,7 @@ private fun BusRouteCard(
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        route.busType,
+                                        route.type,
                                         color = themeColor,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold
@@ -740,7 +614,7 @@ private fun BusRouteCard(
                             Icon(Icons.Rounded.Map, null, tint = colors.textMuted, modifier = Modifier.size(12.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "${route.stops.size} stops",
+                                "${route.stops?.size ?: 0} stops",
                                 style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
                             )
                         }
@@ -748,11 +622,11 @@ private fun BusRouteCard(
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
-                        route.departureTime,
+                        route.busLocation.ifBlank { "N/A" },
                         style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent)
                     )
                     Text(
-                        "Departure",
+                        "Location",
                         style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
@@ -775,7 +649,7 @@ private fun BusRouteCard(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (route.stops.isNotEmpty()) {
+                if (!route.stops.isNullOrEmpty()) {
                     Text(
                         "Route Stops",
                         style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
@@ -824,23 +698,19 @@ private fun BusRouteCard(
                                             color = colors.textPrimary
                                         )
                                     )
-                                    Text(
-                                        stop.pickupTime,
-                                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                                    )
+                                    if (stop.pickupTime != null) {
+                                        Text(
+                                            stop.pickupTime,
+                                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                        )
+                                    }
                                 }
-                            }
-                            if (!stop.fare.isNullOrBlank()) {
-                                Text(
-                                    stop.fare,
-                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent)
-                                )
                             }
                         }
                     }
                 }
 
-                if (route.driverName != null || route.supervisorName != null) {
+                if (route.driverName.isNotBlank() || route.supervisorName?.isNotBlank() == true) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Box(
                         modifier = Modifier
@@ -856,26 +726,28 @@ private fun BusRouteCard(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    route.driverName?.let {
+                    if (route.driverName.isNotBlank()) {
                         CrewRow(
                             icon = Icons.Rounded.Person,
                             label = "Driver",
-                            name = it,
+                            name = route.driverName,
                             phone = route.driverPhone,
                             colors = colors
                         )
                     }
-                    if (route.driverName != null && route.supervisorName != null) {
+                    if (route.driverName.isNotBlank() && route.supervisorName?.isNotBlank() == true) {
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                     route.supervisorName?.let {
-                        CrewRow(
-                            icon = Icons.Rounded.SupervisorAccount,
-                            label = "Supervisor",
-                            name = it,
-                            phone = route.supervisorPhone,
-                            colors = colors
-                        )
+                        if (it.isNotBlank()) {
+                            CrewRow(
+                                icon = Icons.Rounded.SupervisorAccount,
+                                label = "Supervisor",
+                                name = it,
+                                phone = route.supervisorPhone,
+                                colors = colors
+                            )
+                        }
                     }
                 }
             }
@@ -911,7 +783,7 @@ private fun CrewRow(
                 name,
                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
             )
-            if (phone != null) {
+            if (!phone.isNullOrBlank()) {
                 Text(
                     phone,
                     style = AmazeTheme.typography.caption.copy(color = colors.accent)

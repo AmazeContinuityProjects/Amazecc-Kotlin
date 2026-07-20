@@ -36,8 +36,8 @@ fun BottomNavigationBar() {
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
             .clip(RoundedCornerShape(32.dp))
-            .background(colors.navBackground)
-            .border(1.dp, colors.navBorder, RoundedCornerShape(32.dp))
+            .background(colors.navBackground.copy(alpha = 0.85f))
+            .border(1.dp, colors.navBorder.copy(alpha = 0.5f), RoundedCornerShape(32.dp))
             .padding(vertical = 10.dp, horizontal = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically

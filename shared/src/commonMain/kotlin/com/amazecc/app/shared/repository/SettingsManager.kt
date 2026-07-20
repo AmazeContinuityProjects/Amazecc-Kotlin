@@ -23,6 +23,7 @@ object SettingsManager {
     const val KEY_SYNC_PROFILE = "sync_profile"
     const val KEY_SYNC_ADDITIONAL = "sync_additional"
     const val KEY_NAVBAR_ITEMS = "navbar_items"
+    const val KEY_PREFERRED_CALENDAR = "preferred_calendar_name"
 
     // Session cache (VTOP credentials)
     const val SESSION_COOKIES = "session_cookies"
@@ -46,6 +47,8 @@ object SettingsManager {
     const val CACHE_CURRICULUM = "cache_curriculum"
     const val CACHE_PAYMENTS = "cache_payments"
     const val CACHE_LIBRARY = "cache_library"
+    const val CACHE_TRANSPORT_DATA = "cache_transport_data"
+    const val CACHE_BUSES = "cache_buses"
     const val CACHE_TRANSPORT = "cache_transport"
     const val CACHE_TRANSPORT_ROUTES = "cache_transport_routes"
     const val CACHE_TRANSPORT_PASS = "cache_transport_pass"
@@ -59,6 +62,7 @@ object SettingsManager {
     const val CACHE_CAB_TRIPS = "cache_cab_trips"
     const val CACHE_ALL_SEMESTER_ATTENDANCE = "cache_all_semester_attendance"
     const val CACHE_ALL_SEMESTER_MARKS = "cache_all_semester_marks"
+    const val CACHE_CALENDARS_LIST = "cache_calendars_list"
     
     fun setString(key: String, value: String) {
         settings.putString(key, value)
@@ -132,4 +136,10 @@ object SettingsManager {
         remove(KEY_MOODLE_USERNAME)
         remove(KEY_MOODLE_PASSWORD)
     }
+
+    fun savePreferredCalendar(name: String) {
+        setString(KEY_PREFERRED_CALENDAR, name)
+    }
+
+    fun getPreferredCalendar(): String? = getNullableString(KEY_PREFERRED_CALENDAR)
 }

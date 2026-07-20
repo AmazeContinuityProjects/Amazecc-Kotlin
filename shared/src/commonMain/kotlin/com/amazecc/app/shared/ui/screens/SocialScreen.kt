@@ -24,17 +24,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.FriendGroup
+import com.amazecc.app.shared.state.FriendsViewModel
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.utils.QRCodeGenerator
 import com.amazecc.app.shared.utils.SocialUtils
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SocialScreen() {
@@ -72,9 +75,9 @@ fun SocialScreen() {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when (activeTab) {
                 0 -> FriendsTab(colors)
+                1 -> GroupsTab(colors)
                 2 -> CommonSlotsTab(colors)
                 3 -> ShareScheduleTab(colors)
-                else -> PlaceholderTab(tabs[activeTab], colors)
             }
         }
     }
@@ -85,6 +88,7 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val attendance by AppState.attendance.collectAsState()
     val studentProfile by AppState.studentProfile.collectAsState()
     val authorizedID by com.amazecc.app.shared.repository.SessionManager.authorizedID.collectAsState()
+    val clipboardManager = LocalClipboardManager.current
 
     val name = studentProfile?.name ?: authorizedID ?: "Student"
     val regNumber = studentProfile?.regNo ?: authorizedID ?: "0000"
@@ -94,7 +98,20 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         if (attList.isNotEmpty()) SocialUtils.exportScheduleCode(attList, name, regNumber) else ""
     }
 
+    val shareCode = "$name|$regNumber"
+    val qrMatrix = remember(shareCode) {
+        if (shareCode.isNotBlank()) QRCodeGenerator.generate(shareCode) else null
+    }
+
     var copied by remember { mutableStateOf(false) }
+    var codeCopied by remember { mutableStateOf(false) }
+
+    LaunchedEffect(copied) {
+        if (copied) { kotlinx.coroutines.delay(2000); copied = false }
+    }
+    LaunchedEffect(codeCopied) {
+        if (codeCopied) { kotlinx.coroutines.delay(2000); codeCopied = false }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -108,24 +125,15 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         Spacer(Modifier.height(24.dp))
 
         // QR Code display
-        if (scheduleCode.isNotEmpty()) {
-            val qrMatrix = remember(scheduleCode) { QRCodeGenerator.generate(scheduleCode) }
-            val matrixSize = qrMatrix.size
-
+        if (qrMatrix != null) {
             Box(
                 modifier = Modifier.size(220.dp).clip(RoundedCornerShape(16.dp))
                     .background(Color.White).padding(12.dp)
             ) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val cellSize = size.width / matrixSize
-                    for (row in 0 until matrixSize) {
-                        for (col in 0 until matrixSize) {
-                            if (qrMatrix[row][col]) {
-                                drawRect(Color.Black, topLeft = Offset(col * cellSize, row * cellSize), size = Size(cellSize, cellSize))
-                            }
-                        }
-                    }
-                }
+                QrCodeCanvas(
+                    matrix = qrMatrix,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         } else {
             Box(
@@ -160,6 +168,7 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 AmazeButton(
                     text = if (copied) "Copied!" else "Copy",
                     onClick = {
+                        clipboardManager.setText(AnnotatedString(scheduleCode))
                         copied = true
                     },
                     variant = if (copied) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY,
@@ -174,15 +183,21 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         Text("Share Options", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
 
-        AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = {}) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        AmazeCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = {
+                clipboardManager.setText(AnnotatedString(scheduleCode))
+                codeCopied = true
+            }
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Share, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                    Icon(if (codeCopied) Icons.Rounded.Check else Icons.Rounded.Share, null, tint = colors.accent, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Share Code", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
-                    Text("Send your schedule code to a friend", color = colors.textSecondary, fontSize = 11.sp)
+                    Text(if (codeCopied) "Copied!" else "Share Code", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
+                    Text("Copy schedule code to share with a friend", color = colors.textSecondary, fontSize = 11.sp)
                 }
                 Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted)
             }
@@ -190,21 +205,62 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
 
         Spacer(Modifier.height(12.dp))
 
-        AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = {}) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        var showScanDialog by remember { mutableStateOf(false) }
+        if (showScanDialog) {
+            AlertDialog(
+                onDismissRequest = { showScanDialog = false },
+                title = { Text("Scan Friend's Code", fontWeight = FontWeight.Bold) },
+                text = {
+                    Text("Camera scanning is not available on this platform. Go to the Friends tab and use 'Add Friend via Code' to paste your friend's schedule code manually.")
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showScanDialog = false
+                    }) { Text("OK", color = colors.accent) }
+                },
+                containerColor = colors.surface,
+                titleContentColor = colors.textPrimary,
+                textContentColor = colors.textSecondary
+            )
+        }
+
+        AmazeCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = { showScanDialog = true }
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.QrCodeScanner, null, tint = colors.accent, modifier = Modifier.size(20.dp))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text("Scan Friend's Code", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
-                    Text("Use camera to scan and add a friend", color = colors.textSecondary, fontSize = 11.sp)
+                    Text("Enter a friend's schedule code manually", color = colors.textSecondary, fontSize = 11.sp)
                 }
                 Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted)
             }
         }
 
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun QrCodeCanvas(matrix: List<BooleanArray>, modifier: Modifier = Modifier) {
+    val size = matrix.size
+    Canvas(modifier = modifier) {
+        val w = this.size.width / size
+        for (row in 0 until size) {
+            for (col in 0 until size) {
+                if (matrix[row][col]) {
+                    drawRect(
+                        color = Color.Black,
+                        topLeft = Offset(col * w, row * w),
+                        size = Size(w, w)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -326,12 +382,104 @@ private fun CommonSlotsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
 }
 
 @Composable
-private fun PlaceholderTab(title: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Icon(Icons.Rounded.Construction, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-            Spacer(Modifier.height(8.dp))
-            Text("$title coming soon", color = colors.textMuted)
+private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val friends by FriendsViewModel.friends.collectAsState()
+    val groups by FriendsViewModel.groups.collectAsState()
+    var showCreateDialog by remember { mutableStateOf(false) }
+    var newGroupName by remember { mutableStateOf("") }
+
+    if (showCreateDialog) {
+        AlertDialog(
+            onDismissRequest = { showCreateDialog = false },
+            title = { Text("Create Group", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Groups let you share schedules with multiple friends at once.", style = AmazeTheme.typography.caption)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = newGroupName,
+                        onValueChange = { newGroupName = it },
+                        label = { Text("Group Name") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (friends.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text("All friends will be added to the group.", style = AmazeTheme.typography.caption)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = newGroupName.isNotBlank() && friends.isNotEmpty(), onClick = {
+                    FriendsViewModel.createGroup(newGroupName, friends.map { it.regNumber })
+                    newGroupName = ""
+                    showCreateDialog = false
+                }) { Text("Create", color = colors.accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreateDialog = false }) { Text("Cancel", color = colors.textSecondary) }
+            },
+            containerColor = colors.surface,
+            titleContentColor = colors.textPrimary,
+            textContentColor = colors.textSecondary
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        AmazeButton(
+            text = "Create Group",
+            icon = Icons.Rounded.GroupAdd,
+            onClick = { showCreateDialog = true },
+            enabled = friends.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        if (groups.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Rounded.Groups, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Text(if (friends.isEmpty()) "Add friends first to create groups" else "No groups yet", color = colors.textMuted)
+                }
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(groups) { group ->
+                    val memberNames = group.memberRegNumbers.mapNotNull { reg ->
+                        friends.find { it.regNumber == reg }?.name
+                    }
+                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Rounded.Groups, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(group.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                    Text("${memberNames.size} members", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                                }
+                                IconButton(onClick = { FriendsViewModel.deleteGroup(group.id) }) {
+                                    Icon(Icons.Rounded.Delete, null, tint = colors.dangerText)
+                                }
+                            }
+                            if (memberNames.isNotEmpty()) {
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    memberNames.joinToString(", "),
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

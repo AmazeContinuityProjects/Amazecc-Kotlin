@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -98,7 +99,7 @@ fun MoodleLoginView(onLoginSuccess: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(Icons.Rounded.MenuBook, null, tint = colors.accent, modifier = Modifier.size(64.dp))
+        Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.accent, modifier = Modifier.size(64.dp))
         Spacer(modifier = Modifier.height(24.dp))
         Text("Connect to Moodle", style = AmazeTheme.typography.heading.copy(color = colors.textPrimary))
         Text("Enter your V-TOP credentials to sync", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))

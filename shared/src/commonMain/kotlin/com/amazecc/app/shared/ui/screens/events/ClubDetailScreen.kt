@@ -94,7 +94,7 @@ fun ClubDetailScreen() {
             }
             
             item {
-                Divider(color = colors.border, thickness = 1.dp)
+                HorizontalDivider(color = colors.border, thickness = 1.dp)
             }
             
             item {
