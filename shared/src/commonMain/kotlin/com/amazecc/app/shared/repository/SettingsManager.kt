@@ -63,6 +63,7 @@ object SettingsManager {
     const val CACHE_ALL_SEMESTER_ATTENDANCE = "cache_all_semester_attendance"
     const val CACHE_ALL_SEMESTER_MARKS = "cache_all_semester_marks"
     const val CACHE_CALENDARS_LIST = "cache_calendars_list"
+    const val CACHE_QCM_VIEW = "cache_qcm_view"
     
     fun setString(key: String, value: String) {
         settings.putString(key, value)

@@ -27,7 +27,7 @@ enum class Screen { SPLASH,
     COURSE_ATTENDANCE, ARREAR, MAKEUP_COMPRE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
     MARKS_TIMELINE, VITOL, FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
     FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, ACTIVITY_TREE, CLUB_DETAIL,
-    COURSE_DETAIL, SETTINGS, MOODLE
+    COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB
 }
 
 object AppState {
@@ -190,6 +190,7 @@ object AppState {
         loadCachedData<ExamScheduleRes>(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule)
         loadCachedData<CalendarRes>(SettingsManager.CACHE_CALENDAR, _calendar)
         loadCachedData<CalendarsListRes>(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList)
+        loadCachedData<QcmViewRes>(SettingsManager.CACHE_QCM_VIEW, _qcmView)
         loadCachedData<CurriculumRes>(SettingsManager.CACHE_CURRICULUM, _curriculum)
         loadCachedData<PaymentsRes>(SettingsManager.CACHE_PAYMENTS, _payments)
         loadCachedData<LibraryRes>(SettingsManager.CACHE_LIBRARY, _library)
@@ -261,6 +262,9 @@ object AppState {
     private val _calendarsList = MutableStateFlow<CalendarsListRes?>(null)
     val calendarsList: StateFlow<CalendarsListRes?> = _calendarsList.asStateFlow()
 
+    private val _qcmView = MutableStateFlow<QcmViewRes?>(null)
+    val qcmView: StateFlow<QcmViewRes?> = _qcmView.asStateFlow()
+
     private val _curriculum = MutableStateFlow<CurriculumRes?>(null)
     val curriculum: StateFlow<CurriculumRes?> = _curriculum.asStateFlow()
 
@@ -315,6 +319,14 @@ object AppState {
     fun openClubDetail(clubId: String) {
         _selectedClubId.value = clubId
         navigateTo(Screen.CLUB_DETAIL)
+    }
+
+    private val _clubHubInitialTab = MutableStateFlow("Directory")
+    val clubHubInitialTab: StateFlow<String> = _clubHubInitialTab.asStateFlow()
+
+    fun openClubHub(initialTab: String = "Directory") {
+        _clubHubInitialTab.value = initialTab
+        navigateTo(Screen.CLUB_HUB)
     }
 
     // Cab Share state
@@ -656,6 +668,18 @@ object AppState {
                             )
                         },
                         async {
+                            syncModule(
+                                name = "QCM View",
+                                fetch = { AmazeClient.getQcmView() },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _qcmView.value = it
+                                    cacheData(SettingsManager.CACHE_QCM_VIEW, it)
+                                }
+                            )
+                        },
+                        async {
                             if (syncProfile.value) {
                                 syncModule(
                                     name = "Student Profile",
@@ -912,6 +936,26 @@ object AppState {
                 _syncStatus.value = if (res.success) "Calendars synced" else "Calendar sync failed"
             } catch (e: Exception) {
                 _syncStatus.value = "Calendar sync failed"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun refreshQcmView() {
+        if (_isLoading.value) return
+        scope.launch {
+            _isLoading.value = true
+            _syncStatus.value = "Syncing QCM data..."
+            try {
+                val res = AmazeClient.getQcmView()
+                if (res.success) {
+                    _qcmView.value = res
+                    cacheData(SettingsManager.CACHE_QCM_VIEW, res)
+                }
+                _syncStatus.value = if (res.success) "QCM synced" else "QCM sync failed"
+            } catch (e: Exception) {
+                _syncStatus.value = "QCM sync failed"
             } finally {
                 _isLoading.value = false
             }

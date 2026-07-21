@@ -86,9 +86,18 @@ fun ClubDetailScreen() {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text("VIT Chennai Chapter", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                         Spacer(modifier = Modifier.height(12.dp))
+                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Rounded.Language, contentDescription = "Website", tint = colors.accent, modifier = Modifier.size(24.dp).clickable { /* Open website */ })
-                            Icon(Icons.Rounded.CameraAlt, contentDescription = "Instagram", tint = colors.accent, modifier = Modifier.size(24.dp).clickable { /* Open Insta */ })
+                            if (!club.website.isNullOrBlank()) {
+                                Icon(Icons.Rounded.Language, contentDescription = "Website", tint = colors.accent, modifier = Modifier.size(24.dp).clickable { uriHandler.openUri(club.website) })
+                            }
+                            if (!club.instagram.isNullOrBlank()) {
+                                val instaUrl = if (club.instagram.startsWith("http")) club.instagram else "https://instagram.com/${club.instagram.removePrefix("@")}"
+                                Icon(Icons.Rounded.CameraAlt, contentDescription = "Instagram", tint = colors.accent, modifier = Modifier.size(24.dp).clickable { uriHandler.openUri(instaUrl) })
+                            }
+                            if (!club.whatsapp.isNullOrBlank()) {
+                                Icon(Icons.Rounded.Chat, contentDescription = "WhatsApp", tint = colors.accent, modifier = Modifier.size(24.dp).clickable { uriHandler.openUri(club.whatsapp) })
+                            }
                         }
                     }
                 }

@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.model
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
@@ -34,6 +35,7 @@ data class AttendanceItem(
     val attendedClasses: Int = 0,
     val totalClasses: Int = 0,
     val attendancePercentage: String = "",
+    @SerialName("viewLink")
     val viewLinkRaw: JsonElement? = null,
     val classId: String? = null,
     val credits: String? = null,

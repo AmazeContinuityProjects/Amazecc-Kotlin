@@ -46,6 +46,7 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
 
     val filteredGroups = remember(semesterGroups, selectedSemester, searchQuery) {
         semesterGroups.filter { group ->
+            if (group.courseCode.isBlank()) return@filter false
             val semMatch = selectedSemester == "All" || group.semesterSubId == selectedSemester
             val search = searchQuery.lowercase()
             val searchMatch = search.isEmpty() ||
@@ -264,6 +265,7 @@ private fun buildSemesterGroups(
         if (semId == "curriculum" || semId == "effectiveGrades" || semId == currentSemId) return@forEach
         if (allGroups.any { it.semesterSubId == semId }) return@forEach
         semResult?.grades?.forEach { grade ->
+            if (grade.courseCode.isBlank()) return@forEach
             val cleanCode = grade.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
             val key = cleanCode + "_" + semId
             if (key !in seenCodes) {
@@ -289,6 +291,7 @@ private fun buildSemesterMap(marks: List<MarksCourseItem>, attendance: List<Atte
     val semName = AppState.semesterMap[semId] ?: semId
 
     marks.forEach { c ->
+        if (c.courseCode.isBlank()) return@forEach
         val isLab = c.courseType.lowercase().contains("lab")
         val key = c.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
         val existing = map[key]
@@ -301,6 +304,7 @@ private fun buildSemesterMap(marks: List<MarksCourseItem>, attendance: List<Atte
     }
 
     attendance.forEach { a ->
+        if (a.courseCode.isBlank()) return@forEach
         val isLab = a.courseType.lowercase().contains("lab") || a.slotName.lowercase().startsWith("l")
         val rawCode = a.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
         val key = if (rawCode.contains(" ")) rawCode.split(" ")[0] else rawCode

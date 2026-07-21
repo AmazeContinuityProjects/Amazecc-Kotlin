@@ -94,7 +94,7 @@ fun MoreScreen() {
             Text("Communities", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Spacer(modifier = Modifier.height(12.dp))
 
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            AmazeCard(modifier = Modifier.fillMaxWidth().clickable { AppState.openClubHub("Directory") }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Icon(Icons.Rounded.Groups, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(16.dp))
@@ -105,7 +105,7 @@ fun MoreScreen() {
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            AmazeCard(modifier = Modifier.fillMaxWidth().clickable { AppState.openClubHub("Feed") }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Icon(Icons.Rounded.Explore, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(16.dp))

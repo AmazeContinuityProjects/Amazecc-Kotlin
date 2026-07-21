@@ -10,10 +10,12 @@ import io.ktor.http.*
 import io.ktor.client.call.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -126,10 +128,102 @@ object AmazeClient {
                 success = true,
                 semesterId = semesterId ?: "CH20252601",
                 attendance = listOf(
-                    AttendanceItem(slNo = "1", courseCode = "CSE1001", courseTitle = "Software Engineering", courseType = "Theory", slotName = "A1+TA1", faculty = "Dr. Amit Kumar", attendedClasses = 26, totalClasses = 30, attendancePercentage = "86", slotVenue = "SJT-402", credits = "3", category = "PC"),
-                    AttendanceItem(slNo = "2", courseCode = "CSE2002", courseTitle = "Database Management Systems", courseType = "Theory", slotName = "B1+TB1", faculty = "Dr. Rajeev Sen", attendedClasses = 14, totalClasses = 20, attendancePercentage = "70", slotVenue = "SJT-503", credits = "4", category = "PC"),
-                    AttendanceItem(slNo = "3", courseCode = "CSE3001", courseTitle = "Artificial Intelligence", courseType = "Embedded Lab", slotName = "L1+L2", faculty = "Prof. Priya Nair", attendedClasses = 10, totalClasses = 10, attendancePercentage = "100", slotVenue = "TT-204", credits = "4", category = "PE"),
-                    AttendanceItem(slNo = "4", courseCode = "MAT2001", courseTitle = "Differential Equations", courseType = "Theory", slotName = "C1+TC1", faculty = "Dr. Sarah John", attendedClasses = 16, totalClasses = 24, attendancePercentage = "66", slotVenue = "SJT-612", credits = "3", category = "UC")
+                    AttendanceItem(slNo = "1", courseCode = "CSE1001", courseTitle = "Software Engineering", courseType = "Theory", slotName = "A1+TA1", faculty = "Dr. Amit Kumar", attendedClasses = 26, totalClasses = 30, attendancePercentage = "86", slotVenue = "SJT-402", credits = "3", category = "PC",
+                        viewLinkRaw = buildJsonArray {
+                            add(buildJsonObject { put("date", "01 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "03 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "06 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "08 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "10 Jul 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "13 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "15 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "17 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "20 Jul 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "22 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "24 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "27 Jul 2026"); put("status", "On Duty") })
+                            add(buildJsonObject { put("date", "29 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "31 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "03 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "05 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "07 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "10 Aug 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "12 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "14 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "17 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "19 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "21 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "24 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "26 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "28 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "31 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "02 Sep 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "04 Sep 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "07 Sep 2026"); put("status", "Present") })
+                        }),
+                    AttendanceItem(slNo = "2", courseCode = "CSE2002", courseTitle = "Database Management Systems", courseType = "Theory", slotName = "B1+TB1", faculty = "Dr. Rajeev Sen", attendedClasses = 14, totalClasses = 20, attendancePercentage = "70", slotVenue = "SJT-503", credits = "4", category = "PC",
+                        viewLinkRaw = buildJsonArray {
+                            add(buildJsonObject { put("date", "02 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "05 Jul 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "09 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "12 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "16 Jul 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "19 Jul 2026"); put("status", "On Duty") })
+                            add(buildJsonObject { put("date", "23 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "26 Jul 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "30 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "02 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "06 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "09 Aug 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "13 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "16 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "20 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "23 Aug 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "27 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "30 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "03 Sep 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "06 Sep 2026"); put("status", "Absent") })
+                        }),
+                    AttendanceItem(slNo = "3", courseCode = "CSE3001", courseTitle = "Artificial Intelligence", courseType = "Embedded Lab", slotName = "L1+L2", faculty = "Prof. Priya Nair", attendedClasses = 10, totalClasses = 10, attendancePercentage = "100", slotVenue = "TT-204", credits = "4", category = "PE",
+                        viewLinkRaw = buildJsonArray {
+                            add(buildJsonObject { put("date", "04 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "11 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "18 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "25 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "01 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "08 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "15 Aug 2026"); put("status", "On Duty") })
+                            add(buildJsonObject { put("date", "22 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "29 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "05 Sep 2026"); put("status", "Present") })
+                        }),
+                    AttendanceItem(slNo = "4", courseCode = "MAT2001", courseTitle = "Differential Equations", courseType = "Theory", slotName = "C1+TC1", faculty = "Dr. Sarah John", attendedClasses = 16, totalClasses = 24, attendancePercentage = "66", slotVenue = "SJT-612", credits = "3", category = "UC",
+                        viewLinkRaw = buildJsonArray {
+                            add(buildJsonObject { put("date", "01 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "04 Jul 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "07 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "10 Jul 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "13 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "16 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "19 Jul 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "22 Jul 2026"); put("status", "On Duty") })
+                            add(buildJsonObject { put("date", "25 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "28 Jul 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "31 Jul 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "03 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "06 Aug 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "09 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "12 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "15 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "18 Aug 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "21 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "24 Aug 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "27 Aug 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "30 Aug 2026"); put("status", "Absent") })
+                            add(buildJsonObject { put("date", "02 Sep 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "05 Sep 2026"); put("status", "Present") })
+                            add(buildJsonObject { put("date", "08 Sep 2026"); put("status", "Absent") })
+                        })
                 )
             )
             return AcademicSyncResult(attendance = attendance, marks = getMarks(semesterId))
@@ -944,7 +1038,9 @@ object AmazeClient {
                     ClubItem(
                         id = "CL-1",
                         name = "Computer Society of India (CSI)",
-                        description = "Technical Club"
+                        description = "Technical Club",
+                        website = "https://csi.vit.ac.in",
+                        instagram = "csi_vitc"
                     )
                 )
             )
@@ -1182,6 +1278,18 @@ object AmazeClient {
 
     // â”€â”€ Phase 3 endpoints â”€â”€
 
+    suspend fun postQBankPaper(courseCode: String, title: String, link: String, type: String): QBankSubmitRes? {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return QBankSubmitRes(success = true, message = "Paper uploaded!")
+        }
+        return postAuthorized("/api/qbank/upload", mapOf(
+            "courseCode" to courseCode,
+            "title" to title,
+            "link" to link,
+            "type" to type
+        ))
+    }
+
     suspend fun getQBankCourses(): QBankCoursesRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return QBankCoursesRes(success = true, courses = listOf(
@@ -1379,10 +1487,51 @@ object AmazeClient {
         return postAuthorized<ArrearResponse>("additional-learning") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
+    suspend fun getClubFeed(): FeedRes {
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/club-admin/feed")
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString<FeedRes>(response.bodyAsText())
+            } else {
+                FeedRes(success = false, error = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            FeedRes(success = false, error = e.toString())
+        }
+    }
+
+    suspend fun promoteFeedPost(postId: String): PromoteRes? {
+        return try {
+            val body = buildJsonObject {
+                put("post_id", postId)
+                put("vtop_id", SessionManager.authorizedID.value ?: "")
+            }
+            val response: HttpResponse = httpClient.post("$baseUrl/api/club-admin/feed/promote") {
+                contentType(ContentType.Application.Json)
+                setBody(body.toString())
+            }
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString<PromoteRes>(response.bodyAsText())
+            } else null
+        } catch (_: Exception) { null }
+    }
+
     @Suppress("unused")
     suspend fun getFFCSReport(): ByteArray? {
         return try {
             val response: HttpResponse = httpClient.get("https://amazecc.vit.ac.in/ffcs/ffcsReport.csv")
+            if (response.status == HttpStatusCode.OK) {
+                response.readBytes()
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun getSyllabusPdf(courseCode: String): ByteArray? {
+        val authorizedID = SessionManager.authorizedID.value ?: return null
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/curriculum/syllabus?courseCode=$courseCode&authorizedID=$authorizedID")
             if (response.status == HttpStatusCode.OK) {
                 response.readBytes()
             } else null
