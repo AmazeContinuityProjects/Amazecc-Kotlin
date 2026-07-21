@@ -196,7 +196,7 @@ fun FacultyInfoScreen() {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp),
-                            contentPadding = PaddingValues(bottom = 16.dp)
+                            contentPadding = PaddingValues(bottom = 88.dp)
                         ) {
                             items(filtered, key = { it.id }) { faculty ->
                                 FacultyCard(
@@ -293,7 +293,7 @@ fun FacultyDetailScreen(
             }
         }
 
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
             // Info card
             item {
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {

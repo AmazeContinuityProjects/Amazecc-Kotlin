@@ -142,4 +142,26 @@ object SettingsManager {
     }
 
     fun getPreferredCalendar(): String? = getNullableString(KEY_PREFERRED_CALENDAR)
+
+    // ── Attendance Notes (per-course per-date "Got Notes?" tracking) ──
+    const val CACHE_ATTENDANCE_NOTES = "cache_attendance_notes"
+
+    @kotlinx.serialization.Serializable
+    data class NoteEntry(val key: String, val hasNotes: Boolean)
+
+    fun getAttendanceNotes(): Map<String, Boolean> {
+        val raw = getString(CACHE_ATTENDANCE_NOTES, "[]")
+        return try {
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            json.decodeFromString<List<NoteEntry>>(raw).associate { it.key to it.hasNotes }
+        } catch (_: Exception) { emptyMap() }
+    }
+
+    fun saveAttendanceNote(key: String, hasNotes: Boolean) {
+        val notes = getAttendanceNotes().toMutableMap()
+        notes[key] = hasNotes
+        val entries = notes.map { NoteEntry(it.key, it.value) }
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        setString(CACHE_ATTENDANCE_NOTES, json.encodeToString(kotlinx.serialization.builtins.ListSerializer(NoteEntry.serializer()), entries))
+    }
 }

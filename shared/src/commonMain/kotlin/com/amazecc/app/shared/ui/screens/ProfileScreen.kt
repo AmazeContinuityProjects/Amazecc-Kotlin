@@ -23,47 +23,42 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.model.StudentProfile
 import com.amazecc.app.shared.repository.SessionManager
-import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
-import com.amazecc.app.shared.theme.AccentTheme
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.ui.components.*
 
 @Composable
 fun ProfileScreen() {
     val colors = AmazeTheme.colors
-    var showSettings by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize().background(colors.background)
     ) {
         ScreenHeader(
-            title = if (showSettings) "Settings" else "Profile",
-            description = if (showSettings) "App preferences & sync" else "Your personal information",
+            title = "Profile",
+            description = "Your personal information",
             showBackButton = false,
             showSyncButton = true,
             onRefresh = AppState::refreshProfile
         )
 
         Box(modifier = Modifier.weight(1f)) {
-            if (showSettings) SettingsContent(colors) { showSettings = false }
-            else ProfileContent(colors) { showSettings = true }
+            ProfileContent(colors)
         }
     }
 }
 
 @Composable
-private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors, onSettingsClick: () -> Unit) {
+private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val profile by AppState.studentProfile.collectAsState()
     val authorizedID by SessionManager.authorizedID.collectAsState()
 
     val scrollState = rememberScrollState()
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp).padding(bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Avatar & name card
@@ -144,7 +139,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors, onS
         }
 
         // Settings button
-        AmazeCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onSettingsClick)) {
+        AmazeCard(modifier = Modifier.fillMaxWidth().clickable(onClick = { AppState.navigateTo(Screen.SETTINGS) })) {
             Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Settings, null, tint = colors.accent, modifier = Modifier.size(20.dp))
@@ -188,159 +183,5 @@ private fun ProfileGroupCard(title: String, items: List<ProfileItem>, colors: co
     }
 }
 
-// ── SETTINGS ──
 
-@Composable
-private fun SettingsContent(colors: com.amazecc.app.shared.theme.AmazeColors, onBack: () -> Unit) {
-    val scrollState = rememberScrollState()
 
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Appearance section
-        SettingsSection("Appearance", Icons.Rounded.Palette, colors) {
-            val activeTheme by AppState.theme.collectAsState()
-            val activeAccent by AppState.accent.collectAsState()
-
-            SettingsRow("Theme", colors) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AmazeButton("Light", { AppState.changeTheme(AppTheme.LIGHT) }, modifier = Modifier.weight(1f), variant = if (activeTheme == AppTheme.LIGHT) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
-                    AmazeButton("Dark", { AppState.changeTheme(AppTheme.DARK) }, modifier = Modifier.weight(1f), variant = if (activeTheme == AppTheme.DARK) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
-                }
-            }
-
-            SettingsRow("Accent Color", colors) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    AccentSwatch("Ocean", AccentTheme.OCEAN, activeAccent, colors, Modifier.weight(1f))
-                    AccentSwatch("Forest", AccentTheme.FOREST, activeAccent, colors, Modifier.weight(1f))
-                    AccentSwatch("Lavender", AccentTheme.LAVENDER, activeAccent, colors, Modifier.weight(1f))
-                    AccentSwatch("Sunset", AccentTheme.SUNSET, activeAccent, colors, Modifier.weight(1f))
-                }
-            }
-        }
-
-        // Display section
-        SettingsSection("Display", Icons.Rounded.Visibility, colors) {
-            val cgpaHidden by AppState.cgpaHidden.collectAsState()
-            val attendanceMode by AppState.attendanceDisplayMode.collectAsState()
-
-            SettingsToggle("Hide CGPA", cgpaHidden, { AppState.setCgpaHidden(it) }, colors)
-            SettingsRow("Attendance Display", colors) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AmazeButton("Percentage", { AppState.setAttendanceDisplayMode("percentage") }, modifier = Modifier.weight(1f), variant = if (attendanceMode == "percentage") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
-                    AmazeButton("Fraction", { AppState.setAttendanceDisplayMode("fraction") }, modifier = Modifier.weight(1f), variant = if (attendanceMode == "fraction") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
-                }
-            }
-        }
-
-        // Sync section
-        SettingsSection("Data Sync", Icons.Rounded.Sync, colors) {
-            val syncArrear by AppState.syncArrear.collectAsState()
-            val syncExam by AppState.syncExam.collectAsState()
-            val syncProfile by AppState.syncProfile.collectAsState()
-            val syncAdditional by AppState.syncAdditional.collectAsState()
-
-            SettingsToggle("Arrear Data", syncArrear, { AppState.setSyncArrear(it) }, colors)
-            SettingsToggle("Exam Schedule", syncExam, { AppState.setSyncExam(it) }, colors)
-            SettingsToggle("Profile Data", syncProfile, { AppState.setSyncProfile(it) }, colors)
-            SettingsToggle("Additional (Projects/Wishlist)", syncAdditional, { AppState.setSyncAdditional(it) }, colors)
-        }
-
-        // Credentials section
-        SettingsSection("Credentials", Icons.Rounded.Lock, colors) {
-            val savedUsername = SettingsManager.getString(SettingsManager.KEY_USERNAME)
-            val savedPassword = SettingsManager.getString(SettingsManager.KEY_PASSWORD)
-
-            SettingsRow("Saved Credentials", colors) {
-                Text(if (savedUsername.isNotBlank()) "$savedUsername / ****" else "No credentials saved", color = colors.textSecondary, fontSize = 12.sp)
-            }
-
-            var showCredEditor by remember { mutableStateOf(false) }
-            if (showCredEditor) {
-                var username by remember { mutableStateOf(savedUsername) }
-                var password by remember { mutableStateOf("") }
-                AmazeTextField(value = username, onValueChange = { username = it }, label = "Registration Number", placeholder = "", modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-                AmazeTextField(value = password, onValueChange = { password = it }, label = "Password", placeholder = "", modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
-                AmazeButton("Save & Overwrite", onClick = { SettingsManager.saveCredentials(username, password) }, modifier = Modifier.fillMaxWidth())
-            }
-            AmazeButton(if (showCredEditor) "Cancel" else "Edit Credentials", onClick = { showCredEditor = !showCredEditor }, variant = ButtonVariant.SECONDARY, modifier = Modifier.fillMaxWidth())
-        }
-
-        // Danger zone
-        SettingsSection("Danger Zone", Icons.Rounded.Warning, colors) {
-            AmazeButton("Clear All Caches", onClick = { SettingsManager.clearAll() }, variant = ButtonVariant.DANGER, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp))
-            AmazeButton("Close Student Session", onClick = { AppState.logout() }, variant = ButtonVariant.DANGER, modifier = Modifier.fillMaxWidth())
-        }
-
-        Spacer(Modifier.height(16.dp))
-    }
-}
-
-@Composable
-private fun SettingsSection(title: String, icon: ImageVector, colors: com.amazecc.app.shared.theme.AmazeColors, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text(title, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
-        }
-        Spacer(Modifier.height(8.dp))
-        AmazeCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
-        }
-    }
-}
-
-@Composable
-private fun SettingsRow(label: String, colors: com.amazecc.app.shared.theme.AmazeColors, content: @Composable RowScope.() -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(label, color = colors.textPrimary, fontWeight = FontWeight.Medium, fontSize = 12.sp)
-        Spacer(Modifier.height(6.dp))
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, content = content)
-    }
-}
-
-@Composable
-private fun SettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, color = colors.textPrimary, fontSize = 12.sp, modifier = Modifier.weight(1f))
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = colors.accent, checkedTrackColor = colors.accent.copy(alpha = 0.3f))
-        )
-    }
-}
-
-@Composable
-private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
-    val selected = accent == current
-    val swatchColor = when (accent) {
-        AccentTheme.OCEAN -> Color(0xFF3B82F6)
-        AccentTheme.FOREST -> Color(0xFF10B981)
-        AccentTheme.LAVENDER -> Color(0xFF8B5CF6)
-        AccentTheme.SUNSET -> Color(0xFFF59E0B)
-    }
-    Box(
-        modifier = modifier.clip(RoundedCornerShape(10.dp))
-            .background(if (selected) colors.accent.copy(alpha = 0.15f) else colors.surface)
-            .border(if (selected) 1.dp else 0.dp, colors.accent.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-            .clickable { AppState.changeAccent(accent) }
-            .padding(vertical = 10.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(modifier = Modifier.size(16.dp).clip(CircleShape).background(swatchColor))
-            Spacer(Modifier.height(4.dp))
-            Text(name, color = if (selected) colors.accent else colors.textSecondary, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
-        }
-    }
-}

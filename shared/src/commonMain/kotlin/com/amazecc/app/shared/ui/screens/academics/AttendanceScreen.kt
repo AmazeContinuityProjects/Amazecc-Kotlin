@@ -215,7 +215,7 @@ fun OverallPredictorScreen() {
     val modes = listOf("CAT1", "CAT2", "FAT", "LID")
 
     val scrollState = rememberScrollState()
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(bottom = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(bottom = 88.dp)) {
         AmazeCard(
             modifier = Modifier.fillMaxWidth(),
             backgroundColor = colors.surface
@@ -761,7 +761,7 @@ fun TimetableGridScreen() {
 
         if (selectedDay == null) {
             // Overview: show all days summary
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(days) { day ->
                     val dayCourses = daySlotMap[day]?.values?.distinct() ?: emptyList()
                     val daySlots = dayTimeSlots[day] ?: emptyList()
@@ -790,7 +790,13 @@ fun TimetableGridScreen() {
                                         daySlots.firstOrNull { it.first == trimmed }?.second
                                     }
                                     val timeStr = if (times.isNotEmpty()) times.joinToString(", ") else slotRaw
-                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { AppState.openCourseDetail(course.courseCode) }
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         Box(
                                             modifier = Modifier
                                                 .size(6.dp)
@@ -815,7 +821,8 @@ fun TimetableGridScreen() {
             // Detailed day view: show each time slot
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 88.dp)
             ) {
                 item {
                     Box(
@@ -842,6 +849,7 @@ fun TimetableGridScreen() {
                             .clip(RoundedCornerShape(10.dp))
                             .background(if (hasClass) colors.accent.copy(alpha = 0.06f) else colors.surface)
                             .border(1.dp, if (hasClass) colors.accent.copy(alpha = 0.2f) else colors.border, RoundedCornerShape(10.dp))
+                            .clickable { if (hasClass) AppState.openCourseDetail(course!!.courseCode) }
                             .padding(10.dp)
                     ) {
                         Row(

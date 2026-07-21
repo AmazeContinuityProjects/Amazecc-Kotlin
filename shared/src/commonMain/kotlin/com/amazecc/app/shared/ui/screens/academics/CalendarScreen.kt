@@ -224,7 +224,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 32.dp)
+                    contentPadding = PaddingValues(bottom = 88.dp)
                 ) {
                     // ── Month selector ──
                     item {

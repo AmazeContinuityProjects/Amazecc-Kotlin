@@ -63,7 +63,8 @@ fun FeedbackStatusScreen() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 88.dp)
             ) {
                 val res = response
                 if (res == null || res.success == false) {

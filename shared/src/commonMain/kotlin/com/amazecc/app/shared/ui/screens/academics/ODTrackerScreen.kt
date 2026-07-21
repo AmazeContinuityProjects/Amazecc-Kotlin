@@ -1,11 +1,9 @@
 package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -22,12 +20,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.model.ODEntry
 import com.amazecc.app.shared.model.ODListItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import kotlinx.serialization.json.*
+
+private const val OD_TOTAL = 40
 
 private val tabLabels = listOf("Overview", "Entries")
 
@@ -37,69 +39,75 @@ private data class ODMetrics(
     val theoryHours: Int,
     val wastedHours: Int,
     val recoveredHours: Int
+) {
+    val validHours: Int get() = labHours + theoryHours - wastedHours
+    val netHours: Int get() = validHours + recoveredHours
+}
+
+private data class ODDay(
+    val date: String,
+    val entries: List<ODEntry>,
+    val total: Int
 )
+
+private fun extractODEntries(attendance: List<AttendanceItem>): List<ODDay> {
+    val rawEntries = mutableListOf<Pair<String, ODEntry>>()
+    for (course in attendance) {
+        val daily = try {
+            val arr = course.viewLinkRaw?.jsonArray
+            arr?.mapNotNull { elem ->
+                val obj = elem.jsonObject
+                val date = obj["date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                date to status
+            } ?: emptyList()
+        } catch (_: Exception) { emptyList() }
+
+        for ((date, status) in daily) {
+            if (status.equals("On Duty", ignoreCase = true)) {
+                val isLab = course.slotName?.startsWith("L") == true
+                val hours = if (isLab) 2 else 1
+                rawEntries.add(date to ODEntry(course.courseTitle, if (isLab) "LAB" else "TH", hours))
+            }
+        }
+    }
+
+    val grouped = rawEntries.groupBy { it.first }
+    return grouped.map { (date, entries) ->
+        ODDay(date, entries.map { it.second }, entries.sumOf { it.second.hours })
+    }.sortedByDescending { it.date }
+}
+
+private fun computeMetrics(odDays: List<ODDay>): ODMetrics {
+    var labHours = 0
+    var theoryHours = 0
+    for (day in odDays) {
+        for (entry in day.entries) {
+            if (entry.type == "LAB") labHours += entry.hours
+            else theoryHours += entry.hours
+        }
+    }
+    return ODMetrics(
+        totalODs = odDays.size,
+        labHours = labHours,
+        theoryHours = theoryHours,
+        wastedHours = 0,
+        recoveredHours = 0
+    )
+}
 
 @Composable
 fun ODTrackerScreen() {
     val colors = AmazeTheme.colors
     var activeTab by remember { mutableStateOf(0) }
-    val attendance by AppState.attendance.collectAsState()
+    val attendanceRes by AppState.attendance.collectAsState()
+    val courses = attendanceRes?.attendance ?: emptyList()
 
-    val metrics = remember {
-        ODMetrics(
-            totalODs = 12,
-            labHours = 8,
-            theoryHours = 16,
-            wastedHours = 4,
-            recoveredHours = 20
-        )
-    }
+    val odDays = remember(courses) { extractODEntries(courses) }
+    val metrics = remember(odDays) { computeMetrics(odDays) }
 
-    val mockEntries = remember {
-        listOf(
-            ODListItem(
-                date = "2026-07-10",
-                courses = listOf(
-                    ODEntry("DSA Lab", "LAB", 2),
-                    ODEntry("Engineering Mathematics", "TH", 1)
-                ),
-                total = 3
-            ),
-            ODListItem(
-                date = "2026-07-08",
-                courses = listOf(
-                    ODEntry("Physics Lab", "LAB", 2),
-                    ODEntry("Chemistry", "TH", 1),
-                    ODEntry("Data Structures", "TH", 1)
-                ),
-                total = 4
-            ),
-            ODListItem(
-                date = "2026-07-05",
-                courses = listOf(
-                    ODEntry("Workshop Practice", "LAB", 2)
-                ),
-                total = 2
-            ),
-            ODListItem(
-                date = "2026-07-03",
-                courses = listOf(
-                    ODEntry("Digital Logic Lab", "LAB", 2),
-                    ODEntry("Discrete Mathematics", "TH", 1),
-                    ODEntry("English", "TH", 1)
-                ),
-                total = 4
-            ),
-            ODListItem(
-                date = "2026-06-28",
-                courses = listOf(
-                    ODEntry("Soft Skills", "TH", 1),
-                    ODEntry("Physics Lab", "LAB", 2)
-                ),
-                total = 3
-            )
-        )
-    }
+    val usedHours = metrics.labHours + metrics.theoryHours
+    val usagePercent = if (OD_TOTAL > 0) (usedHours.toFloat() / OD_TOTAL).coerceIn(0f, 1f) else 0f
 
     Column(
         modifier = Modifier
@@ -112,6 +120,79 @@ fun ODTrackerScreen() {
             showBackButton = true,
             showSyncButton = true
         )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        "OD Hours",
+                        style = AmazeTheme.typography.caption.copy(
+                            color = colors.textSecondary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    )
+                    Text(
+                        "$usedHours / $OD_TOTAL",
+                        style = AmazeTheme.typography.display.copy(
+                            color = colors.textPrimary,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            when {
+                                usagePercent >= 0.9f -> colors.danger.copy(alpha = 0.1f)
+                                usagePercent >= 0.7f -> colors.warning.copy(alpha = 0.1f)
+                                else -> colors.success.copy(alpha = 0.1f)
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "${(usagePercent * 100).toInt()}%",
+                        style = AmazeTheme.typography.subheading.copy(
+                            color = when {
+                                usagePercent >= 0.9f -> colors.danger
+                                usagePercent >= 0.7f -> colors.warning
+                                else -> colors.success
+                            },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 22.sp
+                        )
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            val progressColor = when {
+                usagePercent >= 0.9f -> colors.danger
+                usagePercent >= 0.7f -> colors.warning
+                else -> colors.accent
+            }
+            LinearProgressIndicator(
+                progress = { usagePercent },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp)),
+                color = progressColor,
+                trackColor = colors.border.copy(alpha = 0.5f),
+            )
+        }
 
         TabRow(
             selectedTabIndex = activeTab,
@@ -139,7 +220,7 @@ fun ODTrackerScreen() {
 
         when (activeTab) {
             0 -> OverviewTab(metrics = metrics, colors = colors)
-            1 -> EntriesTab(entries = mockEntries, colors = colors)
+            1 -> EntriesTab(entries = odDays, colors = colors)
         }
     }
 }
@@ -149,11 +230,14 @@ private fun OverviewTab(
     metrics: ODMetrics,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
+    val usedHours = metrics.labHours + metrics.theoryHours
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(bottom = 88.dp)
     ) {
         item {
             Row(
@@ -164,6 +248,7 @@ private fun OverviewTab(
                     modifier = Modifier.weight(1f),
                     title = "Total ODs",
                     value = "${metrics.totalODs}",
+                    subtitle = "$OD_TOTAL max",
                     icon = Icons.AutoMirrored.Rounded.Assignment,
                     iconColor = colors.accent,
                     colors = colors
@@ -194,10 +279,10 @@ private fun OverviewTab(
                 )
                 KPICard(
                     modifier = Modifier.weight(1f),
-                    title = "Wasted Hours",
-                    value = "${metrics.wastedHours}h",
-                    icon = Icons.Rounded.CancelScheduleSend,
-                    iconColor = colors.danger,
+                    title = "Valid Hours",
+                    value = "${metrics.validHours}h",
+                    icon = Icons.Rounded.CheckCircle,
+                    iconColor = colors.success,
                     colors = colors
                 )
             }
@@ -210,18 +295,25 @@ private fun OverviewTab(
             ) {
                 KPICard(
                     modifier = Modifier.weight(1f),
+                    title = "Wasted Hours",
+                    value = "${metrics.wastedHours}h",
+                    icon = Icons.Rounded.CancelScheduleSend,
+                    iconColor = colors.danger,
+                    colors = colors
+                )
+                KPICard(
+                    modifier = Modifier.weight(1f),
                     title = "Recovered Hours",
                     value = "${metrics.recoveredHours}h",
                     icon = Icons.Rounded.Restore,
-                    iconColor = colors.success,
+                    iconColor = colors.info,
                     colors = colors
                 )
-                Spacer(modifier = Modifier.weight(1f))
             }
         }
 
         item {
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -231,22 +323,35 @@ private fun OverviewTab(
                             color = colors.textPrimary
                         )
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    SummaryRow("Total Hours", "${metrics.labHours + metrics.theoryHours}h", colors)
+                    Spacer(Modifier.height(2.dp))
+
+                    SummaryRow("Total OD Hours", "${usedHours}h / ${OD_TOTAL}h", colors)
+                    SummaryRow("Valid Hours", "${metrics.validHours}h", colors)
                     SummaryRow("Wasted Hours", "${metrics.wastedHours}h", colors)
                     SummaryRow("Recovered Hours", "${metrics.recoveredHours}h", colors)
-                    HorizontalDivider(color = colors.border)
-                    SummaryRow(
-                        "Net Impact",
-                        "${metrics.labHours + metrics.theoryHours - metrics.wastedHours}h",
-                        colors,
-                        isHighlight = true
+
+                    HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+
+                    SummaryRow("Net Impact", "${metrics.netHours}h", colors, isHighlight = true)
+                    SummaryRow("Remaining", "${(OD_TOTAL - usedHours).coerceAtLeast(0)}h", colors, isHighlight = true)
+
+                    Spacer(Modifier.height(4.dp))
+
+                    val remainingPercent = ((OD_TOTAL - usedHours).toFloat() / OD_TOTAL).coerceIn(0f, 1f)
+                    LinearProgressIndicator(
+                        progress = { remainingPercent },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp)),
+                        color = colors.success,
+                        trackColor = colors.border.copy(alpha = 0.5f),
                     )
                 }
             }
         }
 
-        item { Spacer(modifier = Modifier.height(16.dp)) }
+        item { Spacer(Modifier.height(16.dp)) }
     }
 }
 
@@ -255,6 +360,7 @@ private fun KPICard(
     modifier: Modifier = Modifier,
     title: String,
     value: String,
+    subtitle: String? = null,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     iconColor: Color,
     colors: com.amazecc.app.shared.theme.AmazeColors
@@ -294,6 +400,15 @@ private fun KPICard(
                     fontSize = 28.sp
                 )
             )
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        color = colors.textMuted,
+                        fontSize = 10.sp
+                    )
+                )
+            }
         }
     }
 }
@@ -329,7 +444,7 @@ private fun SummaryRow(
 
 @Composable
 private fun EntriesTab(
-    entries: List<ODListItem>,
+    entries: List<ODDay>,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     if (entries.isEmpty()) {
@@ -346,6 +461,11 @@ private fun EntriesTab(
                     "No OD entries found",
                     style = AmazeTheme.typography.body.copy(color = colors.textSecondary)
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Sync attendance data to check for On Duty days",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+                )
             }
         }
     } else {
@@ -353,21 +473,20 @@ private fun EntriesTab(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(bottom = 88.dp)
         ) {
-            entries.forEach { item ->
-                item {
-                    ODDateGroup(group = item, colors = colors)
-                }
+            items(entries) { day ->
+                ODDateGroup(group = day, colors = colors)
             }
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item { Spacer(Modifier.height(16.dp)) }
         }
     }
 }
 
 @Composable
 private fun ODDateGroup(
-    group: ODListItem,
+    group: ODDay,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -415,7 +534,7 @@ private fun ODDateGroup(
 
             HorizontalDivider(color = colors.border)
 
-            group.courses.forEach { entry ->
+            group.entries.forEach { entry ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,

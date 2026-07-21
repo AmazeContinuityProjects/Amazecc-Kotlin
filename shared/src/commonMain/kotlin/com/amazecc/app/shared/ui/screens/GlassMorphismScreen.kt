@@ -90,6 +90,7 @@ fun GlassMorphismScreen() {
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(scrollState)
+                .padding(bottom = 88.dp)
         ) {
             Spacer(modifier = Modifier.height(48.dp))
 

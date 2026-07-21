@@ -79,7 +79,7 @@ fun CabShareScreen() {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Box(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState())) {
+            Box(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState()).padding(bottom = 88.dp)) {
                 when (activeSubTab) {
                     "Find Ride" -> FindRideTab()
                     "Create Trip" -> CreateTripTab()

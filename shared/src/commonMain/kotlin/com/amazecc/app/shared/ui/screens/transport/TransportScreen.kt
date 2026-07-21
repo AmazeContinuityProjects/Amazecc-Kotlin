@@ -30,6 +30,7 @@ import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import androidx.compose.ui.platform.LocalUriHandler
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
@@ -64,7 +65,7 @@ fun TransportScreen() {
                 .fillMaxSize()
                 .padding(padding),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 30.dp)
+            contentPadding = PaddingValues(bottom = 88.dp)
         ) {
             item {
                 ScreenHeader(
@@ -278,19 +279,7 @@ private fun TransportRegistrationCard(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "STUDENT",
-                                style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
-                            )
-                            transportData?.name?.let {
-                                Text(it, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.SemiBold))
-                            }
-                            transportData?.registerNumber?.let {
-                                Text(it, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                            }
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
+                        Column {
                             Text(
                                 "ROUTE",
                                 style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
@@ -300,6 +289,15 @@ private fun TransportRegistrationCard(
                             }
                             transportData?.busRouteId?.let {
                                 Text("Bus $it", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                "REG. NO.",
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
+                            )
+                            transportData?.registerNumber?.let {
+                                Text(it, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.SemiBold))
                             }
                         }
                     }
@@ -710,7 +708,7 @@ private fun BusRouteCard(
                     }
                 }
 
-                if (route.driverName.isNotBlank() || route.supervisorName?.isNotBlank() == true) {
+                if (route.driverName.isNotBlank() || route.driverInchargeName?.isNotBlank() == true || route.supervisorName?.isNotBlank() == true) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Box(
                         modifier = Modifier
@@ -726,6 +724,8 @@ private fun BusRouteCard(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    var hasPreviousCrew = false
+
                     if (route.driverName.isNotBlank()) {
                         CrewRow(
                             icon = Icons.Rounded.Person,
@@ -734,20 +734,30 @@ private fun BusRouteCard(
                             phone = route.driverPhone,
                             colors = colors
                         )
+                        hasPreviousCrew = true
                     }
-                    if (route.driverName.isNotBlank() && route.supervisorName?.isNotBlank() == true) {
-                        Spacer(modifier = Modifier.height(8.dp))
+
+                    if (route.driverInchargeName?.isNotBlank() == true) {
+                        if (hasPreviousCrew) Spacer(modifier = Modifier.height(8.dp))
+                        CrewRow(
+                            icon = Icons.Rounded.AssignmentInd,
+                            label = "Driver Incharge",
+                            name = route.driverInchargeName!!,
+                            phone = route.driverInchargePhone,
+                            colors = colors
+                        )
+                        hasPreviousCrew = true
                     }
-                    route.supervisorName?.let {
-                        if (it.isNotBlank()) {
-                            CrewRow(
-                                icon = Icons.Rounded.SupervisorAccount,
-                                label = "Supervisor",
-                                name = it,
-                                phone = route.supervisorPhone,
-                                colors = colors
-                            )
-                        }
+
+                    if (route.supervisorName?.isNotBlank() == true) {
+                        if (hasPreviousCrew) Spacer(modifier = Modifier.height(8.dp))
+                        CrewRow(
+                            icon = Icons.Rounded.SupervisorAccount,
+                            label = "Supervisor",
+                            name = route.supervisorName!!,
+                            phone = route.supervisorPhone,
+                            colors = colors
+                        )
                     }
                 }
             }
@@ -763,7 +773,12 @@ private fun CrewRow(
     phone: String?,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    val uriHandler = LocalUriHandler.current
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -774,7 +789,7 @@ private fun CrewRow(
             Icon(icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))
         }
         Spacer(modifier = Modifier.width(12.dp))
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 label,
                 style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp)
@@ -788,6 +803,18 @@ private fun CrewRow(
                     phone,
                     style = AmazeTheme.typography.caption.copy(color = colors.accent)
                 )
+            }
+        }
+        if (!phone.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent.copy(alpha = 0.1f))
+                    .clickable { uriHandler.openUri("tel:$phone") },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.Call, null, tint = colors.accent, modifier = Modifier.size(18.dp))
             }
         }
     }

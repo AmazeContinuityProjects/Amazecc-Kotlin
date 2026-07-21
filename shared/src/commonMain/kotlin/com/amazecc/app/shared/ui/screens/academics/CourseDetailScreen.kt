@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -176,7 +177,8 @@ private fun OverviewTab(
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = 88.dp)
     ) {
         // Attendance Overview
         item {
@@ -334,7 +336,7 @@ private fun GradeHistoryTab(courseCode: String, allGrades: AllGradesRes?, colors
         return
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
         items(gradeItems) { (semId, grade) ->
             val semName = AppState.semesterMap[semId] ?: semId
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -379,7 +381,7 @@ private fun MarksTab(
         list
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
         // Stats cards
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -495,16 +497,34 @@ private fun AttendanceTab(
 
         val historyList = remember(activeAtt.viewLinkRaw) {
             try {
+                val raw = activeAtt.viewLinkRaw
                 val list = mutableListOf<Pair<String, String>>()
-                activeAtt.viewLinkRaw?.jsonObject?.forEach { (date, statusElem) ->
-                    val stat = statusElem.jsonPrimitive.content
-                    list.add(date to stat)
+                if (raw is JsonArray) {
+                    raw.forEach { elem ->
+                        val obj = elem.jsonObject
+                        val date = obj["date"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                        val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                        list.add(date to status)
+                    }
+                } else if (raw is JsonObject) {
+                    raw.forEach { (date, statusElem) ->
+                        val stat = statusElem.jsonPrimitive.content
+                        list.add(date to stat)
+                    }
                 }
                 list
             } catch (_: Exception) { emptyList() }
         }
 
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        var attendanceNotes by remember { mutableStateOf(SettingsManager.getAttendanceNotes()) }
+        fun toggleNote(date: String) {
+            val key = "${activeAtt.courseCode}|$date"
+            val current = attendanceNotes[key] ?: false
+            attendanceNotes = attendanceNotes.toMutableMap().apply { put(key, !current) }
+            SettingsManager.saveAttendanceNote(key, !current)
+        }
+
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
             // Stats
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -526,36 +546,83 @@ private fun AttendanceTab(
                 }
                 items(historyList.sortedByDescending { it.first }) { (date, status) ->
                     val isPresent = status.lowercase() in listOf("present", "p")
+                    val isOd = status.lowercase() in listOf("on duty", "od")
+                    val hasNotes = attendanceNotes["${activeAtt.courseCode}|$date"] ?: false
+
                     Row(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.surface).padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.surface).padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(date, color = colors.textPrimary, fontSize = 12.sp)
-                        Box(
-                            modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                                .background(if (isPresent) Color(0xFF10B981).copy(alpha = 0.12f) else colors.danger.copy(alpha = 0.12f))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(if (isPresent) "Present" else "Absent", color = if (isPresent) Color(0xFF10B981) else colors.danger, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(date, color = colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        }
+                        if (isPresent) {
+                            Box(
+                                modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF10B981).copy(alpha = 0.12f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text("Present", color = Color(0xFF10B981), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        } else if (isOd) {
+                            Box(
+                                modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF3B82F6).copy(alpha = 0.12f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text("On Duty", color = Color(0xFF3B82F6), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                                        .background(colors.danger.copy(alpha = 0.12f))
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Absent", color = colors.danger, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                IconButton(
+                                    onClick = { toggleNote(date) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        if (hasNotes) Icons.Rounded.CheckCircle else Icons.Rounded.AddCircleOutline,
+                                        contentDescription = if (hasNotes) "Got notes" else "Mark as noted",
+                                        tint = if (hasNotes) Color(0xFF10B981) else colors.warning,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // Missing class notes reminder
+            // Missing class overview with notes progress
             val missingCount = historyList.count { (_, status) ->
                 status.lowercase() !in listOf("present", "p")
             }
+            val notedCount = historyList.count { (date, status) ->
+                status.lowercase() !in listOf("present", "p") && attendanceNotes["${activeAtt.courseCode}|$date"] == true
+            }
             item {
                 if (missingCount > 0) {
-                    AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = colors.danger.copy(alpha = 0.08f)) {
+                    AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = if (notedCount == missingCount) Color(0xFF10B981).copy(alpha = 0.08f) else colors.danger.copy(alpha = 0.08f)) {
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.Warning, null, tint = colors.danger, modifier = Modifier.size(20.dp))
+                            Icon(
+                                if (notedCount == missingCount) Icons.Rounded.CheckCircle else Icons.Rounded.Warning,
+                                null,
+                                tint = if (notedCount == missingCount) Color(0xFF10B981) else colors.danger,
+                                modifier = Modifier.size(20.dp)
+                            )
                             Spacer(Modifier.width(8.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("$missingCount missed classes", fontWeight = FontWeight.Bold, color = colors.danger, fontSize = 13.sp)
-                                Text("Add notes for missed classes in the Notes tab", color = colors.textSecondary, fontSize = 11.sp)
+                                Text("$missingCount missed classes", fontWeight = FontWeight.Bold, color = if (notedCount == missingCount) Color(0xFF10B981) else colors.danger, fontSize = 13.sp)
+                                Text(
+                                    if (notedCount == missingCount) "All marked as noted!" else "$notedCount of $missingCount noted",
+                                    color = colors.textSecondary, fontSize = 11.sp
+                                )
                             }
                         }
                     }
@@ -703,7 +770,7 @@ private fun NotesTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
     var notes by remember { mutableStateOf("") }
     var homeworkReminders by remember { mutableStateOf("") }
 
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = 88.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Notes for Missed Classes", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
@@ -756,7 +823,7 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
             loading -> CircularProgressIndicator(color = colors.accent, modifier = Modifier.align(Alignment.Center))
             error != null -> Text(error!!, color = colors.danger, modifier = Modifier.align(Alignment.Center))
             questions.isEmpty() -> Text("No question bank data for $courseCode", color = colors.textMuted, modifier = Modifier.align(Alignment.Center))
-            else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(questions) { q ->
                     AmazeCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(16.dp)) {

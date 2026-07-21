@@ -301,7 +301,7 @@ private fun PredictorTab(
                 )
             }
         } else {
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(futureDates.sortedBy { it.first * 10000 + it.second * 100 + it.third }) { (y, m, d) ->
                     val key = y * 10000 + m * 100 + d
                     val skipped = key in skipDates
@@ -439,7 +439,7 @@ private fun LogTab(
                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(detailedDays.sortedByDescending { it.first }) { (date, status) ->
                     val isPresent = status.lowercase() in listOf("present", "p")
                     Row(

@@ -5,9 +5,11 @@ import kotlin.math.*
 
 object QRCodeGenerator {
 
-    fun generate(text: String): List<BooleanArray> {
+    fun generate(text: String): List<BooleanArray>? {
         val data = text.encodeToByteArray()
         val version = selectVersion(data.size)
+        val dataCodewords = totalDataCodewords(version)
+        if (data.size > dataCodewords) return null
         val size = version * 4 + 17
         val matrix = Array(size) { BooleanArray(size) }
 
@@ -17,7 +19,6 @@ object QRCodeGenerator {
 
         val ecBytes = ecBytesPerBlock(version)
         val blocks = blockCount(version)
-        val dataCodewords = totalDataCodewords(version)
         val filledData = fillDataToCapacity(data, dataCodewords)
         val ecData = rsEncode(filledData, ecBytes)
         val interleaved = interleave(filledData, ecData, blocks)

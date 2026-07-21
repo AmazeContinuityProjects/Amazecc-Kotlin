@@ -113,7 +113,7 @@ fun PaymentsScreen() {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 30.dp)
+                        contentPadding = PaddingValues(bottom = 88.dp)
                     ) {
                         items(receipts) { payment ->
                             PaymentReceiptCard(payment, colors)
@@ -147,7 +147,7 @@ fun PaymentsScreen() {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 30.dp)
+                        contentPadding = PaddingValues(bottom = 88.dp)
                     ) {
                         items(dues) { payment ->
                             PaymentReceiptCard(payment, colors)

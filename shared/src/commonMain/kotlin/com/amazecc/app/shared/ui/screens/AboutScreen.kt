@@ -34,7 +34,7 @@ fun AboutScreen() {
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(title = "About", description = "AmazeCC v2.0.0", showBackButton = true)
 
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
             item {
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {

@@ -103,6 +103,7 @@ fun DashboardScreen() {
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
+                .padding(bottom = 88.dp)
         ) {
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -204,7 +205,7 @@ fun DashboardScreen() {
             ) {
                 item { GlassMetricCard("CGPA", cgpa, Icons.Rounded.Star, colors) }
                 item { GlassMetricCard("Credits", credits, Icons.Rounded.Info, colors) }
-                item { GlassMetricCard("ODs", "0", Icons.Rounded.CheckCircle, colors) }
+                item { GlassMetricCard("ODs", "0", Icons.Rounded.CheckCircle, colors, onClick = { AppState.navigateTo(Screen.OD_TRACKER) }) }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -392,6 +393,7 @@ fun DashboardScreen() {
                                     color = if (isCurrent) colors.accent.copy(alpha = 0.4f) else colors.border,
                                     shape = RoundedCornerShape(16.dp)
                                 )
+                                .clickable { cls.courseCode?.let { AppState.openCourseDetail(it) } }
                                 .padding(14.dp)
                         ) {
                             Column {
@@ -687,12 +689,13 @@ private fun getGreeting(): String {
 }
 
 @Composable
-private fun GlassMetricCard(title: String, value: String, icon: ImageVector, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun GlassMetricCard(title: String, value: String, icon: ImageVector, colors: com.amazecc.app.shared.theme.AmazeColors, onClick: (() -> Unit)? = null) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
             .background(colors.surface)
             .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
         Column {
@@ -743,7 +746,7 @@ private fun CourseGlassCard(
                 if (isCritical) colors.danger.copy(alpha = 0.2f) else colors.glassBorder,
                 RoundedCornerShape(16.dp)
             )
-            .clickable { AppState.openCourseAttendance(course.courseCode) }
+            .clickable { AppState.openCourseDetail(course.courseCode) }
             .padding(16.dp)
     ) {
         Row(
