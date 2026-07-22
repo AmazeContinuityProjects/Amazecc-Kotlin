@@ -25,6 +25,8 @@ class AmazeColors(
     textSecondary: Color,
     textMuted: Color,
     accent: Color,
+    accentSurface: Color,
+    accentContainer: Color,
     success: Color,
     successSurface: Color,
     successText: Color,
@@ -37,6 +39,11 @@ class AmazeColors(
     info: Color,
     infoSurface: Color,
     infoText: Color,
+    chart1: Color,
+    chart2: Color,
+    chart3: Color,
+    chart4: Color,
+    chart5: Color,
     navBackground: Color,
     navBorder: Color,
     glassSurface: Color,
@@ -57,6 +64,10 @@ class AmazeColors(
     var textMuted by mutableStateOf(textMuted)
         private set
     var accent by mutableStateOf(accent)
+        private set
+    var accentSurface by mutableStateOf(accentSurface)
+        private set
+    var accentContainer by mutableStateOf(accentContainer)
         private set
     var success by mutableStateOf(success)
         private set
@@ -82,6 +93,16 @@ class AmazeColors(
         private set
     var infoText by mutableStateOf(infoText)
         private set
+    var chart1 by mutableStateOf(chart1)
+        private set
+    var chart2 by mutableStateOf(chart2)
+        private set
+    var chart3 by mutableStateOf(chart3)
+        private set
+    var chart4 by mutableStateOf(chart4)
+        private set
+    var chart5 by mutableStateOf(chart5)
+        private set
     var navBackground by mutableStateOf(navBackground)
         private set
     var navBorder by mutableStateOf(navBorder)
@@ -100,6 +121,8 @@ class AmazeColors(
         textSecondary: Color = this.textSecondary,
         textMuted: Color = this.textMuted,
         accent: Color = this.accent,
+        accentSurface: Color = this.accentSurface,
+        accentContainer: Color = this.accentContainer,
         success: Color = this.success,
         successSurface: Color = this.successSurface,
         successText: Color = this.successText,
@@ -112,13 +135,23 @@ class AmazeColors(
         info: Color = this.info,
         infoSurface: Color = this.infoSurface,
         infoText: Color = this.infoText,
+        chart1: Color = this.chart1,
+        chart2: Color = this.chart2,
+        chart3: Color = this.chart3,
+        chart4: Color = this.chart4,
+        chart5: Color = this.chart5,
         navBackground: Color = this.navBackground,
         navBorder: Color = this.navBorder,
         glassSurface: Color = this.glassSurface,
         glassBorder: Color = this.glassBorder
     ) = AmazeColors(
-        background, surface, elevatedSurface, border, textPrimary, textSecondary, textMuted, accent,
-        success, successSurface, successText, warning, warningSurface, warningText, danger, dangerSurface, dangerText, info, infoSurface, infoText,
+        background, surface, elevatedSurface, border, textPrimary, textSecondary, textMuted,
+        accent, accentSurface, accentContainer,
+        success, successSurface, successText,
+        warning, warningSurface, warningText,
+        danger, dangerSurface, dangerText,
+        info, infoSurface, infoText,
+        chart1, chart2, chart3, chart4, chart5,
         navBackground, navBorder, glassSurface, glassBorder
     )
 
@@ -131,6 +164,8 @@ class AmazeColors(
         textSecondary = other.textSecondary
         textMuted = other.textMuted
         accent = other.accent
+        accentSurface = other.accentSurface
+        accentContainer = other.accentContainer
         success = other.success
         successSurface = other.successSurface
         successText = other.successText
@@ -143,6 +178,11 @@ class AmazeColors(
         info = other.info
         infoSurface = other.infoSurface
         infoText = other.infoText
+        chart1 = other.chart1
+        chart2 = other.chart2
+        chart3 = other.chart3
+        chart4 = other.chart4
+        chart5 = other.chart5
         navBackground = other.navBackground
         navBorder = other.navBorder
         glassSurface = other.glassSurface
@@ -202,6 +242,8 @@ fun AmazeTheme(
             textSecondary = NeutralTextSecondaryLight,
             textMuted = NeutralTextMutedLight,
             accent = accent,
+            accentSurface = accent.copy(alpha = 0.12f),
+            accentContainer = accent.copy(alpha = 0.25f),
             success = ColorSuccess,
             successSurface = ColorSuccessSurfaceLight,
             successText = ColorSuccessTextLight,
@@ -214,6 +256,11 @@ fun AmazeTheme(
             info = ColorInfo,
             infoSurface = ColorInfoSurfaceLight,
             infoText = ColorInfoTextLight,
+            chart1 = Chart1Light,
+            chart2 = Chart2Light,
+            chart3 = Chart3Light,
+            chart4 = Chart4Light,
+            chart5 = Chart5Light,
             navBackground = NavBgLight,
             navBorder = NavBorderLight,
             glassSurface = GlassSurfaceLight,
@@ -228,6 +275,8 @@ fun AmazeTheme(
             textSecondary = NeutralTextSecondaryDark,
             textMuted = NeutralTextMutedDark,
             accent = accent,
+            accentSurface = accent.copy(alpha = 0.15f),
+            accentContainer = accent.copy(alpha = 0.30f),
             success = ColorSuccess,
             successSurface = ColorSuccessSurfaceDark,
             successText = ColorSuccessTextDark,
@@ -240,6 +289,11 @@ fun AmazeTheme(
             info = ColorInfo,
             infoSurface = ColorInfoSurfaceDark,
             infoText = ColorInfoTextDark,
+            chart1 = Chart1Dark,
+            chart2 = Chart2Dark,
+            chart3 = Chart3Dark,
+            chart4 = Chart4Dark,
+            chart5 = Chart5Dark,
             navBackground = NavBgDark,
             navBorder = NavBorderDark,
             glassSurface = GlassSurfaceDark,

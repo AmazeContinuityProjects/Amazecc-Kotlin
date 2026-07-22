@@ -21,6 +21,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -207,9 +209,26 @@ fun DashboardScreen() {
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                item { GlassMetricCard("CGPA", cgpa, Icons.Rounded.Star, colors) }
-                item { GlassMetricCard("Credits", credits, Icons.Rounded.Info, colors) }
-                item { GlassMetricCard("ODs", "0", Icons.Rounded.CheckCircle, colors, onClick = { AppState.navigateTo(Screen.OD_TRACKER) }) }
+                item {
+                    GlassMetricCard(
+                        "CGPA", cgpa, Icons.Rounded.Star, colors,
+                        iconTint = colors.warning, surfaceBg = colors.warningSurface
+                    )
+                }
+                item {
+                    GlassMetricCard(
+                        "Credits", credits, Icons.Rounded.Info, colors,
+                        iconTint = colors.info, surfaceBg = colors.infoSurface,
+                        onClick = { AppState.navigateTo(Screen.PAYMENTS) }
+                    )
+                }
+                item {
+                    GlassMetricCard(
+                        "ODs", "0", Icons.Rounded.CheckCircle, colors,
+                        iconTint = colors.success, surfaceBg = colors.successSurface,
+                        onClick = { AppState.navigateTo(Screen.OD_TRACKER) }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -334,18 +353,30 @@ fun DashboardScreen() {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Today's Classes",
-                    style = AmazeTheme.typography.subheading.copy(
-                        fontWeight = FontWeight.Bold,
-                        color = colors.textPrimary
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(colors.accentSurface),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.School, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Today's Classes",
+                        style = AmazeTheme.typography.subheading.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary
+                        )
                     )
-                )
+                }
                 if (todayClasses.isNotEmpty()) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(colors.accent.copy(alpha = 0.12f))
+                            .background(colors.accentSurface)
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
@@ -365,16 +396,16 @@ fun DashboardScreen() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
-                        .background(colors.surface)
-                        .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+                        .background(colors.infoSurface)
+                        .border(1.dp, colors.info.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
                         .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.FreeBreakfast, null, tint = colors.textMuted, modifier = Modifier.size(36.dp))
+                        Icon(Icons.Rounded.FreeBreakfast, null, tint = colors.info, modifier = Modifier.size(36.dp))
                         Spacer(modifier = Modifier.height(12.dp))
                         Text("No classes today!", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
-                        Text("Enjoy your day off", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        Text("Enjoy your day off", style = AmazeTheme.typography.caption.copy(color = colors.info, fontWeight = FontWeight.Bold))
                     }
                 }
             } else {
@@ -383,18 +414,42 @@ fun DashboardScreen() {
                         val isCurrent = cls == currentClass
                         val isNext = cls == nextClass
                         val pct = cls.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0
+                        val cardBg = when {
+                            isCurrent -> colors.accentSurface
+                            isNext -> colors.infoSurface
+                            else -> colors.surface
+                        }
+                        val cardBorder = when {
+                            isCurrent -> colors.accent.copy(alpha = 0.5f)
+                            isNext -> colors.info.copy(alpha = 0.3f)
+                            else -> colors.border
+                        }
+                        val stripColor = when {
+                            isCurrent -> colors.accent
+                            isNext -> colors.info
+                            else -> Color.Transparent
+                        }
 
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(16.dp))
-                                .background(
-                                    if (isCurrent) colors.accent.copy(alpha = 0.06f)
-                                    else colors.surface
+                                .background(cardBg)
+                                .then(
+                                    if (stripColor != Color.Transparent) {
+                                        Modifier.drawBehind {
+                                            val stripWidth = 4.dp.toPx()
+                                            drawRoundRect(
+                                                color = stripColor,
+                                                topLeft = Offset(0f, 0f),
+                                                size = androidx.compose.ui.geometry.Size(stripWidth, size.height)
+                                            )
+                                        }
+                                    } else Modifier
                                 )
                                 .border(
                                     width = if (isCurrent) 1.5.dp else 1.dp,
-                                    color = if (isCurrent) colors.accent.copy(alpha = 0.4f) else colors.border,
+                                    color = cardBorder,
                                     shape = RoundedCornerShape(16.dp)
                                 )
                                 .clickable { cls.courseCode?.let { AppState.openCourseDetail(it) } }
@@ -623,9 +678,9 @@ fun DashboardScreen() {
                     GlassActionCard(Modifier.weight(1f), "Apply Leave", Icons.AutoMirrored.Rounded.ExitToApp, colors, onClick = { AppState.navigateTo(Screen.HOSTEL) })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    GlassActionCard(Modifier.weight(1f), "Bus Routes", Icons.Rounded.Info, colors, onClick = { AppState.navigateTo(Screen.TRANSPORT) })
+                    GlassActionCard(Modifier.weight(1f), "Bus Routes", Icons.Rounded.DirectionsBus, colors, onClick = { AppState.navigateTo(Screen.TRANSPORT) })
                     GlassActionCard(Modifier.weight(1f), "Wishlist", Icons.Rounded.Favorite, colors, onClick = { AppState.navigateTo(Screen.WISHLIST) })
-                    GlassActionCard(Modifier.weight(1f), "Hostel", Icons.Rounded.Home, colors, onClick = { AppState.navigateTo(Screen.HOSTEL) })
+                    GlassActionCard(Modifier.weight(1f), "Curriculum", Icons.Rounded.MenuBook, colors, onClick = { AppState.navigateTo(Screen.CURRICULUM) })
                 }
             }
 
@@ -693,24 +748,32 @@ private fun getGreeting(): String {
 }
 
 @Composable
-private fun GlassMetricCard(title: String, value: String, icon: ImageVector, colors: com.amazecc.app.shared.theme.AmazeColors, onClick: (() -> Unit)? = null) {
+private fun GlassMetricCard(
+    title: String,
+    value: String,
+    icon: ImageVector,
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    iconTint: Color = colors.accent,
+    surfaceBg: Color = colors.accentSurface,
+    onClick: (() -> Unit)? = null
+) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+            .background(surfaceBg)
+            .border(1.dp, colors.accent.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                Icon(icon, null, tint = iconTint, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     title,
                     style = AmazeTheme.typography.smallLabel.copy(
-                        color = colors.textMuted,
-                        fontWeight = FontWeight.SemiBold
+                        color = iconTint,
+                        fontWeight = FontWeight.Bold
                     )
                 )
             }
@@ -733,10 +796,12 @@ private fun CourseGlassCard(
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val percentage = course.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0
-    val badgeColor = when {
-        percentage >= 85.0 -> colors.success
-        percentage >= 75.0 -> colors.warning
-        else -> colors.danger
+    val badgeColor: Color
+    val cardVariant: com.amazecc.app.shared.ui.components.CardVariant
+    when {
+        percentage >= 85.0 -> { badgeColor = colors.success; cardVariant = com.amazecc.app.shared.ui.components.CardVariant.SUCCESS }
+        percentage >= 75.0 -> { badgeColor = colors.warning; cardVariant = com.amazecc.app.shared.ui.components.CardVariant.WARNING }
+        else -> { badgeColor = colors.danger; cardVariant = com.amazecc.app.shared.ui.components.CardVariant.DANGER }
     }
     val isCritical = percentage < 75.0
 
@@ -744,12 +809,27 @@ private fun CourseGlassCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(if (isCritical) colors.danger.copy(alpha = 0.05f) else colors.glassSurface)
+            .background(
+                when (cardVariant) {
+                    com.amazecc.app.shared.ui.components.CardVariant.SUCCESS -> colors.successSurface
+                    com.amazecc.app.shared.ui.components.CardVariant.WARNING -> colors.warningSurface
+                    com.amazecc.app.shared.ui.components.CardVariant.DANGER -> colors.dangerSurface
+                    else -> colors.glassSurface
+                }
+            )
             .border(
                 1.dp,
-                if (isCritical) colors.danger.copy(alpha = 0.2f) else colors.glassBorder,
+                badgeColor.copy(alpha = 0.3f),
                 RoundedCornerShape(16.dp)
             )
+            .drawBehind {
+                val stripWidth = 4.dp.toPx()
+                drawRoundRect(
+                    color = badgeColor,
+                    topLeft = Offset(0f, 0f),
+                    size = androidx.compose.ui.geometry.Size(stripWidth, size.height)
+                )
+            }
             .clickable { AppState.openCourseDetail(course.courseCode) }
             .padding(16.dp)
     ) {
@@ -780,8 +860,8 @@ private fun CourseGlassCard(
             }
             Box(
                 modifier = Modifier
-                    .background(badgeColor.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-                    .border(1.dp, badgeColor.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                    .background(badgeColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                    .border(1.dp, badgeColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp),
                 contentAlignment = Alignment.Center
             ) {

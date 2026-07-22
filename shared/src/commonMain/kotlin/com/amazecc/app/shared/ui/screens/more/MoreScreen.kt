@@ -77,7 +77,7 @@ fun MoreScreen() {
 
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 88.dp)) {
 
-            Text("App Library", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Text("App Library", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart1))
             Spacer(modifier = Modifier.height(12.dp))
 
             val modules = listOf(
@@ -118,7 +118,7 @@ fun MoreScreen() {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            Text("Services & Tools", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Text("Services & Tools", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart2))
             Spacer(modifier = Modifier.height(12.dp))
 
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -130,15 +130,15 @@ fun MoreScreen() {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            Text("Communities", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Text("Communities", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart3))
             Spacer(modifier = Modifier.height(12.dp))
 
             AmazeCard(modifier = Modifier.fillMaxWidth().clickable { AppState.openClubHub("Directory") }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    Icon(Icons.Rounded.Groups, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
+                    Icon(Icons.Rounded.Groups, contentDescription = null, tint = colors.chart2, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text("Club Hub", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Text("Club Hub", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.chart2))
                         Text("Explore student clubs and chapters", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     }
                 }
@@ -146,17 +146,17 @@ fun MoreScreen() {
             Spacer(modifier = Modifier.height(8.dp))
             AmazeCard(modifier = Modifier.fillMaxWidth().clickable { AppState.openClubHub("Feed") }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-                    Icon(Icons.Rounded.Explore, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
+                    Icon(Icons.Rounded.Explore, contentDescription = null, tint = colors.chart4, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text("Community Feed", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Text("Community Feed", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.chart4))
                         Text("Latest posts from AmazeCC members", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            Text("Notifications", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Text("Notifications", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart4))
             Spacer(modifier = Modifier.height(12.dp))
 
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -280,7 +280,7 @@ fun MoreScreen() {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            Text("Settings & Info", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Text("Settings & Info", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart5))
             Spacer(modifier = Modifier.height(12.dp))
 
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -302,6 +302,9 @@ fun MoreScreen() {
 @Composable
 fun ModuleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = AmazeTheme.colors
+    val moduleColors = listOf(colors.chart1, colors.chart2, colors.chart3, colors.chart4, colors.chart5)
+    val colorIndex = label.hashCode().mod(moduleColors.size).let { if (it < 0) it + moduleColors.size else it }
+    val neonColor = moduleColors[colorIndex]
     Column(
         modifier = modifier.clickable { onClick() },
         horizontalAlignment = Alignment.CenterHorizontally
@@ -310,16 +313,16 @@ fun ModuleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
             modifier = Modifier
                 .size(56.dp)
                 .clip(RoundedCornerShape(16.dp))
-                .background(colors.surface)
+                .background(neonColor.copy(alpha = 0.12f))
                 .padding(12.dp),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = label, tint = colors.accent, modifier = Modifier.size(32.dp))
+            Icon(icon, contentDescription = label, tint = neonColor, modifier = Modifier.size(32.dp))
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = label,
-            style = AmazeTheme.typography.smallLabel.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
+            style = AmazeTheme.typography.smallLabel.copy(color = neonColor, fontWeight = FontWeight.Bold),
             textAlign = TextAlign.Center
         )
     }
@@ -328,10 +331,19 @@ fun ModuleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
 @Composable
 fun ToggleRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
     val colors = AmazeTheme.colors
+    val dotColors = listOf(colors.chart1, colors.chart2, colors.chart3, colors.chart4, colors.chart5)
+    val dotColor = dotColors[title.hashCode().mod(dotColors.size).let { if (it < 0) it + dotColors.size else it }]
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
     ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(if (checked) dotColor else colors.surface)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
             Text(subtitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
@@ -339,7 +351,7 @@ fun ToggleRow(title: String, subtitle: String, checked: Boolean, onCheckedChange
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedTrackColor = colors.accent)
+            colors = SwitchDefaults.colors(checkedTrackColor = dotColor)
         )
     }
 }
@@ -347,11 +359,14 @@ fun ToggleRow(title: String, subtitle: String, checked: Boolean, onCheckedChange
 @Composable
 fun ClickableRow(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
     val colors = AmazeTheme.colors
+    val iconColors = listOf(colors.chart1, colors.chart2, colors.chart3, colors.chart4, colors.chart5)
+    val colorIndex = title.hashCode().mod(iconColors.size).let { if (it < 0) it + iconColors.size else it }
+    val neonColor = iconColors[colorIndex]
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 12.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(24.dp))
+        Icon(icon, contentDescription = null, tint = neonColor, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))
         Text(title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
     }

@@ -938,8 +938,12 @@ object AmazeClient {
             )
         }
         return try {
-            val element = postAuthorized<JsonElement>("events")
-            if (element != null) {
+            val response = httpClient.get("$baseUrl/api/events") {
+                contentType(ContentType.Application.Json)
+            }
+            if (response.status == HttpStatusCode.OK) {
+                val body = response.bodyAsText()
+                val element = jsonConfig.decodeFromString<JsonElement>(body)
                 val eventsList = if (element is JsonArray) {
                     jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
                 } else if (element.jsonObject["events"] is JsonArray) {
@@ -949,7 +953,7 @@ object AmazeClient {
                 }
                 EventHubRes(success = true, events = eventsList)
             } else {
-                EventHubRes(success = false, message = "Empty response")
+                EventHubRes(success = false, message = "Server returned ${response.status}")
             }
         } catch (e: Exception) {
             EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())

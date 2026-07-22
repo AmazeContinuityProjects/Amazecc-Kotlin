@@ -20,7 +20,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -113,20 +116,35 @@ enum class ButtonVariant {
 
 // ── CARDS ──
 
+enum class CardVariant {
+    DEFAULT, ACCENT, SUCCESS, WARNING, DANGER, INFO, ACCENT_SURFACE, GLASS
+}
+
 @Composable
 fun AmazeCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     backgroundColor: Color? = null,
+    variant: CardVariant = CardVariant.DEFAULT,
+    accentStrip: Boolean = false,
     content: @Composable BoxScope.() -> Unit
 ) {
     val colors = AmazeTheme.colors
     val radius = AmazeTheme.radius
-
-    val bg = backgroundColor ?: colors.surface
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.985f else 1f)
+
+    val (bgColor, borderColor) = when (variant) {
+        CardVariant.DEFAULT -> (backgroundColor ?: colors.surface) to colors.border
+        CardVariant.ACCENT -> (backgroundColor ?: colors.accentSurface) to colors.accent.copy(alpha = 0.3f)
+        CardVariant.SUCCESS -> (backgroundColor ?: colors.successSurface) to colors.success.copy(alpha = 0.3f)
+        CardVariant.WARNING -> (backgroundColor ?: colors.warningSurface) to colors.warning.copy(alpha = 0.3f)
+        CardVariant.DANGER -> (backgroundColor ?: colors.dangerSurface) to colors.danger.copy(alpha = 0.3f)
+        CardVariant.INFO -> (backgroundColor ?: colors.infoSurface) to colors.info.copy(alpha = 0.3f)
+        CardVariant.ACCENT_SURFACE -> (backgroundColor ?: colors.accentContainer) to colors.accent.copy(alpha = 0.4f)
+        CardVariant.GLASS -> (backgroundColor ?: colors.glassSurface) to colors.glassBorder
+    }
 
     Box(
         modifier = modifier
@@ -134,10 +152,29 @@ fun AmazeCard(
                 scaleX = scale
                 scaleY = scale
             }
-            .shadow(2.dp, RoundedCornerShape(radius.medium), clip = false)
-            .clip(RoundedCornerShape(radius.medium)) // 16px Medium Radius
-            .background(bg)
-            .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
+            .clipToBounds()
+            .shadow(if (variant == CardVariant.GLASS) 8.dp else 2.dp, RoundedCornerShape(radius.medium), clip = false)
+            .clip(RoundedCornerShape(radius.medium))
+            .background(bgColor)
+            .border(1.dp, borderColor, RoundedCornerShape(radius.medium))
+            .then(
+                if (accentStrip) {
+                    Modifier.drawBehind {
+                        val stripWidth = 4.dp.toPx()
+                        drawRoundRect(
+                            color = when (variant) {
+                                CardVariant.SUCCESS -> colors.success
+                                CardVariant.WARNING -> colors.warning
+                                CardVariant.DANGER -> colors.danger
+                                CardVariant.INFO -> colors.info
+                                else -> colors.accent
+                            },
+                            topLeft = Offset(0f, 0f),
+                            size = androidx.compose.ui.geometry.Size(stripWidth, size.height)
+                        )
+                    }
+                } else Modifier
+            )
             .then(
                 if (onClick != null) {
                     Modifier.clickable(
@@ -260,12 +297,15 @@ fun ActionCard(
     description: String,
     icon: ImageVector,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    variant: CardVariant = CardVariant.ACCENT_SURFACE
 ) {
     val colors = AmazeTheme.colors
     AmazeCard(
         modifier = modifier,
-        onClick = onClick
+        onClick = onClick,
+        variant = variant,
+        accentStrip = true
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -275,7 +315,7 @@ fun ActionCard(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(colors.elevatedSurface),
+                    .background(colors.accentSurface),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -307,7 +347,7 @@ fun ActionCard(
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
                 contentDescription = null,
-                tint = colors.textMuted,
+                tint = colors.accent,
                 modifier = Modifier.size(20.dp)
             )
         }
