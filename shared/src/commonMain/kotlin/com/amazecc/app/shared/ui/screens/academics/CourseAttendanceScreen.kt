@@ -31,6 +31,7 @@ import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.SlotInfo
+import com.amazecc.app.shared.utils.parseViewLink
 import kotlinx.serialization.json.*
 
 @Composable
@@ -411,7 +412,8 @@ private fun LogTab(
     // Try to parse viewLinkRaw for detailed attendance
     val detailedDays = remember(course.viewLinkRaw) {
         try {
-            val arr = course.viewLinkRaw?.jsonArray
+            val raw = parseViewLink(course.viewLinkRaw)
+            val arr = raw?.jsonArray
             arr?.mapNotNull { elem ->
                 val obj = elem.jsonObject
                 val date = obj["date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null

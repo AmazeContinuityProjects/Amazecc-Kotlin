@@ -20,12 +20,14 @@ expect suspend fun clearPendingNotifications()
 
 expect suspend fun createNotificationChannels()
 
+expect suspend fun testLocalNotification()
+
 object NotificationsUtils {
 
     suspend fun scheduleClassReminders(
         attendance: List<Map<String, Any>>,
         slotMap: Map<String, Map<String, SlotInfo>>,
-        offsetMinutes: Int = 15
+        offsetMinutes: Int = SettingsManager.getNotifOffsetMinutes()
     ) {
         if (!SettingsManager.isNotifClassRemindersEnabled()) return
         if (!requestNotificationPermissions()) return

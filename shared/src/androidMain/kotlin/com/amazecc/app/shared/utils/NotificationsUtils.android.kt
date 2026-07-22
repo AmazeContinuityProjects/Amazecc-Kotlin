@@ -52,6 +52,17 @@ actual suspend fun clearPendingNotifications() {
     alarmManager.cancel(pendingIntent)
 }
 
+actual suspend fun testLocalNotification() {
+    createNotificationChannels()
+    val triggerTimeMs = kotlinx.datetime.Clock.System.now().toEpochMilliseconds() + 5_000L
+    scheduleLocalNotification(
+        id = 9999,
+        title = "Test Notification",
+        body = "If you see this, notifications are working!",
+        triggerTimeMs = triggerTimeMs
+    )
+}
+
 actual suspend fun createNotificationChannels() {
     val context = AndroidApp.context
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

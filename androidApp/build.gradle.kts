@@ -1,5 +1,6 @@
 import java.util.Properties
 import java.io.FileInputStream
+import java.io.StringReader
 
 plugins {
     alias(libs.plugins.android.application)
@@ -7,10 +8,11 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
-val versionPropsFile = rootProject.file("version.properties")
 val versionProps = Properties()
+val versionPropsFile = rootProject.file("version.properties")
 if (versionPropsFile.exists()) {
-    versionProps.load(FileInputStream(versionPropsFile))
+    val raw = versionPropsFile.readText(Charsets.UTF_8).replace("\uFEFF", "")
+    versionProps.load(StringReader(raw))
 }
 val verName = versionProps["VERSION_NAME"]?.toString() ?: "1.0.0"
 val verCode = versionProps["VERSION_CODE"]?.toString()?.toIntOrNull() ?: 1
