@@ -11,14 +11,21 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -117,6 +124,36 @@ fun MoreScreen() {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+            Text("Notifications", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    var classNotif by remember { mutableStateOf(SettingsManager.isNotifClassRemindersEnabled()) }
+                    ToggleRow(
+                        title = "Class Reminders",
+                        subtitle = "Notify before each class starts",
+                        checked = classNotif,
+                        onCheckedChange = { classNotif = it; SettingsManager.setNotifClassRemindersEnabled(it) }
+                    )
+                    var assignNotif by remember { mutableStateOf(SettingsManager.isNotifAssignmentRemindersEnabled()) }
+                    ToggleRow(
+                        title = "Assignment Reminders",
+                        subtitle = "Remind before assignment deadlines",
+                        checked = assignNotif,
+                        onCheckedChange = { assignNotif = it; SettingsManager.setNotifAssignmentRemindersEnabled(it) }
+                    )
+                    var vitolNotif by remember { mutableStateOf(SettingsManager.isNotifVitolRemindersEnabled()) }
+                    ToggleRow(
+                        title = "VITOL Limit Alerts",
+                        subtitle = "Warn when VITOL usage is near the limit",
+                        checked = vitolNotif,
+                        onCheckedChange = { vitolNotif = it; SettingsManager.setNotifVitolRemindersEnabled(it) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
             Text("Settings & Info", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -157,6 +194,25 @@ fun ModuleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
             text = label,
             style = AmazeTheme.typography.smallLabel.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
             textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+fun ToggleRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val colors = AmazeTheme.colors
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+            Text(subtitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = colors.accent)
         )
     }
 }

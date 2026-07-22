@@ -1,10 +1,12 @@
 package com.amazecc.app.shared.utils
 
+import com.amazecc.app.shared.model.*
+import com.amazecc.app.shared.repository.SettingsManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.datetime.*
-import kotlinx.serialization.json.*
 
-// Expect functions to be implemented in platform-specific code
-// (Android: NotificationManager, iOS: UNUserNotificationCenter)
 expect suspend fun requestNotificationPermissions(): Boolean
 
 expect suspend fun scheduleLocalNotification(
@@ -16,65 +18,30 @@ expect suspend fun scheduleLocalNotification(
 
 expect suspend fun clearPendingNotifications()
 
+expect suspend fun createNotificationChannels()
+
 object NotificationsUtils {
 
-    suspend fun scheduleLocalNotification(title: String, body: String, delayMs: Long = 5000): Boolean {
-        val hasPermission = requestNotificationPermissions()
-        if (!hasPermission) {
-            println("Notification permissions not granted")
-            return false
-        }
-
-        val triggerTime = Clock.System.now().toEpochMilliseconds() + delayMs
-        val uniqueId = (Clock.System.now().toEpochMilliseconds() % Int.MAX_VALUE).toInt()
-
-        scheduleLocalNotification(
-            id = uniqueId,
-            title = title,
-            body = body,
-            triggerTimeMs = triggerTime
-        )
-
-        return true
-    }
-
-    suspend fun testLocalNotification(): Boolean {
-        return scheduleLocalNotification(
-            title = "AmazeCC Reminder",
-            body = "This is a local notification triggered from KMP!",
-            delayMs = 5000
-        )
-    }
-
-    suspend fun scheduleClassNotifications(
+    suspend fun scheduleClassReminders(
         attendance: List<Map<String, Any>>,
         slotMap: Map<String, Map<String, SlotInfo>>,
         offsetMinutes: Int = 15
     ) {
-        val hasPermission = requestNotificationPermissions()
-        if (!hasPermission) return
+        if (!SettingsManager.isNotifClassRemindersEnabled()) return
+        if (!requestNotificationPermissions()) return
 
-        // Clear existing notifications to avoid duplicates when rescheduling
+        createNotificationChannels()
         clearPendingNotifications()
 
         val now = Clock.System.now()
         val tz = TimeZone.currentSystemDefault()
         val today = now.toLocalDateTime(tz).date
-        
-        var idCounter = 1000 // Start at 1000 to avoid ID collisions
+        var id = 1000
 
-        // Schedule for the next 7 days
         for (i in 0 until 7) {
             val targetDate = today.plus(DatePeriod(days = i))
-            val currentMomentForTarget = targetDate.atStartOfDayIn(tz)
-            
-            // Re-using the logic from AttendanceTimetable.kt
-            // In KMP we need to pass a specific date to get classes. 
-            // We can extend AttendanceTimetable to accept a LocalDate.
-            // For now, we will simulate this by checking dayOfWeek.
-            
             val dayOfWeek = targetDate.dayOfWeek
-            val attendanceDay = when (dayOfWeek) {
+            val attDay = when (dayOfWeek) {
                 DayOfWeek.MONDAY -> AttendanceDay.MON
                 DayOfWeek.TUESDAY -> AttendanceDay.TUE
                 DayOfWeek.WEDNESDAY -> AttendanceDay.WED
@@ -82,37 +49,105 @@ object NotificationsUtils {
                 DayOfWeek.FRIDAY -> AttendanceDay.FRI
                 DayOfWeek.SATURDAY -> AttendanceDay.SAT
                 DayOfWeek.SUNDAY -> AttendanceDay.SUN
-                else -> AttendanceDay.MON
+                else -> continue
             }
-            
-            val dayCardsMap = AttendanceTimetable.buildAttendanceDayCardsMap(attendance, slotMap)
-            val classes = dayCardsMap[attendanceDay] ?: emptyList()
 
-            for (c in classes) {
+            val dayCards = AttendanceTimetable.buildAttendanceDayCardsMap(attendance, slotMap)[attDay] ?: emptyList()
+            for (c in dayCards) {
                 val timeRange = AttendanceTimetable.getAttendanceTimeRange(c.time)
-                val classStartHours = timeRange.start / 60
-                val classStartMins = timeRange.start % 60
-                
-                val classStartTime = LocalDateTime(
+                val classStart = LocalDateTime(
                     targetDate.year, targetDate.monthNumber, targetDate.dayOfMonth,
-                    classStartHours, classStartMins, 0, 0
+                    timeRange.start / 60, timeRange.start % 60, 0, 0
                 )
-                
-                val classStartTimeInstant = classStartTime.toInstant(tz)
-                val notifyTime = classStartTimeInstant.minus(offsetMinutes.toLong(), DateTimeUnit.MINUTE)
-                
-                // Only schedule if the notification time is in the future
-                if (notifyTime > now) {
-                    val timeString = c.time.split("-").firstOrNull()?.trim() ?: ""
-                    
+                val notifyInstant = classStart.toInstant(tz).minus(offsetMinutes.toLong(), DateTimeUnit.MINUTE)
+                if (notifyInstant > now) {
+                    val timeStr = c.time.split("-").firstOrNull()?.trim() ?: ""
                     scheduleLocalNotification(
-                        id = idCounter++,
+                        id = id++,
                         title = "Upcoming Class",
-                        body = "${c.courseTitle} starts in $offsetMinutes minutes at $timeString (${c.courseType})",
-                        triggerTimeMs = notifyTime.toEpochMilliseconds()
+                        body = "${c.courseTitle} at $timeStr (${c.courseType})",
+                        triggerTimeMs = notifyInstant.toEpochMilliseconds()
                     )
                 }
             }
+        }
+    }
+
+    suspend fun scheduleAssignmentReminders(
+        assignments: List<LMSAssignment>,
+        offsetMinutes: Int = 120
+    ) {
+        if (!SettingsManager.isNotifAssignmentRemindersEnabled()) return
+        if (!requestNotificationPermissions()) return
+
+        createNotificationChannels()
+        val now = Clock.System.now()
+        val tz = TimeZone.currentSystemDefault()
+        var id = 2000
+
+        for (a in assignments) {
+            if (a.status == "Submitted" || a.dueDate.isBlank()) continue
+            val dueInstant = try {
+                val parts = a.dueDate.split(" ")
+                if (parts.size >= 3) {
+                    val dateParts = parts[0].split("-")
+                    val timeParts = parts[1].split(":")
+                    if (dateParts.size == 3 && timeParts.size >= 2) {
+                        LocalDateTime(
+                            dateParts[0].toInt(), dateParts[1].toInt(), dateParts[2].toInt(),
+                            timeParts[0].toInt(), timeParts[1].toInt(), 0, 0
+                        ).toInstant(tz)
+                    } else null
+                } else null
+            } catch (_: Exception) { null } ?: continue
+
+            val notifyInstant = dueInstant.minus(offsetMinutes.toLong(), DateTimeUnit.MINUTE)
+            if (notifyInstant > now) {
+                scheduleLocalNotification(
+                    id = id++,
+                    title = "Assignment Due Soon",
+                    body = "${a.title} (${a.courseCode}) — Due ${a.dueDate}",
+                    triggerTimeMs = notifyInstant.toEpochMilliseconds()
+                )
+            }
+        }
+    }
+
+    suspend fun scheduleVitolReminders(limit: String?, consumed: String?) {
+        if (!SettingsManager.isNotifVitolRemindersEnabled()) return
+        if (!requestNotificationPermissions()) return
+        createNotificationChannels()
+
+        val limitVal = limit?.toIntOrNull() ?: return
+        val consumedVal = consumed?.toIntOrNull() ?: return
+        val remaining = (limitVal - consumedVal).coerceAtLeast(0)
+        val usagePercent = (consumedVal.toFloat() / limitVal.toFloat()) * 100f
+
+        if (usagePercent >= 80f) {
+            scheduleLocalNotification(
+                id = 3001,
+                title = "VITOL Limit Warning",
+                body = "You have used $consumedVal / $limitVal (${usagePercent.toInt()}%) — only $remaining trips left",
+                triggerTimeMs = Clock.System.now().toEpochMilliseconds()
+            )
+        }
+    }
+
+    fun scheduleAll(
+        attendance: List<Map<String, Any>>?,
+        slotMap: Map<String, Map<String, SlotInfo>>?,
+        assignments: List<LMSAssignment>?,
+        vitolLimit: String?,
+        vitolConsumed: String?
+    ) {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            if (attendance != null && slotMap != null && attendance.isNotEmpty()) {
+                scheduleClassReminders(attendance, slotMap)
+            }
+            if (assignments != null && assignments.isNotEmpty()) {
+                scheduleAssignmentReminders(assignments)
+            }
+            scheduleVitolReminders(vitolLimit, vitolConsumed)
         }
     }
 }

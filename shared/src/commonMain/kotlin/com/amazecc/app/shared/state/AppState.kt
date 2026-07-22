@@ -5,8 +5,10 @@ import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AppTheme
+import com.amazecc.app.shared.utils.SlotInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitAll
@@ -508,8 +510,11 @@ object AppState {
         if (_isLoading.value) return
         scope.launch {
             _isLoading.value = true
+            _isSyncing.value = true
             _error.value = null
+            _syncMessage.value = "Refreshing VTOP session..."
             _syncStatus.value = "Refreshing VTOP session..."
+            notificationService.showLoadingNotification("AmazeCC Sync", "Refreshing VTOP session...")
             try {
                 // ── Refresh VTOP session before syncing (cookies expire every 10 min) ──
                 val creds = SettingsManager.getCredentials()
@@ -531,6 +536,7 @@ object AppState {
                     } catch (_: Exception) { /* proceed with existing session if refresh fails */ }
                 }
 
+                _syncMessage.value = "Syncing academic and campus data..."
                 _syncStatus.value = "Syncing academic and campus data..."
                 val sem = _selectedSemester.value
 
@@ -807,8 +813,39 @@ object AppState {
                 updateSyncSummary(results)
             } finally {
                 _isLoading.value = false
+                _isSyncing.value = false
+                _syncMessage.value = null
+                notificationService.showLoadingNotification("AmazeCC Sync", "Sync completed")
+                scheduleReminders()
             }
         }
+    }
+
+    private fun scheduleReminders() {
+        val attendanceItems = _attendance.value?.attendance
+        val assignments = _lms.value?.assignments
+        val vitolData = _vitolData.value?.data
+        val attMaps = attendanceItems?.map { item ->
+            mapOf(
+                "courseCode" to item.courseCode,
+                "courseTitle" to item.courseTitle,
+                "courseType" to item.courseType,
+                "faculty" to item.faculty,
+                "slotName" to (item.slotName ?: ""),
+                "attendancePercentage" to item.attendancePercentage,
+                "venue" to (item.slotVenue ?: "")
+            )
+        }
+        val typedSlotMap = SlotMap.map.mapValues { (_, inner) ->
+            inner.mapValues { (_, time) -> SlotInfo(time) }
+        }
+        com.amazecc.app.shared.utils.NotificationsUtils.scheduleAll(
+            attendance = attMaps,
+            slotMap = typedSlotMap,
+            assignments = assignments,
+            vitolLimit = vitolData?.limit,
+            vitolConsumed = vitolData?.consumed
+        )
     }
 
     // ── Targeted refreshes for specific screens ──

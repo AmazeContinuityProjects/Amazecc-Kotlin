@@ -64,6 +64,12 @@ object SettingsManager {
     const val CACHE_ALL_SEMESTER_MARKS = "cache_all_semester_marks"
     const val CACHE_CALENDARS_LIST = "cache_calendars_list"
     const val CACHE_QCM_VIEW = "cache_qcm_view"
+
+    // Notification preferences
+    const val NOTIF_CLASS_REMINDERS = "notif_class_reminders"
+    const val NOTIF_ASSIGNMENT_REMINDERS = "notif_assignment_reminders"
+    const val NOTIF_VITOL_REMINDERS = "notif_vitol_reminders"
+    const val NOTIF_OFFSET_MINUTES = "notif_offset_minutes"
     
     fun setString(key: String, value: String) {
         settings.putString(key, value)
@@ -165,4 +171,18 @@ object SettingsManager {
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
         setString(CACHE_ATTENDANCE_NOTES, json.encodeToString(kotlinx.serialization.builtins.ListSerializer(NoteEntry.serializer()), entries))
     }
+
+    // ── Notification preferences ──
+    fun isNotifClassRemindersEnabled(): Boolean = getBoolean(NOTIF_CLASS_REMINDERS, false)
+    fun setNotifClassRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_CLASS_REMINDERS, enabled)
+
+    fun isNotifAssignmentRemindersEnabled(): Boolean = getBoolean(NOTIF_ASSIGNMENT_REMINDERS, false)
+    fun setNotifAssignmentRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_ASSIGNMENT_REMINDERS, enabled)
+
+    fun isNotifVitolRemindersEnabled(): Boolean = getBoolean(NOTIF_VITOL_REMINDERS, false)
+    fun setNotifVitolRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_VITOL_REMINDERS, enabled)
+
+    fun getNotifOffsetMinutes(): Int = getString(NOTIF_OFFSET_MINUTES, "15").toIntOrNull() ?: 15
+
+    fun setNotifOffsetMinutes(minutes: Int) = setString(NOTIF_OFFSET_MINUTES, minutes.toString())
 }
