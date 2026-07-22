@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
@@ -145,7 +146,7 @@ fun CourseDetailScreen(onBack: () -> Unit) {
     val isPastSemester = group.semesterSubId != mainSemesterId && group.semesterSubId != attendanceRes?.semesterId
 
     val qcmViewRes by AppState.qcmView.collectAsState()
-    val qcmTables = qcmViewRes?.data ?: emptyList()
+    val qcmTables = extractQcmTables(qcmViewRes?.data)
     val qcmLoading = AppState.isLoading.collectAsState().value
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
@@ -1098,11 +1099,12 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
     }
 
     val courseDays = remember(course) {
-        val slotName = course.slotName.uppercase()
-        listOf("MON", "TUE", "WED", "THU", "FRI", "SAT").filter { slotName.contains(it) }
+        val slots = course.slotName.uppercase().split("+").map { it.trim() }.toSet()
+        SlotMap.map.filterValues { daySlots -> daySlots.keys.any { it in slots } }.keys.toList()
     }
 
     val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+    val today = now.year * 10000 + now.monthNumber * 100 + now.dayOfMonth
     val allWorkingDays = remember(calendarMonths) {
         val results = mutableListOf<Triple<Int, Int, Int>>()
         val monthIndex = mapOf("jan" to 1, "feb" to 2, "mar" to 3, "apr" to 4, "may" to 5, "jun" to 6, "jul" to 7, "aug" to 8, "sep" to 9, "oct" to 10, "nov" to 11, "dec" to 12)
@@ -1120,8 +1122,9 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
 
     val futureClassDates = remember(allWorkingDays, courseDays, cutoff) {
         allWorkingDays.filter { (y, m, d) ->
+            val dv = y * 10000 + m * 100 + d
+            if (dv < today) return@filter false
             if (cutoff != null) {
-                val dv = y * 10000 + m * 100 + d
                 val cv = cutoff.first * 10000 + cutoff.second * 100 + cutoff.third
                 if (dv > cv) return@filter false
             }
@@ -1148,13 +1151,13 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("CAT1", "CAT2", "LID").forEach { m ->
                     val sel = mode == m
-                    Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(if (sel) colors.accent else colors.surface).clickable { mode = m }.padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
+                    Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(if (sel) colors.accent else colors.surface).clickable { mode = m }.padding(horizontal = 12.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
                         Text(m, color = if (sel) Color.White else colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
             Text("Future classes before ${mode}: ${futureClassDates.size}", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
 
@@ -1162,8 +1165,8 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
                 val key = y * 10000 + m * 100 + d
                 val skipped = key in skipDates
                 Box(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(if (skipped) colors.danger.copy(alpha = 0.1f) else colors.surface)
-                        .clickable { skipDates = if (key in skipDates) skipDates - key else skipDates + key }.padding(8.dp)
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (skipped) colors.danger.copy(alpha = 0.1f) else colors.surface)
+                        .clickable { skipDates = if (key in skipDates) skipDates - key else skipDates + key }.padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("$m/$d", fontSize = 12.sp, color = colors.textPrimary, modifier = Modifier.weight(1f))
@@ -1177,7 +1180,9 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
                 Text("+${futureClassDates.size - 10} more...", fontSize = 10.sp, color = colors.textMuted)
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
+            Spacer(Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text("Projected", fontSize = 11.sp, color = colors.textMuted)
@@ -1544,4 +1549,24 @@ private fun findCourseGroup(
     }
 
     return null
+}
+
+private fun extractQcmTables(data: JsonElement?): List<QcmTable> {
+    if (data == null) return emptyList()
+    return when (data) {
+        is JsonArray -> data.map { element ->
+            val obj = element.jsonObject
+            QcmTable(
+                caption = obj["caption"]?.jsonPrimitive?.contentOrNull ?: "",
+                rows = (obj["rows"]?.jsonArray?.toList() ?: emptyList())
+            )
+        }
+
+        is JsonObject -> data.values.flatMap { value ->
+            val rows = value.jsonObject["rows"]?.jsonArray?.toList() ?: emptyList()
+            if (rows.isNotEmpty()) listOf(QcmTable(rows = rows)) else emptyList()
+        }
+
+        else -> emptyList()
+    }
 }

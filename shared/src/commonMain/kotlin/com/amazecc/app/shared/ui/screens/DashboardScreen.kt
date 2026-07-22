@@ -212,7 +212,7 @@ fun DashboardScreen() {
                 item { GlassMetricCard("ODs", "0", Icons.Rounded.CheckCircle, colors, onClick = { AppState.navigateTo(Screen.OD_TRACKER) }) }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             val animatedAttendance by animateFloatAsState(
                 targetValue = overallAttendance / 100f,
@@ -367,7 +367,7 @@ fun DashboardScreen() {
                         .clip(RoundedCornerShape(20.dp))
                         .background(colors.surface)
                         .border(1.dp, colors.border, RoundedCornerShape(20.dp))
-                        .padding(32.dp),
+                        .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -629,7 +629,7 @@ fun DashboardScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // ── Free Classrooms Widget ──
             Box(

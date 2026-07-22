@@ -148,20 +148,6 @@ object AppState {
     val moodleData: StateFlow<MoodleRes?> = _moodleData
 
     init {
-        // Load cached data from local storage
-        loadCachedData()
-        // Observe SyncEngine module states and update backward-compat flows
-        scope.launch {
-            SyncEngine.moduleStates.collect { states ->
-                _isLoading.value = states.any { (_, s) -> s.status == SyncStatus.LOADING }
-                val errors = states.filter { (_, s) -> s.status == SyncStatus.ERROR && s.error != null }
-                _error.value = errors.entries.joinToString("\n") { "${it.key.displayName}: ${it.value.error}" }.ifEmpty { null }
-                val active = states.filter { (_, s) -> s.status == SyncStatus.LOADING }
-                _syncStatus.value = if (active.isNotEmpty()) {
-                    "Syncing: ${active.keys.joinToString(", ") { it.displayName }}"
-                } else null
-            }
-        }
         // Load persisted settings
         _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
         _attendanceDisplayMode.value = SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage")
@@ -178,6 +164,31 @@ object AppState {
             if (tabs.isNotEmpty()) {
                 _pinnedNavTabs.value = tabs.take(4)
             }
+        }
+    }
+
+    /**
+     * Load cached data from local storage.
+     * Must be called from an [androidx.compose.runtime.LaunchedEffect] in App() — NOT from init,
+     * because many referenced StateFlow properties are declared after the init block.
+     */
+    fun loadFromCache() {
+        loadCachedData()
+    }
+
+    /**
+     * Wire SyncEngine module states into backward-compatible [isLoading], [error], [syncStatus] flows.
+     * Must be called from a [androidx.compose.runtime.LaunchedEffect] in App() — NOT from init.
+     */
+    suspend fun observeSyncEngine() {
+        SyncEngine.moduleStates.collect { states ->
+            _isLoading.value = states.any { (_, s) -> s.status == SyncStatus.LOADING }
+            val errors = states.filter { (_, s) -> s.status == SyncStatus.ERROR && s.error != null }
+            _error.value = errors.entries.joinToString("\n") { "${it.key.displayName}: ${it.value.error}" }.ifEmpty { null }
+            val active = states.filter { (_, s) -> s.status == SyncStatus.LOADING }
+            _syncStatus.value = if (active.isNotEmpty()) {
+                "Syncing: ${active.keys.joinToString(", ") { it.displayName }}"
+            } else null
         }
     }
 
@@ -655,6 +666,18 @@ object AppState {
                         },
                         async {
                             syncModule(
+                                name = "Calendars list",
+                                fetch = { AmazeClient.getCalendars(semesterId = sem) },
+                                isSuccess = { it.success },
+                                errorMessage = { it.message },
+                                update = {
+                                    _calendarsList.value = it
+                                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
                                 name = "Payments",
                                 fetch = { AmazeClient.getPayments() },
                                 isSuccess = { it.error == null },
@@ -1001,16 +1024,22 @@ object AppState {
         if (_isLoading.value) return
         scope.launch {
             _isLoading.value = true
-            _syncStatus.value = "Syncing calendars..."
+            _syncStatus.value = "Syncing calendars list..."
             try {
-                val res = AmazeClient.getCalendars(semesterId = _selectedSemester.value)
-                if (res.success) {
-                    _calendarsList.value = res
-                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, res)
-                }
-                _syncStatus.value = if (res.success) "Calendars synced" else "Calendar sync failed"
+                val sem = _selectedSemester.value
+                val res = syncModule(
+                    name = "Calendars list",
+                    fetch = { AmazeClient.getCalendars(semesterId = sem) },
+                    isSuccess = { it.success },
+                    errorMessage = { it.message },
+                    update = {
+                        _calendarsList.value = it
+                        cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                    }
+                )
+                updateSyncSummary(listOf(res))
             } catch (e: Exception) {
-                _syncStatus.value = "Calendar sync failed"
+                _syncStatus.value = "Calendars list sync failed"
             } finally {
                 _isLoading.value = false
             }

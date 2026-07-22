@@ -110,7 +110,8 @@ data class QcmTable(
 @Serializable
 data class QcmViewRes(
     val success: Boolean = true,
-    val data: List<QcmTable>? = null,
+    @Contextual
+    val data: JsonElement? = null,
     val message: String? = null,
     val error: String? = null
 )

@@ -42,7 +42,6 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.kotlinx.datetime)
-            implementation(libs.qrcode.kotlin)
             
             // Ktor
             implementation(libs.ktor.client.core)

@@ -904,14 +904,20 @@ object AmazeClient {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return QcmViewRes(
                 success = true,
-                data = listOf(
-                    QcmTable("QCM 1", listOf(
-                        buildJsonObject { put("qcmNo", "1"); put("actionTaken", "Resolved"); put("suggestions", "Improve lab equipment"); put("facultyReply", "Noted") }
-                    )),
-                    QcmTable("QCM 2", listOf(
-                        buildJsonObject { put("qcmNo", "2"); put("actionTaken", "In Progress"); put("suggestions", "More practice sessions"); put("facultyReply", "Will schedule") }
-                    ))
-                )
+                data = buildJsonArray {
+                    add(buildJsonObject {
+                        put("caption", "QCM 1")
+                        put("rows", buildJsonArray {
+                            add(buildJsonObject { put("qcmNo", "1"); put("actionTaken", "Resolved"); put("suggestions", "Improve lab equipment"); put("facultyReply", "Noted") })
+                        })
+                    })
+                    add(buildJsonObject {
+                        put("caption", "QCM 2")
+                        put("rows", buildJsonArray {
+                            add(buildJsonObject { put("qcmNo", "2"); put("actionTaken", "In Progress"); put("suggestions", "More practice sessions"); put("facultyReply", "Will schedule") })
+                        })
+                    })
+                }
             )
         }
         return try {
@@ -932,9 +938,8 @@ object AmazeClient {
             )
         }
         return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/events")
-            if (response.status == HttpStatusCode.OK) {
-                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
+            val element = postAuthorized<JsonElement>("events")
+            if (element != null) {
                 val eventsList = if (element is JsonArray) {
                     jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
                 } else if (element.jsonObject["events"] is JsonArray) {
@@ -944,7 +949,7 @@ object AmazeClient {
                 }
                 EventHubRes(success = true, events = eventsList)
             } else {
-                EventHubRes(success = false, message = "HTTP ${response.status}", error = "HTTP ${response.status}")
+                EventHubRes(success = false, message = "Empty response")
             }
         } catch (e: Exception) {
             EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
@@ -1006,14 +1011,8 @@ object AmazeClient {
             )
         }
         return try {
-            val response: HttpResponse = httpClient.post("$baseUrl/api/events/profile") {
-                contentType(ContentType.Application.Json)
-                setBody(buildJsonObject {
-                    put("jsessionid", SessionManager.clubToken.value ?: "")
-                })
-            }
-            if (response.status == HttpStatusCode.OK) {
-                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
+            val element = postAuthorized<JsonElement>("events/profile", mapOf("jsessionid" to (SessionManager.clubToken.value ?: "")))
+            if (element != null) {
                 val eventsList = if (element is JsonArray) {
                     jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
                 } else if (element.jsonObject["events"] is JsonArray) {
@@ -1023,7 +1022,7 @@ object AmazeClient {
                 }
                 EventHubRes(success = true, events = eventsList)
             } else {
-                EventHubRes(success = false, message = "HTTP ${response.status}", error = "Server returned status ${response.status}")
+                EventHubRes(success = false, message = "Server error", error = "Empty response from server")
             }
         } catch (e: Exception) {
             EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())

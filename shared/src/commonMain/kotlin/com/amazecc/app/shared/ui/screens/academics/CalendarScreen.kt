@@ -66,7 +66,7 @@ private fun monthDisplayName(monthStr: String): String {
 }
 
 @Composable
-fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader: Boolean = true) {
+fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Boolean = true) {
     val colors = AmazeTheme.colors
     val moodleData by AppState.moodleData.collectAsState()
     val examData by AppState.examSchedule.collectAsState()
@@ -78,9 +78,9 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
     var showMoodleModal by remember { mutableStateOf(false) }
     var selectedCalIdx by remember { mutableStateOf(0) }
 
-    // If nothing cached yet, trigger a fetch automatically once
+    // If nothing cached yet, trigger a fetch automatically once (only when autoFetch is enabled)
     LaunchedEffect(selectedSemester, calendarsListRes) {
-        if (calendarsListRes == null) {
+        if (autoFetch && calendarsListRes == null) {
             AppState.refreshCalendarsList()
         } else {
             // Restore saved preference

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -52,6 +53,15 @@ fun App() {
 
     val uiScale by AppState.uiScale.collectAsState()
     val clipboardManager = LocalClipboardManager.current
+
+    // Observe SyncEngine outside of AppState.init to avoid classloading deadlocks
+    LaunchedEffect(Unit) {
+        AppState.observeSyncEngine()
+    }
+    // Load cached data outside of AppState.init — many referenced flows are declared after the init block
+    LaunchedEffect(Unit) {
+        AppState.loadFromCache()
+    }
 
     AmazeTheme(
         appTheme = currentTheme,
