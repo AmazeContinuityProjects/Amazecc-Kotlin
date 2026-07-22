@@ -175,9 +175,9 @@ fun GradesScreen() {
                         val bCount = gradeDistribution?.get("B")?.size ?: 0
                         val otherCount = totalCourses - sCount - aCount - bCount
 
-                        StatCircle("S", sCount.toString(), Color(0xFF10B981))
-                        StatCircle("A", aCount.toString(), Color(0xFF3B82F6))
-                        StatCircle("B", bCount.toString(), Color(0xFFF59E0B))
+                        StatCircle("S", sCount.toString(), colors.chart1)
+                        StatCircle("A", aCount.toString(), colors.chart2)
+                        StatCircle("B", bCount.toString(), colors.chart3)
                         StatCircle("Other", otherCount.toString(), colors.textMuted)
                     }
                 }
@@ -228,11 +228,11 @@ private fun StatCircle(label: String, value: String, color: Color) {
 @Composable
 private fun GradeCard(gradeItem: GradeItem, colors: com.amazecc.app.shared.theme.AmazeColors) {
     val gradeColor = when (gradeItem.grade) {
-        "S" -> Color(0xFF10B981)
-        "A" -> Color(0xFF3B82F6)
-        "B" -> Color(0xFFF59E0B)
-        "C" -> Color(0xFFF97316)
-        "D", "E", "F", "N" -> Color(0xFFEF4444)
+        "S" -> colors.chart1
+        "A" -> colors.chart2
+        "B" -> colors.chart3
+        "C" -> colors.chart3
+        "D", "E", "F", "N" -> colors.chart5
         else -> colors.textSecondary
     }
 

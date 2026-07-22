@@ -99,10 +99,10 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                     Spacer(Modifier.height(6.dp))
                     Box(
                         modifier = Modifier.clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                            .background(colors.chart1.copy(alpha = 0.15f))
                             .padding(horizontal = 10.dp, vertical = 3.dp)
                     ) {
-                        Text("ACTIVE", color = Color(0xFF10B981), fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        Text("ACTIVE", color = colors.chart1, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                     }
                 }
             }
