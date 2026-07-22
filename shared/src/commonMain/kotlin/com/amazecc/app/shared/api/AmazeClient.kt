@@ -962,12 +962,12 @@ object AmazeClient {
 
     suspend fun getEventPreview(eid: String): EventHubPreview? {
         return try {
+            val jsessionid = SessionManager.clubToken.value
             val response = httpClient.post("$baseUrl/api/events/preview") {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject {
                     put("eid", eid)
-                    put("username", "")
-                    put("password", "")
+                    if (jsessionid != null) put("jsessionid", jsessionid)
                 })
             }
             if (response.status == HttpStatusCode.OK) {
@@ -980,13 +980,13 @@ object AmazeClient {
 
     suspend fun registerForEvent(eid: String): EventHubRegisterRes? {
         return try {
-            val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
+            val jsessionid = SessionManager.clubToken.value
+            if (jsessionid == null) return null
             val response = httpClient.post("$baseUrl/api/events/register") {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject {
                     put("eid", eid)
-                    put("username", creds?.first ?: "")
-                    put("password", creds?.second ?: "")
+                    put("jsessionid", jsessionid)
                 })
             }
             if (response.status == HttpStatusCode.OK) {

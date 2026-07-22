@@ -694,8 +694,8 @@ private fun TargetGradeCalculator(
             Spacer(Modifier.height(12.dp))
             when {
                 needPoints <= 0 -> Text("Target Achieved! 🎯", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF10B981))
-                needPoints > remainingPct -> Text("Impossible to achieve — need ${"%.1f".format(needPoints)}pts but only ${"%.0f".format(remainingPct)}pts remaining", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFEF4444))
-                else -> Text("Need ${"%.1f".format(needPoints)} more weightage points out of ${"%.0f".format(remainingPct)} remaining", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = colors.accent)
+                needPoints > remainingPct -> Text("Impossible to achieve — need ${(needPoints * 10).toInt() / 10.0}pts but only ${remainingPct.toInt()}pts remaining", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFEF4444))
+                else -> Text("Need ${(needPoints * 10).toInt() / 10.0} more weightage points out of ${remainingPct.toInt()} remaining", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = colors.accent)
             }
 
             if (remainingPct > 0 && needPoints > 0 && needPoints <= remainingPct) {
