@@ -70,7 +70,8 @@ fun MoodleScreen() {
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 88.dp)
                 ) {
                     items(assignments) { assignment ->
                         MoodleAssignmentCard(assignment)

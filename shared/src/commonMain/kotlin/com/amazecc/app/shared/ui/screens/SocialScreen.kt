@@ -114,7 +114,7 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = 88.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(16.dp))
@@ -248,8 +248,10 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
 @Composable
 private fun QrCodeCanvas(matrix: List<BooleanArray>, modifier: Modifier = Modifier) {
     val size = matrix.size
+    if (size == 0) return
     Canvas(modifier = modifier) {
         val w = this.size.width / size
+        if (w <= 0f) return@Canvas
         for (row in 0 until size) {
             for (col in 0 until size) {
                 if (matrix[row][col]) {
@@ -321,7 +323,7 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 Text("No friends added yet.", color = colors.textMuted)
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(friends) { friend ->
                     AmazeCard(modifier = Modifier.fillMaxWidth()) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -360,7 +362,7 @@ private fun CommonSlotsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     
     // In a real app, we would intersect user's free slots with friends' free slots.
     // For this UI, we mock the result of the complex algorithm.
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
         item {
             Text("Common Free Slots", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Spacer(Modifier.height(4.dp))
@@ -444,7 +446,7 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 }
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(groups) { group ->
                     val memberNames = group.memberRegNumbers.mapNotNull { reg ->
                         friends.find { it.regNumber == reg }?.name

@@ -350,7 +350,7 @@ private fun IssuedBooksTab(
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -478,7 +478,7 @@ private fun CatalogSearchTab() {
             .fillMaxSize()
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 30.dp)
+        contentPadding = PaddingValues(top = 12.dp, bottom = 88.dp)
     ) {
         // Search bar
         item {

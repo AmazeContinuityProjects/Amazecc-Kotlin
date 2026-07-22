@@ -68,7 +68,7 @@ fun AttendanceScreen() {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 4.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             views.forEach { view ->
@@ -79,7 +79,7 @@ fun AttendanceScreen() {
                         .clip(RoundedCornerShape(8.dp))
                         .background(if (isSelected) colors.accent else colors.surface)
                         .clickable { activeView = view }
-                        .padding(vertical = 8.dp),
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
@@ -95,7 +95,7 @@ fun AttendanceScreen() {
             when (activeView) {
                 "Timetable" -> DailyPlannerScreen()
                 "Predictor" -> OverallPredictorScreen()
-                "Calendar" -> CalendarScreen(onBack = {}, showHeader = false)
+                "Calendar" -> CalendarScreen(onBack = {}, showHeader = false, autoFetch = false)
             }
         }
     }
@@ -215,14 +215,14 @@ fun OverallPredictorScreen() {
     val modes = listOf("CAT1", "CAT2", "FAT", "LID")
 
     val scrollState = rememberScrollState()
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(bottom = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(bottom = 88.dp)) {
         AmazeCard(
             modifier = Modifier.fillMaxWidth(),
             backgroundColor = colors.surface
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Text("Predicted Overall Attendance ($selectedMode)", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = pctFormatted(overallPct),
                     style = AmazeTheme.typography.heading.copy(
@@ -242,10 +242,10 @@ fun OverallPredictorScreen() {
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Text("Cutoff Target", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             modes.forEach { mode ->
                 val isSelected = selectedMode == mode
@@ -254,7 +254,7 @@ fun OverallPredictorScreen() {
                         .weight(1f)
                         .background(if (isSelected) colors.accent else colors.surface, RoundedCornerShape(8.dp))
                         .clickable { selectedMode = mode }
-                        .padding(vertical = 10.dp),
+                        .padding(horizontal = 8.dp, vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(mode, color = if (isSelected) Color.White else colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
@@ -263,6 +263,7 @@ fun OverallPredictorScreen() {
         }
 
         if (cutoffDate != null) {
+            Spacer(modifier = Modifier.height(4.dp))
             val examLabel = when (selectedMode) {
                 "CAT1" -> "CAT I"
                 "CAT2" -> "CAT II"
@@ -282,13 +283,14 @@ fun OverallPredictorScreen() {
             val dateVal = y * 10000 + m * 100 + d
             dateVal >= todayVal && (cutoffDate == null || dateVal <= cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day)
         }
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(12.dp))
                 .background(colors.accent.copy(alpha = 0.06f))
-                .border(1.dp, colors.accent.copy(alpha = 0.15f), RoundedCornerShape(10.dp))
-                .padding(12.dp),
+                .border(1.dp, colors.accent.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -307,30 +309,41 @@ fun OverallPredictorScreen() {
             }
         }
 
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(colors.surface)
+                .border(1.dp, colors.border, RoundedCornerShape(10.dp))
+                .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
-            Text(
-                "Tap a course to choose which dates to skip",
-                style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
-            )
-            TextButton(onClick = {
-                skipDates = emptyMap()
-                resetTrigger++
-            }) {
-                Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Reset", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Tap a course to choose which dates to skip",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+                )
+                TextButton(onClick = {
+                    skipDates = emptyMap()
+                    resetTrigger++
+                }) {
+                    Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Reset", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
+                }
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             predictions.forEach { pred ->
                 val isExpanded = expandedCourse == pred.course.courseCode
@@ -407,7 +420,7 @@ private fun ExpandedCoursePredictorCard(
                         style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp)
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Icon(
                     if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                     null,
@@ -417,14 +430,14 @@ private fun ExpandedCoursePredictorCard(
             }
 
             if (isExpanded && prediction.futureDates.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Text(
-                    "Future classes ΓÇö tap to mark skip",
+                    "Future classes — tap to mark skip",
                     style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 prediction.futureDates.forEach { fd ->
                     val isSkipped = fd.display in skipDates
                     Row(
@@ -433,7 +446,7 @@ private fun ExpandedCoursePredictorCard(
                             .clip(RoundedCornerShape(8.dp))
                             .clickable { onToggleSkipDate(fd.display) }
                             .background(if (isSkipped) Color(0xFFEF4444).copy(alpha = 0.08f) else Color.Transparent)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -761,7 +774,7 @@ fun TimetableGridScreen() {
 
         if (selectedDay == null) {
             // Overview: show all days summary
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(days) { day ->
                     val dayCourses = daySlotMap[day]?.values?.distinct() ?: emptyList()
                     val daySlots = dayTimeSlots[day] ?: emptyList()
@@ -790,7 +803,13 @@ fun TimetableGridScreen() {
                                         daySlots.firstOrNull { it.first == trimmed }?.second
                                     }
                                     val timeStr = if (times.isNotEmpty()) times.joinToString(", ") else slotRaw
-                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { AppState.openCourseDetail(course.courseCode) }
+                                            .padding(vertical = 4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         Box(
                                             modifier = Modifier
                                                 .size(6.dp)
@@ -815,7 +834,8 @@ fun TimetableGridScreen() {
             // Detailed day view: show each time slot
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 88.dp)
             ) {
                 item {
                     Box(
@@ -842,6 +862,7 @@ fun TimetableGridScreen() {
                             .clip(RoundedCornerShape(10.dp))
                             .background(if (hasClass) colors.accent.copy(alpha = 0.06f) else colors.surface)
                             .border(1.dp, if (hasClass) colors.accent.copy(alpha = 0.2f) else colors.border, RoundedCornerShape(10.dp))
+                            .clickable { if (hasClass) AppState.openCourseDetail(course!!.courseCode) }
                             .padding(10.dp)
                     ) {
                         Row(

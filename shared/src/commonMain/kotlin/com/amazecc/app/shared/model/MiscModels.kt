@@ -110,7 +110,8 @@ data class QcmTable(
 @Serializable
 data class QcmViewRes(
     val success: Boolean = true,
-    val data: List<QcmTable>? = null,
+    @Contextual
+    val data: JsonElement? = null,
     val message: String? = null,
     val error: String? = null
 )
@@ -300,7 +301,11 @@ data class ClubItem(
     @SerialName("club_id") val id: String? = null,
     @SerialName("club_name") val name: String? = null,
     @SerialName("description") val description: String? = null,
-    @SerialName("logo_url") val logoUrl: String? = null
+    @SerialName("logo_url") val logoUrl: String? = null,
+    val website: String? = null,
+    val instagram: String? = null,
+    val whatsapp: String? = null,
+    @SerialName("recruitment_link") val recruitmentLink: String? = null
 )
 
 @Serializable
@@ -310,6 +315,40 @@ data class ClubsRes(
     val error: String? = null,
     val message: String? = null
 )
+
+@Serializable
+data class FeedLink(val title: String = "", val url: String = "")
+
+@Serializable
+data class FeedPost(
+    val id: String = "",
+    @SerialName("club_id") val clubId: String = "",
+    @SerialName("created_at") val createdAt: String = "",
+    val content: String = "",
+    @SerialName("image_urls") val imageUrls: List<String> = emptyList(),
+    @SerialName("event_id") val eventId: String? = null,
+    val links: List<FeedLink>? = null,
+    @SerialName("has_promoted") val hasPromoted: Boolean = false,
+    @SerialName("promote_count") val promoteCount: Int = 0
+)
+
+@Serializable
+data class FeedRes(
+    val success: Boolean = true,
+    val feed: List<FeedPost> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class PromoteRes(
+    val success: Boolean = true,
+    val promoted: Boolean = false,
+    val error: String? = null
+)
+
+@Serializable
+data class QBankSubmitRes(val success: Boolean, val message: String? = null)
 
 @Serializable
 data class QBankCourse(val courseCode: String, val courseTitle: String)

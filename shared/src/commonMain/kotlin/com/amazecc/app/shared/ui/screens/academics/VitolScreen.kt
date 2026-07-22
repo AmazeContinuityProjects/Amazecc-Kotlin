@@ -17,6 +17,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
@@ -39,14 +40,16 @@ fun VitolScreen() {
             title = "VITOL Wallet",
             description = "Digital wallet balance and usage",
             showBackButton = true,
-            showSyncButton = true
+            showSyncButton = true,
+            syncModules = setOf(SyncModule.VITOL)
         )
 
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 88.dp)
         ) {
             // Balance card
             item {

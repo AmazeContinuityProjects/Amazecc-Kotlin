@@ -298,7 +298,7 @@ fun DailyPlannerScreen() {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(start = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 32.dp)
+                contentPadding = PaddingValues(bottom = 88.dp)
             ) {
                 items(scheduleData) { item ->
                     TimelineRow(item)
@@ -330,6 +330,7 @@ fun TimelineRow(item: TimelineEvent) {
                     RoundedCornerShape(16.dp)
                 )
                 .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+                .clickable { if (item.type == "class") item.course?.courseCode?.let { AppState.openCourseDetail(it) } }
                 .padding(16.dp)
         ) {
             when (item.type) {

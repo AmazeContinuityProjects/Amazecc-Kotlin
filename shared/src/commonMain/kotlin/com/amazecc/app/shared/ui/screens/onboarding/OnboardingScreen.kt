@@ -40,8 +40,9 @@ fun OnboardingScreen() {
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(start = 24.dp, end = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        contentPadding = PaddingValues(bottom = 88.dp)
     ) {
         item {
             Spacer(modifier = Modifier.height(40.dp))

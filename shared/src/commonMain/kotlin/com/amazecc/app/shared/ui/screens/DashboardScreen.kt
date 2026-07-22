@@ -34,6 +34,7 @@ import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.CommandPalette
 import com.amazecc.app.shared.utils.AttendanceTimetable
@@ -103,6 +104,7 @@ fun DashboardScreen() {
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
+                .padding(bottom = 88.dp)
         ) {
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -158,7 +160,10 @@ fun DashboardScreen() {
                     )
                 }
                 IconButton(
-                    onClick = { AppState.loadAllData() },
+                    onClick = {
+                        SyncEngine.setShowSyncDialog(true)
+                        AppState.loadAllData()
+                    },
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(14.dp))
@@ -204,10 +209,10 @@ fun DashboardScreen() {
             ) {
                 item { GlassMetricCard("CGPA", cgpa, Icons.Rounded.Star, colors) }
                 item { GlassMetricCard("Credits", credits, Icons.Rounded.Info, colors) }
-                item { GlassMetricCard("ODs", "0", Icons.Rounded.CheckCircle, colors) }
+                item { GlassMetricCard("ODs", "0", Icons.Rounded.CheckCircle, colors, onClick = { AppState.navigateTo(Screen.OD_TRACKER) }) }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             val animatedAttendance by animateFloatAsState(
                 targetValue = overallAttendance / 100f,
@@ -362,7 +367,7 @@ fun DashboardScreen() {
                         .clip(RoundedCornerShape(20.dp))
                         .background(colors.surface)
                         .border(1.dp, colors.border, RoundedCornerShape(20.dp))
-                        .padding(32.dp),
+                        .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -392,6 +397,7 @@ fun DashboardScreen() {
                                     color = if (isCurrent) colors.accent.copy(alpha = 0.4f) else colors.border,
                                     shape = RoundedCornerShape(16.dp)
                                 )
+                                .clickable { cls.courseCode?.let { AppState.openCourseDetail(it) } }
                                 .padding(14.dp)
                         ) {
                             Column {
@@ -623,7 +629,7 @@ fun DashboardScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             // ── Free Classrooms Widget ──
             Box(
@@ -687,12 +693,13 @@ private fun getGreeting(): String {
 }
 
 @Composable
-private fun GlassMetricCard(title: String, value: String, icon: ImageVector, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun GlassMetricCard(title: String, value: String, icon: ImageVector, colors: com.amazecc.app.shared.theme.AmazeColors, onClick: (() -> Unit)? = null) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(20.dp))
             .background(colors.surface)
             .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 18.dp, vertical = 16.dp)
     ) {
         Column {
@@ -743,7 +750,7 @@ private fun CourseGlassCard(
                 if (isCritical) colors.danger.copy(alpha = 0.2f) else colors.glassBorder,
                 RoundedCornerShape(16.dp)
             )
-            .clickable { AppState.openCourseAttendance(course.courseCode) }
+            .clickable { AppState.openCourseDetail(course.courseCode) }
             .padding(16.dp)
     ) {
         Row(

@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.model.CourseItem
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 
@@ -121,7 +122,10 @@ fun TimetableDialog(
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(dayCourses) { course ->
                             val time = SlotMap.map[selectedDay]?.get(course.slotName) ?: "—"
-                            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                            AmazeCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = { AppState.openCourseDetail(course.courseCode) }
+                            ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.15f)),

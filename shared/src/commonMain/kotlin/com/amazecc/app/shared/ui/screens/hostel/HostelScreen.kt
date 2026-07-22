@@ -82,6 +82,7 @@ fun HostelScreen() {
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
                     .verticalScroll(rememberScrollState())
+                    .padding(bottom = 88.dp)
             ) {
                 when (activeSubTab) {
                     "Details" -> HostelDetailsTab(hostelDetails, hostelLeaves?.leaves ?: emptyList())

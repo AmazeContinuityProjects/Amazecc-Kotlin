@@ -77,7 +77,7 @@ fun FfcsPlannerScreen() {
                         Text("No target courses added yet.", color = colors.textMuted)
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                         items(locks) { lock ->
                             ConstraintCard(lock)
                         }
@@ -107,7 +107,7 @@ fun FfcsPlannerScreen() {
                         Text(error ?: "No results found.", color = colors.danger)
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                         items(generated) { tt ->
                             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                                 Column {

@@ -11,13 +11,10 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -28,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -36,17 +34,16 @@ import com.amazecc.app.shared.ui.components.*
 @Composable
 fun MoreScreen() {
     val colors = AmazeTheme.colors
-    var showPushPrompt by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background).padding(horizontal = 16.dp)) {
         ScreenHeader(
             title = "More",
-            description = "Modules, Communities and Settings",
+            description = "Modules, Communities & Info",
             showBackButton = false,
             showSyncButton = false
         )
 
-        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 88.dp)) {
 
             Text("App Library", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Spacer(modifier = Modifier.height(12.dp))
@@ -94,19 +91,9 @@ fun MoreScreen() {
 
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ActionCard(title = "Course Management", description = "Option changes, EXC, minors & completion", icon = Icons.Rounded.School, onClick = { AppState.navigateTo(Screen.COURSE_MANAGEMENT) })
-                    Spacer(Modifier.height(4.dp))
                     ActionCard(title = "Faculty Info", description = "Faculty directory by school", icon = Icons.Rounded.People, onClick = { AppState.navigateTo(Screen.FACULTY_INFO) })
                     Spacer(Modifier.height(4.dp))
-                    ActionCard(title = "Projects", description = "Academic projects and guides", icon = Icons.Rounded.WorkspacePremium, onClick = { AppState.navigateTo(Screen.PROJECTS) })
-                    Spacer(Modifier.height(4.dp))
-                    ActionCard(title = "Wishlist", description = "Course wishlist", icon = Icons.Rounded.Favorite, onClick = { AppState.navigateTo(Screen.WISHLIST) })
-                    Spacer(Modifier.height(4.dp))
                     ActionCard(title = "Feedback", description = "Course feedback status", icon = Icons.Rounded.RateReview, onClick = { AppState.navigateTo(Screen.FEEDBACK_STATUS) })
-                    Spacer(Modifier.height(4.dp))
-                    ActionCard(title = "Documents", description = "Bonafide, transcripts & additional learning", icon = Icons.Rounded.Description, onClick = { AppState.navigateTo(Screen.DOCUMENTS) })
-                    Spacer(Modifier.height(4.dp))
-                    ActionCard(title = "Activity Tree", description = "Your engagement heatmap", icon = Icons.Rounded.GridView, onClick = { AppState.navigateTo(Screen.ACTIVITY_TREE) })
                 }
             }
 
@@ -114,7 +101,7 @@ fun MoreScreen() {
             Text("Communities", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Spacer(modifier = Modifier.height(12.dp))
 
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            AmazeCard(modifier = Modifier.fillMaxWidth().clickable { AppState.openClubHub("Directory") }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Icon(Icons.Rounded.Groups, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(16.dp))
@@ -125,7 +112,7 @@ fun MoreScreen() {
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            AmazeCard(modifier = Modifier.fillMaxWidth().clickable { AppState.openClubHub("Feed") }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Icon(Icons.Rounded.Explore, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(16.dp))
@@ -137,77 +124,51 @@ fun MoreScreen() {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
+            Text("Notifications", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    var classNotif by remember { mutableStateOf(SettingsManager.isNotifClassRemindersEnabled()) }
+                    ToggleRow(
+                        title = "Class Reminders",
+                        subtitle = "Notify before each class starts",
+                        checked = classNotif,
+                        onCheckedChange = { classNotif = it; SettingsManager.setNotifClassRemindersEnabled(it) }
+                    )
+                    var assignNotif by remember { mutableStateOf(SettingsManager.isNotifAssignmentRemindersEnabled()) }
+                    ToggleRow(
+                        title = "Assignment Reminders",
+                        subtitle = "Remind before assignment deadlines",
+                        checked = assignNotif,
+                        onCheckedChange = { assignNotif = it; SettingsManager.setNotifAssignmentRemindersEnabled(it) }
+                    )
+                    var vitolNotif by remember { mutableStateOf(SettingsManager.isNotifVitolRemindersEnabled()) }
+                    ToggleRow(
+                        title = "VITOL Limit Alerts",
+                        subtitle = "Warn when VITOL usage is near the limit",
+                        checked = vitolNotif,
+                        onCheckedChange = { vitolNotif = it; SettingsManager.setNotifVitolRemindersEnabled(it) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
             Text("Settings & Info", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Spacer(modifier = Modifier.height(12.dp))
 
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column {
-                    val currentScale by AppState.uiScale.collectAsState()
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
-                    ) {
-                        Icon(Icons.Rounded.ZoomOut, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
-                        Slider(
-                            value = currentScale,
-                            onValueChange = { AppState.changeUiScale(it) },
-                            valueRange = 0.7f..1.5f,
-                            steps = 7,
-                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                            colors = SliderDefaults.colors(
-                                thumbColor = colors.accent,
-                                activeTrackColor = colors.accent
-                            )
-                        )
-                        Icon(Icons.Rounded.ZoomIn, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            "Zoom: ",
-                            style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
-                        )
-                        OutlinedTextField(
-                            value = "${(currentScale * 100).toInt()}",
-                            onValueChange = { text ->
-                                val pct = text.filter { it.isDigit() }.take(3).toIntOrNull()
-                                if (pct != null) {
-                                    val scale = pct.coerceIn(70, 150) / 100f
-                                    AppState.changeUiScale(scale)
-                                }
-                            },
-                            modifier = Modifier.width(72.dp).height(48.dp),
-                            singleLine = true,
-                            textStyle = AmazeTheme.typography.body.copy(textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = colors.accent,
-                                unfocusedBorderColor = colors.border,
-                                cursorColor = colors.accent
-                            ),
-                            suffix = { Text("%", style = AmazeTheme.typography.caption.copy(color = colors.textMuted)) }
-                        )
-                    }
                     ClickableRow(title = "App Settings", icon = Icons.Rounded.Settings, onClick = { AppState.navigateTo(Screen.SETTINGS) })
                     ClickableRow(title = "Activity Tree", icon = Icons.Rounded.GridView, onClick = { AppState.navigateTo(Screen.ACTIVITY_TREE) })
                     ClickableRow(title = "About AmazeCC", icon = Icons.Rounded.Info, onClick = { AppState.navigateTo(Screen.ABOUT) })
                     ClickableRow(title = "Fresher's Welcome", icon = Icons.Rounded.Star, onClick = { AppState.navigateTo(Screen.FRESHER_WELCOME) })
-                    ClickableRow(title = "Enable Push Notifications", icon = Icons.Rounded.Notifications, onClick = { showPushPrompt = true })
                     Spacer(modifier = Modifier.height(12.dp))
                     AmazeButton("Log Out", onClick = { AppState.logout() }, variant = ButtonVariant.SECONDARY, modifier = Modifier.fillMaxWidth())
                 }
             }
             Spacer(modifier = Modifier.height(30.dp))
         }
-    }
-
-    if (showPushPrompt) {
-        PushPromptModal(
-            onEnable = { showPushPrompt = false },
-            onDismiss = { showPushPrompt = false }
-        )
     }
 }
 
@@ -233,6 +194,25 @@ fun ModuleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
             text = label,
             style = AmazeTheme.typography.smallLabel.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold),
             textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+fun ToggleRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val colors = AmazeTheme.colors
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+            Text(subtitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedTrackColor = colors.accent)
         )
     }
 }

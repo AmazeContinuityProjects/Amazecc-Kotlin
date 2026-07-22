@@ -94,7 +94,7 @@ fun QBankScreen() {
             }
         } else if (selectedCourse == null) {
             Text("Select a course", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.padding(16.dp))
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(courses) { course ->
                     AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { loadQuestions(course) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -113,7 +113,7 @@ fun QBankScreen() {
                 item { Spacer(Modifier.height(16.dp)) }
             }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 if (questions.isEmpty()) {
                     item {
                         AmazeCard(modifier = Modifier.fillMaxWidth()) {

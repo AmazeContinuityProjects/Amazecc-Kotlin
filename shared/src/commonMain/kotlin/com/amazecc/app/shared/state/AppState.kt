@@ -5,8 +5,10 @@ import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AppTheme
+import com.amazecc.app.shared.utils.SlotInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitAll
@@ -20,6 +22,8 @@ import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 
 enum class Screen { SPLASH, 
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
@@ -27,7 +31,7 @@ enum class Screen { SPLASH,
     COURSE_ATTENDANCE, ARREAR, MAKEUP_COMPRE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
     MARKS_TIMELINE, VITOL, FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
     FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, ACTIVITY_TREE, CLUB_DETAIL,
-    COURSE_DETAIL, SETTINGS, MOODLE
+    COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB
 }
 
 object AppState {
@@ -43,6 +47,7 @@ object AppState {
     val headerShowBack = MutableStateFlow(true)
     val headerShowSync = MutableStateFlow(true)
     val headerOnRefresh = MutableStateFlow<(() -> Unit)?>(null)
+    val headerSyncModules = MutableStateFlow<Set<SyncModule>>(emptySet())
     
     private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
@@ -115,7 +120,7 @@ object AppState {
     private val _selectedSemester = MutableStateFlow("CH20262701")
     val selectedSemester: StateFlow<String> = _selectedSemester.asStateFlow()
 
-    // Loading & Error states
+    // Loading & Error states (driven by SyncEngine for backward compat)
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -145,8 +150,6 @@ object AppState {
     val moodleData: StateFlow<MoodleRes?> = _moodleData
 
     init {
-        // Load cached data from local storage
-        loadCachedData()
         // Load persisted settings
         _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
         _attendanceDisplayMode.value = SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage")
@@ -163,6 +166,31 @@ object AppState {
             if (tabs.isNotEmpty()) {
                 _pinnedNavTabs.value = tabs.take(4)
             }
+        }
+    }
+
+    /**
+     * Load cached data from local storage.
+     * Must be called from an [androidx.compose.runtime.LaunchedEffect] in App() — NOT from init,
+     * because many referenced StateFlow properties are declared after the init block.
+     */
+    fun loadFromCache() {
+        loadCachedData()
+    }
+
+    /**
+     * Wire SyncEngine module states into backward-compatible [isLoading], [error], [syncStatus] flows.
+     * Must be called from a [androidx.compose.runtime.LaunchedEffect] in App() — NOT from init.
+     */
+    suspend fun observeSyncEngine() {
+        SyncEngine.moduleStates.collect { states ->
+            _isLoading.value = states.any { (_, s) -> s.status == SyncStatus.LOADING }
+            val errors = states.filter { (_, s) -> s.status == SyncStatus.ERROR && s.error != null }
+            _error.value = errors.entries.joinToString("\n") { "${it.key.displayName}: ${it.value.error}" }.ifEmpty { null }
+            val active = states.filter { (_, s) -> s.status == SyncStatus.LOADING }
+            _syncStatus.value = if (active.isNotEmpty()) {
+                "Syncing: ${active.keys.joinToString(", ") { it.displayName }}"
+            } else null
         }
     }
 
@@ -190,6 +218,7 @@ object AppState {
         loadCachedData<ExamScheduleRes>(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule)
         loadCachedData<CalendarRes>(SettingsManager.CACHE_CALENDAR, _calendar)
         loadCachedData<CalendarsListRes>(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList)
+        loadCachedData<QcmViewRes>(SettingsManager.CACHE_QCM_VIEW, _qcmView)
         loadCachedData<CurriculumRes>(SettingsManager.CACHE_CURRICULUM, _curriculum)
         loadCachedData<PaymentsRes>(SettingsManager.CACHE_PAYMENTS, _payments)
         loadCachedData<LibraryRes>(SettingsManager.CACHE_LIBRARY, _library)
@@ -218,16 +247,76 @@ object AppState {
                 _moodleData.value = jsonFormat.decodeFromString<MoodleRes>(cachedMoodle)
             } catch (e: Exception) { /* ignore */ }
         }
+        // Sync cached modules state to SyncEngine
+        updateModuleStatesFromCache()
     }
 
-    private inline fun <reified T> cacheData(key: String, value: T?) {
-        if (value != null) {
-            try {
-                settings[key] = jsonFormat.encodeToString(value)
-            } catch (e: Exception) { /* ignore serialization error */ }
-        } else {
-            settings.remove(key)
-        }
+    private inline fun <reified T> cacheData(key: String, value: T) {
+        try {
+            settings[key] = jsonFormat.encodeToString(value)
+        } catch (_: Exception) { /* ignore serialization error */ }
+    }
+
+    private fun removeCache(key: String) {
+        settings.remove(key)
+    }
+
+    // ── Save Offline: persists all currently-loaded in-memory data to cache ──
+    fun saveOffline() {
+        SyncEngine.resetLogs()
+        var saved = 0
+        if (_attendance.value != null) { cacheData(SettingsManager.CACHE_ATTENDANCE, _attendance.value); saved++ }
+        if (_timetable.value != null) { cacheData(SettingsManager.CACHE_TIMETABLE, _timetable.value); saved++ }
+        if (_marks.value != null) { cacheData(SettingsManager.CACHE_MARKS, _marks.value); saved++ }
+        if (_allGrades.value != null) { cacheData(SettingsManager.CACHE_GRADES, _allGrades.value); saved++ }
+        if (_curriculum.value != null) { cacheData(SettingsManager.CACHE_CURRICULUM, _curriculum.value); saved++ }
+        if (_hostelDetails.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails.value); saved++ }
+        if (_hostelLeaves.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_LEAVES, _hostelLeaves.value); saved++ }
+        if (_examSchedule.value != null) { cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule.value); saved++ }
+        if (_calendar.value != null) { cacheData(SettingsManager.CACHE_CALENDAR, _calendar.value); saved++ }
+        if (_calendarsList.value != null) { cacheData(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList.value); saved++ }
+        if (_qcmView.value != null) { cacheData(SettingsManager.CACHE_QCM_VIEW, _qcmView.value); saved++ }
+        if (_payments.value != null) { cacheData(SettingsManager.CACHE_PAYMENTS, _payments.value); saved++ }
+        if (_library.value != null) { cacheData(SettingsManager.CACHE_LIBRARY, _library.value); saved++ }
+        if (_libraryLoginRequired.value) { /* skip — no data to cache */ }
+        if (_transportData.value != null) { cacheData(SettingsManager.CACHE_TRANSPORT_DATA, _transportData.value); saved++ }
+        if (_buses.value != null) { cacheData(SettingsManager.CACHE_BUSES, _buses.value); saved++ }
+        if (_lms.value != null) { cacheData(SettingsManager.CACHE_LMS, _lms.value); saved++ }
+        if (_events.value != null) { cacheData(SettingsManager.CACHE_EVENTS, _events.value); saved++ }
+        if (_clubs.value != null) { cacheData(SettingsManager.CACHE_CLUBS, _clubs.value); saved++ }
+        if (_cachedStudentProfile.value != null) { cacheData(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile.value); saved++ }
+        if (_vitolData.value != null) { cacheData(SettingsManager.CACHE_VITOL, _vitolData.value); saved++ }
+        if (_cabTrips.value != null) { cacheData(SettingsManager.CACHE_CAB_TRIPS, _cabTrips.value); saved++ }
+        if (_allSemesterAttendance.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value); saved++ }
+        if (_allSemesterMarks.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value); saved++ }
+        SyncEngine.addLog(SyncModule.ATTENDANCE, "Saved $saved modules offline", SyncStatus.SUCCESS)
+    }
+
+    // ── Mark cached modules as SUCCESS in SyncEngine ──
+    private fun updateModuleStatesFromCache() {
+        if (_attendance.value != null) SyncEngine.updateModuleState(SyncModule.ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_timetable.value != null) SyncEngine.updateModuleState(SyncModule.TIMETABLE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_marks.value != null) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_allGrades.value != null) SyncEngine.updateModuleState(SyncModule.GRADES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_curriculum.value != null) SyncEngine.updateModuleState(SyncModule.CURRICULUM, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_hostelDetails.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_DETAILS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_hostelLeaves.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_LEAVES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_examSchedule.value != null) SyncEngine.updateModuleState(SyncModule.EXAM_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_calendar.value != null) SyncEngine.updateModuleState(SyncModule.CALENDAR, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_calendarsList.value != null) SyncEngine.updateModuleState(SyncModule.CALENDARS_LIST, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_qcmView.value != null) SyncEngine.updateModuleState(SyncModule.QCM_VIEW, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_payments.value != null) SyncEngine.updateModuleState(SyncModule.PAYMENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_library.value != null) SyncEngine.updateModuleState(SyncModule.LIBRARY, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_transportData.value != null) SyncEngine.updateModuleState(SyncModule.TRANSPORT, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_buses.value != null) SyncEngine.updateModuleState(SyncModule.BUSES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_lms.value != null) SyncEngine.updateModuleState(SyncModule.LMS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_events.value != null) SyncEngine.updateModuleState(SyncModule.EVENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_clubs.value != null) SyncEngine.updateModuleState(SyncModule.CLUBS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_cachedStudentProfile.value != null) SyncEngine.updateModuleState(SyncModule.STUDENT_PROFILE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_vitolData.value != null) SyncEngine.updateModuleState(SyncModule.VITOL, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_cabTrips.value != null) SyncEngine.updateModuleState(SyncModule.CAB_TRIPS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_allSemesterAttendance.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_allSemesterMarks.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now())) // tracked alongside attendance
     }
 
     fun restoreSession(): Boolean {
@@ -260,6 +349,9 @@ object AppState {
 
     private val _calendarsList = MutableStateFlow<CalendarsListRes?>(null)
     val calendarsList: StateFlow<CalendarsListRes?> = _calendarsList.asStateFlow()
+
+    private val _qcmView = MutableStateFlow<QcmViewRes?>(null)
+    val qcmView: StateFlow<QcmViewRes?> = _qcmView.asStateFlow()
 
     private val _curriculum = MutableStateFlow<CurriculumRes?>(null)
     val curriculum: StateFlow<CurriculumRes?> = _curriculum.asStateFlow()
@@ -315,6 +407,14 @@ object AppState {
     fun openClubDetail(clubId: String) {
         _selectedClubId.value = clubId
         navigateTo(Screen.CLUB_DETAIL)
+    }
+
+    private val _clubHubInitialTab = MutableStateFlow("Directory")
+    val clubHubInitialTab: StateFlow<String> = _clubHubInitialTab.asStateFlow()
+
+    fun openClubHub(initialTab: String = "Directory") {
+        _clubHubInitialTab.value = initialTab
+        navigateTo(Screen.CLUB_HUB)
     }
 
     // Cab Share state
@@ -410,8 +510,11 @@ object AppState {
         if (_isLoading.value) return
         scope.launch {
             _isLoading.value = true
+            _isSyncing.value = true
             _error.value = null
+            _syncMessage.value = "Refreshing VTOP session..."
             _syncStatus.value = "Refreshing VTOP session..."
+            notificationService.showLoadingNotification("AmazeCC Sync", "Refreshing VTOP session...")
             try {
                 // ── Refresh VTOP session before syncing (cookies expire every 10 min) ──
                 val creds = SettingsManager.getCredentials()
@@ -433,6 +536,7 @@ object AppState {
                     } catch (_: Exception) { /* proceed with existing session if refresh fails */ }
                 }
 
+                _syncMessage.value = "Syncing academic and campus data..."
                 _syncStatus.value = "Syncing academic and campus data..."
                 val sem = _selectedSemester.value
 
@@ -568,6 +672,18 @@ object AppState {
                         },
                         async {
                             syncModule(
+                                name = "Calendars list",
+                                fetch = { AmazeClient.getCalendars(semesterId = sem) },
+                                isSuccess = { it.success },
+                                errorMessage = { it.message },
+                                update = {
+                                    _calendarsList.value = it
+                                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
                                 name = "Payments",
                                 fetch = { AmazeClient.getPayments() },
                                 isSuccess = { it.error == null },
@@ -656,6 +772,18 @@ object AppState {
                             )
                         },
                         async {
+                            syncModule(
+                                name = "QCM View",
+                                fetch = { AmazeClient.getQcmView() },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _qcmView.value = it
+                                    cacheData(SettingsManager.CACHE_QCM_VIEW, it)
+                                }
+                            )
+                        },
+                        async {
                             if (syncProfile.value) {
                                 syncModule(
                                     name = "Student Profile",
@@ -685,8 +813,39 @@ object AppState {
                 updateSyncSummary(results)
             } finally {
                 _isLoading.value = false
+                _isSyncing.value = false
+                _syncMessage.value = null
+                notificationService.showLoadingNotification("AmazeCC Sync", "Sync completed")
+                scheduleReminders()
             }
         }
+    }
+
+    private fun scheduleReminders() {
+        val attendanceItems = _attendance.value?.attendance
+        val assignments = _lms.value?.assignments
+        val vitolData = _vitolData.value?.data
+        val attMaps = attendanceItems?.map { item ->
+            mapOf(
+                "courseCode" to item.courseCode,
+                "courseTitle" to item.courseTitle,
+                "courseType" to item.courseType,
+                "faculty" to item.faculty,
+                "slotName" to (item.slotName ?: ""),
+                "attendancePercentage" to item.attendancePercentage,
+                "venue" to (item.slotVenue ?: "")
+            )
+        }
+        val typedSlotMap = SlotMap.map.mapValues { (_, inner) ->
+            inner.mapValues { (_, time) -> SlotInfo(time) }
+        }
+        com.amazecc.app.shared.utils.NotificationsUtils.scheduleAll(
+            attendance = attMaps,
+            slotMap = typedSlotMap,
+            assignments = assignments,
+            vitolLimit = vitolData?.limit,
+            vitolConsumed = vitolData?.consumed
+        )
     }
 
     // ── Targeted refreshes for specific screens ──
@@ -902,16 +1061,42 @@ object AppState {
         if (_isLoading.value) return
         scope.launch {
             _isLoading.value = true
-            _syncStatus.value = "Syncing calendars..."
+            _syncStatus.value = "Syncing calendars list..."
             try {
-                val res = AmazeClient.getCalendars(semesterId = _selectedSemester.value)
-                if (res.success) {
-                    _calendarsList.value = res
-                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, res)
-                }
-                _syncStatus.value = if (res.success) "Calendars synced" else "Calendar sync failed"
+                val sem = _selectedSemester.value
+                val res = syncModule(
+                    name = "Calendars list",
+                    fetch = { AmazeClient.getCalendars(semesterId = sem) },
+                    isSuccess = { it.success },
+                    errorMessage = { it.message },
+                    update = {
+                        _calendarsList.value = it
+                        cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                    }
+                )
+                updateSyncSummary(listOf(res))
             } catch (e: Exception) {
-                _syncStatus.value = "Calendar sync failed"
+                _syncStatus.value = "Calendars list sync failed"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    fun refreshQcmView() {
+        if (_isLoading.value) return
+        scope.launch {
+            _isLoading.value = true
+            _syncStatus.value = "Syncing QCM data..."
+            try {
+                val res = AmazeClient.getQcmView()
+                if (res.success) {
+                    _qcmView.value = res
+                    cacheData(SettingsManager.CACHE_QCM_VIEW, res)
+                }
+                _syncStatus.value = if (res.success) "QCM synced" else "QCM sync failed"
+            } catch (e: Exception) {
+                _syncStatus.value = "QCM sync failed"
             } finally {
                 _isLoading.value = false
             }

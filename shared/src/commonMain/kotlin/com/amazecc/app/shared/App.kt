@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -27,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.screens.*
 import com.amazecc.app.shared.ui.screens.libraries.LibrariesScreen
@@ -52,6 +54,15 @@ fun App() {
     val uiScale by AppState.uiScale.collectAsState()
     val clipboardManager = LocalClipboardManager.current
 
+    // Observe SyncEngine outside of AppState.init to avoid classloading deadlocks
+    LaunchedEffect(Unit) {
+        AppState.observeSyncEngine()
+    }
+    // Load cached data outside of AppState.init — many referenced flows are declared after the init block
+    LaunchedEffect(Unit) {
+        AppState.loadFromCache()
+    }
+
     AmazeTheme(
         appTheme = currentTheme,
         accentTheme = currentAccent
@@ -73,6 +84,15 @@ fun App() {
                 Box(modifier = Modifier.fillMaxSize()) {
                     // Sync Notification Overlay
                     com.amazecc.app.shared.ui.components.SyncNotification()
+                    // Sync Progress Popup (per-module detail + percentage)
+                    com.amazecc.app.shared.ui.components.SyncProgressPopup(
+                        onDismiss = { SyncEngine.setShowSyncDialog(false) },
+                        onSaveOffline = { AppState.saveOffline() },
+                        onSyncAll = {
+                            SyncEngine.resetAllStates()
+                            AppState.loadAllData()
+                        }
+                    )
 
                     // Crossfade screen transitions
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -125,6 +145,7 @@ fun App() {
                             Screen.DOCUMENTS -> DocumentsScreen()
                             Screen.ABOUT -> AboutScreen()
                             Screen.ACTIVITY_TREE -> ActivityTreeScreen()
+                            Screen.CLUB_HUB -> com.amazecc.app.shared.ui.screens.more.ClubHubScreen()
                             Screen.CLUB_DETAIL -> com.amazecc.app.shared.ui.screens.events.ClubDetailScreen()
                             Screen.MOODLE -> MoodleScreen()
                         }
@@ -139,12 +160,14 @@ fun App() {
                             val headerBack by AppState.headerShowBack.collectAsState()
                             val headerSync by AppState.headerShowSync.collectAsState()
                             val headerRefresh by AppState.headerOnRefresh.collectAsState()
+                            val headerModules by AppState.headerSyncModules.collectAsState()
                             com.amazecc.app.shared.ui.components.FloatingScreenHeader(
                                 title = headerTitle,
                                 description = headerDesc,
                                 showBackButton = headerBack,
                                 showSyncButton = headerSync,
                                 onRefresh = headerRefresh,
+                                syncModules = headerModules,
                                 modifier = Modifier.align(Alignment.TopCenter)
                             )
                         }

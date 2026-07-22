@@ -300,7 +300,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                     Text("No free classrooms found for this slot.", color = colors.textMuted)
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                     items(availableRooms) { (room, type) ->
                         AmazeCard {
                             Row(

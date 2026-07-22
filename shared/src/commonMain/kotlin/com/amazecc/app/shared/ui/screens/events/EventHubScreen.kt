@@ -9,14 +9,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material3.*
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,10 +77,8 @@ internal fun AuthKamelImage(
 private enum class AuthImageState { Loading, Success, Error }
 
 @Composable
-fun EventHubScreen(initialTab: String = "Events") {
+fun EventHubScreen() {
     val colors = AmazeTheme.colors
-    var activeSubTab by remember(initialTab) { mutableStateOf(initialTab) }
-    val tabs = listOf("Events", "Clubs")
 
     LaunchedEffect(Unit) {
         AppState.syncEventsAndClubs()
@@ -95,47 +90,17 @@ fun EventHubScreen(initialTab: String = "Events") {
             .background(colors.background)
     ) {
         ScreenHeader(
-            title = "Events & Clubs",
-            description = "Discover tech fests, clubs, and meetups",
+            title = "Events",
+            description = "Discover tech fests and meetups",
             showBackButton = false,
             showSyncButton = true,
             onRefresh = AppState::syncEventsAndClubs
         )
 
-        TabRow(
-            selectedTabIndex = tabs.indexOf(activeSubTab),
-            containerColor = colors.background,
-            contentColor = colors.accent,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[tabs.indexOf(activeSubTab)]),
-                    color = colors.accent
-                )
-            }
-        ) {
-            tabs.forEach { tab ->
-                Tab(
-                    selected = activeSubTab == tab,
-                    onClick = { activeSubTab = tab },
-                    text = {
-                        Text(
-                            tab,
-                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        )
-                    },
-                    selectedContentColor = colors.accent,
-                    unselectedContentColor = colors.textSecondary
-                )
-            }
-        }
-
         Box(
             modifier = Modifier.weight(1f).padding(16.dp)
         ) {
-            when (activeSubTab) {
-                "Events" -> EventsTab()
-                "Clubs" -> ClubsTab()
-            }
+            EventsTab()
         }
     }
 }
@@ -162,7 +127,8 @@ private fun EventsTab() {
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 88.dp)
         ) {
             if (events.isEmpty()) {
                 item {
@@ -520,7 +486,7 @@ private fun EventDetailSheet(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp),
+                .padding(bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Handle bar
@@ -730,162 +696,5 @@ private fun DetailRow(icon: ImageVector, label: String, value: String) {
     }
 }
 
-// ----------------------------------------------------------------------------------------------------
-//  Clubs Tab
-// ----------------------------------------------------------------------------------------------------
 
-@Composable
-private fun ClubsTab() {
-    val colors = AmazeTheme.colors
-    val clubsRes by AppState.clubs.collectAsState()
-    val clubs = clubsRes?.clubs ?: emptyList()
-    var enrolledClubs by remember { mutableStateOf(setOf<String>()) }
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            if (clubs.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Rounded.Groups, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text("No clubs available", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
-                            Text("Sync from the header to load data", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                        }
-                    }
-                }
-            } else {
-                item {
-                    val featured = clubs.firstOrNull()
-                    if (featured != null) {
-                        FeaturedClubCard(
-                            club = featured,
-                            isEnrolled = featured.id in enrolledClubs,
-                            onClick = { AppState.openClubDetail(featured.id ?: "") }
-                        )
-                    }
-                }
-                items(clubs.drop(1)) { club ->
-                    val isEnrolled = club.id in enrolledClubs
-                    ClubCard(
-                        club = club,
-                        isEnrolled = isEnrolled,
-                        onClick = { AppState.openClubDetail(club.id ?: "") }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FeaturedClubCard(club: ClubItem, isEnrolled: Boolean, onClick: () -> Unit) {
-    val colors = AmazeTheme.colors
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(colors.accent.copy(alpha = 0.1f))
-            .border(1.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
-            .padding(20.dp)
-    ) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Featured Club", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(colors.accent.copy(alpha=0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!club.logoUrl.isNullOrEmpty()) {
-                        KamelImage(
-                            resource = asyncPainterResource(data = club.logoUrl),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize().clip(CircleShape),
-                            onFailure = {
-                                Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                            }
-                        )
-                    } else {
-                        Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                club.name ?: "Unnamed Club",
-                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 18.sp)
-            )
-            if (!club.description.isNullOrEmpty()) {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(club.description, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 13.sp), maxLines = 2)
-            }
-        }
-    }
-}
-
-@Composable
-private fun ClubCard(club: ClubItem, isEnrolled: Boolean, onClick: () -> Unit) {
-    val colors = AmazeTheme.colors
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(16.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(colors.accent.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (!club.logoUrl.isNullOrEmpty()) {
-                    KamelImage(
-                        resource = asyncPainterResource(data = club.logoUrl),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize().clip(CircleShape),
-                        onFailure = {
-                            Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.subheading.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                        }
-                    )
-                } else {
-                    Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.subheading.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                }
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(club.name ?: "Unnamed Club", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1)
-                if (!club.description.isNullOrEmpty()) {
-                    Text(club.description, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1)
-                }
-            }
-            if (isEnrolled) {
-                Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
-            } else {
-                Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-            }
-        }
-    }
-}
 

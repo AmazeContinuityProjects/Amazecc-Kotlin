@@ -1,6 +1,6 @@
-import qrcode.QRCode
+import com.amazecc.app.shared.utils.QRCodeGenerator
 
 fun main() {
-    val qr = QRCode("Test").encode()
+    val qr = QRCodeGenerator.generate("Test")
     println(qr)
 }
