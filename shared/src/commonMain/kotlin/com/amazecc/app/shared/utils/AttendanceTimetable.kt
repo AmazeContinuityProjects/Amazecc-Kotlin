@@ -4,6 +4,26 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.DayOfWeek
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+
+/**
+ * Parse attendance [viewLink] data which may arrive as:
+ * - a [JsonArray] of {date, status} objects
+ * - a [JsonObject] mapping date → status
+ * - a JSON string (escaped) that needs an extra parse pass
+ */
+fun parseViewLink(viewLink: JsonElement?): JsonElement? {
+    if (viewLink is JsonPrimitive && viewLink.isString) {
+        return try {
+            Json.parseToJsonElement(viewLink.content)
+        } catch (_: Exception) { viewLink }
+    }
+    return viewLink
+}
 
 enum class AttendanceDay {
     MON, TUE, WED, THU, FRI, SAT, SUN

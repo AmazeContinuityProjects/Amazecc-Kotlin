@@ -47,6 +47,7 @@ import com.amazecc.app.shared.ui.components.AmazeBadge
 import com.amazecc.app.shared.ui.components.BadgeVariant
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.utils.parseViewLink
 import com.amazecc.app.shared.utils.rememberFileSaver
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -775,7 +776,7 @@ private fun AttendanceTab(
 
         val historyList = remember(activeAtt) {
             try {
-                val raw = activeAtt.viewLinkRaw
+                val raw = parseViewLink(activeAtt.viewLinkRaw)
                 val list = mutableListOf<Pair<String, String>>()
                 if (raw is JsonArray) {
                     raw.forEach { elem ->

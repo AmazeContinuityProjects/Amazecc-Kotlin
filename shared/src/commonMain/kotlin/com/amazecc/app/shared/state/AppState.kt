@@ -9,6 +9,8 @@ import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.utils.SlotInfo
+import com.amazecc.app.shared.utils.requestNotificationPermissions
+import com.amazecc.app.shared.utils.testLocalNotification
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitAll
@@ -846,6 +848,19 @@ object AppState {
             vitolLimit = vitolData?.limit,
             vitolConsumed = vitolData?.consumed
         )
+    }
+
+    suspend fun sendTestNotification(): String {
+        return if (requestNotificationPermissions()) {
+            testLocalNotification()
+            "Test notification sent! Check your phone in 5 seconds."
+        } else {
+            "Notification permission not granted. Enable a toggle above first."
+        }
+    }
+
+    fun rescheduleNotifications() {
+        scope.launch { scheduleReminders() }
     }
 
     // ── Targeted refreshes for specific screens ──

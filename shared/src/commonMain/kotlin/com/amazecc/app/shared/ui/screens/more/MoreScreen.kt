@@ -11,6 +11,9 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -18,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,17 +29,45 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.components.LocalNotificationPermissionManager
+import com.amazecc.app.shared.ui.components.PushPromptModal
 
 @Composable
 fun MoreScreen() {
     val colors = AmazeTheme.colors
+    val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val notifPermissionManager = LocalNotificationPermissionManager.current
+    val pendingToggleAction = remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
+    var showPushPrompt by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background).padding(horizontal = 16.dp)) {
+    if (showPushPrompt) {
+        PushPromptModal(
+            onEnable = {
+                showPushPrompt = false
+                notifPermissionManager?.requestPermission()
+                pendingToggleAction.value?.let { action -> action(true) }
+                pendingToggleAction.value = null
+                AppState.rescheduleNotifications()
+            },
+            onDismiss = {
+                showPushPrompt = false
+                pendingToggleAction.value = null
+            }
+        )
+    }
+
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = colors.background
+    ) { paddingValues ->
+    Column(modifier = Modifier.fillMaxSize().background(colors.background).padding(paddingValues).padding(horizontal = 16.dp)) {
         ScreenHeader(
             title = "More",
             description = "Modules, Communities & Info",
@@ -134,23 +166,117 @@ fun MoreScreen() {
                         title = "Class Reminders",
                         subtitle = "Notify before each class starts",
                         checked = classNotif,
-                        onCheckedChange = { classNotif = it; SettingsManager.setNotifClassRemindersEnabled(it) }
+                        onCheckedChange = { enabled ->
+                            if (enabled && !classNotif && notifPermissionManager != null) {
+                                pendingToggleAction.value = { _ -> classNotif = true; SettingsManager.setNotifClassRemindersEnabled(true) }
+                                showPushPrompt = true
+                            } else {
+                                classNotif = enabled; SettingsManager.setNotifClassRemindersEnabled(enabled)
+                                if (!enabled) AppState.rescheduleNotifications()
+                            }
+                        }
                     )
                     var assignNotif by remember { mutableStateOf(SettingsManager.isNotifAssignmentRemindersEnabled()) }
                     ToggleRow(
                         title = "Assignment Reminders",
                         subtitle = "Remind before assignment deadlines",
                         checked = assignNotif,
-                        onCheckedChange = { assignNotif = it; SettingsManager.setNotifAssignmentRemindersEnabled(it) }
+                        onCheckedChange = { enabled ->
+                            if (enabled && !assignNotif && notifPermissionManager != null) {
+                                pendingToggleAction.value = { _ -> assignNotif = true; SettingsManager.setNotifAssignmentRemindersEnabled(true) }
+                                showPushPrompt = true
+                            } else {
+                                assignNotif = enabled; SettingsManager.setNotifAssignmentRemindersEnabled(enabled)
+                                if (!enabled) AppState.rescheduleNotifications()
+                            }
+                        }
                     )
                     var vitolNotif by remember { mutableStateOf(SettingsManager.isNotifVitolRemindersEnabled()) }
                     ToggleRow(
                         title = "VITOL Limit Alerts",
                         subtitle = "Warn when VITOL usage is near the limit",
                         checked = vitolNotif,
-                        onCheckedChange = { vitolNotif = it; SettingsManager.setNotifVitolRemindersEnabled(it) }
+                        onCheckedChange = { enabled ->
+                            if (enabled && !vitolNotif && notifPermissionManager != null) {
+                                pendingToggleAction.value = { _ -> vitolNotif = true; SettingsManager.setNotifVitolRemindersEnabled(true) }
+                                showPushPrompt = true
+                            } else {
+                                vitolNotif = enabled; SettingsManager.setNotifVitolRemindersEnabled(enabled)
+                                if (!enabled) AppState.rescheduleNotifications()
+                            }
+                        }
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    var offsetMinutes by remember { mutableStateOf(SettingsManager.getNotifOffsetMinutes()) }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Remind Before Class", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                            Text("How many minutes early", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.surface)
+                                .clickable { /* open picker */ }
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = "$offsetMinutes min",
+                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent)
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val presets = listOf(5, 10, 15, 30, 60)
+                        presets.forEach { preset ->
+                            val selected = offsetMinutes == preset
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (selected) colors.accent else colors.surface)
+                                    .clickable {
+                                        offsetMinutes = preset
+                                        SettingsManager.setNotifOffsetMinutes(preset)
+                                        AppState.rescheduleNotifications()
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "${preset}m",
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        color = if (selected) colors.background else colors.textPrimary,
+                                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                ClickableRow(
+                    title = "Test Notification",
+                    icon = Icons.Rounded.Notifications,
+                    onClick = {
+                        scope.launch {
+                            val msg = AppState.sendTestNotification()
+                            snackbarHostState.showSnackbar(msg)
+                        }
+                    }
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -169,6 +295,7 @@ fun MoreScreen() {
             }
             Spacer(modifier = Modifier.height(30.dp))
         }
+    }
     }
 }
 

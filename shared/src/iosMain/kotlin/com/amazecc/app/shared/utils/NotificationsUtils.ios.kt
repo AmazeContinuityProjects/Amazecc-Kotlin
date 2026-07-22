@@ -39,6 +39,17 @@ actual suspend fun clearPendingNotifications() {
     UNUserNotificationCenter.currentNotificationCenter().removeAllPendingNotificationRequests()
 }
 
+actual suspend fun testLocalNotification() {
+    createNotificationChannels()
+    val triggerTimeMs = kotlinx.datetime.Clock.System.now().toEpochMilliseconds() + 5_000L
+    scheduleLocalNotification(
+        id = 9999,
+        title = "Test Notification",
+        body = "If you see this, notifications are working!",
+        triggerTimeMs = triggerTimeMs
+    )
+}
+
 actual suspend fun createNotificationChannels() {
     // iOS handles channels differently — categories are used instead
     // UNUserNotificationCenter categories would be configured here if needed

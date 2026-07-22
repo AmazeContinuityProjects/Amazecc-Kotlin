@@ -27,6 +27,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.utils.parseViewLink
 import kotlinx.serialization.json.*
 
 private const val OD_TOTAL = 40
@@ -54,7 +55,7 @@ private fun extractODEntries(attendance: List<AttendanceItem>): List<ODDay> {
     val rawEntries = mutableListOf<Pair<String, ODEntry>>()
     for (course in attendance) {
         val daily = try {
-            val arr = course.viewLinkRaw?.jsonArray
+            val arr = parseViewLink(course.viewLinkRaw)?.jsonArray
             arr?.mapNotNull { elem ->
                 val obj = elem.jsonObject
                 val date = obj["date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
