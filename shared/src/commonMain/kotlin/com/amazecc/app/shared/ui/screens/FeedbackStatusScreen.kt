@@ -47,7 +47,7 @@ fun FeedbackStatusScreen() {
             title = "Feedback Status",
             description = "Course feedback status",
             showBackButton = true,
-            showSyncButton = true
+            showSyncButton = false
         )
 
         if (loading) {

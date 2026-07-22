@@ -68,7 +68,7 @@ fun CourseManagementScreen() {
             title = "Course Management",
             description = "Option changes, EXC, minors",
             showBackButton = true,
-            showSyncButton = true
+            showSyncButton = false
         )
 
         TabRow(

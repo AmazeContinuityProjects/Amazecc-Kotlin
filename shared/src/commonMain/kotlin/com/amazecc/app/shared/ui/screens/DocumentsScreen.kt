@@ -67,7 +67,7 @@ fun DocumentsScreen() {
             title = "Documents",
             description = "Bonafide, transcripts, and learning",
             showBackButton = true,
-            showSyncButton = true
+            showSyncButton = false
         )
 
         TabRow(

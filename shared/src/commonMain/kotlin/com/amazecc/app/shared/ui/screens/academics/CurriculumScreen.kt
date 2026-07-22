@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
@@ -112,7 +113,8 @@ fun CurriculumScreen() {
             title = "Curriculum",
             description = "Track your degree requirements",
             showBackButton = true,
-            showSyncButton = true
+            showSyncButton = true,
+            syncModules = setOf(SyncModule.CURRICULUM)
         )
 
         Column(

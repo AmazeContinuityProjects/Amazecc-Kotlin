@@ -32,7 +32,9 @@ import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
-import com.amazecc.app.shared.theme.AccentTheme
+import com.amazecc.app.shared.state.SyncEngine
+import com.amazecc.app.shared.state.SyncModule
+import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.ui.components.*
@@ -46,14 +48,16 @@ fun ScreenHeader(
     showBackButton: Boolean = true,
     showSyncButton: Boolean = true,
     onRefresh: (() -> Unit)? = null,
+    syncModules: Set<SyncModule> = emptySet(),
     modifier: Modifier = Modifier
 ) {
-    LaunchedEffect(title, description, showBackButton, showSyncButton, onRefresh) {
+    LaunchedEffect(title, description, showBackButton, showSyncButton, onRefresh, syncModules) {
         AppState.headerTitle.value = title
         AppState.headerDescription.value = description
         AppState.headerShowBack.value = showBackButton
         AppState.headerShowSync.value = showSyncButton
         AppState.headerOnRefresh.value = onRefresh
+        AppState.headerSyncModules.value = syncModules
     }
     Spacer(modifier = modifier.fillMaxWidth().height(105.dp))
 }
@@ -65,11 +69,29 @@ fun FloatingScreenHeader(
     showBackButton: Boolean = true,
     showSyncButton: Boolean = true,
     onRefresh: (() -> Unit)? = null,
+    syncModules: Set<SyncModule> = emptySet(),
     modifier: Modifier = Modifier
 ) {
     val colors = AmazeTheme.colors
     val isLoading by AppState.isLoading.collectAsState()
     val syncStatus by AppState.syncStatus.collectAsState()
+    val moduleStates by SyncEngine.moduleStates.collectAsState()
+
+    val effectiveModules = remember(syncModules) {
+        if (syncModules.isNotEmpty()) syncModules
+        else AppState.headerSyncModules.value
+    }
+
+    val isModuleLoading = remember(effectiveModules, moduleStates) {
+        if (effectiveModules.isEmpty()) isLoading
+        else effectiveModules.any { moduleStates[it]?.status == SyncStatus.LOADING }
+    }
+
+    val moduleSyncText = remember(effectiveModules, moduleStates) {
+        effectiveModules.firstOrNull { moduleStates[it]?.status == SyncStatus.LOADING }
+            ?.let { moduleStates[it]?.let { "Syncing ${it.status.name}..." } }
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -109,10 +131,10 @@ fun FloatingScreenHeader(
                         text = description,
                         style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                     )
-                    if (isLoading && syncStatus != null) {
+                    if ((isModuleLoading || isLoading) && (moduleSyncText ?: syncStatus) != null) {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = syncStatus ?: "",
+                            text = moduleSyncText ?: syncStatus ?: "",
                             style = AmazeTheme.typography.smallLabel.copy(
                                 color = colors.accent,
                                 fontWeight = FontWeight.Bold
@@ -121,17 +143,24 @@ fun FloatingScreenHeader(
                     }
                 }
             }
-            
+
             if (showSyncButton) {
-                val syncAction = onRefresh ?: { AppState.loadAllData() }
+                val syncAction = onRefresh ?: {
+                    if (effectiveModules.isNotEmpty()) {
+                        SyncEngine.setShowSyncDialog(true)
+                        AppState.loadAllData()
+                    } else {
+                        AppState.loadAllData()
+                    }
+                }
                 IconButton(
                     onClick = syncAction,
-                    enabled = !isLoading,
+                    enabled = !isModuleLoading,
                     modifier = Modifier
                         .size(44.dp)
-                        .background(colors.accent.copy(alpha = 0.1f), CircleShape)
+                        .background(colors.accent.copy(alpha = if (isModuleLoading) 0.2f else 0.1f), CircleShape)
                 ) {
-                    if (isLoading) {
+                    if (isModuleLoading) {
                         CircularProgressIndicator(
                             color = colors.accent,
                             strokeWidth = 2.dp,
@@ -152,5 +181,4 @@ fun FloatingScreenHeader(
 }
 
 // ── 1. UNIFIED ACADEMICS SCREEN (TABS: ATTENDANCE, MARKS, SCHEDULE) ──
-
 

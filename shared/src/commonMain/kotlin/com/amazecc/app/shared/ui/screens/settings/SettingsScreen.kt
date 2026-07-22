@@ -27,6 +27,10 @@ import com.amazecc.app.shared.model.NamedCalendar
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.SyncEngine
+import com.amazecc.app.shared.state.SyncModule
+import com.amazecc.app.shared.state.SyncStatus
+import com.amazecc.app.shared.state.ModuleState
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
@@ -184,14 +188,91 @@ fun SettingsScreen() {
                 val syncExam by AppState.syncExam.collectAsState()
                 val syncProfile by AppState.syncProfile.collectAsState()
                 val syncAdditional by AppState.syncAdditional.collectAsState()
+                val moduleStates by SyncEngine.moduleStates.collectAsState()
+                val syncProgress by SyncEngine.syncProgress.collectAsState()
 
+                // Sync Status Summary
+                Row(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                        .background(colors.accent.copy(alpha = 0.08f)).padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Sync Status", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
+                        Text(syncProgress.displayText, color = colors.textSecondary, fontSize = 11.sp)
+                    }
+                    Text("${syncProgress.percentage.toInt()}%", fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 16.sp)
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                // Action buttons row
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    AmazeButton("Sync All", onClick = {
+                        SyncEngine.setShowSyncDialog(true)
+                        SyncEngine.resetAllStates()
+                        AppState.loadAllData()
+                    }, modifier = Modifier.weight(1f), variant = ButtonVariant.PRIMARY)
+                    AmazeButton("Save Offline", onClick = {
+                        AppState.saveOffline()
+                    }, modifier = Modifier.weight(1f), variant = ButtonVariant.SECONDARY)
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Per-module status list
+                val modulesToShow = SyncModule.values().filter { it.cacheKey != null || it == SyncModule.CAB_TRIPS || it == SyncModule.VITOL }
+                modulesToShow.forEach { module ->
+                    val state = moduleStates[module] ?: ModuleState()
+                    val dotColor = when (state.status) {
+                        SyncStatus.SUCCESS -> Color(0xFF4CAF50)
+                        SyncStatus.ERROR -> Color(0xFFEF5350)
+                        SyncStatus.LOADING -> colors.accent
+                        SyncStatus.IDLE -> colors.textMuted
+                    }
+                    val isLoading = state.status == SyncStatus.LOADING
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                            .background(if (isLoading) colors.accent.copy(alpha = 0.06f) else colors.surface)
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dotColor))
+                        Spacer(Modifier.width(8.dp))
+                        Text(module.displayName, color = colors.textPrimary, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        if (state.lastSynced != null) {
+                            Text(formatModuleTime(state.lastSynced), color = colors.textSecondary, fontSize = 9.sp)
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        if (isLoading) {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), color = colors.accent, strokeWidth = 2.dp)
+                        } else {
+                            IconButton(
+                                onClick = {
+                                    SyncEngine.setShowSyncDialog(true)
+                                    AppState.loadAllData()
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(Icons.Rounded.Refresh, "Sync", tint = colors.textSecondary, modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                // Toggle switches for optional modules
                 SettingsToggle("Arrear Data", syncArrear, { AppState.setSyncArrear(it) }, colors)
                 SettingsToggle("Exam Schedule", syncExam, { AppState.setSyncExam(it) }, colors)
                 SettingsToggle("Profile Data", syncProfile, { AppState.setSyncProfile(it) }, colors)
                 SettingsToggle("Additional (Projects/Wishlist)", syncAdditional, { AppState.setSyncAdditional(it) }, colors)
 
                 Spacer(Modifier.height(8.dp))
-                AmazeButton("Sync All Data", onClick = { AppState.loadAllData() }, modifier = Modifier.fillMaxWidth())
+                AmazeButton("Open Sync Popup", onClick = {
+                    SyncEngine.setShowSyncDialog(true)
+                }, modifier = Modifier.fillMaxWidth(), variant = ButtonVariant.SECONDARY)
             }
 
             SettingsSection("UI & Zoom", Icons.Rounded.ZoomIn, colors) {
@@ -319,5 +400,17 @@ private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme
             Spacer(Modifier.height(4.dp))
             Text(name, color = if (selected) colors.accent else colors.textSecondary, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
         }
+    }
+}
+
+private fun formatModuleTime(instant: kotlinx.datetime.Instant): String {
+    val now = kotlinx.datetime.Clock.System.now()
+    val diff = now - instant
+    val seconds = diff.inWholeSeconds
+    return when {
+        seconds < 60 -> "now"
+        seconds < 3600 -> "${seconds / 60}m ago"
+        seconds < 86400 -> "${seconds / 3600}h ago"
+        else -> "${seconds / 86400}d ago"
     }
 }

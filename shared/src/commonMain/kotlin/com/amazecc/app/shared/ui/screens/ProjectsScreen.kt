@@ -47,7 +47,7 @@ fun ProjectsScreen() {
             title = "Projects",
             description = "Academic projects and guides",
             showBackButton = true,
-            showSyncButton = true
+            showSyncButton = false
         )
 
         if (loading) {

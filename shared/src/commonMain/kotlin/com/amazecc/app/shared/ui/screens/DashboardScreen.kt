@@ -34,6 +34,7 @@ import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.CommandPalette
 import com.amazecc.app.shared.utils.AttendanceTimetable
@@ -159,7 +160,10 @@ fun DashboardScreen() {
                     )
                 }
                 IconButton(
-                    onClick = { AppState.loadAllData() },
+                    onClick = {
+                        SyncEngine.setShowSyncDialog(true)
+                        AppState.loadAllData()
+                    },
                     modifier = Modifier
                         .size(44.dp)
                         .clip(RoundedCornerShape(14.dp))

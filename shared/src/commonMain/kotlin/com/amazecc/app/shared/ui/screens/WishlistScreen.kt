@@ -47,7 +47,7 @@ fun WishlistScreen() {
             title = "Wishlist",
             description = "Course wishlist",
             showBackButton = true,
-            showSyncButton = true
+            showSyncButton = false
         )
 
         if (loading) {

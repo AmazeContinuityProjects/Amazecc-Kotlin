@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.screens.*
 import com.amazecc.app.shared.ui.screens.libraries.LibrariesScreen
@@ -73,6 +74,15 @@ fun App() {
                 Box(modifier = Modifier.fillMaxSize()) {
                     // Sync Notification Overlay
                     com.amazecc.app.shared.ui.components.SyncNotification()
+                    // Sync Progress Popup (per-module detail + percentage)
+                    com.amazecc.app.shared.ui.components.SyncProgressPopup(
+                        onDismiss = { SyncEngine.setShowSyncDialog(false) },
+                        onSaveOffline = { AppState.saveOffline() },
+                        onSyncAll = {
+                            SyncEngine.resetAllStates()
+                            AppState.loadAllData()
+                        }
+                    )
 
                     // Crossfade screen transitions
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -140,12 +150,14 @@ fun App() {
                             val headerBack by AppState.headerShowBack.collectAsState()
                             val headerSync by AppState.headerShowSync.collectAsState()
                             val headerRefresh by AppState.headerOnRefresh.collectAsState()
+                            val headerModules by AppState.headerSyncModules.collectAsState()
                             com.amazecc.app.shared.ui.components.FloatingScreenHeader(
                                 title = headerTitle,
                                 description = headerDesc,
                                 showBackButton = headerBack,
                                 showSyncButton = headerSync,
                                 onRefresh = headerRefresh,
+                                syncModules = headerModules,
                                 modifier = Modifier.align(Alignment.TopCenter)
                             )
                         }

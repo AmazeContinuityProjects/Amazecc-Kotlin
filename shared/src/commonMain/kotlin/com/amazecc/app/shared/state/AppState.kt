@@ -20,6 +20,8 @@ import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 
 enum class Screen { SPLASH, 
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
@@ -43,6 +45,7 @@ object AppState {
     val headerShowBack = MutableStateFlow(true)
     val headerShowSync = MutableStateFlow(true)
     val headerOnRefresh = MutableStateFlow<(() -> Unit)?>(null)
+    val headerSyncModules = MutableStateFlow<Set<SyncModule>>(emptySet())
     
     private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
@@ -115,7 +118,7 @@ object AppState {
     private val _selectedSemester = MutableStateFlow("CH20262701")
     val selectedSemester: StateFlow<String> = _selectedSemester.asStateFlow()
 
-    // Loading & Error states
+    // Loading & Error states (driven by SyncEngine for backward compat)
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
@@ -147,6 +150,18 @@ object AppState {
     init {
         // Load cached data from local storage
         loadCachedData()
+        // Observe SyncEngine module states and update backward-compat flows
+        scope.launch {
+            SyncEngine.moduleStates.collect { states ->
+                _isLoading.value = states.any { (_, s) -> s.status == SyncStatus.LOADING }
+                val errors = states.filter { (_, s) -> s.status == SyncStatus.ERROR && s.error != null }
+                _error.value = errors.entries.joinToString("\n") { "${it.key.displayName}: ${it.value.error}" }.ifEmpty { null }
+                val active = states.filter { (_, s) -> s.status == SyncStatus.LOADING }
+                _syncStatus.value = if (active.isNotEmpty()) {
+                    "Syncing: ${active.keys.joinToString(", ") { it.displayName }}"
+                } else null
+            }
+        }
         // Load persisted settings
         _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
         _attendanceDisplayMode.value = SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage")
@@ -219,16 +234,76 @@ object AppState {
                 _moodleData.value = jsonFormat.decodeFromString<MoodleRes>(cachedMoodle)
             } catch (e: Exception) { /* ignore */ }
         }
+        // Sync cached modules state to SyncEngine
+        updateModuleStatesFromCache()
     }
 
-    private inline fun <reified T> cacheData(key: String, value: T?) {
-        if (value != null) {
-            try {
-                settings[key] = jsonFormat.encodeToString(value)
-            } catch (e: Exception) { /* ignore serialization error */ }
-        } else {
-            settings.remove(key)
-        }
+    private inline fun <reified T> cacheData(key: String, value: T) {
+        try {
+            settings[key] = jsonFormat.encodeToString(value)
+        } catch (_: Exception) { /* ignore serialization error */ }
+    }
+
+    private fun removeCache(key: String) {
+        settings.remove(key)
+    }
+
+    // ── Save Offline: persists all currently-loaded in-memory data to cache ──
+    fun saveOffline() {
+        SyncEngine.resetLogs()
+        var saved = 0
+        if (_attendance.value != null) { cacheData(SettingsManager.CACHE_ATTENDANCE, _attendance.value); saved++ }
+        if (_timetable.value != null) { cacheData(SettingsManager.CACHE_TIMETABLE, _timetable.value); saved++ }
+        if (_marks.value != null) { cacheData(SettingsManager.CACHE_MARKS, _marks.value); saved++ }
+        if (_allGrades.value != null) { cacheData(SettingsManager.CACHE_GRADES, _allGrades.value); saved++ }
+        if (_curriculum.value != null) { cacheData(SettingsManager.CACHE_CURRICULUM, _curriculum.value); saved++ }
+        if (_hostelDetails.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails.value); saved++ }
+        if (_hostelLeaves.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_LEAVES, _hostelLeaves.value); saved++ }
+        if (_examSchedule.value != null) { cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule.value); saved++ }
+        if (_calendar.value != null) { cacheData(SettingsManager.CACHE_CALENDAR, _calendar.value); saved++ }
+        if (_calendarsList.value != null) { cacheData(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList.value); saved++ }
+        if (_qcmView.value != null) { cacheData(SettingsManager.CACHE_QCM_VIEW, _qcmView.value); saved++ }
+        if (_payments.value != null) { cacheData(SettingsManager.CACHE_PAYMENTS, _payments.value); saved++ }
+        if (_library.value != null) { cacheData(SettingsManager.CACHE_LIBRARY, _library.value); saved++ }
+        if (_libraryLoginRequired.value) { /* skip — no data to cache */ }
+        if (_transportData.value != null) { cacheData(SettingsManager.CACHE_TRANSPORT_DATA, _transportData.value); saved++ }
+        if (_buses.value != null) { cacheData(SettingsManager.CACHE_BUSES, _buses.value); saved++ }
+        if (_lms.value != null) { cacheData(SettingsManager.CACHE_LMS, _lms.value); saved++ }
+        if (_events.value != null) { cacheData(SettingsManager.CACHE_EVENTS, _events.value); saved++ }
+        if (_clubs.value != null) { cacheData(SettingsManager.CACHE_CLUBS, _clubs.value); saved++ }
+        if (_cachedStudentProfile.value != null) { cacheData(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile.value); saved++ }
+        if (_vitolData.value != null) { cacheData(SettingsManager.CACHE_VITOL, _vitolData.value); saved++ }
+        if (_cabTrips.value != null) { cacheData(SettingsManager.CACHE_CAB_TRIPS, _cabTrips.value); saved++ }
+        if (_allSemesterAttendance.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value); saved++ }
+        if (_allSemesterMarks.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value); saved++ }
+        SyncEngine.addLog(SyncModule.ATTENDANCE, "Saved $saved modules offline", SyncStatus.SUCCESS)
+    }
+
+    // ── Mark cached modules as SUCCESS in SyncEngine ──
+    private fun updateModuleStatesFromCache() {
+        if (_attendance.value != null) SyncEngine.updateModuleState(SyncModule.ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_timetable.value != null) SyncEngine.updateModuleState(SyncModule.TIMETABLE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_marks.value != null) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_allGrades.value != null) SyncEngine.updateModuleState(SyncModule.GRADES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_curriculum.value != null) SyncEngine.updateModuleState(SyncModule.CURRICULUM, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_hostelDetails.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_DETAILS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_hostelLeaves.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_LEAVES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_examSchedule.value != null) SyncEngine.updateModuleState(SyncModule.EXAM_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_calendar.value != null) SyncEngine.updateModuleState(SyncModule.CALENDAR, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_calendarsList.value != null) SyncEngine.updateModuleState(SyncModule.CALENDARS_LIST, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_qcmView.value != null) SyncEngine.updateModuleState(SyncModule.QCM_VIEW, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_payments.value != null) SyncEngine.updateModuleState(SyncModule.PAYMENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_library.value != null) SyncEngine.updateModuleState(SyncModule.LIBRARY, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_transportData.value != null) SyncEngine.updateModuleState(SyncModule.TRANSPORT, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_buses.value != null) SyncEngine.updateModuleState(SyncModule.BUSES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_lms.value != null) SyncEngine.updateModuleState(SyncModule.LMS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_events.value != null) SyncEngine.updateModuleState(SyncModule.EVENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_clubs.value != null) SyncEngine.updateModuleState(SyncModule.CLUBS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_cachedStudentProfile.value != null) SyncEngine.updateModuleState(SyncModule.STUDENT_PROFILE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_vitolData.value != null) SyncEngine.updateModuleState(SyncModule.VITOL, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_cabTrips.value != null) SyncEngine.updateModuleState(SyncModule.CAB_TRIPS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_allSemesterAttendance.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_allSemesterMarks.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now())) // tracked alongside attendance
     }
 
     fun restoreSession(): Boolean {
