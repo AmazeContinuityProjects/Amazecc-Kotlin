@@ -8,3 +8,4 @@ local.properties
 .DS_Store
 keystore_base64.txt
 release.keystore
+keystore.properties

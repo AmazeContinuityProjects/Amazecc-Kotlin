@@ -123,13 +123,14 @@ object AppState {
         scope.launch {
             _updateStatus.value = UpdateStatus.Checking
             try {
+                val currentVersion = UpdateConfig.getCurrentVersion()
                 val release = AmazeClient.checkForUpdate()
                 val latestVer = release.tagName.removePrefix("v")
                 val dismissed = _updateDialogDismissedVersion.value
                 if (latestVer == dismissed) {
                     _updateStatus.value = UpdateStatus.Idle
-                } else if (compareVersions(latestVer, UpdateConfig.CURRENT_VERSION) > 0) {
-                    _updateStatus.value = UpdateStatus.Available(release, UpdateConfig.CURRENT_VERSION)
+                } else if (compareVersions(latestVer, currentVersion) > 0) {
+                    _updateStatus.value = UpdateStatus.Available(release, currentVersion)
                 } else {
                     _updateStatus.value = UpdateStatus.UpToDate
                 }
