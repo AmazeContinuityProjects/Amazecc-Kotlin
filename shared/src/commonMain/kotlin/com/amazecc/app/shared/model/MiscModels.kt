@@ -124,7 +124,25 @@ data class MoodleAssignment(
     val url: String? = null,
     val teachers: List<String> = emptyList(),
     val hidden: Boolean = false
-)
+) {
+    val courseCode: String get() {
+        val parts = name.split("/")
+        val first = parts.firstOrNull()?.trim() ?: return ""
+        val code = first.split("-").firstOrNull()?.trim() ?: first
+        val match = Regex("[A-Za-z]+\\d+").find(code)
+        return match?.value ?: code.take(20)
+    }
+
+    val courseTitle: String get() {
+        val parts = name.split("/")
+        return if (parts.size >= 2) parts[1].trim() else name
+    }
+
+    val taskTitle: String get() {
+        val parts = name.split("/")
+        return if (parts.size >= 3) parts.drop(2).joinToString("/").trim() else name
+    }
+}
 
 @Serializable
 data class MoodleRes(

@@ -251,7 +251,9 @@ object AppState {
     suspend fun observeSyncEngine() {
         SyncEngine.moduleStates.collect { states ->
             _isLoading.value = states.any { (_, s) -> s.status == SyncStatus.LOADING }
-            val errors = states.filter { (_, s) -> s.status == SyncStatus.ERROR && s.error != null }
+            val errors = states.filter { (_, s) ->
+                s.status == SyncStatus.ERROR && s.error != null && s.error != "NO_LIB_CREDS"
+            }
             _error.value = errors.entries.joinToString("\n") { "${it.key.displayName}: ${it.value.error}" }.ifEmpty { null }
             val active = states.filter { (_, s) -> s.status == SyncStatus.LOADING }
             _syncStatus.value = if (active.isNotEmpty()) {
@@ -891,6 +893,10 @@ object AppState {
         val attendanceItems = _attendance.value?.attendance
         val assignments = _lms.value?.assignments
         val vitolData = _vitolData.value?.data
+        val moodleAssignments = _moodleData.value?.data?.filter { !it.done }?.map { a ->
+            LMSAssignment("moodle_${a.hashCode()}", a.courseCode, a.taskTitle, "", a.due, "Pending")
+        } ?: emptyList()
+        val allAssignments = (assignments ?: emptyList()) + moodleAssignments
         val attMaps = attendanceItems?.map { item ->
             mapOf(
                 "courseCode" to item.courseCode,
@@ -908,7 +914,7 @@ object AppState {
         com.amazecc.app.shared.utils.NotificationsUtils.scheduleAll(
             attendance = attMaps,
             slotMap = typedSlotMap,
-            assignments = assignments,
+            assignments = allAssignments,
             vitolLimit = vitolData?.limit,
             vitolConsumed = vitolData?.consumed
         )
@@ -1491,6 +1497,14 @@ object AppState {
         } else {
             settings.remove("moodle_data_cache")
         }
+        scope.launch { scheduleReminders() }
+    }
+
+    fun getMoodleAssignmentsForCourse(courseCode: String): List<MoodleAssignment> {
+        return _moodleData.value?.data?.filter { a ->
+            a.courseCode.equals(courseCode, ignoreCase = true) ||
+            a.name.contains(courseCode, ignoreCase = true)
+        } ?: emptyList()
     }
 
     fun updateVitolData(data: VitolRes?) {

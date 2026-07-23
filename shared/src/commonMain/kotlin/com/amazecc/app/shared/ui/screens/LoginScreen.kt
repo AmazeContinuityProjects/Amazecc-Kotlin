@@ -132,8 +132,10 @@ fun LoginScreen() {
                 Image(
                     painter = painterResource(Res.drawable.ic_launcher),
                     contentDescription = "AmazeCC Logo",
-                    modifier = Modifier.size(56.dp),
-                    contentScale = ContentScale.Fit
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
                 )
             }
 

@@ -178,21 +178,33 @@ fun MoodleLoginView(onLoginSuccess: () -> Unit) {
 fun MoodleAssignmentCard(assignment: MoodleAssignment) {
     val colors = AmazeTheme.colors
     
-    val parts = assignment.name.split("/")
-    val courseName = if (parts.size >= 2) "${parts[0]} - ${parts[1]}" else assignment.name
-    val taskName = if (parts.size >= 3) parts.drop(2).joinToString("/") else ""
+    val courseCode = assignment.courseCode
+    val courseTitle = assignment.courseTitle
+    val taskName = assignment.taskTitle
     
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
-                    if (taskName.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (courseCode.isNotEmpty()) {
+                            Text(
+                                text = courseCode,
+                                style = AmazeTheme.typography.smallLabel.copy(
+                                    color = colors.accent,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        }
                         Text(
-                            text = courseName,
+                            text = courseTitle,
                             style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
                             maxLines = 1,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
+                    }
+                    if (taskName.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = taskName,

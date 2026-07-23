@@ -205,6 +205,10 @@ private fun OverviewTab(
     refreshQcm: () -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
+    val moodleAssignments = remember(group) {
+        AppState.getMoodleAssignmentsForCourse(group.courseCode)
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -299,6 +303,50 @@ private fun OverviewTab(
                             color = colors.accent,
                             trackColor = colors.border,
                         )
+                    }
+                }
+            }
+        }
+
+        if (moodleAssignments.isNotEmpty()) {
+            item {
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Moodle Assignments", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
+                            Text("${moodleAssignments.size}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        moodleAssignments.forEach { assignment ->
+                            val dueColor = try {
+                                val dueDate = assignment.due.split(" ").firstOrNull() ?: ""
+                                if (assignment.done) colors.success else if (dueDate.isNotEmpty()) colors.warning else colors.textMuted
+                            } catch (_: Exception) { colors.textMuted }
+                            Box(
+                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(colors.surface).padding(12.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier.size(8.dp).clip(CircleShape).background(if (assignment.done) colors.success else colors.warning)
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(assignment.taskTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary, fontSize = 13.sp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Rounded.Schedule, null, tint = dueColor, modifier = Modifier.size(12.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text(assignment.due, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp))
+                                        }
+                                    }
+                                    if (assignment.done) {
+                                        Icon(Icons.Rounded.CheckCircle, null, tint = colors.success, modifier = Modifier.size(18.dp))
+                                    } else {
+                                        Icon(Icons.Rounded.Warning, null, tint = colors.warning, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(6.dp))
+                        }
                     }
                 }
             }

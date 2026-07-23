@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -56,6 +57,7 @@ fun SyncProgressPopup(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .zIndex(100f)
                 .clickable { isMinimized = false },
             contentAlignment = Alignment.BottomEnd
         ) {
@@ -129,6 +131,7 @@ fun SyncProgressPopup(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .zIndex(100f)
             .background(Color.Black.copy(alpha = 0.4f))
             .clickable(enabled = false) { /* consume clicks */ },
         contentAlignment = Alignment.Center
