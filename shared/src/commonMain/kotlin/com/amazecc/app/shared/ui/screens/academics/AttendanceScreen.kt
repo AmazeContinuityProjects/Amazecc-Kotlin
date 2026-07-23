@@ -93,8 +93,8 @@ fun AttendanceScreen() {
 
         Box(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
             when (activeView) {
-                "Class" -> DailyPlannerScreen()
-                "Predict" -> OverallPredictorScreen()
+                "Timetable" -> DailyPlannerScreen()
+                "Predictor" -> OverallPredictorScreen()
                 "Calendar" -> CalendarScreen(onBack = {}, showHeader = false, autoFetch = false)
             }
         }
