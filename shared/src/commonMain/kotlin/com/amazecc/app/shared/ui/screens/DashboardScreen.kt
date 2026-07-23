@@ -39,6 +39,8 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.CommandPalette
+import com.amazecc.app.shared.ui.components.UpdateDialog
+import com.amazecc.app.shared.ui.components.UpdateResultDialog
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.utils.SlotInfo
@@ -59,6 +61,45 @@ fun DashboardScreen() {
     val attendanceRes by AppState.attendance.collectAsState()
     val marksRes by AppState.marks.collectAsState()
     val allSemesterAttendance by AppState.allSemesterAttendance.collectAsState()
+
+    val updateStatus by AppState.updateStatus.collectAsState()
+    var showManualUpdateResult by remember { mutableStateOf(false) }
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+
+    LaunchedEffect(Unit) {
+        AppState.checkForUpdate()
+    }
+
+    when (val status = updateStatus) {
+        is AppState.UpdateStatus.Available -> {
+            UpdateDialog(
+                release = status.release,
+                currentVersion = status.currentVersion,
+                onDismiss = { AppState.dismissUpdateDialog() },
+                onDownload = {
+                    AppState.dismissUpdateDialog()
+                    uriHandler.openUri(status.release.htmlUrl)
+                }
+            )
+        }
+        is AppState.UpdateStatus.UpToDate -> {
+            if (showManualUpdateResult) {
+                UpdateResultDialog(
+                    status = status,
+                    onDismiss = { showManualUpdateResult = false; AppState.checkForUpdate() }
+                ) { }
+            }
+        }
+        is AppState.UpdateStatus.Error -> {
+            if (showManualUpdateResult) {
+                UpdateResultDialog(
+                    status = status,
+                    onDismiss = { showManualUpdateResult = false; AppState.checkForUpdate() }
+                ) { }
+            }
+        }
+        else -> {}
+    }
 
     val courses = attendanceRes?.attendance ?: emptyList()
     val allCourses = remember(allSemesterAttendance, courses) {
@@ -589,6 +630,25 @@ fun DashboardScreen() {
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            val safeCount by remember(allCourses) {
+                derivedStateOf { allCourses.count { it.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0 >= 85.0 } }
+            }
+            val warnCount by remember(allCourses) {
+                derivedStateOf { allCourses.count { it.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0 in 75.0..84.0 } }
+            }
+            val critCount by remember(allCourses) {
+                derivedStateOf { allCourses.count { it.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0 < 75.0 } }
+            }
+            val avgCourseAtt by remember(allCourses) {
+                derivedStateOf {
+                    if (allCourses.isEmpty()) "—"
+                    else {
+                        val sum = allCourses.sumOf { (it.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0).toInt() }
+                        "${sum / allCourses.size}%"
+                    }
+                }
+            }
+
             // ── Course Attendance ──
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -620,6 +680,35 @@ fun DashboardScreen() {
             }
             Spacer(modifier = Modifier.height(12.dp))
 
+            // ── Course Stats Row ──
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(colors.chart1.copy(alpha = 0.08f)).border(1.dp, colors.chart1.copy(alpha = 0.2f), RoundedCornerShape(14.dp)).padding(10.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Text("$safeCount", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart1, fontSize = 18.sp))
+                        Text("Safe", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart1.copy(alpha = 0.7f), fontSize = 9.sp))
+                    }
+                }
+                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(colors.chart3.copy(alpha = 0.08f)).border(1.dp, colors.chart3.copy(alpha = 0.2f), RoundedCornerShape(14.dp)).padding(10.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Text("$warnCount", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart3, fontSize = 18.sp))
+                        Text("Warning", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart3.copy(alpha = 0.7f), fontSize = 9.sp))
+                    }
+                }
+                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(colors.chart5.copy(alpha = 0.08f)).border(1.dp, colors.chart5.copy(alpha = 0.2f), RoundedCornerShape(14.dp)).padding(10.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Text("$critCount", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart5, fontSize = 18.sp))
+                        Text("Critical", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart5.copy(alpha = 0.7f), fontSize = 9.sp))
+                    }
+                }
+                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(colors.chart2.copy(alpha = 0.08f)).border(1.dp, colors.chart2.copy(alpha = 0.2f), RoundedCornerShape(14.dp)).padding(10.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Text("$avgCourseAtt", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart2, fontSize = 18.sp))
+                        Text("Avg %", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart2.copy(alpha = 0.7f), fontSize = 9.sp))
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+
             if (allCourses.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -634,7 +723,7 @@ fun DashboardScreen() {
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     allCourses.take(4).forEach { course ->
-                        CourseGlassCard(course, colors)
+                        ModernCourseCard(course, colors)
                     }
                     if (allCourses.size > 4) {
                         Box(
@@ -791,88 +880,50 @@ private fun GlassMetricCard(
 }
 
 @Composable
-private fun CourseGlassCard(
+private fun ModernCourseCard(
     course: AttendanceItem,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val percentage = course.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0
-    val badgeColor: Color
-    val cardVariant: com.amazecc.app.shared.ui.components.CardVariant
-    when {
-        percentage >= 85.0 -> { badgeColor = colors.success; cardVariant = com.amazecc.app.shared.ui.components.CardVariant.SUCCESS }
-        percentage >= 75.0 -> { badgeColor = colors.warning; cardVariant = com.amazecc.app.shared.ui.components.CardVariant.WARNING }
-        else -> { badgeColor = colors.danger; cardVariant = com.amazecc.app.shared.ui.components.CardVariant.DANGER }
+    val gradeColor = when {
+        percentage >= 85.0 -> colors.chart1
+        percentage >= 75.0 -> colors.chart3
+        else -> colors.chart5
     }
-    val isCritical = percentage < 75.0
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(
-                when (cardVariant) {
-                    com.amazecc.app.shared.ui.components.CardVariant.SUCCESS -> colors.successSurface
-                    com.amazecc.app.shared.ui.components.CardVariant.WARNING -> colors.warningSurface
-                    com.amazecc.app.shared.ui.components.CardVariant.DANGER -> colors.dangerSurface
-                    else -> colors.glassSurface
-                }
-            )
-            .border(
-                1.dp,
-                badgeColor.copy(alpha = 0.3f),
-                RoundedCornerShape(16.dp)
-            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
             .drawBehind {
-                val stripWidth = 4.dp.toPx()
-                drawRoundRect(
-                    color = badgeColor,
-                    topLeft = Offset(0f, 0f),
-                    size = androidx.compose.ui.geometry.Size(stripWidth, size.height)
-                )
+                val sw = 4.dp.toPx()
+                drawRoundRect(gradeColor, Offset(0f, 0f), androidx.compose.ui.geometry.Size(sw, size.height))
             }
             .clickable { AppState.openCourseDetail(course.courseCode) }
-            .padding(16.dp)
+            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text(
-                    text = course.courseTitle,
-                    style = AmazeTheme.typography.body.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.textPrimary,
-                        fontSize = 15.sp
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Classes: ${course.attendedClasses} / ${course.totalClasses}",
-                    style = AmazeTheme.typography.caption.copy(
-                        color = colors.textSecondary,
-                        fontWeight = FontWeight.Medium
-                    )
-                )
+                Text("${course.courseCode} · ${course.courseTitle}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (course.courseType.isNotBlank()) {
+                        Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                            Text(course.courseType, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Medium, fontSize = 9.sp))
+                        }
+                    }
+                    if (course.credits?.isNotBlank() == true) {
+                        Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(gradeColor.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                            Text("${course.credits} cr", style = AmazeTheme.typography.smallLabel.copy(color = gradeColor, fontWeight = FontWeight.Medium, fontSize = 9.sp))
+                        }
+                    }
+                    Text("${course.attendedClasses} / ${course.totalClasses} classes", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontSize = 9.sp))
+                }
             }
-            Box(
-                modifier = Modifier
-                    .background(badgeColor.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
-                    .border(1.dp, badgeColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "${percentage.toInt()}%",
-                    style = AmazeTheme.typography.caption.copy(
-                        color = badgeColor,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
-                    )
-                )
+            Box(modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(gradeColor.copy(alpha = 0.12f)).border(1.dp, gradeColor.copy(alpha = 0.3f), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                Text("${percentage.toInt()}%", style = AmazeTheme.typography.body.copy(color = gradeColor, fontWeight = FontWeight.Black, fontSize = 15.sp))
             }
         }
     }

@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -22,9 +23,6 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.components.AmazeCard
-import com.amazecc.app.shared.ui.components.AmazeBadge
-import com.amazecc.app.shared.ui.components.BadgeVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
 
 @Composable
@@ -157,67 +155,85 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
     val labAtt = course.labAtt
     val isEmbedded = (course.theory != null && course.lab != null) || (course.theoryAtt != null && course.labAtt != null)
 
-    val attPct = if (isEmbedded) {
-        val tPct = theoryAtt?.attendancePercentage?.toDoubleOrNull() ?: 0.0
-        val lPct = labAtt?.attendancePercentage?.toDoubleOrNull() ?: 0.0
-        maxOf(tPct, lPct)
-    } else {
-        (theoryAtt?.attendancePercentage ?: labAtt?.attendancePercentage ?: "0").toDoubleOrNull() ?: 0.0
+    fun attColor(pct: Double) = when {
+        pct >= 85.0 -> colors.chart1
+        pct >= 75.0 -> colors.chart3
+        else -> colors.chart5
     }
 
-    val courseTypeLabel = when {
-        isEmbedded -> "Embedded"
-        course.theory?.courseType == "Lab Only" || course.lab?.courseType == "Lab Only" -> "Lab"
-        else -> "Theory"
-    }
-
-    AmazeCard(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 14.dp)
+    ) {
+        Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Rounded.Book, null, tint = colors.accent, modifier = Modifier.size(20.dp))
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                        Spacer(Modifier.width(6.dp))
+                if (!isEmbedded) {
+                    val attPct = (theoryAtt?.attendancePercentage ?: labAtt?.attendancePercentage ?: "0").toDoubleOrNull() ?: 0.0
+                    val label = if (course.theory?.courseType == "Lab Only" || course.lab?.courseType == "Lab Only") "LO" else "TH"
+                    val iconColor = if (label == "TH") colors.chart2 else colors.chart4
+                    Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(iconColor.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                        Text(label, style = AmazeTheme.typography.subheading.copy(color = iconColor, fontWeight = FontWeight.Black, fontSize = 16.sp))
                     }
-                    Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1)
-                }
-                if (attPct > 0) {
-                    val attColor = if (attPct >= 75) Color(0xFF10B981) else Color(0xFFEF4444)
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("${attPct.toInt()}%", style = AmazeTheme.typography.heading.copy(color = attColor, fontSize = 18.sp))
-                        Text("Attendance", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    }
+                    if (attPct > 0) {
+                        val c = attColor(attPct)
+                        Box(modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                            Text("${attPct.toInt()}%", style = AmazeTheme.typography.body.copy(color = c, fontWeight = FontWeight.Black, fontSize = 15.sp))
+                        }
+                    }
+                } else {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     }
                 }
+                Spacer(Modifier.width(4.dp))
+                Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
             }
+            if (isEmbedded) {
+                Spacer(Modifier.height(12.dp))
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
+                Spacer(Modifier.height(10.dp))
+                embeddedRow(course.theory, theoryAtt, "TH", colors.chart2, colors)
+                Spacer(Modifier.height(8.dp))
+                embeddedRow(course.lab, labAtt, "LO", colors.chart4, colors)
+            }
+        }
+    }
+}
 
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(colors.accent.copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(courseTypeLabel, color = colors.accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                }
-                if (isEmbedded) {
-                    Box(
-                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF10B981).copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text("T: ${theoryAtt?.attendancePercentage?.toDoubleOrNull()?.toInt() ?: "?"}%", color = Color(0xFF10B981), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Box(
-                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF8B5CF6).copy(alpha = 0.12f)).padding(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text("L: ${labAtt?.attendancePercentage?.toDoubleOrNull()?.toInt() ?: "?"}%", color = Color(0xFF8B5CF6), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-                Spacer(Modifier.weight(1f))
-                Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
+@Composable
+private fun embeddedRow(item: MarksCourseItem?, att: AttendanceItem?, label: String, accent: Color, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val pct = att?.attendancePercentage?.toDoubleOrNull() ?: 0.0
+    val c = when {
+        pct >= 85.0 -> colors.chart1
+        pct >= 75.0 -> colors.chart3
+        else -> colors.chart5
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = accent, fontWeight = FontWeight.Black, fontSize = 13.sp))
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(item?.courseTitle ?: att?.courseTitle ?: "", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary, fontSize = 13.sp))
+            if (item?.faculty?.isNotBlank() == true) {
+                Text(item.faculty, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontSize = 10.sp))
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        if (pct > 0) {
+            Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+                Text("${pct.toInt()}%", style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black, fontSize = 13.sp))
             }
         }
     }

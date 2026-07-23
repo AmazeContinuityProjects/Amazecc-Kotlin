@@ -23,6 +23,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.Serializable
 import com.amazecc.app.shared.utils.AnalyzeCalendar
+import com.amazecc.app.shared.utils.UpdateConfig
 
 @Serializable
 data class LoginRequest(val username: String, val password: String)
@@ -1541,6 +1542,11 @@ object AmazeClient {
         } catch (_: Exception) {
             null
         }
+    }
+
+    suspend fun checkForUpdate(): GitHubRelease {
+        val url = "https://api.github.com/repos/${UpdateConfig.GITHUB_OWNER}/${UpdateConfig.GITHUB_REPO}/releases/latest"
+        return httpClient.get(url).body()
     }
 }
 

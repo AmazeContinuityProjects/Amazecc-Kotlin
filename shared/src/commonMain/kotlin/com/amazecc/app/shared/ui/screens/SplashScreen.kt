@@ -42,7 +42,7 @@ fun SplashScreen() {
             )
             Spacer(modifier = Modifier.height(20.dp))
             Text(
-                text = "AmazeCC",
+                text = "AmazeCC (Kotlin)",
                 style = AmazeTheme.typography.display.copy(
                     fontWeight = FontWeight.Black,
                     color = colors.accent
@@ -50,7 +50,7 @@ fun SplashScreen() {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "VIT Chennai's Premier App",
+                text = "An unofficial community initiative",
                 style = AmazeTheme.typography.subheading.copy(
                     color = colors.textSecondary
                 )

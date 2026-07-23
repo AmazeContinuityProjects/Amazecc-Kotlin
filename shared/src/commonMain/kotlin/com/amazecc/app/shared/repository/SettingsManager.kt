@@ -25,6 +25,9 @@ object SettingsManager {
     const val KEY_NAVBAR_ITEMS = "navbar_items"
     const val KEY_PREFERRED_CALENDAR = "preferred_calendar_name"
 
+    // Update checker
+    const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"
+
     // Session cache (VTOP credentials)
     const val SESSION_COOKIES = "session_cookies"
     const val SESSION_CSRF = "session_csrf"
@@ -70,6 +73,9 @@ object SettingsManager {
     const val NOTIF_ASSIGNMENT_REMINDERS = "notif_assignment_reminders"
     const val NOTIF_VITOL_REMINDERS = "notif_vitol_reminders"
     const val NOTIF_OFFSET_MINUTES = "notif_offset_minutes"
+    
+    // Onboarding
+    const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
     
     fun setString(key: String, value: String) {
         settings.putString(key, value)
@@ -185,4 +191,8 @@ object SettingsManager {
     fun getNotifOffsetMinutes(): Int = getString(NOTIF_OFFSET_MINUTES, "15").toIntOrNull() ?: 15
 
     fun setNotifOffsetMinutes(minutes: Int) = setString(NOTIF_OFFSET_MINUTES, minutes.toString())
+
+    // Onboarding
+    fun isOnboardingComplete(): Boolean = getBoolean(KEY_ONBOARDING_COMPLETE, false)
+    fun setOnboardingComplete(complete: Boolean) = setBoolean(KEY_ONBOARDING_COMPLETE, complete)
 }
