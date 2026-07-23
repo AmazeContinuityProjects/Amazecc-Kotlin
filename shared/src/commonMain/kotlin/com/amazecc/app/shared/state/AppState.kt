@@ -9,6 +9,7 @@ import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.utils.SlotInfo
+import com.amazecc.app.shared.utils.UpdateConfig
 import com.amazecc.app.shared.utils.requestNotificationPermissions
 import com.amazecc.app.shared.utils.testLocalNotification
 import kotlinx.coroutines.CoroutineScope
@@ -93,6 +94,62 @@ object AppState {
     private val _residentialStatus = MutableStateFlow("Hosteller")
     val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()
 
+    sealed class UpdateStatus {
+        object Idle : UpdateStatus()
+        object Checking : UpdateStatus()
+        data class Available(val release: GitHubRelease, val currentVersion: String) : UpdateStatus()
+        object UpToDate : UpdateStatus()
+        data class Error(val message: String) : UpdateStatus()
+    }
+
+    private val _updateStatus = MutableStateFlow<UpdateStatus>(UpdateStatus.Idle)
+    val updateStatus: StateFlow<UpdateStatus> = _updateStatus.asStateFlow()
+
+    private val _updateDialogDismissedVersion = MutableStateFlow("")
+    val updateDialogDismissedVersion: StateFlow<String> = _updateDialogDismissedVersion.asStateFlow()
+
+    fun dismissUpdateDialog() {
+        val status = _updateStatus.value
+        if (status is UpdateStatus.Available) {
+            val ver = status.release.tagName.removePrefix("v")
+            _updateDialogDismissedVersion.value = ver
+            SettingsManager.setString(SettingsManager.KEY_UPDATE_DISMISSED_VERSION, ver)
+            _updateStatus.value = UpdateStatus.Idle
+        }
+    }
+
+    fun checkForUpdate() {
+        if (_updateStatus.value is UpdateStatus.Checking) return
+        scope.launch {
+            _updateStatus.value = UpdateStatus.Checking
+            try {
+                val release = AmazeClient.checkForUpdate()
+                val latestVer = release.tagName.removePrefix("v")
+                val dismissed = _updateDialogDismissedVersion.value
+                if (latestVer == dismissed) {
+                    _updateStatus.value = UpdateStatus.Idle
+                } else if (compareVersions(latestVer, UpdateConfig.CURRENT_VERSION) > 0) {
+                    _updateStatus.value = UpdateStatus.Available(release, UpdateConfig.CURRENT_VERSION)
+                } else {
+                    _updateStatus.value = UpdateStatus.UpToDate
+                }
+            } catch (e: Exception) {
+                _updateStatus.value = UpdateStatus.Error(e.message ?: "Failed to check for update")
+            }
+        }
+    }
+
+    private fun compareVersions(v1: String, v2: String): Int {
+        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
+        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(parts1.size, parts2.size)) {
+            val p1 = parts1.getOrElse(i) { 0 }
+            val p2 = parts2.getOrElse(i) { 0 }
+            if (p1 != p2) return p1 - p2
+        }
+        return 0
+    }
+
     // Sync toggles (mirror web app settings)
     private val _syncArrear = MutableStateFlow(true)
     val syncArrear: StateFlow<Boolean> = _syncArrear.asStateFlow()
@@ -132,6 +189,11 @@ object AppState {
     private val _syncStatus = MutableStateFlow<String?>(null)
     val syncStatus: StateFlow<String?> = _syncStatus.asStateFlow()
 
+    // Onboarding sync progress
+    data class SyncStep(val name: String, val status: String) // status: "pending", "syncing", "done", "failed"
+    private val _onboardingSyncSteps = MutableStateFlow<List<SyncStep>>(emptyList())
+    val onboardingSyncSteps: StateFlow<List<SyncStep>> = _onboardingSyncSteps.asStateFlow()
+
     // Cached Data
     private val _attendance = MutableStateFlow<AttendanceRes?>(null)
     val attendance: StateFlow<AttendanceRes?> = _attendance.asStateFlow()
@@ -159,6 +221,7 @@ object AppState {
         _syncExam.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_EXAM, true)
         _syncProfile.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_PROFILE, true)
         _syncAdditional.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, true)
+        _updateDialogDismissedVersion.value = SettingsManager.getString(SettingsManager.KEY_UPDATE_DISMISSED_VERSION, "")
 
         val savedNav = SettingsManager.getString(SettingsManager.KEY_NAVBAR_ITEMS, "")
         if (savedNav.isNotEmpty()) {
@@ -1553,6 +1616,128 @@ object AppState {
         }
     }
 
+    fun startOnboardingSync() {
+        scope.launch {
+            val steps = listOf(
+                "Session", "Attendance", "Timetable", "Grades",
+                "Curriculum", "Hostel", "Payments", "Events"
+            )
+            _onboardingSyncSteps.value = steps.map { AppState.SyncStep(it, "pending") }
+
+            fun updateStep(name: String, status: String) {
+                _onboardingSyncSteps.value = _onboardingSyncSteps.value.map {
+                    if (it.name == name) it.copy(status = status) else it
+                }
+            }
+
+            // Session refresh
+            updateStep("Session", "syncing")
+            try {
+                val creds = SettingsManager.getCredentials()
+                if (creds != null) {
+                    val loginRes = AmazeClient.login(creds.first, creds.second)
+                    if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
+                        SessionManager.saveSession(
+                            cookies = loginRes.cookies, csrf = loginRes.csrf,
+                            authorizedID = loginRes.authorizedID, clubToken = loginRes.clubToken
+                        )
+                        SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
+                        SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
+                        SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
+                        loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                    }
+                }
+                updateStep("Session", "done")
+            } catch (_: Exception) { updateStep("Session", "failed") }
+
+            val sem = _selectedSemester.value
+
+            supervisorScope {
+                launch {
+                    updateStep("Attendance", "syncing")
+                    try {
+                        val res = AmazeClient.getAcademicData(sem)
+                        if (res.attendance.error == null) {
+                            _attendance.value = res.attendance
+                            cacheData(SettingsManager.CACHE_ATTENDANCE, res.attendance)
+                            res.marks?.let {
+                                _marks.value = it
+                                cacheData(SettingsManager.CACHE_MARKS, it)
+                            }
+                        }
+                        updateStep("Attendance", "done")
+                    } catch (_: Exception) { updateStep("Attendance", "failed") }
+                }
+                launch {
+                    updateStep("Timetable", "syncing")
+                    try {
+                        val res = AmazeClient.getTimetable(sem)
+                        if (res.error == null) {
+                            _timetable.value = res
+                            cacheData(SettingsManager.CACHE_TIMETABLE, res)
+                        }
+                        updateStep("Timetable", "done")
+                    } catch (_: Exception) { updateStep("Timetable", "failed") }
+                }
+                launch {
+                    updateStep("Grades", "syncing")
+                    try {
+                        val res = AmazeClient.getAllGrades()
+                        if (res.error == null) {
+                            _allGrades.value = res
+                            cacheData(SettingsManager.CACHE_GRADES, res)
+                        }
+                        updateStep("Grades", "done")
+                    } catch (_: Exception) { updateStep("Grades", "failed") }
+                }
+                launch {
+                    updateStep("Curriculum", "syncing")
+                    try {
+                        val res = AmazeClient.getCurriculum(semesterId = sem)
+                        if (res.error == null) {
+                            _curriculum.value = res
+                            cacheData(SettingsManager.CACHE_CURRICULUM, res)
+                        }
+                        updateStep("Curriculum", "done")
+                    } catch (_: Exception) { updateStep("Curriculum", "failed") }
+                }
+                launch {
+                    updateStep("Hostel", "syncing")
+                    try {
+                        val res = AmazeClient.getHostelDetails()
+                        if (res.error == null) {
+                            _hostelDetails.value = res
+                            cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, res)
+                        }
+                        updateStep("Hostel", "done")
+                    } catch (_: Exception) { updateStep("Hostel", "failed") }
+                }
+                launch {
+                    updateStep("Payments", "syncing")
+                    try {
+                        val res = AmazeClient.getPayments()
+                        if (res.error == null) {
+                            _payments.value = res
+                            cacheData(SettingsManager.CACHE_PAYMENTS, res)
+                        }
+                        updateStep("Payments", "done")
+                    } catch (_: Exception) { updateStep("Payments", "failed") }
+                }
+                launch {
+                    updateStep("Events", "syncing")
+                    try {
+                        val res = AmazeClient.getEvents()
+                        if (res.error == null) {
+                            _events.value = res
+                            cacheData(SettingsManager.CACHE_EVENTS, res)
+                        }
+                        updateStep("Events", "done")
+                    } catch (_: Exception) { updateStep("Events", "failed") }
+                }
+            }
+        }
+    }
+
     fun saveLibraryCredentials(username: String, password: String) {
         SettingsManager.saveLibraryCredentials(username, password)
         _libraryLoginRequired.value = false
@@ -1564,6 +1749,18 @@ object AppState {
                 cacheData(SettingsManager.CACHE_LIBRARY, res)
             } else if (res.error == "NO_LIB_CREDS") {
                 _libraryLoginRequired.value = true
+            }
+            _isSyncing.value = false
+        }
+    }
+
+    fun saveMoodleCredentials(username: String, password: String) {
+        SettingsManager.saveMoodleCredentials(username, password)
+        scope.launch {
+            _isSyncing.value = true
+            val res = AmazeClient.fetchMoodleData(username, password)
+            if (res.success) {
+                _moodleData.value = res
             }
             _isSyncing.value = false
         }

@@ -130,7 +130,20 @@ private fun EventsTab() {
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 88.dp)
         ) {
-            if (events.isEmpty()) {
+            if (eventRes == null) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = colors.accent, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text("Loading events...", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
+                        }
+                    }
+                }
+            } else if (events.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp),

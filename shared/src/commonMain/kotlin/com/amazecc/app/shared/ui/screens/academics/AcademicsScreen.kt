@@ -64,16 +64,16 @@ fun AcademicsScreen() {
 
     val hubCards = listOf(
         HubCard("course-dashboard", "Course Hub", "Your one-stop hub — courses, grades, arrears, projects and more.", Icons.Rounded.Dashboard, Color.White, colors.accent, true),
-        HubCard("grades", "Grade History", "Analyze your academic performance and past grades.", Icons.Rounded.History, Color(0xFF9333EA), Color(0xFFF3E8FF)),
-        HubCard("curriculum", "Curriculum", "Track your completed courses and credit requirements.", Icons.AutoMirrored.Rounded.MenuBook, Color(0xFF16A34A), Color(0xFFDCFCE7)),
-        HubCard("predictor", "CGPA Predictor", "Estimate your future CGPA based on expected grades.", Icons.AutoMirrored.Rounded.TrendingUp, Color(0xFFEA580C), Color(0xFFFFEDD5)),
-        HubCard("qbank", "Question Bank", "Access and search past year question papers.", Icons.Rounded.Storage, Color(0xFFDC2626), Color(0xFFFEE2E2)),
-        HubCard("arrear", "Arrear Management", "View arrear schedule, details and grades.", Icons.Rounded.Warning, Color(0xFFD97706), Color(0xFFFEF3C7)),
-        HubCard("makeup", "Makeup & Compre", "Makeup exam eligibility, schedule and compre info.", Icons.Rounded.School, Color(0xFF0891B2), Color(0xFFCFFAFE)),
-        HubCard("circulars", "Circulars", "Academic notices and circulars from VTOP.", Icons.Rounded.Campaign, Color(0xFF6366F1), Color(0xFFEEF2FF)),
-        HubCard("od-tracker", "OD Tracker", "Track on-duty hours, lab and theory.", Icons.Rounded.TaskAlt, Color(0xFFEC4899), Color(0xFFFDF2F8)),
-        HubCard("marks-timeline", "Marks Timeline", "Assessment history and grade trend.", Icons.Rounded.Timeline, Color(0xFF14B8A6), Color(0xFFF0FDFA)),
-        HubCard("vitol", "VITOL Wallet", "Digital wallet balance and transactions.", Icons.Rounded.AccountBalanceWallet, Color(0xFF8B5CF6), Color(0xFFF5F3FF))
+        HubCard("grades", "Grade History", "Analyze your academic performance and past grades.", Icons.Rounded.History, colors.chart2, colors.chart2.copy(alpha = 0.12f)),
+        HubCard("curriculum", "Curriculum", "Track your completed courses and credit requirements.", Icons.AutoMirrored.Rounded.MenuBook, colors.chart1, colors.chart1.copy(alpha = 0.12f)),
+        HubCard("predictor", "CGPA Predictor", "Estimate your future CGPA based on expected grades.", Icons.AutoMirrored.Rounded.TrendingUp, colors.chart3, colors.chart3.copy(alpha = 0.12f)),
+        HubCard("qbank", "Question Bank", "Access and search past year question papers.", Icons.Rounded.Storage, colors.chart5, colors.chart5.copy(alpha = 0.12f)),
+        HubCard("arrear", "Arrear Management", "View arrear schedule, details and grades.", Icons.Rounded.Warning, colors.chart3, colors.chart3.copy(alpha = 0.12f)),
+        HubCard("makeup", "Makeup & Compre", "Makeup exam eligibility, schedule and compre info.", Icons.Rounded.School, colors.chart2, colors.chart2.copy(alpha = 0.12f)),
+        HubCard("circulars", "Circulars", "Academic notices and circulars from VTOP.", Icons.Rounded.Campaign, colors.chart4, colors.chart4.copy(alpha = 0.12f)),
+        HubCard("od-tracker", "OD Tracker", "Track on-duty hours, lab and theory.", Icons.Rounded.TaskAlt, colors.chart4, colors.chart4.copy(alpha = 0.12f)),
+        HubCard("marks-timeline", "Marks Timeline", "Assessment history and grade trend.", Icons.Rounded.Timeline, colors.chart1, colors.chart1.copy(alpha = 0.12f)),
+        HubCard("vitol", "VITOL Wallet", "Digital wallet balance and transactions.", Icons.Rounded.AccountBalanceWallet, colors.chart5, colors.chart5.copy(alpha = 0.12f))
     )
 
     var currentView by remember { mutableStateOf<String?>(null) }
@@ -177,9 +177,9 @@ fun StatsOverviewCard(cgpa: Double, attendance: Double, credits: Double, require
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            StatBox("CGPA", cgpaFormatted(cgpa), Icons.Rounded.EmojiEvents, Color(0xFF10B981))
+            StatBox("CGPA", cgpaFormatted(cgpa), Icons.Rounded.EmojiEvents, colors.chart1)
             StatBox("Attendance", "${attendance.roundToInt()}%", Icons.Rounded.Percent, colors.accent)
-            StatBox("Credits", "${credits.toInt()}/${required.toInt()}", Icons.Rounded.School, Color(0xFF9333EA))
+            StatBox("Credits", "${credits.toInt()}/${required.toInt()}", Icons.Rounded.School, colors.chart4)
         }
     }
 }

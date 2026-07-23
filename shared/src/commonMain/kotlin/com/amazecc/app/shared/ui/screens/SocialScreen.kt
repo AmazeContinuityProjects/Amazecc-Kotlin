@@ -65,7 +65,7 @@ fun SocialScreen() {
                 Tab(
                     selected = activeTab == index,
                     onClick = { activeTab = index },
-                    text = { Text(tab, fontSize = 12.sp, fontWeight = FontWeight.Bold) },
+                    text = { Text(tab, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)) },
                     selectedContentColor = colors.accent,
                     unselectedContentColor = colors.textSecondary
                 )
@@ -98,7 +98,7 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         if (attList.isNotEmpty()) SocialUtils.exportScheduleCode(attList, name, regNumber) else ""
     }
 
-    val shareCode = "$name|$regNumber"
+    val shareCode = scheduleCode
     val qrMatrix = remember(shareCode) {
         if (shareCode.isNotBlank()) QRCodeGenerator.generate(shareCode) else null
     }
@@ -118,9 +118,9 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(16.dp))
-        Text("Share Your Schedule", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 18.sp)
+        Text("Share Your Schedule", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         Spacer(Modifier.height(4.dp))
-        Text("Friends can scan this code to see your free slots", color = colors.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
+        Text("Friends can scan this code to see your free slots", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, textAlign = TextAlign.Center))
 
         Spacer(Modifier.height(24.dp))
 
@@ -144,8 +144,8 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Rounded.QrCode, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                     Spacer(Modifier.height(8.dp))
-                    Text("No timetable data", color = colors.textMuted, fontSize = 12.sp)
-                    Text("Sync your data first", color = colors.textMuted, fontSize = 10.sp)
+                    Text("No timetable data", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                    Text("Sync your data first", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                 }
             }
         }
@@ -160,7 +160,7 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 Column(Modifier.weight(1f)) {
                     Text(
                         scheduleCode.let { if (it.length > 60) it.take(60) + "..." else it },
-                        color = colors.textSecondary, fontSize = 10.sp, maxLines = 1,
+                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary), maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
@@ -180,7 +180,7 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         Spacer(Modifier.height(24.dp))
 
         // Share options
-        Text("Share Options", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp, modifier = Modifier.fillMaxWidth())
+        Text("Share Options", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(12.dp))
 
         AmazeCard(
@@ -196,8 +196,8 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (codeCopied) "Copied!" else "Share Code", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
-                    Text("Copy schedule code to share with a friend", color = colors.textSecondary, fontSize = 11.sp)
+                    Text(if (codeCopied) "Copied!" else "Share Code", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Text("Copy schedule code to share with a friend", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
                 Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted)
             }
@@ -234,8 +234,8 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("Scan Friend's Code", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
-                    Text("Enter a friend's schedule code manually", color = colors.textSecondary, fontSize = 11.sp)
+                    Text("Scan Friend's Code", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Text("Enter a friend's schedule code manually", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
                 Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted)
             }

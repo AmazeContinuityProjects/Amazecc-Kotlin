@@ -10,10 +10,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Coffee
 import androidx.compose.material.icons.rounded.Restaurant
-import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -254,7 +252,7 @@ fun DailyPlannerScreen() {
                         Text(
                             "Holiday",
                             style = AmazeTheme.typography.smallLabel.copy(
-                                color = Color(0xFFEF4444),
+                                color = colors.chart5,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 8.sp
                             )
@@ -311,78 +309,178 @@ fun DailyPlannerScreen() {
 @Composable
 fun TimelineRow(item: TimelineEvent) {
     val colors = AmazeTheme.colors
-    
+
     Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
         // Timeline connector
-        Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.TopCenter) {
-            Box(modifier = Modifier.width(2.dp).fillMaxHeight().background(colors.border))
-            Box(modifier = Modifier.padding(top = 24.dp).size(10.dp).clip(CircleShape).background(if (item.type == "class") colors.accent else colors.border))
+        Box(modifier = Modifier.width(12.dp), contentAlignment = Alignment.TopCenter) {
+            Box(modifier = Modifier.width(1.5.dp).fillMaxHeight().background(colors.border))
+            Box(modifier = Modifier.padding(top = 24.dp).size(7.dp).clip(CircleShape).background(if (item.type == "class") colors.accent else colors.border))
         }
-        
-        Spacer(modifier = Modifier.width(16.dp))
-        
-        // Content Card
+
+        Spacer(modifier = Modifier.width(8.dp))
+
         Box(
             modifier = Modifier
                 .weight(1f)
+                .clip(RoundedCornerShape(16.dp))
                 .background(
-                    if (item.type == "class") colors.surface else colors.surface.copy(alpha = 0.5f), 
+                    if (item.type == "class") colors.surface else colors.surface.copy(alpha = 0.5f),
                     RoundedCornerShape(16.dp)
                 )
                 .border(1.dp, colors.border, RoundedCornerShape(16.dp))
-                .clickable { if (item.type == "class") item.course?.courseCode?.let { AppState.openCourseDetail(it) } }
-                .padding(16.dp)
+                .clickable {
+                    if (item.type == "class") item.course?.courseCode?.let { AppState.openCourseDetail(it) }
+                }
         ) {
             when (item.type) {
                 "free" -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(Icons.Rounded.Coffee, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text("Free Period", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                            Text("${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)} (${TimeMath.formatDuration(item.durationMins)})", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                            Text(
+                                "${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)} (${TimeMath.formatDuration(item.durationMins)})",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
                         }
                     }
                 }
                 "lunch" -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Restaurant, contentDescription = null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.Restaurant, contentDescription = null, tint = colors.chart3, modifier = Modifier.size(20.dp))
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text("Lunch Break", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                            Text("${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)} (${TimeMath.formatDuration(item.durationMins)})", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                            Text(
+                                "${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)} (${TimeMath.formatDuration(item.durationMins)})",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
                         }
                     }
                 }
                 "class" -> {
-                    Column {
-                        val c = item.course!!
-                        val total = c.totalClasses
-                        val attended = c.attendedClasses
-                        val attPct = if (total > 0) ((attended.toFloat() / total) * 100).toInt() else 0
-                        val isSafe = attPct >= 75
-                        
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            val slotStr = item.slots.joinToString(" + ")
-                            val venue = c.slotVenue
-                            val slotAndVenue = if (!venue.isNullOrBlank()) "$slotStr • $venue" else slotStr
-                            Text(slotAndVenue, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                            Text("${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(c.courseTitle, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(if (isSafe) Icons.Rounded.CheckCircle else Icons.Rounded.Warning, contentDescription = null, tint = if (isSafe) Color(0xFF10B981) else Color(0xFFEF4444), modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Attendance: $attPct%", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                    val c = item.course!!
+                    val total = c.totalClasses
+                    val attended = c.attendedClasses
+                    val attPct = if (total > 0) ((attended.toFloat() / total) * 100).toInt() else 0
+                    val isSafe = attPct >= 75
+                    val typeColor = courseTypeColor(c.courseType, colors)
+                    val typeLabel = courseTypeLabel(c.courseType)
+
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .fillMaxHeight()
+                                .background(typeColor, RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                        )
+                        Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(typeColor.copy(alpha = 0.12f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        typeLabel,
+                                        style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = typeColor)
+                                    )
+                                }
+                                Text(
+                                    "${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)}",
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                )
                             }
-                            Text(c.courseType, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                c.courseTitle,
+                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val slotStr = item.slots.joinToString(" + ")
+                                val venue = c.slotVenue
+                                val slotAndVenue = if (!venue.isNullOrBlank()) "$slotStr • $venue" else slotStr
+                                Text(
+                                    slotAndVenue,
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(
+                                            when {
+                                                attPct >= 85 -> colors.chart1.copy(alpha = 0.12f)
+                                                attPct >= 75 -> colors.chart3.copy(alpha = 0.12f)
+                                                else -> colors.chart5.copy(alpha = 0.12f)
+                                            }
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        "$attPct%",
+                                        style = AmazeTheme.typography.smallLabel.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = when {
+                                                attPct >= 85 -> colors.chart1
+                                                attPct >= 75 -> colors.chart3
+                                                else -> colors.chart5
+                                            }
+                                        )
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+private fun courseTypeColor(type: String, colors: com.amazecc.app.shared.theme.AmazeColors): Color {
+    return when {
+        type.contains("Theory", ignoreCase = true) && !type.contains("Embedded", ignoreCase = true) -> colors.chart2
+        type.contains("Lab", ignoreCase = true) && !type.contains("Embedded", ignoreCase = true) -> colors.chart5
+        type.contains("Embedded", ignoreCase = true) -> colors.chart3
+        type.contains("Project", ignoreCase = true) -> colors.chart4
+        type.contains("Soft Skills", ignoreCase = true) -> colors.chart1
+        else -> colors.accent
+    }
+}
+
+private fun courseTypeLabel(type: String): String {
+    return when {
+        type.contains("Embedded Theory", ignoreCase = true) -> "ETH"
+        type.contains("Embedded Lab", ignoreCase = true) -> "ELA"
+        type.contains("Embedded", ignoreCase = true) -> "EMB"
+        type.contains("Theory Only", ignoreCase = true) -> "TH"
+        type.contains("Lab Only", ignoreCase = true) -> "LO"
+        type.contains("Project", ignoreCase = true) -> "PJT"
+        type.contains("Soft Skills", ignoreCase = true) -> "SS"
+        type.contains("Option Course", ignoreCase = true) -> "OC"
+        else -> type.take(3).uppercase()
     }
 }

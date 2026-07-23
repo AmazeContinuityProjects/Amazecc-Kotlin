@@ -46,7 +46,8 @@ fun LoginScreen() {
             // Session restored from cache — load data and go to home
             username = creds.first
             password = creds.second
-            AppState.navigateTo(Screen.HOME)
+            val target = if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING
+            AppState.navigateTo(target)
         } else {
             // Try VTOP login with cached credentials
             if (creds != null && SessionManager.authorizedID.value != null) {
@@ -61,7 +62,8 @@ fun LoginScreen() {
                         SettingsManager.setString(SettingsManager.SESSION_CSRF, response.csrf)
                         SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
                         response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                        AppState.navigateTo(Screen.HOME)
+                        val target = if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING
+                        AppState.navigateTo(target)
                     }
                     isSubmitting = false
                 }
@@ -216,7 +218,7 @@ fun LoginScreen() {
                                 AmazeClient.setUseMockData(false)
                             }
                             // Load student data and transition to dashboard
-                            AppState.navigateTo(Screen.HOME)
+                            AppState.navigateTo(if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING)
                         } else {
                             errorMessage = response.message.ifBlank { "Authentication failed." }
                         }
@@ -253,7 +255,7 @@ fun LoginScreen() {
                                 SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, authId)
                                 SettingsManager.saveCredentials("DEMO123", "password")
                                 AmazeClient.setUseMockData(true)
-                                AppState.navigateTo(Screen.HOME)
+                                AppState.navigateTo(if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING)
                             }
                         }
                     }

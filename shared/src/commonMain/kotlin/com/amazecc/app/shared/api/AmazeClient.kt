@@ -23,6 +23,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.Serializable
 import com.amazecc.app.shared.utils.AnalyzeCalendar
+import com.amazecc.app.shared.utils.UpdateConfig
 
 @Serializable
 data class LoginRequest(val username: String, val password: String)
@@ -938,8 +939,12 @@ object AmazeClient {
             )
         }
         return try {
-            val element = postAuthorized<JsonElement>("events")
-            if (element != null) {
+            val response = httpClient.get("$baseUrl/api/events") {
+                contentType(ContentType.Application.Json)
+            }
+            if (response.status == HttpStatusCode.OK) {
+                val body = response.bodyAsText()
+                val element = jsonConfig.decodeFromString<JsonElement>(body)
                 val eventsList = if (element is JsonArray) {
                     jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
                 } else if (element.jsonObject["events"] is JsonArray) {
@@ -949,7 +954,7 @@ object AmazeClient {
                 }
                 EventHubRes(success = true, events = eventsList)
             } else {
-                EventHubRes(success = false, message = "Empty response")
+                EventHubRes(success = false, message = "Server returned ${response.status}")
             }
         } catch (e: Exception) {
             EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
@@ -958,12 +963,12 @@ object AmazeClient {
 
     suspend fun getEventPreview(eid: String): EventHubPreview? {
         return try {
+            val jsessionid = SessionManager.clubToken.value
             val response = httpClient.post("$baseUrl/api/events/preview") {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject {
                     put("eid", eid)
-                    put("username", "")
-                    put("password", "")
+                    if (jsessionid != null) put("jsessionid", jsessionid)
                 })
             }
             if (response.status == HttpStatusCode.OK) {
@@ -976,13 +981,13 @@ object AmazeClient {
 
     suspend fun registerForEvent(eid: String): EventHubRegisterRes? {
         return try {
-            val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
+            val jsessionid = SessionManager.clubToken.value
+            if (jsessionid == null) return null
             val response = httpClient.post("$baseUrl/api/events/register") {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject {
                     put("eid", eid)
-                    put("username", creds?.first ?: "")
-                    put("password", creds?.second ?: "")
+                    put("jsessionid", jsessionid)
                 })
             }
             if (response.status == HttpStatusCode.OK) {
@@ -1537,6 +1542,11 @@ object AmazeClient {
         } catch (_: Exception) {
             null
         }
+    }
+
+    suspend fun checkForUpdate(): GitHubRelease {
+        val url = "https://api.github.com/repos/${UpdateConfig.GITHUB_OWNER}/${UpdateConfig.GITHUB_REPO}/releases/latest"
+        return httpClient.get(url).body()
     }
 }
 

@@ -33,6 +33,20 @@ val ColorInfoSurfaceLight = Color(0xFFEFF6FF)
 val ColorInfoTextDark = Color(0xFF93C5FD)
 val ColorInfoSurfaceDark = Color(0xFF1E3A8A)
 
+// Chart Colors - Light Mode (from AmazeUI web theme)
+val Chart1Light = Color(0xFFF97316)  // Orange
+val Chart2Light = Color(0xFF14B8A6)  // Teal
+val Chart3Light = Color(0xFF6366F1)  // Indigo
+val Chart4Light = Color(0xFFEAB308)  // Yellow
+val Chart5Light = Color(0xFFF59E0B)  // Amber
+
+// Chart Colors - Dark Mode
+val Chart1Dark = Color(0xFF818CF8)  // Light Indigo
+val Chart2Dark = Color(0xFF34D399)  // Light Green
+val Chart3Dark = Color(0xFFFBBF24)  // Amber
+val Chart4Dark = Color(0xFFC084FC)  // Purple
+val Chart5Dark = Color(0xFFFB7185)  // Rose
+
 // Neutral Colors - Light Mode
 val NeutralBgLight = Color(0xFFF1F5F9)
 val NeutralSurfaceLight = Color(0xFFF8FAFC)

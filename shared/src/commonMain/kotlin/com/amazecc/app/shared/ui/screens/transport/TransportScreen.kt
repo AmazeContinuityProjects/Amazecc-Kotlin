@@ -204,10 +204,10 @@ private fun TransportRegistrationCard(
                             modifier = Modifier
                                 .size(42.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFF59E0B).copy(alpha = 0.15f)),
+                                .background(colors.chart3.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Rounded.BusAlert, null, tint = Color(0xFFD97706), modifier = Modifier.size(24.dp))
+                            Icon(Icons.Rounded.BusAlert, null, tint = colors.chart3, modifier = Modifier.size(24.dp))
                         }
                         Spacer(modifier = Modifier.width(14.dp))
                         Column {
@@ -382,12 +382,12 @@ private fun RegistrationDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isError) Color(0xFFEF4444).copy(alpha = 0.1f) else Color(0xFF10B981).copy(alpha = 0.1f))
+                            .background(if (isError) colors.chart5.copy(alpha = 0.1f) else colors.chart1.copy(alpha = 0.1f))
                             .padding(12.dp)
                     ) {
                         Text(
                             resultMessage!!,
-                            color = if (isError) Color(0xFFDC2626) else Color(0xFF059669),
+                            color = if (isError) colors.chart5 else colors.chart1,
                             style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium)
                         )
                     }
@@ -540,11 +540,11 @@ private fun BusRouteCard(
 ) {
     val isAC = route.type.contains("AC", ignoreCase = true) == true
     val gradientColors = if (isAC) {
-        listOf(Color(0xFF3B82F6).copy(alpha = 0.15f), Color(0xFF60A5FA).copy(alpha = 0.05f))
+        listOf(colors.chart2.copy(alpha = 0.15f), colors.chart2.copy(alpha = 0.05f))
     } else {
-        listOf(Color(0xFF10B981).copy(alpha = 0.15f), Color(0xFF34D399).copy(alpha = 0.05f))
+        listOf(colors.chart1.copy(alpha = 0.15f), colors.chart1.copy(alpha = 0.05f))
     }
-    val themeColor = if (isAC) Color(0xFF3B82F6) else Color(0xFF10B981)
+    val themeColor = if (isAC) colors.chart2 else colors.chart1
 
     Box(
         modifier = Modifier

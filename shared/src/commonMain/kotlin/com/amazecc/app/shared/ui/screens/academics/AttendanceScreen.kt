@@ -93,8 +93,8 @@ fun AttendanceScreen() {
 
         Box(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
             when (activeView) {
-                "Timetable" -> DailyPlannerScreen()
-                "Predictor" -> OverallPredictorScreen()
+                "Class" -> DailyPlannerScreen()
+                "Predict" -> OverallPredictorScreen()
                 "Calendar" -> CalendarScreen(onBack = {}, showHeader = false, autoFetch = false)
             }
         }
@@ -227,9 +227,9 @@ fun OverallPredictorScreen() {
                     text = pctFormatted(overallPct),
                     style = AmazeTheme.typography.heading.copy(
                         color = when {
-                            overallPct >= 85 -> Color(0xFF10B981)
-                            overallPct >= 75 -> Color(0xFFF59E0B)
-                            else -> Color(0xFFEF4444)
+                            overallPct >= 85 -> colors.chart1
+                            overallPct >= 75 -> colors.chart3
+                            else -> colors.chart5
                         },
                         fontWeight = FontWeight.Black,
                         fontSize = 40.sp
@@ -400,7 +400,7 @@ private fun ExpandedCoursePredictorCard(
                     Spacer(modifier = Modifier.height(2.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Current: ${course.attendedClasses}/${course.totalClasses}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                        Text(if (prediction.skipCount > 0) "Skips: ${prediction.skipCount}" else "", style = AmazeTheme.typography.caption.copy(color = if (prediction.skipCount > 0) Color(0xFFEF4444) else colors.textSecondary))
+                        Text(if (prediction.skipCount > 0) "Skips: ${prediction.skipCount}" else "", style = AmazeTheme.typography.caption.copy(color = if (prediction.skipCount > 0) colors.chart5 else colors.textSecondary))
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
@@ -408,9 +408,9 @@ private fun ExpandedCoursePredictorCard(
                         text = pctFormatted(projectedPct),
                         style = AmazeTheme.typography.subheading.copy(
                             color = when {
-                                projectedPct >= 85 -> Color(0xFF10B981)
-                                projectedPct >= 75 -> Color(0xFFF59E0B)
-                                else -> Color(0xFFEF4444)
+                                projectedPct >= 85 -> colors.chart1
+                                projectedPct >= 75 -> colors.chart3
+                                else -> colors.chart5
                             },
                             fontWeight = FontWeight.Black
                         )
@@ -445,7 +445,7 @@ private fun ExpandedCoursePredictorCard(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
                             .clickable { onToggleSkipDate(fd.display) }
-                            .background(if (isSkipped) Color(0xFFEF4444).copy(alpha = 0.08f) else Color.Transparent)
+                            .background(if (isSkipped) colors.chart5.copy(alpha = 0.08f) else Color.Transparent)
                             .padding(horizontal = 12.dp, vertical = 10.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -455,7 +455,7 @@ private fun ExpandedCoursePredictorCard(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(if (isSkipped) Color(0xFFEF4444) else Color(0xFF10B981))
+                                    .background(if (isSkipped) colors.chart5 else colors.chart1)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
@@ -466,12 +466,12 @@ private fun ExpandedCoursePredictorCard(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(if (isSkipped) Color(0xFFEF4444).copy(alpha = 0.15f) else Color(0xFF10B981).copy(alpha = 0.12f))
+                                .background(if (isSkipped) colors.chart5.copy(alpha = 0.15f) else colors.chart1.copy(alpha = 0.12f))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 if (isSkipped) "SKIP" else "ATTEND",
-                                color = if (isSkipped) Color(0xFFEF4444) else Color(0xFF10B981),
+                                color = if (isSkipped) colors.chart5 else colors.chart1,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -892,9 +892,9 @@ fun TimetableGridScreen() {
                                         .clip(RoundedCornerShape(6.dp))
                                         .background(
                                             when {
-                                                (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 85 -> Color(0xFF10B981).copy(alpha = 0.12f)
-                                                (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 75 -> Color(0xFFF59E0B).copy(alpha = 0.12f)
-                                                else -> Color(0xFFEF4444).copy(alpha = 0.12f)
+                                                (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 85 -> colors.chart1.copy(alpha = 0.12f)
+                                                (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 75 -> colors.chart3.copy(alpha = 0.12f)
+                                                else -> colors.chart5.copy(alpha = 0.12f)
                                             }
                                         )
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
@@ -902,9 +902,9 @@ fun TimetableGridScreen() {
                                     Text(
                                         course.attendancePercentage,
                                         color = when {
-                                            (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 85 -> Color(0xFF10B981)
-                                            (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 75 -> Color(0xFFF59E0B)
-                                            else -> Color(0xFFEF4444)
+                                            (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 85 -> colors.chart1
+                                            (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 75 -> colors.chart3
+                                            else -> colors.chart5
                                         },
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
