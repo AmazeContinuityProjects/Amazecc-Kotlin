@@ -28,6 +28,13 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.MoodleLoginModal
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
+import com.amazecc.app.shared.ui.components.bouncySpring
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -233,25 +240,48 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                         if (allMonths.isNotEmpty()) {
                             LazyRow(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = spacing.sm),
-                                horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 contentPadding = PaddingValues(horizontal = spacing.pageHorizontal)
                             ) {
                                 items(allMonths.indices.toList()) { idx ->
                                     val month = allMonths[idx]
                                     val isSelected = selectedMonthIdx == idx
+                                    val interactionSource = remember { MutableInteractionSource() }
+                                    val isPressed by interactionSource.collectIsPressedAsState()
+                                    val scale by animateFloatAsState(
+                                        targetValue = if (isPressed) 0.94f else 1f,
+                                        animationSpec = bouncySpring()
+                                    )
+
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(radius.extraLarge))
+                                            .graphicsLayer {
+                                                scaleX = scale
+                                                scaleY = scale
+                                            }
+                                            .clip(CircleShape)
                                             .background(if (isSelected) colors.accent else colors.surface)
-                                            .clickable { selectedMonthIdx = idx; selectedDay = null }
-                                            .padding(horizontal = spacing.md, vertical = spacing.sm)
+                                            .border(
+                                                1.dp,
+                                                if (isSelected) colors.accent else colors.border,
+                                                CircleShape
+                                            )
+                                            .clickable(
+                                                interactionSource = interactionSource,
+                                                indication = null,
+                                                onClick = { selectedMonthIdx = idx; selectedDay = null }
+                                            )
+                                            .padding(horizontal = 16.dp, vertical = 8.dp)
                                     ) {
                                         Text(
-                                            text = monthDisplayName(month.month),
-                                            style = AmazeTheme.typography.body.copy(
+                                            text = monthDisplayName(month.month).uppercase(),
+                                            style = AmazeTheme.typography.smallLabel.copy(
                                                 color = if (isSelected) colors.background else colors.textPrimary,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                            )
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 11.sp
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
@@ -263,14 +293,18 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                     item {
                         if (activeMonth != null) {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.pageHorizontal, vertical = spacing.xs),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.pageHorizontal, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { d ->
+                                listOf("SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT").forEach { d ->
                                     Text(
                                         d, modifier = Modifier.weight(1f),
                                         textAlign = TextAlign.Center,
-                                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
+                                        style = AmazeTheme.typography.smallLabel.copy(
+                                            color = colors.textMuted,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 10.sp
+                                        )
                                     )
                                 }
                             }
@@ -301,18 +335,47 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                                                         gridYearNum == todayYearNum
                                                 val isSelected = selectedDay == dayNumber
                                                 val d = dayNumber
+
+                                                val interactionSource = remember { MutableInteractionSource() }
+                                                val isPressed by interactionSource.collectIsPressedAsState()
+                                                val cellScale by animateFloatAsState(
+                                                    targetValue = if (isPressed) 0.90f else 1f,
+                                                    animationSpec = bouncySpring()
+                                                )
+
                                                 Box(
                                                     modifier = Modifier
-                                                        .weight(1f).aspectRatio(1f).padding(3.dp)
-                                                        .clip(RoundedCornerShape(radius.xs))
+                                                        .weight(1f)
+                                                        .aspectRatio(1f)
+                                                        .padding(3.dp)
+                                                        .graphicsLayer {
+                                                            scaleX = cellScale
+                                                            scaleY = cellScale
+                                                        }
+                                                        .clip(CircleShape)
                                                         .background(
                                                             when {
-                                                                isSelected -> colors.accent.copy(alpha = 0.25f)
-                                                                isToday -> colors.accent.copy(alpha = 0.1f)
+                                                                isSelected -> colors.accent
+                                                                isToday -> colors.accent.copy(alpha = 0.18f)
+                                                                dayEvents.isNotEmpty() -> colors.surface
                                                                 else -> Color.Transparent
                                                             }
                                                         )
-                                                        .clickable { selectedDay = if (selectedDay == d) null else d },
+                                                        .border(
+                                                            1.dp,
+                                                            when {
+                                                                isSelected -> colors.accent
+                                                                isToday -> colors.accent
+                                                                dayEvents.isNotEmpty() -> colors.border
+                                                                else -> Color.Transparent
+                                                            },
+                                                            CircleShape
+                                                        )
+                                                        .clickable(
+                                                            interactionSource = interactionSource,
+                                                            indication = null,
+                                                            onClick = { selectedDay = if (selectedDay == d) null else d }
+                                                        ),
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -320,11 +383,12 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                                                             dayNumber.toString(),
                                                             style = AmazeTheme.typography.body.copy(
                                                                 color = when {
-                                                                    isSelected -> colors.accent
+                                                                    isSelected -> colors.background
                                                                     isToday -> colors.accent
                                                                     else -> colors.textPrimary
                                                                 },
-                                                                fontWeight = if (isToday || isSelected || dayEvents.isNotEmpty()) FontWeight.Bold else FontWeight.Normal
+                                                                fontWeight = if (isToday || isSelected || dayEvents.isNotEmpty()) FontWeight.Bold else FontWeight.Medium,
+                                                                fontSize = 13.sp
                                                             )
                                                         )
                                                         if (dayEvents.isNotEmpty()) {
@@ -333,7 +397,12 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                                                                 modifier = Modifier.padding(top = 2.dp)
                                                             ) {
                                                                 dayEvents.take(3).forEach { ev ->
-                                                                    Box(modifier = Modifier.size(4.dp).clip(CircleShape).background(ev.color))
+                                                                    Box(
+                                                                        modifier = Modifier
+                                                                            .size(4.dp)
+                                                                            .clip(CircleShape)
+                                                                            .background(if (isSelected) colors.background else ev.color)
+                                                                    )
                                                                 }
                                                             }
                                                         }
@@ -356,19 +425,48 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
 
                     // ── Events section header ──
                     item {
-                        val dayLabel = if (selectedDay != null) {
-                            "${monthDisplayName(activeMonth?.month ?: "")} $selectedDay"
-                        } else {
-                            monthDisplayName(activeMonth?.month ?: "")
-                        }
-                        Text(
-                            text = if (selectedDay != null) dayLabel else "All events — $dayLabel",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                            style = AmazeTheme.typography.subheading.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = colors.textPrimary
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val activeMonthName = monthDisplayName(activeMonth?.month ?: "")
+                            val titleText = if (selectedDay != null) {
+                                "$activeMonthName $selectedDay"
+                            } else {
+                                "ALL EVENTS — $activeMonthName"
+                            }
+                            Text(
+                                text = titleText.uppercase(),
+                                style = AmazeTheme.typography.smallLabel.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.accent,
+                                    fontSize = 11.sp
+                                )
                             )
-                        )
+
+                            if (selectedDay != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(colors.surface)
+                                        .border(1.dp, colors.border, CircleShape)
+                                        .clickable { selectedDay = null }
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        "SHOW ALL",
+                                        style = AmazeTheme.typography.smallLabel.copy(
+                                            color = colors.textSecondary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.sp
+                                        )
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     // ── Events list ──
@@ -386,42 +484,62 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                     if (eventsToShow.isEmpty()) {
                         item {
                             Box(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 32.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 24.dp)
+                                    .clip(RoundedCornerShape(18.dp))
+                                    .background(colors.surface)
+                                    .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+                                    .padding(24.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(36.dp))
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Text("No events${if (selectedDay != null) " on this day" else " this month"}", color = colors.textMuted)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(CircleShape)
+                                            .background(colors.textMuted.copy(alpha = 0.12f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(24.dp))
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        "No events scheduled${if (selectedDay != null) " for this date" else " for this month"}",
+                                        color = colors.textSecondary,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp
+                                    )
                                 }
                             }
                         }
                     } else {
                         items(eventsToShow) { (dateLabel, ev) ->
                             if (dateLabel.isNotEmpty()) {
-                                Text(
-                                    text = dateLabel,
-                                    modifier = Modifier.padding(horizontal = spacing.pageHorizontal, vertical = spacing.xs),
-                                    style = AmazeTheme.typography.body.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = colors.textSecondary
-                                    )
-                                )
-                            }
-                            AmazeCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp)) {
-                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.width(4.dp).height(36.dp).background(ev.color, RoundedCornerShape(2.dp)))
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(ev.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary))
-                                        if (ev.timeOrLocation.isNotBlank()) {
-                                            Text(ev.timeOrLocation, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                                        }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(CircleShape)
+                                            .background(colors.accent.copy(alpha = 0.12f))
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = dateLabel.uppercase(),
+                                            style = AmazeTheme.typography.smallLabel.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = colors.accent,
+                                                fontSize = 10.sp
+                                            )
+                                        )
                                     }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    CalendarBadge(ev.type, ev.color.copy(alpha = 0.18f), ev.color)
                                 }
                             }
+                            BouncyEventCard(ev = ev, colors = colors)
                         }
                     }
                 }
@@ -431,13 +549,100 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
 }
 
 @Composable
+private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = bouncySpring()
+    )
+
+    val icon = when (ev.type.lowercase()) {
+        "exam" -> Icons.Rounded.MenuBook
+        "moodle" -> Icons.Rounded.Assignment
+        "holiday" -> Icons.Rounded.Celebration
+        else -> Icons.Rounded.EventNote
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+    ) {
+        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(ev.color)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(ev.color.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = ev.color, modifier = Modifier.size(18.dp))
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        ev.title,
+                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (ev.timeOrLocation.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Rounded.AccessTime,
+                                contentDescription = null,
+                                tint = colors.textMuted,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                ev.timeOrLocation,
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                CalendarBadge(ev.type, ev.color.copy(alpha = 0.16f), ev.color)
+            }
+        }
+    }
+}
+
+@Composable
 private fun CalendarBadge(text: String, backgroundColor: Color, textColor: Color) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+            .clip(CircleShape)
             .background(backgroundColor)
-            .padding(horizontal = AmazeTheme.spacing.xs, vertical = AmazeTheme.spacing.xs)
+            .border(1.dp, textColor.copy(alpha = 0.3f), CircleShape)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
     ) {
-        Text(text = text, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = textColor))
+        Text(
+            text = text.uppercase(),
+            style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = textColor, fontSize = 9.sp)
+        )
     }
 }

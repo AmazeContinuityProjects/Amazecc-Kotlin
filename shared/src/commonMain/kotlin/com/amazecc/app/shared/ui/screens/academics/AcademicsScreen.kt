@@ -31,7 +31,13 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
-import com.amazecc.app.shared.config.SlotMap
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
+import com.amazecc.app.shared.ui.components.bouncySpring
 import kotlin.math.roundToInt
 
 @Composable
@@ -187,14 +193,14 @@ fun StatBox(label: String, value: String, icon: ImageVector, iconColor: Color) {
     val colors = AmazeTheme.colors
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            modifier = Modifier.size(32.dp).clip(CircleShape).background(iconColor.copy(alpha = 0.15f)),
+            modifier = Modifier.size(36.dp).clip(CircleShape).background(iconColor.copy(alpha = 0.15f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(18.dp))
         }
         Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-        Text(value, style = AmazeTheme.typography.subheading.copy(color = colors.textPrimary))
-        Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+        Text(value, style = AmazeTheme.typography.heading.copy(color = colors.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Black), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -208,26 +214,39 @@ data class HubCard(
     val prominent: Boolean = false
 )
 
-
-
-
-
 @Composable
 fun HubCardItem(card: HubCard, onClick: () -> Unit) {
     val colors = AmazeTheme.colors
     val radius = AmazeTheme.radius
     val spacing = AmazeTheme.spacing
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = bouncySpring()
+    )
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .clip(RoundedCornerShape(radius.medium))
             .background(if (card.prominent) colors.accent else colors.surface)
-            .clickable(onClick = onClick)
+            .border(1.dp, if (card.prominent) colors.accent else colors.border, RoundedCornerShape(radius.medium))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
             .padding(spacing.cardPadding)
     ) {
         Column {
             Box(
-                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(radius.small)).background(card.bgColor),
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(if (card.prominent) colors.background.copy(alpha = 0.2f) else card.bgColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(card.icon, contentDescription = null, tint = card.color, modifier = Modifier.size(20.dp))
@@ -238,14 +257,18 @@ fun HubCardItem(card: HubCard, onClick: () -> Unit) {
                 style = AmazeTheme.typography.subheading.copy(
                     fontWeight = FontWeight.Bold,
                     color = if (card.prominent) colors.background else colors.textPrimary
-                )
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.height(spacing.xs))
             Text(
                 text = card.description,
                 style = AmazeTheme.typography.caption.copy(
                     color = if (card.prominent) colors.background.copy(alpha = 0.8f) else colors.textSecondary
-                )
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

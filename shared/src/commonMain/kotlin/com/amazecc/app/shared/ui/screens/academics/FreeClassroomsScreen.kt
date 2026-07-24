@@ -36,6 +36,19 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.toLocalDateTime
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
+import com.amazecc.app.shared.ui.components.AmazeBadge
+import com.amazecc.app.shared.ui.components.BadgeVariant
+import com.amazecc.app.shared.ui.components.bouncySpring
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 
 data class SimpleParsedCourse(
     val code: String,
@@ -43,6 +56,16 @@ data class SimpleParsedCourse(
     val room: String,
     val slot: String
 )
+
+private fun extractBlockName(room: String): String {
+    val clean = room.trim().uppercase()
+    if (clean.isEmpty() || clean == "NIL" || clean == "N/A" || clean.contains("ONLINE")) return ""
+    return when {
+        clean.contains("-") -> clean.substringBefore("-").trim()
+        clean.contains(" ") -> clean.substringBefore(" ").trim()
+        else -> clean.takeWhile { it.isLetter() || it.isDigit() }
+    }
+}
 
 private fun timeToMinutes(timeStr: String): Int {
     if (timeStr.isEmpty()) return 0
@@ -126,11 +149,21 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
         }
     }
 
-    val blocks = listOf("All", "AB1", "AB2", "AB3", "SJIT", "TT", "SMV", "SJT", "PRP")
-    var selectedBlock by remember { mutableStateOf(blocks[0]) }
-
     var courses by remember { mutableStateOf<List<SimpleParsedCourse>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+
+    val dynamicBlocks = remember(courses) {
+        if (courses.isEmpty()) listOf("ALL")
+        else {
+            val extracted = courses
+                .map { extractBlockName(it.room) }
+                .filter { it.isNotBlank() && it.length in 2..8 }
+                .toSet()
+                .sorted()
+            listOf("ALL") + extracted
+        }
+    }
+    var selectedBlock by remember { mutableStateOf("ALL") }
 
     LaunchedEffect(Unit) {
         loading = true
@@ -244,7 +277,14 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
         }
         
         val free = allRooms.filter { !occupiedRooms.contains(it) }
-        val filtered = if (selectedBlock == "All") free else free.filter { it.startsWith(selectedBlock, ignoreCase = true) }
+        val filtered = if (selectedBlock.uppercase() == "ALL") {
+            free
+        } else {
+            free.filter { room ->
+                val extracted = extractBlockName(room)
+                extracted.equals(selectedBlock, ignoreCase = true) || room.startsWith(selectedBlock, ignoreCase = true)
+            }
+        }
         
         filtered.sorted().map { Pair(it, roomTypes[it] ?: "Theory") }
     }
@@ -261,6 +301,67 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
+            Text(
+                "SELECT BLOCK",
+                style = AmazeTheme.typography.smallLabel.copy(
+                    color = colors.accent,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp
+                ),
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                dynamicBlocks.forEach { block ->
+                    val isSelected = selectedBlock.equals(block, ignoreCase = true)
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.94f else 1f,
+                        animationSpec = bouncySpring()
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .clip(CircleShape)
+                            .background(if (isSelected) colors.accent else colors.surface)
+                            .border(
+                                1.dp,
+                                if (isSelected) colors.accent else colors.border,
+                                CircleShape
+                            )
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                onClick = { selectedBlock = block }
+                            )
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = block,
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = if (isSelected) colors.background else colors.textPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(modifier = Modifier.weight(1f)) {
                     AmazeDropdown(
@@ -272,21 +373,13 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 }
                 Box(modifier = Modifier.weight(1f)) {
                     AmazeDropdown(
-                        label = "Block",
-                        selectedOption = selectedBlock,
-                        options = blocks,
-                        onOptionSelected = { selectedBlock = it }
+                        label = "Time",
+                        selectedOption = selectedTime,
+                        options = timePeriods,
+                        onOptionSelected = { selectedTime = it }
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            AmazeDropdown(
-                label = "Time",
-                selectedOption = selectedTime,
-                options = timePeriods,
-                onOptionSelected = { selectedTime = it },
-                modifier = Modifier.fillMaxWidth()
-            )
             
             Spacer(modifier = Modifier.height(16.dp))
             
@@ -301,31 +394,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                     items(availableRooms) { (room, type) ->
-                        AmazeCard {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Rounded.MeetingRoom, contentDescription = null, tint = colors.accent)
-                                    Spacer(modifier = Modifier.width(16.dp))
-                                    Text(
-                                        text = room,
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = colors.textPrimary
-                                    )
-                                }
-                                Badge(
-                                    text = type,
-                                    backgroundColor = if (type == "Theory") colors.successSurface else colors.warning.copy(alpha=0.2f),
-                                    textColor = if (type == "Theory") colors.successText else colors.warning
-                                )
-                            }
-                        }
+                        FreeClassroomCard(room, type, colors)
                     }
                 }
             }
@@ -334,18 +403,55 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun Badge(text: String, backgroundColor: androidx.compose.ui.graphics.Color, textColor: androidx.compose.ui.graphics.Color) {
+private fun FreeClassroomCard(room: String, type: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        animationSpec = bouncySpring()
+    )
+
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(backgroundColor)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
     ) {
-        Text(
-            text = text,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = textColor
-        )
+        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(colors.accent.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.MeetingRoom, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Text(
+                        text = room,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                AmazeBadge(
+                    text = type,
+                    variant = if (type == "Theory") BadgeVariant.SUCCESS else BadgeVariant.WARNING
+                )
+            }
+        }
     }
 }

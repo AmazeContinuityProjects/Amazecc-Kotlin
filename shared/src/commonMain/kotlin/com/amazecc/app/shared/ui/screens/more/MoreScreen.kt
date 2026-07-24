@@ -35,8 +35,13 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
-import com.amazecc.app.shared.ui.components.LocalNotificationPermissionManager
-import com.amazecc.app.shared.ui.components.PushPromptModal
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
+import com.amazecc.app.shared.ui.components.bouncySpring
 
 @Composable
 fun MoreScreen() {
@@ -320,25 +325,45 @@ fun ModuleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
     val moduleColors = listOf(colors.chart1, colors.chart2, colors.chart3, colors.chart4, colors.chart5)
     val colorIndex = label.hashCode().mod(moduleColors.size).let { if (it < 0) it + moduleColors.size else it }
     val neonColor = moduleColors[colorIndex]
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.90f else 1f,
+        animationSpec = bouncySpring()
+    )
+
     Column(
-        modifier = modifier.clickable { onClick() },
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            ),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(neonColor.copy(alpha = 0.12f))
+                .size(54.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(neonColor.copy(alpha = 0.14f))
+                .border(1.dp, neonColor.copy(alpha = 0.25f), androidx.compose.foundation.shape.CircleShape)
                 .padding(12.dp),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = label, tint = neonColor, modifier = Modifier.size(32.dp))
+            Icon(icon, contentDescription = label, tint = neonColor, modifier = Modifier.size(26.dp))
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = label,
             style = AmazeTheme.typography.smallLabel.copy(color = neonColor, fontWeight = FontWeight.Bold),
-            textAlign = TextAlign.Center
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -360,8 +385,8 @@ fun ToggleRow(title: String, subtitle: String, checked: Boolean, onCheckedChange
         )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
-            Text(subtitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+            Text(title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Switch(
             checked = checked,
@@ -377,12 +402,39 @@ fun ClickableRow(title: String, icon: androidx.compose.ui.graphics.vector.ImageV
     val iconColors = listOf(colors.chart1, colors.chart2, colors.chart3, colors.chart4, colors.chart5)
     val colorIndex = title.hashCode().mod(iconColors.size).let { if (it < 0) it + iconColors.size else it }
     val neonColor = iconColors[colorIndex]
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = bouncySpring()
+    )
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 12.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 12.dp)
     ) {
-        Icon(icon, contentDescription = null, tint = neonColor, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.width(16.dp))
-        Text(title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(neonColor.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = neonColor, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Text(title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

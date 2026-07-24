@@ -35,6 +35,12 @@ import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.ui.components.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
+import com.amazecc.app.shared.ui.components.bouncySpring
 import kotlinx.coroutines.launch
 
 @Composable
@@ -385,18 +391,52 @@ private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme
         AccentTheme.LAVENDER -> Color(0xFF8B5CF6)
         AccentTheme.SUNSET -> Color(0xFFF59E0B)
     }
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.90f else 1f,
+        animationSpec = bouncySpring()
+    )
+
     Box(
-        modifier = modifier.clip(RoundedCornerShape(10.dp))
-            .background(if (selected) colors.accent.copy(alpha = 0.15f) else colors.surface)
-            .border(if (selected) 1.dp else 0.dp, colors.accent.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-            .clickable { AppState.changeAccent(accent) }
-            .padding(vertical = 10.dp),
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(CircleShape)
+            .background(if (selected) swatchColor.copy(alpha = 0.18f) else colors.surface)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) swatchColor else colors.border,
+                shape = CircleShape
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = { AppState.changeAccent(accent) }
+            )
+            .padding(vertical = 10.dp, horizontal = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(modifier = Modifier.size(16.dp).clip(CircleShape).background(swatchColor))
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(CircleShape)
+                    .background(swatchColor)
+                    .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
+            )
             Spacer(Modifier.height(4.dp))
-            Text(name, color = if (selected) colors.accent else colors.textSecondary, fontWeight = FontWeight.SemiBold, fontSize = 10.sp)
+            Text(
+                text = name,
+                color = if (selected) swatchColor else colors.textSecondary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

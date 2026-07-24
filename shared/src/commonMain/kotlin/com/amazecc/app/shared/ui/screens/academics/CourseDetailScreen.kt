@@ -617,10 +617,7 @@ private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, isR
         ((asm.scoredMark.toDoubleOrNull() ?: 0.0) / asm.maxMark.toDouble()) * 100 else 0.0
     val isTheory = typeLabel == "Theory"
     val accentColor = if (isTheory) Color(0xFF3B82F6) else colors.success
-    val shortenedTitle = asm.title
-        .replace("Continuous Assessment Test", "CAT", ignoreCase = true)
-        .replace("Final Assessment Test", "FAT", ignoreCase = true)
-        .replace("Digital Assignment", "DA", ignoreCase = true)
+    val shortenedTitle = com.amazecc.app.shared.ui.components.shortenAssessmentName(asm.title)
 
     AmazeCard(
         modifier = Modifier.fillMaxWidth(),

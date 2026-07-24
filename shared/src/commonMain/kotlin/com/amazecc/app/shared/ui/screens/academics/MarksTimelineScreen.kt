@@ -376,10 +376,12 @@ private fun CourseAssessmentCard(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                assessment.title,
+                                com.amazecc.app.shared.ui.components.shortenAssessmentName(assessment.title),
                                 style = AmazeTheme.typography.body.copy(
-                                    color = colors.textPrimary, fontSize = 12.sp
-                                )
+                                    color = colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold
+                                ),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                             Text(
                                 "Max: ${assessment.maxMark} | Weightage: ${assessment.weightagePercent}%",

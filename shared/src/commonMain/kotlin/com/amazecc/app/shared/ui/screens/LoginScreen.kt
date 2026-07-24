@@ -29,7 +29,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
@@ -102,6 +104,13 @@ fun LoginScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(colors.accent.copy(alpha = 0.12f), Color.Transparent),
+                    center = Offset(500f, 200f),
+                    radius = 800f
+                )
+            )
             .background(colors.background)
     ) {
         Column(
@@ -115,19 +124,12 @@ fun LoginScreen() {
 
             Box(
                 modifier = Modifier
-                    .size(100.dp)
+                    .size(96.dp)
                     .scale(logoScale)
-                    .shadow(16.dp, CircleShape)
+                    .shadow(12.dp, CircleShape)
                     .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                colors.accent.copy(alpha = 0.7f),
-                                colors.accent.copy(alpha = 0.2f)
-                            )
-                        )
-                    )
-                    .border(2.dp, colors.accent.copy(alpha = 0.3f), CircleShape),
+                    .background(colors.accent.copy(alpha = 0.12f))
+                    .border(2.dp, colors.accent.copy(alpha = 0.4f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Image(

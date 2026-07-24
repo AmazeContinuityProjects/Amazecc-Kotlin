@@ -30,7 +30,8 @@ data class AmazeTypography(
     val subheading: TextStyle,
     val body: TextStyle,
     val caption: TextStyle,
-    val smallLabel: TextStyle
+    val smallLabel: TextStyle,
+    val categoryLabel: TextStyle
 )
 
 @Composable
@@ -44,42 +45,49 @@ fun getAmazeTypography(): AmazeTypography {
             fontWeight = FontWeight.Black,
             fontSize = 32.sp,
             lineHeight = 36.sp,
-            letterSpacing = (-0.5).sp
+            letterSpacing = (-0.6).sp
         ),
         heading = TextStyle(
             fontFamily = displayFont,
             fontWeight = FontWeight.Bold,
             fontSize = 24.sp,
             lineHeight = 30.sp,
-            letterSpacing = (-0.3).sp
+            letterSpacing = (-0.4).sp
         ),
         subheading = TextStyle(
             fontFamily = bodyFont,
             fontWeight = FontWeight.SemiBold,
-            fontSize = 20.sp,
-            lineHeight = 28.sp,
+            fontSize = 19.sp,
+            lineHeight = 26.sp,
             letterSpacing = (-0.2).sp
         ),
         body = TextStyle(
             fontFamily = bodyFont,
             fontWeight = FontWeight.Normal,
-            fontSize = 16.sp,
-            lineHeight = 24.sp,
+            fontSize = 15.sp,
+            lineHeight = 22.sp,
             letterSpacing = 0.1.sp
         ),
         caption = TextStyle(
             fontFamily = bodyFont,
             fontWeight = FontWeight.Normal,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
+            fontSize = 13.sp,
+            lineHeight = 18.sp,
             letterSpacing = 0.2.sp
         ),
         smallLabel = TextStyle(
             fontFamily = bodyFont,
-            fontWeight = FontWeight.Medium,
+            fontWeight = FontWeight.SemiBold,
             fontSize = 12.sp,
             lineHeight = 16.sp,
-            letterSpacing = 0.5.sp
+            letterSpacing = 0.4.sp
+        ),
+        categoryLabel = TextStyle(
+            fontFamily = displayFont,
+            fontWeight = FontWeight.ExtraBold,
+            fontSize = 11.sp,
+            lineHeight = 14.sp,
+            letterSpacing = 1.2.sp
         )
     )
 }

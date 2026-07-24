@@ -205,9 +205,9 @@ class AmazeSpacing(
     val md: Dp = 16.dp,
     val lg: Dp = 24.dp,
     val xl: Dp = 32.dp,
-    val pageHorizontal: Dp = 16.dp,
-    val cardPadding: Dp = 16.dp,
-    val sectionGap: Dp = 16.dp
+    val pageHorizontal: Dp = 18.dp,
+    val cardPadding: Dp = 18.dp,
+    val sectionGap: Dp = 20.dp
 )
 
 val LocalAmazeColors = staticCompositionLocalOf<AmazeColors> {
@@ -218,6 +218,7 @@ val LocalAmazeRadius = staticCompositionLocalOf { AmazeRadius() }
 val LocalAmazeSpacing = staticCompositionLocalOf { AmazeSpacing() }
 val LocalAmazeTypography = staticCompositionLocalOf { 
     AmazeTypography(
+        androidx.compose.ui.text.TextStyle(),
         androidx.compose.ui.text.TextStyle(),
         androidx.compose.ui.text.TextStyle(),
         androidx.compose.ui.text.TextStyle(),

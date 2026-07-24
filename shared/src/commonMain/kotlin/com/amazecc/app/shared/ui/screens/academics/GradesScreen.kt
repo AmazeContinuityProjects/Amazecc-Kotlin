@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.GradeItem
@@ -381,7 +382,7 @@ private fun CourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> Unit,
                                         chunk.forEach { detail ->
                                             Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.05f)).border(1.dp, colors.border, RoundedCornerShape(10.dp)).padding(6.dp), contentAlignment = Alignment.Center) {
                                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                    Text(detail.component, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.SemiBold, fontSize = 8.sp), textAlign = TextAlign.Center)
+                                                    Text(com.amazecc.app.shared.ui.components.shortenAssessmentName(detail.component), style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.SemiBold, fontSize = 9.sp), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                     Spacer(modifier = Modifier.height(4.dp))
                                                     Text("${detail.scoredMark}", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 11.sp))
                                                     Text("/${detail.maxMark}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp))

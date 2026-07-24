@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
@@ -96,8 +97,8 @@ fun FloatingScreenHeader(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .background(colors.background.copy(alpha = 0.85f))
-            .border(1.dp, colors.accent.copy(alpha = 0.15f), RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+            .background(colors.background.copy(alpha = 0.94f))
+            .border(1.dp, colors.accent.copy(alpha = 0.22f), RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
             .padding(top = 16.dp, bottom = 16.dp, start = 8.dp, end = 16.dp)
     ) {
         Row(
@@ -125,11 +126,15 @@ fun FloatingScreenHeader(
                             color = colors.textPrimary,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Black
-                        )
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         text = description,
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     if ((isModuleLoading || isLoading) && (moduleSyncText ?: syncStatus) != null) {
                         Spacer(modifier = Modifier.height(4.dp))
@@ -138,7 +143,9 @@ fun FloatingScreenHeader(
                             style = AmazeTheme.typography.smallLabel.copy(
                                 color = colors.accent,
                                 fontWeight = FontWeight.Bold
-                            )
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

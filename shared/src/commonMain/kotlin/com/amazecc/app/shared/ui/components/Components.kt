@@ -73,7 +73,7 @@ fun AmazeButton(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+        animationSpec = bouncySpring()
     )
 
     val spacing = AmazeTheme.spacing
@@ -85,7 +85,7 @@ fun AmazeButton(
             scaleY = scale
         },
         enabled = enabled,
-        shape = RoundedCornerShape(radius.small),
+        shape = CircleShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor,
@@ -108,7 +108,9 @@ fun AmazeButton(
             Text(
                 text = text,
                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold),
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -137,15 +139,18 @@ fun AmazeCard(
     val radius = AmazeTheme.radius
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (isPressed) 0.985f else 1f)
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = bouncySpring()
+    )
 
     val (bgColor, borderColor) = when (variant) {
         CardVariant.DEFAULT -> (backgroundColor ?: colors.surface) to colors.border
-        CardVariant.ACCENT -> (backgroundColor ?: colors.accentSurface) to colors.accent.copy(alpha = 0.3f)
-        CardVariant.SUCCESS -> (backgroundColor ?: colors.successSurface) to colors.success.copy(alpha = 0.3f)
-        CardVariant.WARNING -> (backgroundColor ?: colors.warningSurface) to colors.warning.copy(alpha = 0.3f)
-        CardVariant.DANGER -> (backgroundColor ?: colors.dangerSurface) to colors.danger.copy(alpha = 0.3f)
-        CardVariant.INFO -> (backgroundColor ?: colors.infoSurface) to colors.info.copy(alpha = 0.3f)
+        CardVariant.ACCENT -> (backgroundColor ?: colors.accentSurface) to colors.accent.copy(alpha = 0.35f)
+        CardVariant.SUCCESS -> (backgroundColor ?: colors.successSurface) to colors.success.copy(alpha = 0.35f)
+        CardVariant.WARNING -> (backgroundColor ?: colors.warningSurface) to colors.warning.copy(alpha = 0.35f)
+        CardVariant.DANGER -> (backgroundColor ?: colors.dangerSurface) to colors.danger.copy(alpha = 0.35f)
+        CardVariant.INFO -> (backgroundColor ?: colors.infoSurface) to colors.info.copy(alpha = 0.35f)
         CardVariant.ACCENT_SURFACE -> (backgroundColor ?: colors.accentContainer) to colors.accent.copy(alpha = 0.4f)
         CardVariant.GLASS -> (backgroundColor ?: colors.glassSurface) to colors.glassBorder
     }
@@ -159,7 +164,7 @@ fun AmazeCard(
                 scaleY = scale
             }
             .clipToBounds()
-            .shadow(if (variant == CardVariant.GLASS) 8.dp else 2.dp, RoundedCornerShape(radius.medium), clip = false)
+            .shadow(if (variant == CardVariant.GLASS) 6.dp else 1.dp, RoundedCornerShape(radius.medium), clip = false)
             .clip(RoundedCornerShape(radius.medium))
             .background(bgColor)
             .border(1.dp, borderColor, RoundedCornerShape(radius.medium))
@@ -213,7 +218,7 @@ fun AmazeGlassCard(
             .clip(RoundedCornerShape(radius.large))
             .background(colors.glassSurface)
             .border(1.dp, colors.glassBorder, RoundedCornerShape(radius.large))
-            .shadow(8.dp, RoundedCornerShape(radius.large), clip = false)
+            .shadow(6.dp, RoundedCornerShape(radius.large), clip = false)
             .then(
                 if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
             )
@@ -235,17 +240,16 @@ fun MetricCard(
 ) {
     val colors = AmazeTheme.colors
     AmazeCard(
-        modifier = modifier.defaultMinSize(minWidth = 140.dp, minHeight = 120.dp),
+        modifier = modifier.defaultMinSize(minWidth = 140.dp, minHeight = 115.dp),
         onClick = onClick,
         backgroundColor = colors.surface
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(end = if (circleColor != null) 16.dp else 0.dp)) {
                 Text(
-                    text = title,
-                    style = AmazeTheme.typography.smallLabel.copy(
-                        color = colors.textMuted,
-                        fontWeight = FontWeight.SemiBold
+                    text = title.uppercase(),
+                    style = AmazeTheme.typography.categoryLabel.copy(
+                        color = colors.textMuted
                     ),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -259,8 +263,11 @@ fun MetricCard(
                     Text(
                         text = value,
                         style = AmazeTheme.typography.display.copy(
-                            color = colors.textPrimary
-                        )
+                            color = colors.accent,
+                            fontWeight = FontWeight.Black
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     if (statusText != null) {
                         Text(
@@ -269,12 +276,14 @@ fun MetricCard(
                                 color = statusColor ?: colors.textSecondary,
                                 fontWeight = FontWeight.Bold
                             ),
-                            modifier = Modifier.padding(bottom = 4.dp)
+                            modifier = Modifier.padding(bottom = 4.dp),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
                 if (caption != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = caption,
                         style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
@@ -286,7 +295,7 @@ fun MetricCard(
             if (circleColor != null) {
                 Box(
                     modifier = Modifier
-                        .size(12.dp)
+                        .size(10.dp)
                         .clip(CircleShape)
                         .background(circleColor)
                         .align(Alignment.TopEnd)
@@ -379,9 +388,9 @@ fun AmazeBadge(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(radius.small)) // Small radius for badges
+            .clip(CircleShape)
             .background(bg)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
@@ -390,7 +399,9 @@ fun AmazeBadge(
                 color = textColor,
                 fontWeight = FontWeight.Bold,
                 fontSize = 11.sp
-            )
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

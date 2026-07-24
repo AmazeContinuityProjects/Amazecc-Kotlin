@@ -34,6 +34,14 @@ import com.amazecc.app.shared.model.CabTripsRes
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.ui.components.bouncySpring
 
 @Composable
 fun CabShareScreen() {
@@ -55,23 +63,44 @@ fun CabShareScreen() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 18.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 tabs.forEach { tab ->
                     val isSelected = activeSubTab == tab
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.94f else 1f,
+                        animationSpec = bouncySpring()
+                    )
+
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .clip(CircleShape)
                             .background(if (isSelected) colors.accent else colors.surface)
-                            .clickable { activeSubTab = tab }
+                            .border(
+                                1.dp,
+                                if (isSelected) colors.accent else colors.border,
+                                CircleShape
+                            )
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                onClick = { activeSubTab = tab }
+                            )
                             .padding(horizontal = 16.dp, vertical = 10.dp)
                     ) {
                         Text(
                             text = tab,
-                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold).copy(
-                                color = if (isSelected) colors.background else colors.textSecondary
-                            )
+                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                            color = if (isSelected) colors.background else colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
