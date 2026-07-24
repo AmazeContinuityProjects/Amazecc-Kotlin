@@ -1,4 +1,3 @@
-@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.api.AmazeClient
@@ -24,17 +23,20 @@ import kotlinx.coroutines.supervisorScope
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 enum class Screen { SPLASH, 
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
-    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GLASS_MORPH, GRADES, GPA_PREDICTOR,
-    COURSE_ATTENDANCE, ARREAR, MAKEUP_COMPRE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
+    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
+    COURSE_ATTENDANCE, MAKEUP_COMPRE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
     MARKS_TIMELINE, VITOL, FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
-    FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, ACTIVITY_TREE, CLUB_DETAIL,
-    COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB
+    FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, CLUB_DETAIL,
+    COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB, TASKS
 }
 
 object AppState {
@@ -91,7 +93,7 @@ object AppState {
     private val _calendarView = MutableStateFlow("List")
     val calendarView: StateFlow<String> = _calendarView.asStateFlow()
 
-    private val _residentialStatus = MutableStateFlow("Hosteller")
+    private val _residentialStatus = MutableStateFlow(SettingsManager.getString(SettingsManager.RESIDENTIAL_STATUS, "Hosteller"))
     val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()
 
     sealed class UpdateStatus {
@@ -152,8 +154,6 @@ object AppState {
     }
 
     // Sync toggles (mirror web app settings)
-    private val _syncArrear = MutableStateFlow(true)
-    val syncArrear: StateFlow<Boolean> = _syncArrear.asStateFlow()
     private val _syncExam = MutableStateFlow(true)
     val syncExam: StateFlow<Boolean> = _syncExam.asStateFlow()
     private val _syncProfile = MutableStateFlow(true)
@@ -206,19 +206,18 @@ object AppState {
     val timetable: StateFlow<TimetableRes?> = _timetable.asStateFlow()
 
     private val _marks = MutableStateFlow<MarksRes?>(null)
-    val marks: StateFlow<MarksRes?> = _marks
+    val marks: StateFlow<MarksRes?> = _marks.asStateFlow()
 
     private val settings = Settings()
     private val jsonFormat = Json { ignoreUnknownKeys = true }
 
     private val _moodleData = MutableStateFlow<MoodleRes?>(null)
-    val moodleData: StateFlow<MoodleRes?> = _moodleData
+    val moodleData: StateFlow<MoodleRes?> = _moodleData.asStateFlow()
 
     init {
         // Load persisted settings
         _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
         _attendanceDisplayMode.value = SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage")
-        _syncArrear.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ARREAR, true)
         _syncExam.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_EXAM, true)
         _syncProfile.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_PROFILE, true)
         _syncAdditional.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, true)
@@ -272,7 +271,7 @@ object AppState {
         if (cached.isNotBlank()) {
             try {
                 state.value = jsonFormat.decodeFromString<T>(cached)
-            } catch (e: Exception) { /* ignore corrupt cache */ }
+            } catch (e: Exception) { println("AmazeCC: AppState loadCachedData — ${e.message}") }
         }
     }
 
@@ -303,28 +302,30 @@ object AppState {
         try {
             val cachedAtt = settings.getString(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, "")
             if (cachedAtt.isNotBlank()) _allSemesterAttendance.value = jsonFormat.decodeFromString(cachedAtt)
-        } catch (_: Exception) {}
+        } catch (e: Exception) { println("AmazeCC: AppState loadCachedData allSemesterAttendance — ${e.message}") }
         try {
             val cachedMarks = settings.getString(SettingsManager.CACHE_ALL_SEMESTER_MARKS, "")
             if (cachedMarks.isNotBlank()) _allSemesterMarks.value = jsonFormat.decodeFromString(cachedMarks)
-        } catch (_: Exception) {}
+        } catch (e: Exception) { println("AmazeCC: AppState loadCachedData allSemesterMarks — ${e.message}") }
         // Also load moodle
         val cachedMoodle = settings.getString("moodle_data_cache", "")
         if (cachedMoodle.isNotBlank()) {
             try {
                 _moodleData.value = jsonFormat.decodeFromString<MoodleRes>(cachedMoodle)
-            } catch (e: Exception) { /* ignore */ }
+            } catch (e: Exception) { println("AmazeCC: AppState loadCachedData moodle — ${e.message}") }
         }
         // Sync cached modules state to SyncEngine
         updateModuleStatesFromCache()
+        loadTasks()
     }
 
     private inline fun <reified T> cacheData(key: String, value: T) {
         try {
             settings[key] = jsonFormat.encodeToString(value)
-        } catch (_: Exception) { /* ignore serialization error */ }
+        } catch (e: Exception) { println("AmazeCC: AppState cacheData — ${e.message}") }
     }
 
+    @Suppress("unused")
     private fun removeCache(key: String) {
         settings.remove(key)
     }
@@ -384,7 +385,7 @@ object AppState {
         if (_vitolData.value != null) SyncEngine.updateModuleState(SyncModule.VITOL, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
         if (_cabTrips.value != null) SyncEngine.updateModuleState(SyncModule.CAB_TRIPS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
         if (_allSemesterAttendance.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_allSemesterMarks.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now())) // tracked alongside attendance
+        if (_allSemesterMarks.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
     }
 
     fun restoreSession(): Boolean {
@@ -398,7 +399,7 @@ object AppState {
     }
 
     private val _vitolData = MutableStateFlow<VitolRes?>(null)
-    val vitolData: StateFlow<VitolRes?> = _vitolData
+    val vitolData: StateFlow<VitolRes?> = _vitolData.asStateFlow()
 
     private val _allGrades = MutableStateFlow<AllGradesRes?>(null)
     val allGrades: StateFlow<AllGradesRes?> = _allGrades.asStateFlow()
@@ -497,6 +498,51 @@ object AppState {
 
     private val _cabLoading = MutableStateFlow(false)
     val cabLoading: StateFlow<Boolean> = _cabLoading.asStateFlow()
+
+    // Tasks state
+    private val _tasks = MutableStateFlow<List<HomeworkTask>>(emptyList())
+    val tasks: StateFlow<List<HomeworkTask>> = _tasks.asStateFlow()
+
+    private val tasksJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+    private val taskListSerializer = ListSerializer(HomeworkTask.serializer())
+
+    private fun loadTasks() {
+        val raw = SettingsManager.getString(SettingsManager.CACHE_TASKS, "[]")
+        _tasks.value = try {
+            tasksJson.decodeFromString(taskListSerializer, raw)
+        } catch (_: Exception) { emptyList() }
+    }
+
+    private fun saveTasks() {
+        val raw = tasksJson.encodeToString(taskListSerializer, _tasks.value)
+        SettingsManager.setString(SettingsManager.CACHE_TASKS, raw)
+    }
+
+    fun addTask(task: HomeworkTask) {
+        _tasks.value = _tasks.value + task
+        saveTasks()
+    }
+
+    fun updateTask(id: String, transform: (HomeworkTask) -> HomeworkTask) {
+        _tasks.value = _tasks.value.map { if (it.id == id) transform(it) else it }
+        saveTasks()
+    }
+
+    fun deleteTask(id: String) {
+        _tasks.value = _tasks.value.filter { it.id != id }
+        saveTasks()
+    }
+
+    fun toggleTaskCompleted(id: String) {
+        _tasks.value = _tasks.value.map { if (it.id == id) it.copy(completed = !it.completed) else it }
+        saveTasks()
+    }
+
+    val todayTasks: List<HomeworkTask>
+        get() {
+            val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+            return _tasks.value.filter { it.dueDate == today && !it.completed }
+        }
 
     fun navigateTo(screen: Screen) {
         if (_currentScreen.value != screen) {
@@ -601,7 +647,7 @@ object AppState {
                             SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
                             loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
                         }
-                    } catch (_: Exception) { /* proceed with existing session if refresh fails */ }
+                    } catch (e: Exception) { println("AmazeCC: AppState loadAllData sessionRefresh — ${e.message}") }
                 }
 
                 _syncMessage.value = "Syncing academic and campus data..."
@@ -645,7 +691,7 @@ object AppState {
                                     }
                                     if (res.marks?.marks?.isNotEmpty() == true) {
                                         val marksCurrent = _allSemesterMarks.value.toMutableMap()
-                                        marksCurrent[semId] = res.marks!!
+                                        marksCurrent[semId] = res.marks
                                         _allSemesterMarks.value = marksCurrent
                                     }
                                 } catch (_: Exception) { failed = true }
@@ -816,16 +862,21 @@ object AppState {
                             )
                         },
                         async {
-                            syncModule(
-                                name = "Events",
-                                fetch = { AmazeClient.getEventsProfile() },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
-                                update = {
-                                    _events.value = it
-                                    cacheData(SettingsManager.CACHE_EVENTS, it)
-                                }
-                            )
+                            val clubToken = SessionManager.clubToken.value
+                            if (!clubToken.isNullOrBlank()) {
+                                syncModule(
+                                    name = "Events",
+                                    fetch = { AmazeClient.getEventsProfile() },
+                                    isSuccess = { it.error == null },
+                                    errorMessage = { it.error },
+                                    update = {
+                                        _events.value = it
+                                        cacheData(SettingsManager.CACHE_EVENTS, it)
+                                    }
+                                )
+                            } else {
+                                SyncModuleResult("Events", true)
+                            }
                         },
                         async {
                             syncModule(
@@ -916,7 +967,8 @@ object AppState {
             slotMap = typedSlotMap,
             assignments = allAssignments,
             vitolLimit = vitolData?.limit,
-            vitolConsumed = vitolData?.consumed
+            vitolConsumed = vitolData?.consumed,
+            tasks = _tasks.value
         )
     }
 
@@ -1017,7 +1069,7 @@ object AppState {
                                     }
                                     if (res.marks?.marks?.isNotEmpty() == true) {
                                         val marksCurrent = _allSemesterMarks.value.toMutableMap()
-                                        marksCurrent[semId] = res.marks!!
+                                        marksCurrent[semId] = res.marks
                                         _allSemesterMarks.value = marksCurrent
                                     }
                                 } catch (_: Exception) { failed = true }
@@ -1401,6 +1453,7 @@ object AppState {
 
     private fun updateSyncSummary(results: List<SyncModuleResult>) {
         val failures = results.filterNot { it.success }
+            .filter { it.message != "NO_LIB_CREDS" }
         val successCount = results.size - failures.size
         _syncStatus.value = "Synced $successCount/${results.size} modules"
         _error.value = failures
@@ -1493,7 +1546,7 @@ object AppState {
         if (data != null) {
             try {
                 settings["moodle_data_cache"] = jsonFormat.encodeToString(data)
-            } catch (e: Exception) {}
+            } catch (e: Exception) { println("AmazeCC: AppState updateMoodleData — ${e.message}") }
         } else {
             settings.remove("moodle_data_cache")
         }
@@ -1520,7 +1573,7 @@ object AppState {
                     _cabTrips.value = res
                     cacheData(SettingsManager.CACHE_CAB_TRIPS, res)
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) { println("AmazeCC: AppState searchCabTrips — ${e.message}") }
             _cabLoading.value = false
         }
     }
@@ -1572,7 +1625,7 @@ object AppState {
                 val res = AmazeClient.acceptCabJoinRequest(tripId, requestId)
                 onResult(res.success)
                 refreshJoinRequests(tripId)
-            } catch (_: Exception) {}
+            } catch (e: Exception) { println("AmazeCC: AppState acceptJoinRequest — ${e.message}") }
         }
     }
 
@@ -1582,7 +1635,7 @@ object AppState {
                 val res = AmazeClient.rejectCabJoinRequest(tripId, requestId)
                 onResult(res.success)
                 refreshJoinRequests(tripId)
-            } catch (_: Exception) {}
+            } catch (e: Exception) { println("AmazeCC: AppState rejectJoinRequest — ${e.message}") }
         }
     }
 
@@ -1593,7 +1646,7 @@ object AppState {
                 if (res.error == null) {
                     _myCabTrips.value = res
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) { println("AmazeCC: AppState refreshMyCabTrips — ${e.message}") }
         }
     }
 
@@ -1606,7 +1659,7 @@ object AppState {
                     current[tripId] = res
                     _cabJoinRequests.value = current
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) { println("AmazeCC: AppState refreshJoinRequests — ${e.message}") }
         }
     }
 
@@ -1619,14 +1672,14 @@ object AppState {
                     _events.value = eventsRes
                     cacheData(SettingsManager.CACHE_EVENTS, eventsRes)
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) { println("AmazeCC: AppState syncEventsAndClubs events — ${e.message}") }
             try {
                 val clubsRes = AmazeClient.getClubsDetails()
                 if (clubsRes.error == null) {
                     _clubs.value = clubsRes
                     cacheData(SettingsManager.CACHE_CLUBS, clubsRes)
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) { println("AmazeCC: AppState syncEventsAndClubs clubs — ${e.message}") }
             _isLoading.value = false
         }
     }
@@ -1807,6 +1860,7 @@ object AppState {
 
     fun setResidentialStatus(status: String) {
         _residentialStatus.value = status
+        SettingsManager.setString(SettingsManager.RESIDENTIAL_STATUS, status)
     }
 
     fun setPinnedNavTabs(tabs: List<Screen>) {
@@ -1824,11 +1878,6 @@ object AppState {
     fun setAttendanceDisplayMode(mode: String) {
         _attendanceDisplayMode.value = mode
         SettingsManager.setString(SettingsManager.KEY_ATTENDANCE_MODE, mode)
-    }
-
-    fun setSyncArrear(enabled: Boolean) {
-        _syncArrear.value = enabled
-        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_ARREAR, enabled)
     }
 
     fun setSyncExam(enabled: Boolean) {

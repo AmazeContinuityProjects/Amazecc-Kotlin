@@ -123,12 +123,10 @@ fun App() {
                             Screen.FFCS_PLANNER -> FfcsPlannerScreen()
                             Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateTo(Screen.ACADEMICS) }
                             Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateTo(Screen.ACADEMICS) })
-                            Screen.GLASS_MORPH -> GlassMorphismScreen()
                             Screen.GRADES -> GradesScreen()
                             Screen.GPA_PREDICTOR -> GPAPredictorScreen()
                             Screen.COURSE_DETAIL -> CourseDetailScreen { AppState.navigateTo(Screen.ACADEMICS) }
                             Screen.COURSE_ATTENDANCE -> CourseAttendanceScreen()
-                            Screen.ARREAR -> ArrearScreen()
                             Screen.MAKEUP_COMPRE -> MakeupCompreScreen()
                             Screen.CIRCULARS -> CircularsScreen()
                             Screen.CURRICULUM -> CurriculumScreen()
@@ -144,10 +142,11 @@ fun App() {
                             Screen.FRESHER_WELCOME -> FresherWelcomeScreen()
                             Screen.DOCUMENTS -> DocumentsScreen()
                             Screen.ABOUT -> AboutScreen()
-                            Screen.ACTIVITY_TREE -> ActivityTreeScreen()
                             Screen.CLUB_HUB -> com.amazecc.app.shared.ui.screens.more.ClubHubScreen()
                             Screen.CLUB_DETAIL -> com.amazecc.app.shared.ui.screens.events.ClubDetailScreen()
                             Screen.MOODLE -> MoodleScreen()
+                            Screen.TASKS -> TasksScreen()
+                            else -> {}
                         }
                     }
                     }

@@ -70,9 +70,10 @@ fun FacultyInfoScreen() {
         loadingSchools = false
     }
 
-    if (selectedFaculty != null) {
+    val sf = selectedFaculty
+    if (sf != null) {
         FacultyDetailScreen(
-            faculty = selectedFaculty!!,
+            faculty = sf,
             onBack = { selectedFaculty = null }
         )
         return
@@ -133,12 +134,13 @@ fun FacultyInfoScreen() {
                 }
 
                 // Error
-                if (error != null) {
+                val err = error
+                if (err != null) {
                     AmazeCard(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Rounded.Warning, null, tint = colors.danger, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text(error!!, color = colors.danger, style = AmazeTheme.typography.body.copy(fontSize = 13.sp))
+                            Text(err, color = colors.danger, style = AmazeTheme.typography.body.copy(fontSize = 13.sp))
                         }
                     }
                 }

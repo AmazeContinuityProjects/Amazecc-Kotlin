@@ -33,6 +33,7 @@ import com.amazecc.app.shared.ui.components.ScreenHeader
 import androidx.compose.ui.platform.LocalUriHandler
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun TransportScreen() {
@@ -377,7 +378,8 @@ private fun RegistrationDialog(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
                 
-                if (resultMessage != null) {
+                val rm = resultMessage
+                if (rm != null) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -386,7 +388,7 @@ private fun RegistrationDialog(
                             .padding(12.dp)
                     ) {
                         Text(
-                            resultMessage!!,
+                            rm,
                             color = if (isError) colors.chart5 else colors.chart1,
                             style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium)
                         )
@@ -504,7 +506,7 @@ private fun RegistrationDialog(
                             if (result.success) {
                                 resultMessage = result.message ?: "Application submitted!"
                                 isError = false
-                                delay(1500)
+                                delay(1500.milliseconds)
                                 onDismiss()
                             } else {
                                 resultMessage = result.message ?: "Submission failed"
@@ -647,7 +649,7 @@ private fun BusRouteCard(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (!route.stops.isNullOrEmpty()) {
+                if (route.stops.isNotEmpty()) {
                     Text(
                         "Route Stops",
                         style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
@@ -742,7 +744,7 @@ private fun BusRouteCard(
                         CrewRow(
                             icon = Icons.Rounded.AssignmentInd,
                             label = "Driver Incharge",
-                            name = route.driverInchargeName!!,
+                            name = route.driverInchargeName ?: return,
                             phone = route.driverInchargePhone,
                             colors = colors
                         )
@@ -754,7 +756,7 @@ private fun BusRouteCard(
                         CrewRow(
                             icon = Icons.Rounded.SupervisorAccount,
                             label = "Supervisor",
-                            name = route.supervisorName!!,
+                            name = route.supervisorName ?: return,
                             phone = route.supervisorPhone,
                             colors = colors
                         )

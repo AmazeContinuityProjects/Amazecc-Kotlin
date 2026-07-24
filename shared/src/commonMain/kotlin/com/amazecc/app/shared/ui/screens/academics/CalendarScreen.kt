@@ -68,6 +68,8 @@ private fun monthDisplayName(monthStr: String): String {
 @Composable
 fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Boolean = true) {
     val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+    val spacing = AmazeTheme.spacing
     val moodleData by AppState.moodleData.collectAsState()
     val examData by AppState.examSchedule.collectAsState()
     val selectedSemester by AppState.selectedSemester.collectAsState()
@@ -86,7 +88,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
             // Restore saved preference
             val saved = SettingsManager.getPreferredCalendar()
             if (saved != null) {
-                val idx = calendarsListRes!!.calendars.indexOfFirst { it.name == saved }
+                val idx = calendarsListRes?.calendars?.indexOfFirst { it.name == saved } ?: -1
                 if (idx != -1) selectedCalIdx = idx
             }
         }
@@ -162,10 +164,10 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                         val list = map.getOrPut(dNum) { mutableListOf() }
                         val nameParts = m.name.split("/")
                         val taskName = if (nameParts.size >= 3) nameParts.drop(2).joinToString("/") else m.name
-                        list.add(ConsolidatedEvent(taskName, "Moodle", "Due", Color(0xFF9C27B0)))
+                        list.add(ConsolidatedEvent(taskName, "Moodle", "Due", colors.chart3))
                     }
                 }
-            } catch (_: Exception) {}
+            } catch (e: Exception) { println("AmazeCC: CalendarScreen moodleEvents — ${e.message}") }
         }
 
         examData?.schedule?.forEach { (type, exams) ->
@@ -175,9 +177,9 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                     if (parts.size >= 3) {
                         val dNum = parts[0].toInt()
                         val list = map.getOrPut(dNum) { mutableListOf() }
-                        list.add(ConsolidatedEvent("${ex.courseCode} ($type)", "Exam", "${ex.examTime} · ${ex.venue}", Color(0xFFFF9800)))
+                        list.add(ConsolidatedEvent("${ex.courseCode} ($type)", "Exam", "${ex.examTime} · ${ex.venue}", colors.warning))
                     }
-                } catch (_: Exception) {}
+                } catch (e: Exception) { println("AmazeCC: CalendarScreen examEvents — ${e.message}") }
             }
         }
 
@@ -213,7 +215,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
                         Icon(Icons.Rounded.ErrorOutline, null, tint = colors.danger, modifier = Modifier.size(40.dp))
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(errorMsg!!, color = colors.danger, textAlign = TextAlign.Center)
+                        Text(errorMsg, color = colors.danger, textAlign = TextAlign.Center)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("Pull to refresh or tap sync", color = colors.textMuted, fontSize = 13.sp)
                     }
@@ -230,25 +232,26 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                     item {
                         if (allMonths.isNotEmpty()) {
                             LazyRow(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp)
+                                modifier = Modifier.fillMaxWidth().padding(vertical = spacing.sm),
+                                horizontalArrangement = Arrangement.spacedBy(spacing.xs),
+                                contentPadding = PaddingValues(horizontal = spacing.pageHorizontal)
                             ) {
                                 items(allMonths.indices.toList()) { idx ->
                                     val month = allMonths[idx]
                                     val isSelected = selectedMonthIdx == idx
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(20.dp))
+                                            .clip(RoundedCornerShape(radius.extraLarge))
                                             .background(if (isSelected) colors.accent else colors.surface)
                                             .clickable { selectedMonthIdx = idx; selectedDay = null }
-                                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                                            .padding(horizontal = spacing.md, vertical = spacing.sm)
                                     ) {
                                         Text(
                                             text = monthDisplayName(month.month),
-                                            color = if (isSelected) colors.background else colors.textPrimary,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            fontSize = 13.sp
+                                            style = AmazeTheme.typography.body.copy(
+                                                color = if (isSelected) colors.background else colors.textPrimary,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                            )
                                         )
                                     }
                                 }
@@ -260,16 +263,14 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                     item {
                         if (activeMonth != null) {
                             Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.pageHorizontal, vertical = spacing.xs),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { d ->
                                     Text(
                                         d, modifier = Modifier.weight(1f),
                                         textAlign = TextAlign.Center,
-                                        color = colors.textMuted,
-                                        fontWeight = FontWeight.SemiBold,
-                                        fontSize = 11.sp
+                                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
                                     )
                                 }
                             }
@@ -287,7 +288,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                             val totalRows = (daysInMonth + startCol + 6) / 7
                             var currentDay = 1
 
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = spacing.sm)) {
                                 for (row in 0 until totalRows) {
                                     Row(modifier = Modifier.fillMaxWidth()) {
                                         for (col in 0..6) {
@@ -303,7 +304,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                                                 Box(
                                                     modifier = Modifier
                                                         .weight(1f).aspectRatio(1f).padding(3.dp)
-                                                        .clip(RoundedCornerShape(10.dp))
+                                                        .clip(RoundedCornerShape(radius.xs))
                                                         .background(
                                                             when {
                                                                 isSelected -> colors.accent.copy(alpha = 0.25f)
@@ -317,13 +318,14 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                         Text(
                                                             dayNumber.toString(),
-                                                            color = when {
-                                                                isSelected -> colors.accent
-                                                                isToday -> colors.accent
-                                                                else -> colors.textPrimary
-                                                            },
-                                                            fontWeight = if (isToday || isSelected || dayEvents.isNotEmpty()) FontWeight.Bold else FontWeight.Normal,
-                                                            fontSize = 13.sp
+                                                            style = AmazeTheme.typography.body.copy(
+                                                                color = when {
+                                                                    isSelected -> colors.accent
+                                                                    isToday -> colors.accent
+                                                                    else -> colors.textPrimary
+                                                                },
+                                                                fontWeight = if (isToday || isSelected || dayEvents.isNotEmpty()) FontWeight.Bold else FontWeight.Normal
+                                                            )
                                                         )
                                                         if (dayEvents.isNotEmpty()) {
                                                             Row(
@@ -371,7 +373,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
 
                     // ── Events list ──
                     val eventsToShow: List<Pair<String, ConsolidatedEvent>> = if (selectedDay != null) {
-                        (activeMonthEvents[selectedDay!!] ?: emptyList()).map { "" to it }
+                        (activeMonthEvents[selectedDay] ?: emptyList()).map { "" to it }
                     } else {
                         activeMonthEvents.keys.sorted().flatMap { dayNum ->
                             val dayLabel = "${monthDisplayName(activeMonth?.month ?: "")} $dayNum"
@@ -399,11 +401,10 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                             if (dateLabel.isNotEmpty()) {
                                 Text(
                                     text = dateLabel,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                    modifier = Modifier.padding(horizontal = spacing.pageHorizontal, vertical = spacing.xs),
                                     style = AmazeTheme.typography.body.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = colors.textSecondary,
-                                        fontSize = 12.sp
+                                        color = colors.textSecondary
                                     )
                                 )
                             }
@@ -433,10 +434,10 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
 private fun CalendarBadge(text: String, backgroundColor: Color, textColor: Color) {
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
             .background(backgroundColor)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .padding(horizontal = AmazeTheme.spacing.xs, vertical = AmazeTheme.spacing.xs)
     ) {
-        Text(text = text, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = textColor)
+        Text(text = text, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = textColor))
     }
 }

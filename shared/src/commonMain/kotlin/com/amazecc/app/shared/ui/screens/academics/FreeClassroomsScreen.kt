@@ -1,4 +1,3 @@
-@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
@@ -204,7 +203,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 val pEnd = timeToMinutes(p.end)
                 if (pStart < reqEndMin && pEnd > reqStartMin) {
                     if (p.days.containsKey(selectedDay)) {
-                        p.days[selectedDay]!!.split("+").forEach { targetSlots.add(it.trim()) }
+                        (p.days[selectedDay] ?: return@forEach).split("+").forEach { targetSlots.add(it.trim()) }
                     }
                 }
             }
@@ -216,7 +215,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 val pEnd = timeToMinutes(p.end)
                 if (pStart < reqEndMin && pEnd > reqStartMin) {
                     if (p.days.containsKey(selectedDay)) {
-                        p.days[selectedDay]!!.split("+").forEach { targetSlots.add(it.trim()) }
+                        (p.days[selectedDay] ?: return@forEach).split("+").forEach { targetSlots.add(it.trim()) }
                     }
                 }
             }

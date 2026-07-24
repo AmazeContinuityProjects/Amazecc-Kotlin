@@ -21,6 +21,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.Serializable
 import com.amazecc.app.shared.utils.AnalyzeCalendar
 import com.amazecc.app.shared.utils.UpdateConfig
@@ -49,7 +50,7 @@ private data class AttendanceSyncResponse(
 )
 
 object AmazeClient {
-    var baseUrl = "https://api.amazecc.com"
+    val baseUrl = "https://api.amazecc.com"
     private var useMockData = false // Toggle for offline testing
 
 
@@ -118,7 +119,6 @@ object AmazeClient {
         }
     }
 
-    @Suppress("unused")
     suspend fun getAttendance(semesterId: String? = null): AttendanceRes {
         return getAcademicData(semesterId).attendance
     }
@@ -535,40 +535,7 @@ object AmazeClient {
                 )
             )
         }
-        try {
-            val params = mutableMapOf("type" to "ALL")
-            if (semesterId != null) params["semesterId"] = semesterId
-            val rawJson = postAuthorized<JsonElement>("calendar", params)
-            if (rawJson != null) {
-                val analysis = AnalyzeCalendar.analyzeAllCalendars(rawJson)
-                if (analysis.results.isNotEmpty()) {
-                    val namedCalendars = analysis.results.groupBy { it.year }.map { (year, results) ->
-                        NamedCalendar(
-                            name = "Academic Calendar $year",
-                            months = results.map { res ->
-                                CalendarMonth(
-                                    month = "${res.month} ${res.year}",
-                                    days = res.days.map { day ->
-                                        CalendarDay(
-                                            date = day.date,
-                                            events = day.events.mapNotNull { evElem ->
-                                                val ev = evElem.jsonObject
-                                                val text = ev["text"]?.jsonPrimitive?.content ?: return@mapNotNull null
-                                                val evType = ev["type"]?.jsonPrimitive?.content ?: day.type
-                                                CalendarEvent(type = evType, text = text)
-                                            }
-                                        )
-                                    }
-                                )
-                            }
-                        )
-                    }
-                    return CalendarsListRes(success = true, calendars = namedCalendars)
-                }
-            }
-        } catch (_: Exception) { /* fall through */ }
-        
-        // Fallback: use old getCalendar() and wrap it as a single NamedCalendar
+        // Delegate to getCalendar() and wrap result
         val old = getCalendar("ALL", semesterId)
         return if (old.success && old.months.isNotEmpty()) {
             CalendarsListRes(
@@ -592,9 +559,9 @@ object AmazeClient {
             )
         }
         return try {
-            val duesResp = postAuthorized<kotlinx.serialization.json.JsonObject>("payments")
-            val receiptsResp = postAuthorized<kotlinx.serialization.json.JsonObject>("payment-receipts")
-            val walletResp = postAuthorized<kotlinx.serialization.json.JsonObject>("wallet")
+            val duesResp = postAuthorized<JsonObject>("payments")
+            val receiptsResp = postAuthorized<JsonObject>("payment-receipts")
+            val walletResp = postAuthorized<JsonObject>("wallet")
 
             val paymentsList = mutableListOf<PaymentItem>()
 
@@ -948,7 +915,7 @@ object AmazeClient {
                 val eventsList = if (element is JsonArray) {
                     jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
                 } else if (element.jsonObject["events"] is JsonArray) {
-                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element.jsonObject["events"]!!)
+                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element.jsonObject["events"] as JsonArray)
                 } else {
                     emptyList()
                 }
@@ -1021,7 +988,7 @@ object AmazeClient {
                 val eventsList = if (element is JsonArray) {
                     jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
                 } else if (element.jsonObject["events"] is JsonArray) {
-                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element.jsonObject["events"]!!)
+                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element.jsonObject["events"] as JsonArray)
                 } else {
                     emptyList()
                 }
@@ -1108,7 +1075,6 @@ object AmazeClient {
         }
     }
 
-    @Suppress("unused")
     suspend fun getProfileImages(): ProfileImagesRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return ProfileImagesRes(success = true)
@@ -1118,65 +1084,6 @@ object AmazeClient {
         } catch (e: Exception) {
             ProfileImagesRes(success = false, error = e.toString())
         }
-    }
-
-    suspend fun getArrearSchedule(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                keyValuePairs = listOf(
-                    KeyValuePair("Registered Credits", "22.0"),
-                    KeyValuePair("Eligible Arrears", "2"),
-                    KeyValuePair("Exam Fee", "Rs. 2,400")
-                ),
-                tables = listOf(
-                    ApiTable(
-                        title = "Arrear Schedule",
-                        headers = listOf("Course Code", "Course Title", "Date", "Time", "Venue"),
-                        rows = listOf(
-                            listOf("MAT2001", "Statistics for Engineers", "2026-07-20", "10:00 AM", "SJT-201"),
-                            listOf("PHY1701", "Engineering Physics", "2026-07-22", "2:00 PM", "SJT-305")
-                        )
-                    )
-                )
-            )
-        }
-        return postAuthorized<ArrearResponse>("arrear-schedule") ?: ArrearResponse(success = false, message = "Empty response")
-    }
-
-    suspend fun getArrearDetails(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                tables = listOf(
-                    ApiTable(
-                        title = "Arrear Details",
-                        headers = listOf("Course Code", "Course Title", "Credits", "Course Type", "Status"),
-                        rows = listOf(
-                            listOf("MAT2001", "Statistics for Engineers", "4", "Theory", "Registered"),
-                            listOf("PHY1701", "Engineering Physics", "3", "Theory", "Registered")
-                        )
-                    )
-                )
-            )
-        }
-        return postAuthorized<ArrearResponse>("arrear-details") ?: ArrearResponse(success = false, message = "Empty response")
-    }
-
-    suspend fun getArrearGrade(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                tables = listOf(
-                    ApiTable(
-                        title = "Arrear Grades",
-                        headers = listOf("Course Code", "Course Title", "Grade", "Credits", "Result"),
-                        rows = listOf(
-                            listOf("MAT2001", "Statistics for Engineers", "B", "4", "PASS"),
-                            listOf("PHY1701", "Engineering Physics", "", "3", "Awaited")
-                        )
-                    )
-                )
-            )
-        }
-        return postAuthorized<ArrearResponse>("arrear-grade") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
     suspend fun getMakeupExam(): ArrearResponse {
@@ -1268,7 +1175,6 @@ object AmazeClient {
         return postAuthorized<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
     }
 
-    @Suppress("unused")
     suspend fun getVitol(): VitolRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return VitolRes(
@@ -1520,7 +1426,6 @@ object AmazeClient {
         } catch (_: Exception) { null }
     }
 
-    @Suppress("unused")
     suspend fun getFFCSReport(): ByteArray? {
         return try {
             val response: HttpResponse = httpClient.get("https://amazecc.vit.ac.in/ffcs/ffcsReport.csv")
@@ -1533,9 +1438,19 @@ object AmazeClient {
     }
 
     suspend fun getSyllabusPdf(courseCode: String): ByteArray? {
+        val cookies = SessionManager.cookies.value ?: return null
         val authorizedID = SessionManager.authorizedID.value ?: return null
+        val csrf = SessionManager.csrf.value ?: return null
         return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/curriculum/syllabus?courseCode=$courseCode&authorizedID=$authorizedID")
+            val response: HttpResponse = httpClient.post("$baseUrl/api/curriculum/syllabus") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("cookies", cookies)
+                    put("authorizedID", authorizedID)
+                    put("csrf", csrf)
+                    put("courseCode", courseCode)
+                })
+            }
             if (response.status == HttpStatusCode.OK) {
                 response.readBytes()
             } else null

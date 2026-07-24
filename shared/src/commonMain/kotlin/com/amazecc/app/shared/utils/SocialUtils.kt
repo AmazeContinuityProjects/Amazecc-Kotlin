@@ -28,7 +28,6 @@ data class Friend(
 )
 
 object SocialUtils {
-    // Map short days to full names
     private val DAYS_MAP = mapOf(
         "MON" to "Monday",
         "TUE" to "Tuesday",
@@ -38,7 +37,30 @@ object SocialUtils {
         "SAT" to "Saturday",
         "SUN" to "Sunday"
     )
-    
+
+    private val SLOT_DAY_MAP = mapOf(
+        'A' to "Monday", 'B' to "Tuesday", 'C' to "Wednesday",
+        'D' to "Thursday", 'E' to "Friday",
+        'F' to "Saturday", 'G' to "Sunday"
+    )
+
+    private val SLOT_TIME_MAP = mapOf(
+        "1" to "8:00 AM", "2" to "8:50 AM", "3" to "9:40 AM",
+        "4" to "10:30 AM", "5" to "11:20 AM", "6" to "12:10 PM",
+        "7" to "1:00 PM", "8" to "1:50 PM", "9" to "2:40 PM",
+        "10" to "3:30 PM", "11" to "4:20 PM", "12" to "5:10 PM"
+    )
+
+    private fun parseSlotDay(slot: String): String {
+        val c = slot.firstOrNull()?.uppercaseChar()
+        return SLOT_DAY_MAP[c] ?: "Unknown"
+    }
+
+    private fun parseSlotTime(slot: String): String {
+        val numPart = slot.drop(1).takeWhile { it.isDigit() }
+        return SLOT_TIME_MAP[numPart] ?: "Unknown"
+    }
+
     fun exportScheduleCode(
         attendance: List<AttendanceItem>,
         name: String,
@@ -52,8 +74,8 @@ object SocialUtils {
             slots.forEach { slot ->
                 friendSlots.add(
                     FriendClassSlot(
-                        day = "Unknown", // Add parsing logic if necessary
-                        timeSlot = "Unknown",
+                        day = parseSlotDay(slot),
+                        timeSlot = parseSlotTime(slot),
                         courseCode = course.courseCode,
                         courseTitle = course.courseTitle,
                         venue = course.slotVenue ?: "",

@@ -12,6 +12,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Coffee
 import androidx.compose.material.icons.rounded.Restaurant
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Assignment
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -301,6 +304,27 @@ fun DailyPlannerScreen() {
                 items(scheduleData) { item ->
                     TimelineRow(item)
                 }
+
+                val todayTasks = AppState.todayTasks
+                if (todayTasks.isNotEmpty()) {
+                    item { Spacer(Modifier.height(8.dp)) }
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.CheckCircle, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Today's Tasks (${todayTasks.size})", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        }
+                    }
+                    items(todayTasks) { task ->
+                        TaskCard(
+                            task = task,
+                            colors = colors,
+                            onToggle = { AppState.toggleTaskCompleted(task.id) },
+                            onDelete = { AppState.deleteTask(task.id) },
+                            showCourse = true
+                        )
+                    }
+                }
             }
         }
     }
@@ -370,7 +394,7 @@ fun TimelineRow(item: TimelineEvent) {
                     }
                 }
                 "class" -> {
-                    val c = item.course!!
+                    val c = item.course ?: return
                     val total = c.totalClasses
                     val attended = c.attendedClasses
                     val attPct = if (total > 0) ((attended.toFloat() / total) * 100).toInt() else 0

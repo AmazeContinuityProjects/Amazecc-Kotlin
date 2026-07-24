@@ -1,4 +1,3 @@
-@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
@@ -41,10 +40,12 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.CommandPalette
 import com.amazecc.app.shared.ui.components.UpdateDialog
 import com.amazecc.app.shared.ui.components.UpdateResultDialog
+import com.amazecc.app.shared.ui.screens.academics.AddTaskDialog
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.utils.SlotInfo
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.minutes
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -55,6 +56,8 @@ import io.ktor.util.decodeBase64Bytes
 @Composable
 fun DashboardScreen() {
     val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+    val spacing = AmazeTheme.spacing
     val authorizedID by SessionManager.authorizedID.collectAsState()
     val profile by AppState.studentProfile.collectAsState()
 
@@ -136,6 +139,7 @@ fun DashboardScreen() {
     }
 
     var showCommandPalette by remember { mutableStateOf(false) }
+    var showAddTaskDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -146,10 +150,10 @@ fun DashboardScreen() {
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = spacing.pageHorizontal)
                 .padding(bottom = 88.dp)
         ) {
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(spacing.lg))
 
             // ── Profile Header ──
             Row(
@@ -162,13 +166,14 @@ fun DashboardScreen() {
                         .clip(CircleShape)
                         .background(
                             Brush.sweepGradient(
-                                listOf(colors.accent, colors.accent.copy(alpha = 0.6f), Color.White.copy(alpha = 0.3f), colors.accent)
+                                listOf(colors.accent, colors.accent.copy(alpha = 0.6f), colors.background, colors.accent)
                             )
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (profile?.photoBase64 != null) {
-                        val cleanBase64 = profile!!.photoBase64!!.substringAfter("base64,")
+                    val photoBase64 = profile?.photoBase64
+                    if (photoBase64 != null) {
+                        val cleanBase64 = photoBase64.substringAfter("base64,")
                         KamelImage(
                             resource = asyncPainterResource(data = cleanBase64.decodeBase64Bytes()),
                             contentDescription = "Profile Image",
@@ -178,9 +183,10 @@ fun DashboardScreen() {
                     } else {
                         Text(
                             text = avatarText,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 20.sp
+                            style = AmazeTheme.typography.subheading.copy(
+                                color = colors.background,
+                                fontWeight = FontWeight.Bold
+                            )
                         )
                     }
                 }
@@ -197,8 +203,7 @@ fun DashboardScreen() {
                         text = nameToDisplay.ifEmpty { "Student" },
                         style = AmazeTheme.typography.subheading.copy(
                             fontWeight = FontWeight.Bold,
-                            color = colors.textPrimary,
-                            fontSize = 24.sp
+                            color = colors.textPrimary
                         )
                     )
                 }
@@ -209,9 +214,9 @@ fun DashboardScreen() {
                     },
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(radius.small))
                         .background(colors.surface)
-                        .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+                        .border(1.dp, colors.border, RoundedCornerShape(radius.small))
                 ) {
                     val isSyncing by AppState.isLoading.collectAsState()
                     if (isSyncing) {
@@ -230,9 +235,9 @@ fun DashboardScreen() {
                     onClick = { showCommandPalette = true },
                     modifier = Modifier
                         .size(44.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(radius.small))
                         .background(colors.surface)
-                        .border(1.dp, colors.border, RoundedCornerShape(14.dp))
+                        .border(1.dp, colors.border, RoundedCornerShape(radius.small))
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Search,
@@ -243,11 +248,11 @@ fun DashboardScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(spacing.lg))
 
             // ── Metric Cards Row ──
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(spacing.sm),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 item {
@@ -283,9 +288,9 @@ fun DashboardScreen() {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
+                    .clip(RoundedCornerShape(radius.large))
                     .background(colors.surface)
-                    .border(1.dp, colors.border, RoundedCornerShape(24.dp))
+                    .border(1.dp, colors.border, RoundedCornerShape(radius.large))
                     .padding(20.dp)
             ) {
                 Row(
@@ -314,7 +319,7 @@ fun DashboardScreen() {
                             )
                         )
                     }
-                    Spacer(modifier = Modifier.width(20.dp))
+                        Spacer(modifier = Modifier.width(spacing.md))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Overall Attendance",
@@ -338,18 +343,18 @@ fun DashboardScreen() {
                         Spacer(modifier = Modifier.height(12.dp))
                         Button(
                             onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(radius.small),
                             colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                            contentPadding = PaddingValues(horizontal = spacing.md, vertical = 6.dp),
                             modifier = Modifier.height(36.dp)
                         ) {
-                            Text("Predict", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Predict", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = Color.White))
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(spacing.lg))
 
             // ── Today's Classes ──
             val slotMapTyped = remember {
@@ -377,7 +382,7 @@ fun DashboardScreen() {
             var tick by remember { mutableStateOf(0) }
             LaunchedEffect(Unit) {
                 while (true) {
-                    delay(60_000)
+                    delay(1.minutes)
                     tick++
                 }
             }
@@ -398,13 +403,13 @@ fun DashboardScreen() {
                     Box(
                         modifier = Modifier
                             .size(32.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(radius.xs))
                             .background(colors.accentSurface),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Rounded.School, null, tint = colors.accent, modifier = Modifier.size(18.dp))
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(spacing.sm))
                     Text(
                         text = "Today's Classes",
                         style = AmazeTheme.typography.subheading.copy(
@@ -416,7 +421,7 @@ fun DashboardScreen() {
                 if (todayClasses.isNotEmpty()) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(radius.xs))
                             .background(colors.accentSurface)
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
@@ -436,15 +441,15 @@ fun DashboardScreen() {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(radius.large))
                         .background(colors.infoSurface)
-                        .border(1.dp, colors.info.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
-                        .padding(24.dp),
+                        .border(1.dp, colors.info.copy(alpha = 0.2f), RoundedCornerShape(radius.large))
+                        .padding(spacing.lg),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.FreeBreakfast, null, tint = colors.info, modifier = Modifier.size(36.dp))
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(spacing.sm))
                         Text("No classes today!", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
                         Text("Enjoy your day off", style = AmazeTheme.typography.caption.copy(color = colors.info, fontWeight = FontWeight.Bold))
                     }
@@ -474,7 +479,7 @@ fun DashboardScreen() {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(radius.medium))
                                 .background(cardBg)
                                 .then(
                                     if (stripColor != Color.Transparent) {
@@ -491,7 +496,7 @@ fun DashboardScreen() {
                                 .border(
                                     width = if (isCurrent) 1.5.dp else 1.dp,
                                     color = cardBorder,
-                                    shape = RoundedCornerShape(16.dp)
+                                    shape = RoundedCornerShape(radius.medium)
                                 )
                                 .clickable { cls.courseCode?.let { AppState.openCourseDetail(it) } }
                                 .padding(14.dp)
@@ -501,7 +506,7 @@ fun DashboardScreen() {
                                     if (isCurrent) {
                                         Box(
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(4.dp))
+                                                .clip(RoundedCornerShape(radius.xs))
                                                 .background(colors.accent.copy(alpha = 0.15f))
                                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                                         ) {
@@ -514,12 +519,12 @@ fun DashboardScreen() {
                                                 )
                                             )
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Spacer(modifier = Modifier.width(spacing.xs))
                                     }
                                     if (isNext) {
                                         Box(
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(4.dp))
+                                                .clip(RoundedCornerShape(radius.xs))
                                                 .background(colors.warning.copy(alpha = 0.15f))
                                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                                         ) {
@@ -532,7 +537,7 @@ fun DashboardScreen() {
                                                 )
                                             )
                                         }
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Spacer(modifier = Modifier.width(spacing.xs))
                                     }
                                     Text(
                                         cls.courseTitle ?: "",
@@ -550,17 +555,18 @@ fun DashboardScreen() {
                                                 if (pct >= 75) colors.success.copy(alpha = 0.12f)
                                                 else if (pct >= 50) colors.warning.copy(alpha = 0.12f)
                                                 else colors.danger.copy(alpha = 0.12f),
-                                                RoundedCornerShape(10.dp)
+                                                RoundedCornerShape(radius.xs)
                                             )
                                             .padding(horizontal = 10.dp, vertical = 6.dp)
                                     ) {
                                         Text(
                                             "${cls.attendancePercentage ?: "?"}",
-                                            color = if (pct >= 75) colors.success
-                                            else if (pct >= 50) colors.warning
-                                            else colors.danger,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold
+                                            style = AmazeTheme.typography.smallLabel.copy(
+                                                color = if (pct >= 75) colors.success
+                                                else if (pct >= 50) colors.warning
+                                                else colors.danger,
+                                                fontWeight = FontWeight.Bold
+                                            )
                                         )
                                     }
                                 }
@@ -628,7 +634,7 @@ fun DashboardScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(spacing.lg))
 
             val safeCount by remember(allCourses) {
                 derivedStateOf { allCourses.count { it.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0 >= 85.0 } }
@@ -664,9 +670,9 @@ fun DashboardScreen() {
                 )
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(radius.xs))
                         .background(colors.surface)
-                        .border(1.dp, colors.border, RoundedCornerShape(8.dp))
+                        .border(1.dp, colors.border, RoundedCornerShape(radius.xs))
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
@@ -681,29 +687,19 @@ fun DashboardScreen() {
             Spacer(modifier = Modifier.height(12.dp))
 
             // ── Course Stats Row ──
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(colors.chart1.copy(alpha = 0.08f)).border(1.dp, colors.chart1.copy(alpha = 0.2f), RoundedCornerShape(14.dp)).padding(10.dp)) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                        Text("$safeCount", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart1, fontSize = 18.sp))
-                        Text("Safe", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart1.copy(alpha = 0.7f), fontSize = 9.sp))
-                    }
-                }
-                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(colors.chart3.copy(alpha = 0.08f)).border(1.dp, colors.chart3.copy(alpha = 0.2f), RoundedCornerShape(14.dp)).padding(10.dp)) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                        Text("$warnCount", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart3, fontSize = 18.sp))
-                        Text("Warning", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart3.copy(alpha = 0.7f), fontSize = 9.sp))
-                    }
-                }
-                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(colors.chart5.copy(alpha = 0.08f)).border(1.dp, colors.chart5.copy(alpha = 0.2f), RoundedCornerShape(14.dp)).padding(10.dp)) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                        Text("$critCount", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart5, fontSize = 18.sp))
-                        Text("Critical", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart5.copy(alpha = 0.7f), fontSize = 9.sp))
-                    }
-                }
-                Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(colors.chart2.copy(alpha = 0.08f)).border(1.dp, colors.chart2.copy(alpha = 0.2f), RoundedCornerShape(14.dp)).padding(10.dp)) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                        Text("$avgCourseAtt", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart2, fontSize = 18.sp))
-                        Text("Avg %", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart2.copy(alpha = 0.7f), fontSize = 9.sp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
+                val statCards = listOf(
+                    Triple("$safeCount", "Safe", colors.chart1),
+                    Triple("$warnCount", "Warning", colors.chart3),
+                    Triple("$critCount", "Critical", colors.chart5),
+                    Triple("$avgCourseAtt", "Avg %", colors.chart2)
+                )
+                statCards.forEach { (value, label, color) ->
+                    Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(radius.small)).background(color.copy(alpha = 0.08f)).border(1.dp, color.copy(alpha = 0.2f), RoundedCornerShape(radius.small)).padding(10.dp)) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                            Text(value, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = color))
+                            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = color.copy(alpha = 0.7f)))
+                        }
                     }
                 }
             }
@@ -713,10 +709,10 @@ fun DashboardScreen() {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(radius.large))
                         .background(colors.surface)
-                        .border(1.dp, colors.border, RoundedCornerShape(20.dp))
-                        .padding(24.dp)
+                        .border(1.dp, colors.border, RoundedCornerShape(radius.large))
+                        .padding(spacing.lg)
                 ) {
                     Text("No course data available.", color = colors.textSecondary)
                 }
@@ -729,11 +725,11 @@ fun DashboardScreen() {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
+                                .clip(RoundedCornerShape(radius.medium))
                                 .background(colors.surface)
-                                .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+                                .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
                                 .clickable { AppState.navigateTo(Screen.ATTENDANCE) }
-                                .padding(vertical = 14.dp),
+                                .padding(vertical = spacing.sm),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -748,7 +744,7 @@ fun DashboardScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(spacing.lg))
 
             // ── Quick Actions ──
             Text(
@@ -758,44 +754,44 @@ fun DashboardScreen() {
                     color = colors.textPrimary
                 )
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(spacing.sm))
 
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.sm), modifier = Modifier.fillMaxWidth()) {
                     GlassActionCard(Modifier.weight(1f), "Predict Att.", Icons.Rounded.CheckCircle, colors, onClick = { AppState.navigateTo(Screen.COURSE_ATTENDANCE) })
                     GlassActionCard(Modifier.weight(1f), "GPA Calc", Icons.Rounded.Star, colors, onClick = { AppState.navigateTo(Screen.GRADES) })
-                    GlassActionCard(Modifier.weight(1f), "Apply Leave", Icons.AutoMirrored.Rounded.ExitToApp, colors, onClick = { AppState.navigateTo(Screen.HOSTEL) })
+                    GlassActionCard(Modifier.weight(1f), "Quick Task", Icons.Rounded.AddTask, colors, onClick = { showAddTaskDialog = true })
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     GlassActionCard(Modifier.weight(1f), "Bus Routes", Icons.Rounded.DirectionsBus, colors, onClick = { AppState.navigateTo(Screen.TRANSPORT) })
                     GlassActionCard(Modifier.weight(1f), "Wishlist", Icons.Rounded.Favorite, colors, onClick = { AppState.navigateTo(Screen.WISHLIST) })
-                    GlassActionCard(Modifier.weight(1f), "Curriculum", Icons.Rounded.MenuBook, colors, onClick = { AppState.navigateTo(Screen.CURRICULUM) })
+                    GlassActionCard(Modifier.weight(1f), "Curriculum", Icons.AutoMirrored.Rounded.MenuBook, colors, onClick = { AppState.navigateTo(Screen.CURRICULUM) })
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(spacing.lg))
 
             // ── Free Classrooms Widget ──
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(radius.large))
                     .background(colors.surface)
-                    .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+                    .border(1.dp, colors.border, RoundedCornerShape(radius.large))
                     .clickable { AppState.navigateTo(Screen.FREE_CLASSROOMS) }
-                    .padding(16.dp)
+                    .padding(spacing.md)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(radius.small))
                             .background(colors.accent.copy(alpha = 0.12f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Rounded.MeetingRoom, null, tint = colors.accent, modifier = Modifier.size(24.dp))
                     }
-                    Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.width(spacing.sm))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             "Find Free Classrooms",
@@ -825,6 +821,9 @@ fun DashboardScreen() {
     if (showCommandPalette) {
         CommandPalette(onDismiss = { showCommandPalette = false })
     }
+    if (showAddTaskDialog) {
+        AddTaskDialog(onDismiss = { showAddTaskDialog = false })
+    }
 }
 
 private fun getGreeting(): String {
@@ -846,18 +845,20 @@ private fun GlassMetricCard(
     surfaceBg: Color = colors.accentSurface,
     onClick: (() -> Unit)? = null
 ) {
+    val radius = AmazeTheme.radius
+    val spacing = AmazeTheme.spacing
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(radius.large))
             .background(surfaceBg)
-            .border(1.dp, colors.accent.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+            .border(1.dp, colors.accent.copy(alpha = 0.2f), RoundedCornerShape(radius.large))
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 18.dp, vertical = 16.dp)
+            .padding(horizontal = spacing.lg, vertical = spacing.md)
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(icon, null, tint = iconTint, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(6.dp))
+                Spacer(modifier = Modifier.width(spacing.xs))
                 Text(
                     title,
                     style = AmazeTheme.typography.smallLabel.copy(
@@ -866,13 +867,12 @@ private fun GlassMetricCard(
                     )
                 )
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(spacing.xs))
             Text(
                 value,
                 style = AmazeTheme.typography.subheading.copy(
                     fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary,
-                    fontSize = 22.sp
+                    color = colors.textPrimary
                 )
             )
         }
@@ -884,6 +884,8 @@ private fun ModernCourseCard(
     course: AttendanceItem,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
+    val radius = AmazeTheme.radius
+    val spacing = AmazeTheme.spacing
     val percentage = course.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0
     val gradeColor = when {
         percentage >= 85.0 -> colors.chart1
@@ -894,36 +896,36 @@ private fun ModernCourseCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(radius.medium))
             .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+            .border(1.dp, colors.border, RoundedCornerShape(radius.medium))
             .drawBehind {
                 val sw = 4.dp.toPx()
                 drawRoundRect(gradeColor, Offset(0f, 0f), androidx.compose.ui.geometry.Size(sw, size.height))
             }
             .clickable { AppState.openCourseDetail(course.courseCode) }
-            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp)
+            .padding(start = spacing.md, end = spacing.md, top = spacing.sm, bottom = spacing.sm)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Column(modifier = Modifier.weight(1f).padding(end = spacing.sm)) {
                 Text("${course.courseCode} · ${course.courseTitle}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.height(spacing.xs))
+                Row(horizontalArrangement = Arrangement.spacedBy(spacing.xs), verticalAlignment = Alignment.CenterVertically) {
                     if (course.courseType.isNotBlank()) {
-                        Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                            Text(course.courseType, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Medium, fontSize = 9.sp))
+                        Box(modifier = Modifier.clip(RoundedCornerShape(radius.xs)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = spacing.xs, vertical = 2.dp)) {
+                            Text(course.courseType, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Medium))
                         }
                     }
                     if (course.credits?.isNotBlank() == true) {
-                        Box(modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(gradeColor.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                            Text("${course.credits} cr", style = AmazeTheme.typography.smallLabel.copy(color = gradeColor, fontWeight = FontWeight.Medium, fontSize = 9.sp))
+                        Box(modifier = Modifier.clip(RoundedCornerShape(radius.xs)).background(gradeColor.copy(alpha = 0.1f)).padding(horizontal = spacing.xs, vertical = 2.dp)) {
+                            Text("${course.credits} cr", style = AmazeTheme.typography.smallLabel.copy(color = gradeColor, fontWeight = FontWeight.Medium))
                         }
                     }
-                    Text("${course.attendedClasses} / ${course.totalClasses} classes", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontSize = 9.sp))
+                    Text("${course.attendedClasses} / ${course.totalClasses} classes", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                 }
             }
-            Box(modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(gradeColor.copy(alpha = 0.12f)).border(1.dp, gradeColor.copy(alpha = 0.3f), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
-                Text("${percentage.toInt()}%", style = AmazeTheme.typography.body.copy(color = gradeColor, fontWeight = FontWeight.Black, fontSize = 15.sp))
+            Box(modifier = Modifier.clip(RoundedCornerShape(radius.xs)).background(gradeColor.copy(alpha = 0.12f)).border(1.dp, gradeColor.copy(alpha = 0.3f), RoundedCornerShape(radius.xs)).padding(horizontal = spacing.sm, vertical = spacing.xs), contentAlignment = Alignment.Center) {
+                Text("${percentage.toInt()}%", style = AmazeTheme.typography.body.copy(color = gradeColor, fontWeight = FontWeight.Black))
             }
         }
     }
@@ -937,25 +939,27 @@ private fun GlassActionCard(
     colors: com.amazecc.app.shared.theme.AmazeColors,
     onClick: () -> Unit = {}
 ) {
+    val radius = AmazeTheme.radius
+    val s = AmazeTheme.spacing
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(radius.large))
             .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(20.dp))
+            .border(1.dp, colors.border, RoundedCornerShape(radius.large))
             .clickable(onClick = onClick)
-            .padding(vertical = 16.dp),
+            .padding(vertical = s.md),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(radius.small))
                 .background(colors.accent.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, null, tint = colors.accent, modifier = Modifier.size(22.dp))
         }
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(s.sm))
         Text(
             title,
             style = AmazeTheme.typography.caption.copy(

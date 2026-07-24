@@ -63,7 +63,7 @@ val GlassSurfaceLight = Color.White.copy(alpha = 0.7f)
 val GlassBorderLight = Color.White.copy(alpha = 0.5f)
 
 // Neutral Colors - Dark Mode (Premium Deep Slate)
-val NeutralBgDark = Color(0xFF090B10)
+val NeutralBgDark = Color(0xFF000000)
 val NeutralSurfaceDark = Color(0xFF111827)
 val NeutralElevatedDark = Color(0xFF1F2937)
 val NeutralBorderDark = Color(0xFF374151)
@@ -72,7 +72,7 @@ val NeutralTextSecondaryDark = Color(0xFF94A3B8)
 val NeutralTextMutedDark = Color(0xFF64748B)
 
 // Glass & Nav - Dark Mode
-val NavBgDark = Color(0xFF090B10)
+val NavBgDark = Color(0xFF000000)
 val NavBorderDark = Color(0xFF1F2937)
 val GlassSurfaceDark = Color(0xFF111827).copy(alpha = 0.65f)
 val GlassBorderDark = Color.White.copy(alpha = 0.08f)

@@ -11,7 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.ui.components.AmazeTextField
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AccentTheme
@@ -159,7 +160,7 @@ fun OnboardingScreen() {
         ) {
             if (currentPage > 0) {
                 TextButton(onClick = { currentPage-- }) {
-                    Icon(Icons.Rounded.ArrowBack, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
                     Text("Back")
                 }
@@ -175,7 +176,7 @@ fun OnboardingScreen() {
                 ) {
                     Text("Next", fontWeight = FontWeight.Bold)
                     Spacer(Modifier.width(4.dp))
-                    Icon(Icons.Rounded.ArrowForward, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, modifier = Modifier.size(18.dp))
                 }
             } else {
                 Button(
@@ -216,14 +217,14 @@ private fun WelcomePage(colors: com.amazecc.app.shared.theme.AmazeColors, syncSt
     ) {
         Spacer(Modifier.height(16.dp))
         Box(
-            modifier = Modifier.size(100.dp).clip(RoundedCornerShape(28.dp)).background(colors.accent.copy(alpha = 0.1f)),
+            modifier = Modifier.size(100.dp).clip(RoundedCornerShape(AmazeTheme.radius.extraLarge)).background(colors.accent.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center
         ) { Icon(Icons.Rounded.AutoAwesome, null, tint = colors.accent, modifier = Modifier.size(52.dp)) }
         Spacer(Modifier.height(24.dp))
         Text("We're setting up everything\nfor you in the background", style = AmazeTheme.typography.body.copy(color = colors.textSecondary), textAlign = TextAlign.Center, lineHeight = 24.sp)
         Spacer(Modifier.height(28.dp))
         Box(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surface).padding(20.dp)
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.medium)).background(colors.surface).padding(AmazeTheme.spacing.lg)
         ) {
             Column {
                 Text("Sync Progress", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
@@ -270,7 +271,7 @@ private fun PersonalizationPage(
             listOf(AppTheme.LIGHT to Icons.Rounded.LightMode, AppTheme.DARK to Icons.Rounded.DarkMode, AppTheme.SYSTEM to Icons.Rounded.BrightnessAuto).forEach { (theme, icon) ->
                 val isSelected = selectedTheme == theme
                 Box(
-                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(12.dp)).clickable { onThemeChange(theme) }.padding(vertical = 14.dp),
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small)).clickable { onThemeChange(theme) }.padding(vertical = AmazeTheme.spacing.sm),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -308,7 +309,7 @@ private fun PersonalizationPage(
             listOf(0.85f to "Small", 1.0f to "Default", 1.15f to "Large").forEach { (scale, label) ->
                 val isSelected = uiScale == scale
                 Box(
-                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(10.dp)).clickable { onUiScaleChange(scale) }.padding(horizontal = 20.dp, vertical = 10.dp)
+                    modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.xs)).clickable { onUiScaleChange(scale) }.padding(horizontal = AmazeTheme.spacing.lg, vertical = AmazeTheme.spacing.sm)
                 ) {
                     Text(label, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
                 }
@@ -364,7 +365,7 @@ private fun ResidentialNotifPage(
         Text("Helps us show relevant campus info", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
         Spacer(Modifier.height(12.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            listOf("hosteller" to Icons.Rounded.Apartment, "dayscholar" to Icons.Rounded.Home, "unknown" to Icons.Rounded.HelpOutline).forEach { (status, icon) ->
+            listOf("hosteller" to Icons.Rounded.Apartment, "dayscholar" to Icons.Rounded.Home, "unknown" to Icons.AutoMirrored.Rounded.HelpOutline).forEach { (status, icon) ->
                 val isSelected = residentialStatus == status
                 Box(
                     modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(14.dp)).clickable { onResidentialChange(status) }.padding(16.dp),
@@ -388,7 +389,7 @@ private fun ResidentialNotifPage(
             Column {
                 ToggleRow("Class Reminders", "Notify before each class starts", Icons.Rounded.Schedule, classNotif, onClassNotifChange, colors)
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = colors.border)
-                ToggleRow("Assignment Reminders", "Remind before deadlines", Icons.Rounded.Assignment, assignNotif, onAssignNotifChange, colors)
+                ToggleRow("Assignment Reminders", "Remind before deadlines", Icons.AutoMirrored.Rounded.Assignment, assignNotif, onAssignNotifChange, colors)
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = colors.border)
                 ToggleRow("VITOL Reminders", "Low balance alerts", Icons.Rounded.AccountBalanceWallet, vitolNotif, onVitolNotifChange, colors)
             }
@@ -492,11 +493,11 @@ private fun AccountsPage(
                 }
                 Spacer(Modifier.height(12.dp))
                 if (!moodleLinked) {
-                    OutlinedTextField(value = moodleUser, onValueChange = onMoodleUserChange, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), enabled = !moodleLoading)
+                    AmazeTextField(value = moodleUser, onValueChange = onMoodleUserChange, label = "Username", placeholder = "", modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(value = moodlePass, onValueChange = onMoodlePassChange, label = { Text("Password") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), enabled = !moodleLoading)
+                    AmazeTextField(value = moodlePass, onValueChange = onMoodlePassChange, label = "Password", placeholder = "", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(12.dp))
-                    if (moodleError != null) { Spacer(Modifier.height(4.dp)); Text(moodleError!!, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
+                    val me = moodleError; if (me != null) { Spacer(Modifier.height(4.dp)); Text(me, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedButton(onClick = { onMoodleUserChange(""); onMoodlePassChange("") }, shape = RoundedCornerShape(10.dp), enabled = !moodleLoading) { Text("Skip", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)) }
                         if (moodleLoading) {
@@ -537,11 +538,11 @@ private fun AccountsPage(
                 }
                 Spacer(Modifier.height(12.dp))
                 if (!libLinked) {
-                    OutlinedTextField(value = libUser, onValueChange = onLibUserChange, label = { Text("Library ID") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), enabled = !libLoading)
+                    AmazeTextField(value = libUser, onValueChange = onLibUserChange, label = "Library ID", placeholder = "", modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(value = libPass, onValueChange = onLibPassChange, label = { Text("Password") }, singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp), enabled = !libLoading)
+                    AmazeTextField(value = libPass, onValueChange = onLibPassChange, label = "Password", placeholder = "", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(12.dp))
-                    if (libError != null) { Spacer(Modifier.height(4.dp)); Text(libError!!, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
+                    val le = libError; if (le != null) { Spacer(Modifier.height(4.dp)); Text(le, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         OutlinedButton(onClick = { onLibUserChange(""); onLibPassChange("") }, shape = RoundedCornerShape(10.dp), enabled = !libLoading) { Text("Skip", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)) }
                         if (libLoading) {
@@ -581,7 +582,7 @@ private fun CompletionPage(colors: com.amazecc.app.shared.theme.AmazeColors, syn
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(24.dp))
-        Box(modifier = Modifier.size(96.dp).clip(RoundedCornerShape(24.dp)).background(colors.chart1.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.CheckCircle, null, tint = colors.chart1, modifier = Modifier.size(52.dp)) }
+        Box(modifier = Modifier.size(96.dp).clip(RoundedCornerShape(AmazeTheme.radius.large)).background(colors.chart1.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.CheckCircle, null, tint = colors.chart1, modifier = Modifier.size(52.dp)) }
         Spacer(Modifier.height(20.dp))
         Text("You're all set!", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Black, color = colors.textPrimary))
         Spacer(Modifier.height(8.dp))

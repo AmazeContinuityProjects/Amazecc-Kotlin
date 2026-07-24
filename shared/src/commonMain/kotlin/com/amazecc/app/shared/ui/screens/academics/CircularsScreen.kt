@@ -202,7 +202,7 @@ fun CircularsScreen() {
                                                 )
                                                 Spacer(modifier = Modifier.width(10.dp))
                                                 Text(
-                                                    text = item.title ?: item.name ?: item.id ?: "Untitled",
+                                                    text = item.title ?: item.id ?: "Untitled",
                                                     style = AmazeTheme.typography.body.copy(
                                                         color = colors.textPrimary,
                                                         fontSize = 13.sp

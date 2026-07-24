@@ -1,4 +1,3 @@
-@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
@@ -484,6 +483,7 @@ private fun ExpandedCoursePredictorCard(
 }
 
 @Composable
+@Suppress("unused")
 private fun SkipButton(text: String, onClick: () -> Unit, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Box(
         modifier = Modifier
@@ -862,7 +862,7 @@ fun TimetableGridScreen() {
                             .clip(RoundedCornerShape(10.dp))
                             .background(if (hasClass) colors.accent.copy(alpha = 0.06f) else colors.surface)
                             .border(1.dp, if (hasClass) colors.accent.copy(alpha = 0.2f) else colors.border, RoundedCornerShape(10.dp))
-                            .clickable { if (hasClass) AppState.openCourseDetail(course!!.courseCode) }
+                            .clickable { if (course != null) AppState.openCourseDetail(course.courseCode) }
                             .padding(10.dp)
                     ) {
                         Row(

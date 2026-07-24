@@ -280,9 +280,10 @@ fun CabTripCard(trip: CabTrip) {
                             Icon(Icons.Rounded.Add, contentDescription = null, tint = if (joinSeats < trip.seatsAvailable && joinSeats < 4) colors.textPrimary else colors.textMuted)
                         }
                     }
-                    if (joinMessage != null) {
+                    val jm = joinMessage
+                    if (jm != null) {
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(joinMessage!!, style = AmazeTheme.typography.smallLabel.copy(color = if (joinMessage!!.contains("sent", ignoreCase = true)) colors.success else colors.danger))
+                        Text(jm, style = AmazeTheme.typography.smallLabel.copy(color = if (jm.contains("sent", ignoreCase = true)) colors.success else colors.danger))
                     }
                 }
             },
@@ -439,10 +440,11 @@ fun CreateTripTab() {
             }
         }
 
-        if (statusMessage != null) {
+        val sm = statusMessage
+        if (sm != null) {
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = statusMessage!!,
+                text = sm,
                 style = AmazeTheme.typography.body.copy(
                     color = if (isSuccess) colors.success else colors.danger,
                     fontWeight = FontWeight.Bold

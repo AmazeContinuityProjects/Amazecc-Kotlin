@@ -60,7 +60,8 @@ fun QBankScreen() {
     }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        if (selectedCourse != null) {
+        val sc = selectedCourse
+        if (sc != null) {
             Row(
                 modifier = Modifier.fillMaxWidth().background(colors.accent.copy(alpha = 0.08f)).padding(horizontal = 4.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -76,8 +77,8 @@ fun QBankScreen() {
                 }
                 Spacer(Modifier.width(4.dp))
                 Column {
-                    Text("QBank: ${selectedCourse!!.courseCode}", style = AmazeTheme.typography.display.copy(fontSize = 20.sp, fontWeight = FontWeight.Black, color = colors.textPrimary))
-                    Text(selectedCourse!!.courseTitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    Text("QBank: ${sc.courseCode}", style = AmazeTheme.typography.display.copy(fontSize = 20.sp, fontWeight = FontWeight.Black, color = colors.textPrimary))
+                    Text(sc.courseTitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
             }
         } else {
@@ -125,7 +126,7 @@ fun QBankScreen() {
                         }
                     }
                 } else if (activeQuestionIndex != null) {
-                    val qIndex = activeQuestionIndex!!
+                    val qIndex = activeQuestionIndex ?: 0
                     item {
                         QuestionDetailView(
                             question = questions[qIndex],

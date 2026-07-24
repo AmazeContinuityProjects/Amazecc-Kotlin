@@ -83,7 +83,11 @@ actual suspend fun createNotificationChannels() {
             NotificationChannel(
                 AlarmReceiver.CHANNEL_SYNC, "Sync Notifications",
                 NotificationManager.IMPORTANCE_LOW
-            ).apply { description = "Background sync status updates" }
+            ).apply { description = "Background sync status updates" },
+            NotificationChannel(
+                AlarmReceiver.CHANNEL_TASKS, "Task Reminders",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply { description = "Reminders for homework and tasks" }
         )
         channels.forEach { manager.createNotificationChannel(it) }
     }

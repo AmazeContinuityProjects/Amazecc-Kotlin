@@ -95,7 +95,7 @@ fun VitolScreen() {
             // Limit & Consumed
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    AmazeCard(modifier = Modifier.weight(1f)) {
+                    AmazeCard(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Rounded.ArrowUpward, null, tint = Color(0xFF10B981), modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.height(4.dp))
@@ -103,7 +103,7 @@ fun VitolScreen() {
                             Text("Limit", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                         }
                     }
-                    AmazeCard(modifier = Modifier.weight(1f)) {
+                    AmazeCard(modifier = Modifier.weight(1f).fillMaxWidth()) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                             Icon(Icons.Rounded.ArrowDownward, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.height(4.dp))

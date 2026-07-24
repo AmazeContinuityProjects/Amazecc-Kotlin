@@ -230,7 +230,7 @@ fun SyncProgressPopup(
                     .padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                items(SyncModule.values().filter { it.cacheKey != null || it == SyncModule.ALL_SEMESTER_ATTENDANCE || it == SyncModule.CAB_TRIPS || it == SyncModule.VITOL }) { module ->
+                items(SyncModule.entries.filter { it.cacheKey != null || it == SyncModule.ALL_SEMESTER_ATTENDANCE || it == SyncModule.CAB_TRIPS || it == SyncModule.VITOL }) { module ->
                     val state = moduleStates[module] ?: ModuleState()
                     ModuleSyncRow(module, state, colors)
                 }

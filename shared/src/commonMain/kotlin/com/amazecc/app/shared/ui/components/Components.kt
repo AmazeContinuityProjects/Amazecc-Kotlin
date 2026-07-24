@@ -76,6 +76,8 @@ fun AmazeButton(
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
     )
 
+    val spacing = AmazeTheme.spacing
+
     Button(
         onClick = onClick,
         modifier = modifier.height(48.dp).graphicsLayer {
@@ -83,7 +85,7 @@ fun AmazeButton(
             scaleY = scale
         },
         enabled = enabled,
-        shape = RoundedCornerShape(radius.small), // 12px Small Radius
+        shape = RoundedCornerShape(radius.small),
         colors = ButtonDefaults.buttonColors(
             containerColor = containerColor,
             contentColor = contentColor,
@@ -91,7 +93,7 @@ fun AmazeButton(
             disabledContentColor = colors.textMuted
         ),
         border = border,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = spacing.md, vertical = spacing.xs),
         elevation = null,
         interactionSource = interactionSource
     ) {
@@ -101,7 +103,7 @@ fun AmazeButton(
         ) {
             if (icon != null) {
                 Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(spacing.sm))
             }
             Text(
                 text = text,
@@ -148,6 +150,8 @@ fun AmazeCard(
         CardVariant.GLASS -> (backgroundColor ?: colors.glassSurface) to colors.glassBorder
     }
 
+    val spacing = AmazeTheme.spacing
+
     Box(
         modifier = modifier
             .graphicsLayer {
@@ -188,14 +192,13 @@ fun AmazeCard(
                     Modifier
                 }
             )
-            .padding(16.dp),
+            .padding(spacing.cardPadding),
         content = content
     )
 }
 
 // ── GLASS CARD ──
 
-@Suppress("unused")
 @Composable
 fun AmazeGlassCard(
     modifier: Modifier = Modifier,
@@ -203,21 +206,22 @@ fun AmazeGlassCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+    val spacing = AmazeTheme.spacing
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(radius.large))
             .background(colors.glassSurface)
-            .border(1.dp, colors.glassBorder, RoundedCornerShape(24.dp))
-            .shadow(8.dp, RoundedCornerShape(24.dp), clip = false)
+            .border(1.dp, colors.glassBorder, RoundedCornerShape(radius.large))
+            .shadow(8.dp, RoundedCornerShape(radius.large), clip = false)
             .then(
                 if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
             )
-            .padding(20.dp),
+            .padding(spacing.lg),
         content = content
     )
 }
 
-@Suppress("unused")
 @Composable
 fun MetricCard(
     title: String,
@@ -246,7 +250,7 @@ fun MetricCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Row(
                     verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -255,8 +259,7 @@ fun MetricCard(
                     Text(
                         text = value,
                         style = AmazeTheme.typography.display.copy(
-                            color = colors.textPrimary,
-                            fontSize = 28.sp
+                            color = colors.textPrimary
                         )
                     )
                     if (statusText != null) {
@@ -540,7 +543,6 @@ fun AmazeDropdown(
 
 // ── PAGE HEADER CONTAINER ──
 
-@Suppress("unused")
 @Composable
 fun PageHeaderContainer(
     title: String,

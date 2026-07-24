@@ -121,7 +121,7 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                 contentPadding = PaddingValues(bottom = 88.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
             ) {
                 filteredGroups.forEach { (semId, courses) ->
                     item {
@@ -168,7 +168,7 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
             .background(colors.surface)
             .border(1.dp, colors.border, RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(start = 16.dp, end = 8.dp, top = 14.dp, bottom = 14.dp)
+                .padding(AmazeTheme.spacing.cardPadding)
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {

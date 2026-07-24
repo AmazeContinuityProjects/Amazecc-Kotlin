@@ -59,6 +59,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val CHANNEL_CLASSES = "amazecc_classes"
         const val CHANNEL_ASSIGNMENTS = "amazecc_assignments"
         const val CHANNEL_VITOL = "amazecc_vitol"
+        const val CHANNEL_TASKS = "amazecc_tasks"
         const val CHANNEL_SYNC = "amazecc_sync"
     }
 }

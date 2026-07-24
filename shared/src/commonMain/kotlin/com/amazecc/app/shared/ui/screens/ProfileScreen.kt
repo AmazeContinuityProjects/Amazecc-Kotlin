@@ -1,4 +1,3 @@
-@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.Canvas
@@ -52,6 +51,8 @@ fun ProfileScreen() {
 
 @Composable
 private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val radius = AmazeTheme.radius
+    val spacing = AmazeTheme.spacing
     val profile by AppState.studentProfile.collectAsState()
     val authorizedID by SessionManager.authorizedID.collectAsState()
 
@@ -63,10 +64,10 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
     ) {
         // Avatar & name card
         Box(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(radius.large))
                 .background(
                     Brush.linearGradient(listOf(colors.accent.copy(alpha = 0.15f), colors.accent.copy(alpha = 0.05f)))
-                ).padding(20.dp)
+                ).padding(spacing.lg)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -78,50 +79,52 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 ) {
                     Text(
                         text = (authorizedID ?: "?").take(2).uppercase(),
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 28.sp
+                        style = AmazeTheme.typography.display.copy(
+                            color = colors.background,
+                            fontWeight = FontWeight.Black
+                        )
                     )
                 }
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(spacing.md))
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = profile?.name ?: authorizedID ?: "Student",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        color = colors.textPrimary
+                        style = AmazeTheme.typography.subheading.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary
+                        )
                     )
                     Text(
                         text = profile?.regNo ?: authorizedID ?: "",
-                        fontSize = 13.sp,
-                        color = colors.textSecondary
+                        style = AmazeTheme.typography.body.copy(color = colors.textSecondary)
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(spacing.xs))
                     Box(
-                        modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                        modifier = Modifier.clip(RoundedCornerShape(radius.xs))
                             .background(colors.chart1.copy(alpha = 0.15f))
-                            .padding(horizontal = 10.dp, vertical = 3.dp)
+                            .padding(horizontal = spacing.sm, vertical = 3.dp)
                     ) {
-                        Text("ACTIVE", color = colors.chart1, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                        Text("ACTIVE", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart1, fontWeight = FontWeight.Bold))
                     }
                 }
             }
         }
 
         // Profile info cards
-        if (profile != null) {
+        val p = profile
+        if (p != null) {
             ProfileGroupCard("Personal Info", listOf(
-                ProfileItem(Icons.Rounded.Email, "Email", profile!!.email),
-                ProfileItem(Icons.Rounded.Phone, "Mobile", profile!!.mobile),
-                ProfileItem(Icons.Rounded.School, "Program", profile!!.program),
-                ProfileItem(Icons.Rounded.LocationOn, "Campus", profile!!.campus),
-                ProfileItem(Icons.Rounded.DateRange, "Batch", profile!!.batch),
+                ProfileItem(Icons.Rounded.Email, "Email", p.email),
+                ProfileItem(Icons.Rounded.Phone, "Mobile", p.mobile),
+                ProfileItem(Icons.Rounded.School, "Program", p.program),
+                ProfileItem(Icons.Rounded.LocationOn, "Campus", p.campus),
+                ProfileItem(Icons.Rounded.DateRange, "Batch", p.batch),
             ), colors)
 
             val extraItems = mutableListOf<ProfileItem>()
-            profile!!.section?.let { extraItems.add(ProfileItem(Icons.Rounded.Group, "Section", it)) }
-            profile!!.advisorName?.let { extraItems.add(ProfileItem(Icons.Rounded.Person, "Advisor", it)) }
-            profile!!.bloodGroup?.let { extraItems.add(ProfileItem(Icons.Rounded.Bloodtype, "Blood Group", it)) }
+            p.section?.let { extraItems.add(ProfileItem(Icons.Rounded.Group, "Section", it)) }
+            p.advisorName?.let { extraItems.add(ProfileItem(Icons.Rounded.Person, "Advisor", it)) }
+            p.bloodGroup?.let { extraItems.add(ProfileItem(Icons.Rounded.Bloodtype, "Blood Group", it)) }
 
             if (extraItems.isNotEmpty()) {
                 ProfileGroupCard("Additional Info", extraItems, colors)
@@ -139,21 +142,21 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
         }
 
         // Settings button
-        AmazeCard(modifier = Modifier.fillMaxWidth().clickable(onClick = { AppState.navigateTo(Screen.SETTINGS) })) {
-            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+        AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { AppState.navigateTo(Screen.SETTINGS) }) {
+            Row(modifier = Modifier.padding(spacing.cardPadding), verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(radius.xs)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Settings, null, tint = colors.accent, modifier = Modifier.size(20.dp))
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(spacing.sm))
                 Column(Modifier.weight(1f)) {
-                    Text("App Settings", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
-                    Text("Theme, sync, credentials & more", color = colors.textSecondary, fontSize = 11.sp)
+                    Text("App Settings", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Text("Theme, sync, credentials & more", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                 }
                 Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted)
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(spacing.md))
     }
 }
 
@@ -161,21 +164,22 @@ private data class ProfileItem(val icon: ImageVector, val label: String, val val
 
 @Composable
 private fun ProfileGroupCard(title: String, items: List<ProfileItem>, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val radius = AmazeTheme.radius
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(title, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
+        Column(modifier = Modifier.padding(AmazeTheme.spacing.cardPadding)) {
+            Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.padding(bottom = AmazeTheme.spacing.sm))
             items.forEach { item ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = AmazeTheme.spacing.xs),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(8.dp)).background(colors.surface), contentAlignment = Alignment.Center) {
+                    Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(radius.xs)).background(colors.surface), contentAlignment = Alignment.Center) {
                         Icon(item.icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                     Column(Modifier.weight(1f)) {
-                        Text(item.label, color = colors.textMuted, fontSize = 10.sp)
-                        Text(item.value, color = colors.textPrimary, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                        Text(item.label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                        Text(item.value, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
                     }
                 }
             }

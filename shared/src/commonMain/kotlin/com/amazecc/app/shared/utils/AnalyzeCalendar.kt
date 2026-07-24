@@ -3,7 +3,6 @@ package com.amazecc.app.shared.utils
 import kotlinx.datetime.*
 import kotlinx.serialization.json.*
 
-@Suppress("unused")
 object AnalyzeCalendar {
 
     private val HOLIDAY_KEYWORDS = listOf(

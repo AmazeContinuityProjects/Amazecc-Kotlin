@@ -35,7 +35,6 @@ data class ArrearResponse(
 data class CircularItem(
     val id: String? = null,
     val title: String? = null,
-    val name: String? = null,
     val children: List<CircularItem>? = null
 )
 

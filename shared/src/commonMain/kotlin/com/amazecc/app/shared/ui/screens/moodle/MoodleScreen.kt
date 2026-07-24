@@ -69,14 +69,13 @@ fun MoodleScreen() {
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = AmazeTheme.spacing.pageHorizontal),
+                    verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm),
                     contentPadding = PaddingValues(bottom = 88.dp)
                 ) {
                     items(assignments) { assignment ->
                         MoodleAssignmentCard(assignment)
                     }
-                    item { Spacer(modifier = Modifier.height(80.dp)) }
                 }
             }
         }
@@ -86,6 +85,8 @@ fun MoodleScreen() {
 @Composable
 fun MoodleLoginView(onLoginSuccess: () -> Unit) {
     val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+    val spacing = AmazeTheme.spacing
     val scope = rememberCoroutineScope()
     
     var username by remember { mutableStateOf("") }
@@ -96,16 +97,16 @@ fun MoodleLoginView(onLoginSuccess: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .padding(spacing.lg),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
         Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.accent, modifier = Modifier.size(64.dp))
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(spacing.lg))
         Text("Connect to Moodle", style = AmazeTheme.typography.heading.copy(color = colors.textPrimary))
         Text("Enter your V-TOP credentials to sync", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(spacing.xl))
         
         OutlinedTextField(
             value = username,
@@ -118,10 +119,10 @@ fun MoodleLoginView(onLoginSuccess: () -> Unit) {
                 focusedTextColor = colors.textPrimary,
                 unfocusedTextColor = colors.textPrimary
             ),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(radius.small)
         )
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(spacing.md))
         
         OutlinedTextField(
             value = password,
@@ -135,15 +136,16 @@ fun MoodleLoginView(onLoginSuccess: () -> Unit) {
                 focusedTextColor = colors.textPrimary,
                 unfocusedTextColor = colors.textPrimary
             ),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(radius.small)
         )
         
-        if (errorMessage != null) {
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(errorMessage!!, style = AmazeTheme.typography.caption.copy(color = colors.dangerText))
+        val em = errorMessage
+        if (em != null) {
+            Spacer(modifier = Modifier.height(spacing.md))
+            Text(em, style = AmazeTheme.typography.caption.copy(color = colors.dangerText))
         }
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(spacing.xl))
         
         if (isLoading) {
             CircularProgressIndicator(color = colors.accent)
@@ -183,7 +185,7 @@ fun MoodleAssignmentCard(assignment: MoodleAssignment) {
     val taskName = assignment.taskTitle
     
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+        Column(modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

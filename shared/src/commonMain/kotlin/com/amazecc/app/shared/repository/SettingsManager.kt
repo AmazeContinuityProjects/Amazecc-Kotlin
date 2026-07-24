@@ -10,15 +10,12 @@ object SettingsManager {
     private val settings: Settings by lazy { Settings() }
 
     // Key constants mirroring web app
-    @Suppress("unused")
     const val KEY_GPA_GOAL = "uni_cc_gpa_goal"
-    @Suppress("unused")
     const val KEY_APP_ICON = "app-icon"
     const val KEY_USERNAME = "username"
     const val KEY_PASSWORD = "password"
     const val KEY_CGPA_HIDDEN = "cgpa_hidden"
     const val KEY_ATTENDANCE_MODE = "attendance_display_mode"
-    const val KEY_SYNC_ARREAR = "sync_arrear"
     const val KEY_SYNC_EXAM = "sync_exam"
     const val KEY_SYNC_PROFILE = "sync_profile"
     const val KEY_SYNC_ADDITIONAL = "sync_additional"
@@ -67,11 +64,14 @@ object SettingsManager {
     const val CACHE_ALL_SEMESTER_MARKS = "cache_all_semester_marks"
     const val CACHE_CALENDARS_LIST = "cache_calendars_list"
     const val CACHE_QCM_VIEW = "cache_qcm_view"
+    const val CACHE_TASKS = "cache_tasks"
+    const val RESIDENTIAL_STATUS = "residential_status"
 
     // Notification preferences
     const val NOTIF_CLASS_REMINDERS = "notif_class_reminders"
     const val NOTIF_ASSIGNMENT_REMINDERS = "notif_assignment_reminders"
     const val NOTIF_VITOL_REMINDERS = "notif_vitol_reminders"
+    const val NOTIF_TASK_REMINDERS = "notif_task_reminders"
     const val NOTIF_OFFSET_MINUTES = "notif_offset_minutes"
     
     // Onboarding
@@ -187,6 +187,9 @@ object SettingsManager {
 
     fun isNotifVitolRemindersEnabled(): Boolean = getBoolean(NOTIF_VITOL_REMINDERS, false)
     fun setNotifVitolRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_VITOL_REMINDERS, enabled)
+
+    fun isNotifTaskRemindersEnabled(): Boolean = getBoolean(NOTIF_TASK_REMINDERS, false)
+    fun setNotifTaskRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_TASK_REMINDERS, enabled)
 
     fun getNotifOffsetMinutes(): Int = getString(NOTIF_OFFSET_MINUTES, "15").toIntOrNull() ?: 15
 

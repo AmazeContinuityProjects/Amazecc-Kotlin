@@ -23,7 +23,7 @@ class EventHubRepository(private val client: HttpClient) {
                     if (!uniqueEventsMap.containsKey(event.eid)) {
                         uniqueEventsMap[event.eid] = event
                     } else {
-                        val existing = uniqueEventsMap[event.eid]!!
+                        val existing = uniqueEventsMap.getValue(event.eid)
                         if (event.eligibility.isNotEmpty() && existing.eligibility.isNotEmpty() && !existing.eligibility.contains(event.eligibility)) {
                             uniqueEventsMap[event.eid] = existing.copy(eligibility = "${existing.eligibility}, ${event.eligibility}")
                         }

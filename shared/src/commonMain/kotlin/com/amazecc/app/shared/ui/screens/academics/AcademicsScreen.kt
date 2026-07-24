@@ -34,7 +34,6 @@ import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.config.SlotMap
 import kotlin.math.roundToInt
 
-@Suppress("unused")
 @Composable
 fun MarksGradesScreen() = AcademicsScreen()
 
@@ -68,12 +67,12 @@ fun AcademicsScreen() {
         HubCard("curriculum", "Curriculum", "Track your completed courses and credit requirements.", Icons.AutoMirrored.Rounded.MenuBook, colors.chart1, colors.chart1.copy(alpha = 0.12f)),
         HubCard("predictor", "CGPA Predictor", "Estimate your future CGPA based on expected grades.", Icons.AutoMirrored.Rounded.TrendingUp, colors.chart3, colors.chart3.copy(alpha = 0.12f)),
         HubCard("qbank", "Question Bank", "Access and search past year question papers.", Icons.Rounded.Storage, colors.chart5, colors.chart5.copy(alpha = 0.12f)),
-        HubCard("arrear", "Arrear Management", "View arrear schedule, details and grades.", Icons.Rounded.Warning, colors.chart3, colors.chart3.copy(alpha = 0.12f)),
         HubCard("makeup", "Makeup & Compre", "Makeup exam eligibility, schedule and compre info.", Icons.Rounded.School, colors.chart2, colors.chart2.copy(alpha = 0.12f)),
         HubCard("circulars", "Circulars", "Academic notices and circulars from VTOP.", Icons.Rounded.Campaign, colors.chart4, colors.chart4.copy(alpha = 0.12f)),
         HubCard("od-tracker", "OD Tracker", "Track on-duty hours, lab and theory.", Icons.Rounded.TaskAlt, colors.chart4, colors.chart4.copy(alpha = 0.12f)),
         HubCard("marks-timeline", "Marks Timeline", "Assessment history and grade trend.", Icons.Rounded.Timeline, colors.chart1, colors.chart1.copy(alpha = 0.12f)),
-        HubCard("vitol", "VITOL Wallet", "Digital wallet balance and transactions.", Icons.Rounded.AccountBalanceWallet, colors.chart5, colors.chart5.copy(alpha = 0.12f))
+        HubCard("vitol", "VITOL Wallet", "Digital wallet balance and transactions.", Icons.Rounded.AccountBalanceWallet, colors.chart5, colors.chart5.copy(alpha = 0.12f)),
+        HubCard("tasks", "Tasks & Reminders", "Homework, reminders and daily to-dos.", Icons.Rounded.CheckCircle, colors.chart1, colors.chart1.copy(alpha = 0.12f))
     )
 
     var currentView by remember { mutableStateOf<String?>(null) }
@@ -97,8 +96,8 @@ fun AcademicsScreen() {
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 88.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(start = AmazeTheme.spacing.pageHorizontal, end = AmazeTheme.spacing.pageHorizontal, bottom = 88.dp),
+            verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.md)
         ) {
             // Stats overview
             item {
@@ -109,8 +108,8 @@ fun AcademicsScreen() {
             item {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 160.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm),
                     modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp),
                     userScrollEnabled = false
                 ) {
@@ -120,7 +119,6 @@ fun AcademicsScreen() {
                                 "course-dashboard" -> currentView = "course-dashboard"
                                 "grades" -> AppState.navigateTo(Screen.GRADES)
                                 "predictor" -> AppState.navigateTo(Screen.GPA_PREDICTOR)
-                                "arrear" -> AppState.navigateTo(Screen.ARREAR)
                                 "makeup" -> AppState.navigateTo(Screen.MAKEUP_COMPRE)
                                 "circulars" -> AppState.navigateTo(Screen.CIRCULARS)
                                 "curriculum" -> AppState.navigateTo(Screen.CURRICULUM)
@@ -128,13 +126,14 @@ fun AcademicsScreen() {
                                 "marks-timeline" -> AppState.navigateTo(Screen.MARKS_TIMELINE)
                                 "vitol" -> AppState.navigateTo(Screen.VITOL)
                                 "qbank" -> AppState.navigateTo(Screen.QBANK)
+                                "tasks" -> AppState.navigateTo(Screen.TASKS)
                             }
                         })
                     }
                 }
             }
 
-            item { Spacer(modifier = Modifier.height(16.dp)) }
+            item { Spacer(modifier = Modifier.height(AmazeTheme.spacing.md)) }
         }
     }
 
@@ -144,10 +143,9 @@ fun AcademicsScreen() {
 @Composable
 private fun SectionHeader(title: String, icon: ImageVector) {
     val colors = AmazeTheme.colors
-    Spacer(modifier = Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = colors.accent, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(AmazeTheme.spacing.sm))
         Text(title, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
     }
 }
@@ -194,8 +192,8 @@ fun StatBox(label: String, value: String, icon: ImageVector, iconColor: Color) {
         ) {
             Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(18.dp))
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(value, style = AmazeTheme.typography.heading.copy(fontSize = 18.sp, color = colors.textPrimary))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
+        Text(value, style = AmazeTheme.typography.subheading.copy(color = colors.textPrimary))
         Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
     }
 }
@@ -217,35 +215,36 @@ data class HubCard(
 @Composable
 fun HubCardItem(card: HubCard, onClick: () -> Unit) {
     val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+    val spacing = AmazeTheme.spacing
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(radius.medium))
             .background(if (card.prominent) colors.accent else colors.surface)
             .clickable(onClick = onClick)
-            .padding(16.dp)
+            .padding(spacing.cardPadding)
     ) {
         Column {
             Box(
-                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(card.bgColor),
+                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(radius.small)).background(card.bgColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(card.icon, contentDescription = null, tint = card.color, modifier = Modifier.size(20.dp))
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(spacing.sm))
             Text(
                 text = card.title,
                 style = AmazeTheme.typography.subheading.copy(
                     fontWeight = FontWeight.Bold,
-                    color = if (card.prominent) Color.White else colors.textPrimary
+                    color = if (card.prominent) colors.background else colors.textPrimary
                 )
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(spacing.xs))
             Text(
                 text = card.description,
                 style = AmazeTheme.typography.caption.copy(
-                    color = if (card.prominent) Color.White.copy(alpha = 0.8f) else colors.textSecondary,
-                    lineHeight = 16.sp
+                    color = if (card.prominent) colors.background.copy(alpha = 0.8f) else colors.textSecondary
                 )
             )
         }

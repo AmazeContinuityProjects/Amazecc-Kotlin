@@ -1,4 +1,3 @@
-@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.ui.screens.events
 
 import androidx.compose.foundation.background
@@ -65,7 +64,7 @@ internal fun AuthKamelImage(
         AuthImageState.Loading -> onLoading()
         AuthImageState.Error -> onFailure()
         AuthImageState.Success -> KamelImage(
-            resource = asyncPainterResource(data = bytes!!),
+            resource = asyncPainterResource(data = bytes ?: return@AuthKamelImage),
             contentDescription = contentDescription,
             modifier = modifier,
             contentScale = contentScale,
@@ -629,10 +628,11 @@ private fun EventDetailSheet(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
                     )
-                    if (registrationRes?.url != null) {
+                    val regUrl = registrationRes?.url
+                    if (regUrl != null) {
                         val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                         Button(
-                            onClick = { uriHandler.openUri(registrationRes?.url!!) },
+                            onClick = { uriHandler.openUri(regUrl) },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = colors.accent)

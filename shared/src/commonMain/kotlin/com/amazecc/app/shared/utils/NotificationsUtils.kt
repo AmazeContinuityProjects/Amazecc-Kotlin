@@ -64,10 +64,11 @@ object NotificationsUtils {
                 val notifyInstant = classStart.toInstant(tz).minus(offsetMinutes.toLong(), DateTimeUnit.MINUTE)
                 if (notifyInstant > now) {
                     val timeStr = c.time.split("-").firstOrNull()?.trim() ?: ""
+                    val venuePart = if (!c.venue.isNullOrBlank()) " in ${c.venue}" else ""
                     scheduleLocalNotification(
                         id = id++,
                         title = "Upcoming Class",
-                        body = "${c.courseTitle} at $timeStr (${c.courseType})",
+                        body = "${c.courseTitle} at $timeStr$venuePart (${c.courseType})",
                         triggerTimeMs = notifyInstant.toEpochMilliseconds()
                     )
                 }
@@ -115,6 +116,39 @@ object NotificationsUtils {
         }
     }
 
+    suspend fun scheduleTaskReminders(
+        tasks: List<HomeworkTask>,
+        offsetMinutes: Int = 60
+    ) {
+        if (!SettingsManager.isNotifTaskRemindersEnabled()) return
+        if (!requestNotificationPermissions()) return
+
+        createNotificationChannels()
+        val now = Clock.System.now()
+        val tz = TimeZone.currentSystemDefault()
+        var id = 4000
+
+        for (t in tasks) {
+            if (t.completed) continue
+            val dueDate = try {
+                val d = t.dueDate.split("-").map { s -> s.toInt() }
+                LocalDate(d[0], d[1], d[2])
+            } catch (_: Exception) { continue }
+
+            val dueStart = LocalDateTime(dueDate.year, dueDate.monthNumber, dueDate.dayOfMonth, 7, 0, 0, 0)
+            val notifyInstant = dueStart.toInstant(tz)
+            if (notifyInstant > now) {
+                val taskType = if (t.type == "exam") "Exam" else "Task"
+                scheduleLocalNotification(
+                    id = id++,
+                    title = "$taskType Due Today",
+                    body = "${t.title} — ${t.courseCode} (Due ${t.dueDate})",
+                    triggerTimeMs = notifyInstant.toEpochMilliseconds()
+                )
+            }
+        }
+    }
+
     suspend fun scheduleVitolReminders(limit: String?, consumed: String?) {
         if (!SettingsManager.isNotifVitolRemindersEnabled()) return
         if (!requestNotificationPermissions()) return
@@ -140,9 +174,10 @@ object NotificationsUtils {
         slotMap: Map<String, Map<String, SlotInfo>>?,
         assignments: List<LMSAssignment>?,
         vitolLimit: String?,
-        vitolConsumed: String?
+        vitolConsumed: String?,
+        tasks: List<HomeworkTask>? = null
     ) {
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+        CoroutineScope(Dispatchers.Main).launch {
             if (attendance != null && slotMap != null && attendance.isNotEmpty()) {
                 scheduleClassReminders(attendance, slotMap)
             }
@@ -150,6 +185,9 @@ object NotificationsUtils {
                 scheduleAssignmentReminders(assignments)
             }
             scheduleVitolReminders(vitolLimit, vitolConsumed)
+            if (tasks != null && tasks.isNotEmpty()) {
+                scheduleTaskReminders(tasks)
+            }
         }
     }
 }

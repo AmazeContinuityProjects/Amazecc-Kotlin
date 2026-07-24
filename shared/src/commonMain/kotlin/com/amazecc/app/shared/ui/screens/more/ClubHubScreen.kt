@@ -12,7 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -227,7 +227,7 @@ private fun FeedTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             item {
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.Feed, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                        Icon(Icons.AutoMirrored.Rounded.Feed, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                         Spacer(Modifier.height(12.dp))
                         Text("No community posts yet", color = colors.textPrimary, fontWeight = FontWeight.Medium)
                         Text("Check back later for updates", color = colors.textSecondary, fontSize = 12.sp)

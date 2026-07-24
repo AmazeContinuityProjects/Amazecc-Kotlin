@@ -29,7 +29,7 @@ object FfcsViewModel {
     private val _errorMsg = MutableStateFlow<String?>(null)
     val errorMsg: StateFlow<String?> = _errorMsg
 
-    private val scope = CoroutineScope(Dispatchers.Default)
+    private val scope = CoroutineScope(Dispatchers.Main)
 
     fun addMockTargetCourses() {
         val rawMockData = listOf(

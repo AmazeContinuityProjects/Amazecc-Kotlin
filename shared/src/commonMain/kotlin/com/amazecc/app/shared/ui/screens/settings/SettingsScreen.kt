@@ -51,7 +51,7 @@ fun SettingsScreen() {
             try {
                 val res = AmazeClient.getCalendars(semesterId = selectedSemester)
                 if (res.success) availableCalendars = res.calendars
-            } catch (_: Exception) {}
+            } catch (e: Exception) { println("AmazeCC: SettingsScreen loadCalendars — ${e.message}") }
         }
     }
 
@@ -184,7 +184,6 @@ fun SettingsScreen() {
             }
 
             SettingsSection("Data Sync", Icons.Rounded.Sync, colors) {
-                val syncArrear by AppState.syncArrear.collectAsState()
                 val syncExam by AppState.syncExam.collectAsState()
                 val syncProfile by AppState.syncProfile.collectAsState()
                 val syncAdditional by AppState.syncAdditional.collectAsState()
@@ -221,7 +220,7 @@ fun SettingsScreen() {
                 Spacer(Modifier.height(8.dp))
 
                 // Per-module status list
-                val modulesToShow = SyncModule.values().filter { it.cacheKey != null || it == SyncModule.CAB_TRIPS || it == SyncModule.VITOL }
+                val modulesToShow = SyncModule.entries.filter { it.cacheKey != null || it == SyncModule.CAB_TRIPS || it == SyncModule.VITOL }
                 modulesToShow.forEach { module ->
                     val state = moduleStates[module] ?: ModuleState()
                     val dotColor = when (state.status) {
@@ -264,7 +263,6 @@ fun SettingsScreen() {
                 Spacer(Modifier.height(8.dp))
 
                 // Toggle switches for optional modules
-                SettingsToggle("Arrear Data", syncArrear, { AppState.setSyncArrear(it) }, colors)
                 SettingsToggle("Exam Schedule", syncExam, { AppState.setSyncExam(it) }, colors)
                 SettingsToggle("Profile Data", syncProfile, { AppState.setSyncProfile(it) }, colors)
                 SettingsToggle("Additional (Projects/Wishlist)", syncAdditional, { AppState.setSyncAdditional(it) }, colors)

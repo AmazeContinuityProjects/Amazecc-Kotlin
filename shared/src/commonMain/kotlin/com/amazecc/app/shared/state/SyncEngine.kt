@@ -56,7 +56,7 @@ data class LogLine(
 )
 
 data class SyncProgress(
-    val totalModules: Int = SyncModule.values().size,
+    val totalModules: Int = SyncModule.entries.size,
     val completedModules: Int = 0,
     val activeModules: Set<SyncModule> = emptySet(),
 ) {
@@ -71,7 +71,7 @@ object SyncEngine {
     private val activeJobs = mutableMapOf<SyncModule, Job>()
 
     private val _moduleStates = MutableStateFlow(
-        SyncModule.values().associateWith { ModuleState() }
+        SyncModule.entries.associateWith { ModuleState() }
     )
     val moduleStates: StateFlow<Map<SyncModule, ModuleState>> = _moduleStates.asStateFlow()
 
@@ -112,7 +112,7 @@ object SyncEngine {
     }
 
     fun resetAllStates() {
-        _moduleStates.value = SyncModule.values().associateWith { ModuleState(status = SyncStatus.IDLE) }
+        _moduleStates.value = SyncModule.entries.associateWith { ModuleState(status = SyncStatus.IDLE) }
         _logLines.value = emptyList()
     }
 
@@ -158,7 +158,7 @@ object SyncEngine {
     }
 
     fun startSyncAll(block: suspend (SyncModule) -> ModuleState) {
-        SyncModule.values().forEach { module ->
+        SyncModule.entries.forEach { module ->
             if (module.cacheKey != null || module == SyncModule.ALL_SEMESTER_ATTENDANCE || module == SyncModule.CAB_TRIPS || module == SyncModule.VITOL) {
                 startSync(module) { block(module) }
             }

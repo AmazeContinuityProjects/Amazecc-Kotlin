@@ -169,8 +169,6 @@ object QRCodeGenerator {
     private fun placeFormatInfo(matrix: Array<BooleanArray>, size: Int, maskPattern: Int) {
         val ecLevelBits = 0b00 // M
         val formatBits = (ecLevelBits shl 3) or maskPattern
-        var format = formatBits shl 10
-        format = format xor 0b10100110111 // generator polynomial
         // BCH code (simplified - using precomputed values for M + mask 2)
         val finalFormat = intArrayOf(
             1,0,1,0,0,1,1,0,1,1,1,0,0,0,1

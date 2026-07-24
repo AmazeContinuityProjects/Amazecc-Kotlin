@@ -38,6 +38,8 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.utils.QRCodeGenerator
 import com.amazecc.app.shared.utils.SocialUtils
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SocialScreen() {
@@ -107,10 +109,10 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     var codeCopied by remember { mutableStateOf(false) }
 
     LaunchedEffect(copied) {
-        if (copied) { kotlinx.coroutines.delay(2000); copied = false }
+        if (copied) { delay(2.seconds); copied = false }
     }
     LaunchedEffect(codeCopied) {
-        if (codeCopied) { kotlinx.coroutines.delay(2000); codeCopied = false }
+        if (codeCopied) { delay(2.seconds); codeCopied = false }
     }
 
     Column(

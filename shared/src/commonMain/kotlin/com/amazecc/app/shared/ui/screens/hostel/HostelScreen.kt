@@ -118,12 +118,14 @@ fun HostelDetailsTab(hostelDetails: com.amazecc.app.shared.model.HostelDetails?,
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Gender", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                    Text(if (hostelDetails?.gender.isNullOrEmpty()) "N/A" else hostelDetails.gender!!, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                    val gender = hostelDetails?.gender
+                    Text(if (gender.isNullOrEmpty()) "N/A" else gender, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
             Text("Mess Facility", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-            Text(if (hostelDetails?.messInfo.isNullOrEmpty()) "Not Enrolled" else hostelDetails.messInfo!!, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            val messInfo = hostelDetails?.messInfo
+            Text(if (messInfo.isNullOrEmpty()) "Not Enrolled" else messInfo, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         }
     }
 

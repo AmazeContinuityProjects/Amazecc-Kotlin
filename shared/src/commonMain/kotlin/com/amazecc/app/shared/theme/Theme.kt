@@ -1,4 +1,3 @@
-@file:Suppress("unused", "UNUSED_VARIABLE", "UNUSED_PARAMETER", "UNUSED_IMPORT")
 package com.amazecc.app.shared.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -192,10 +191,23 @@ class AmazeColors(
 
 @Stable
 class AmazeRadius(
+    val xs: Dp = 8.dp,
     val small: Dp = 12.dp,
     val medium: Dp = 16.dp,
     val large: Dp = 24.dp,
     val extraLarge: Dp = 32.dp
+)
+
+@Stable
+class AmazeSpacing(
+    val xs: Dp = 4.dp,
+    val sm: Dp = 8.dp,
+    val md: Dp = 16.dp,
+    val lg: Dp = 24.dp,
+    val xl: Dp = 32.dp,
+    val pageHorizontal: Dp = 16.dp,
+    val cardPadding: Dp = 16.dp,
+    val sectionGap: Dp = 16.dp
 )
 
 val LocalAmazeColors = staticCompositionLocalOf<AmazeColors> {
@@ -203,6 +215,7 @@ val LocalAmazeColors = staticCompositionLocalOf<AmazeColors> {
 }
 
 val LocalAmazeRadius = staticCompositionLocalOf { AmazeRadius() }
+val LocalAmazeSpacing = staticCompositionLocalOf { AmazeSpacing() }
 val LocalAmazeTypography = staticCompositionLocalOf { 
     AmazeTypography(
         androidx.compose.ui.text.TextStyle(),
@@ -304,11 +317,13 @@ fun AmazeTheme(
 
     val rememberColors = remember { colors }.apply { updateWith(colors) }
     val radius = remember { AmazeRadius() }
+    val spacing = remember { AmazeSpacing() }
     val typography = getAmazeTypography()
 
     CompositionLocalProvider(
         LocalAmazeColors provides rememberColors,
         LocalAmazeRadius provides radius,
+        LocalAmazeSpacing provides spacing,
         LocalAmazeTypography provides typography,
         content = content
     )
@@ -324,6 +339,11 @@ object AmazeTheme {
         @Composable
         @ReadOnlyComposable
         get() = LocalAmazeRadius.current
+
+    val spacing: AmazeSpacing
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalAmazeSpacing.current
 
     val typography: AmazeTypography
         @Composable

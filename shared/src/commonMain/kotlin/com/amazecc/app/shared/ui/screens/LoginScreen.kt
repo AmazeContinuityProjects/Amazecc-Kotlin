@@ -49,6 +49,7 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeTextField
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 
@@ -94,7 +95,7 @@ fun LoginScreen() {
             }
         }
         isRestoring = false
-        delay(100)
+        delay(100.milliseconds)
         logoScale = 1f
     }
 

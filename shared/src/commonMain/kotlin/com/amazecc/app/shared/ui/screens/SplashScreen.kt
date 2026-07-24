@@ -24,6 +24,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 import org.jetbrains.compose.resources.painterResource
 
 @Composable
@@ -32,9 +33,9 @@ fun SplashScreen() {
     var logoScale by remember { mutableStateOf(0f) }
 
     LaunchedEffect(Unit) {
-        delay(300)
+        delay(300.milliseconds)
         logoScale = 1f
-        delay(1200)
+        delay(1200.milliseconds)
         AppState.navigateTo(Screen.LOGIN)
     }
 

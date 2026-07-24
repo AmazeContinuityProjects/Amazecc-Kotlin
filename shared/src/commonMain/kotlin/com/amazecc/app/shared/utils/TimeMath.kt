@@ -1,5 +1,9 @@
 package com.amazecc.app.shared.utils
 
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+
 object TimeMath {
 
     fun toMinutes(timeStr: String?): Int {
@@ -45,11 +49,8 @@ object TimeMath {
         return out.toString()
     }
 
-    // Helper for daily planner day resolution
     fun getTodayDayIndex(): Int {
-        // Platform specific logic for getting the current weekday.
-        // For simplicity in shared logic without kotlinx-datetime injection in this scope,
-        // we'll default to 0 for Monday. A complete impl uses kotlinx.datetime
-        return 0 
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        return now.dayOfWeek.ordinal
     }
 }

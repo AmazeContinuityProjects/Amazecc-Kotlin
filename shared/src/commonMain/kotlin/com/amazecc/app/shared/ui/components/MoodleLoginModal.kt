@@ -49,9 +49,10 @@ fun MoodleLoginModal(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
-                if (errorMsg != null) {
+                val msg = errorMsg
+                if (msg != null) {
                     Text(
-                        text = errorMsg!!,
+                        text = msg,
                         color = androidx.compose.ui.graphics.Color.Red,
                         style = AmazeTheme.typography.caption,
                         modifier = Modifier.padding(bottom = 8.dp)

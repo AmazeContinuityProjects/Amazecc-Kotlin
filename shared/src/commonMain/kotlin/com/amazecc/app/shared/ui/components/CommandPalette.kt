@@ -53,7 +53,6 @@ fun CommandPalette(
             CommandItem("Profile", Icons.Rounded.Person, Screen.PROFILE),
             CommandItem("Grades", Icons.Rounded.History, Screen.GRADES),
             CommandItem("CGPA Predictor", Icons.AutoMirrored.Rounded.TrendingUp, Screen.GPA_PREDICTOR),
-            CommandItem("Arrear Management", Icons.Rounded.Warning, Screen.ARREAR),
             CommandItem("Makeup & Compre", Icons.Rounded.School, Screen.MAKEUP_COMPRE),
             CommandItem("Circulars", Icons.Rounded.Campaign, Screen.CIRCULARS),
             CommandItem("Curriculum", Icons.AutoMirrored.Rounded.MenuBook, Screen.CURRICULUM),
@@ -68,8 +67,7 @@ fun CommandPalette(
             CommandItem("Feedback", Icons.Rounded.RateReview, Screen.FEEDBACK_STATUS),
             CommandItem("Fresher Welcome", Icons.Rounded.Star, Screen.FRESHER_WELCOME),
             CommandItem("Documents", Icons.Rounded.Description, Screen.DOCUMENTS),
-            CommandItem("About", Icons.Rounded.Info, Screen.ABOUT),
-            CommandItem("Activity Tree", Icons.Rounded.GridView, Screen.ACTIVITY_TREE)
+            CommandItem("About", Icons.Rounded.Info, Screen.ABOUT)
         )
     }
 

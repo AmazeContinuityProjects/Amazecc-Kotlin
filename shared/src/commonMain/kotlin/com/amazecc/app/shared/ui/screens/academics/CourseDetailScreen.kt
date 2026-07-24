@@ -51,6 +51,7 @@ import com.amazecc.app.shared.utils.parseViewLink
 import com.amazecc.app.shared.utils.rememberFileSaver
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.MainScope
 import kotlinx.datetime.*
 import kotlinx.serialization.json.*
@@ -124,11 +125,12 @@ fun CourseDetailScreen(onBack: () -> Unit) {
     val mainAtt = theoryAtt ?: labAtt
 
     var innerTab by remember { mutableStateOf("overview") }
-    val tabs = listOf("overview", "grades", "marks", "attendance", "plan", "qbank")
+    val tabs = listOf("overview", "grades", "marks", "attendance", "plan", "qbank", "tasks")
     val tabLabels = mapOf(
         "overview" to "Overview", "grades" to "Grade History",
         "marks" to "Marks", "attendance" to "Attendance",
-        "plan" to "Course Plan", "qbank" to "QBank"
+        "plan" to "Course Plan", "qbank" to "QBank",
+        "tasks" to "Tasks"
     )
 
     if (group == null) {
@@ -188,6 +190,14 @@ fun CourseDetailScreen(onBack: () -> Unit) {
             "attendance" -> AttendanceTab(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, calendar, colors)
             "plan" -> CoursePlanTab(courseCode, group.theory, group.lab, mainAtt, colors)
             "qbank" -> QBankTab(courseCode, colors)
+            "tasks" -> {
+                val taskCodes = buildList {
+                    add(courseCode)
+                    group?.theory?.courseCode?.let { if (it != courseCode) add(it) }
+                    group?.lab?.courseCode?.let { if (it != courseCode) add(it) }
+                }
+                CourseTasksTab(taskCodes, group.courseTitle, colors)
+            }
         }
     }
 }
@@ -218,7 +228,7 @@ private fun OverviewTab(
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (isEmbedded) {
                     Box(Modifier.weight(1f)) { CircularAttendCard("Theory", theoryAtt, Color(0xFF3B82F6), colors) }
-                    Box(Modifier.weight(1f)) { CircularAttendCard("Lab", labAtt, Color(0xFF10B981), colors) }
+                    Box(Modifier.weight(1f)) { CircularAttendCard("Lab", labAtt, colors.success, colors) }
                 } else {
                     Box(Modifier.weight(1f)) { CircularAttendCard("Attendance", mainAtt, colors.accent, colors) }
                 }
@@ -228,7 +238,7 @@ private fun OverviewTab(
                 val grade = predictedGrade(0.0)
                 val (healthLabel, healthColor, healthBg) = healthStatus(attPct, grade, isPastSemester)
 
-                AmazeCard(modifier = Modifier.weight(1f)) {
+                AmazeCard(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Text("Status", fontSize = 10.sp, color = colors.textMuted, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(8.dp))
@@ -243,7 +253,7 @@ private fun OverviewTab(
                         if (isEmbedded && theoryAtt != null && labAtt != null) {
                             Spacer(Modifier.height(8.dp))
                             Text("T: ${theoryAtt.attendedClasses}/${theoryAtt.totalClasses}", fontSize = 10.sp, color = Color(0xFF3B82F6))
-                            Text("L: ${labAtt.attendedClasses}/${labAtt.totalClasses}", fontSize = 10.sp, color = Color(0xFF10B981))
+                            Text("L: ${labAtt.attendedClasses}/${labAtt.totalClasses}", fontSize = 10.sp, color = colors.success)
                         } else if (mainAtt != null) {
                             Spacer(Modifier.height(8.dp))
                             Text("${mainAtt.attendedClasses}/${mainAtt.totalClasses} classes", fontSize = 10.sp, color = colors.textSecondary)
@@ -294,7 +304,7 @@ private fun OverviewTab(
                         Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
                             StatItem("Scored", "${totalWeighted.toInt()}", colors.accent, colors)
                             StatItem("Weight", "${totalWeightPct.toInt()}%", Color(0xFF8B5CF6), colors)
-                            StatItem("Projected", "$pct%", if (pct >= 70) Color(0xFF10B981) else Color(0xFFF59E0B), colors)
+                            StatItem("Projected", "$pct%", if (pct >= 70) colors.success else Color(0xFFF59E0B), colors)
                         }
                         Spacer(Modifier.height(8.dp))
                         LinearProgressIndicator(
@@ -386,7 +396,7 @@ private fun OverviewTab(
                                             Spacer(Modifier.height(4.dp))
                                             Box(modifier = Modifier.fillMaxWidth().padding(start = 8.dp)) {
                                                 Column {
-                                                    Text("Faculty Reply", fontWeight = FontWeight.Bold, color = Color(0xFF10B981), fontSize = 10.sp)
+                                                    Text("Faculty Reply", fontWeight = FontWeight.Bold, color = colors.success, fontSize = 10.sp)
                                                     Text(it, color = colors.textSecondary, fontSize = 12.sp)
                                                 }
                                             }
@@ -606,7 +616,7 @@ private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, isR
     val pct = if (asm.maxMark.toDoubleOrNull() != null && asm.maxMark.toDouble() > 0)
         ((asm.scoredMark.toDoubleOrNull() ?: 0.0) / asm.maxMark.toDouble()) * 100 else 0.0
     val isTheory = typeLabel == "Theory"
-    val accentColor = if (isTheory) Color(0xFF3B82F6) else Color(0xFF10B981)
+    val accentColor = if (isTheory) Color(0xFF3B82F6) else colors.success
     val shortenedTitle = asm.title
         .replace("Continuous Assessment Test", "CAT", ignoreCase = true)
         .replace("Final Assessment Test", "FAT", ignoreCase = true)
@@ -711,12 +721,12 @@ private fun TargetGradeCalculator(
             if (isRelative) {
                 Text("Relative (ACE) Grading — Boundaries shift with class average", fontSize = 11.sp, color = colors.textMuted)
             } else {
-                Text("Absolute Grading Enforced", fontSize = 11.sp, color = Color(0xFF10B981), fontWeight = FontWeight.Bold)
+                Text("Absolute Grading Enforced", fontSize = 11.sp, color = colors.success, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
                 Box(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color(0xFF10B981).copy(alpha = 0.08f)).padding(8.dp)
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.success.copy(alpha = 0.08f)).padding(8.dp)
                 ) {
-                    Text("Fixed grade boundaries: S≥90, A≥80, B≥70, C≥60, D≥50, E≥40", fontSize = 10.sp, color = Color(0xFF10B981))
+                    Text("Fixed grade boundaries: S≥90, A≥80, B≥70, C≥60, D≥50, E≥40", fontSize = 10.sp, color = colors.success)
                 }
             }
 
@@ -741,7 +751,7 @@ private fun TargetGradeCalculator(
 
             Spacer(Modifier.height(12.dp))
             when {
-                needPoints <= 0 -> Text("Target Achieved! 🎯", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF10B981))
+                needPoints <= 0 -> Text("Target Achieved! 🎯", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = colors.success)
                 needPoints > remainingPct -> Text("Impossible to achieve — need ${(needPoints * 10).toInt() / 10.0}pts but only ${remainingPct.toInt()}pts remaining", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFFEF4444))
                 else -> Text("Need ${(needPoints * 10).toInt() / 10.0} more weightage points out of ${remainingPct.toInt()} remaining", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = colors.accent)
             }
@@ -751,7 +761,7 @@ private fun TargetGradeCalculator(
                 LinearProgressIndicator(
                     progress = { (totalWeighted / 100.0).toFloat() },
                     modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp)),
-                    color = Color(0xFF10B981),
+                    color = colors.success,
                     trackColor = colors.border,
                 )
             }
@@ -883,7 +893,7 @@ private fun AttendanceTab(
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
             item {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    StatChip("Attended", activeAtt.attendedClasses.toString(), Color(0xFF10B981), colors)
+                    StatChip("Attended", activeAtt.attendedClasses.toString(), colors.success, colors)
                     StatChip("Total", activeAtt.totalClasses.toString(), colors.accent, colors)
                     StatChip("Avg", activeAtt.attendancePercentage, Color(0xFF3B82F6), colors)
                 }
@@ -957,13 +967,13 @@ private fun AttendanceTab(
                             Box(
                                 modifier = Modifier.width(3.dp).fillMaxHeight().height(32.dp)
                                     .clip(RoundedCornerShape(2.dp))
-                                    .background(if (isPresent) Color(0xFF10B981) else if (isOd) Color(0xFFF59E0B) else Color(0xFFEF4444))
+                                    .background(if (isPresent) colors.success else if (isOd) Color(0xFFF59E0B) else Color(0xFFEF4444))
                             )
                             Spacer(Modifier.width(8.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(date, color = colors.textPrimary, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                             }
-                            val badgeColor = if (isPresent) Color(0xFF10B981) else if (isOd) Color(0xFFF59E0B) else Color(0xFFEF4444)
+                            val badgeColor = if (isPresent) colors.success else if (isOd) Color(0xFFF59E0B) else Color(0xFFEF4444)
                             val badgeBg = badgeColor.copy(alpha = 0.12f)
                             val label = if (isPresent) "Present" else if (isOd) "On Duty" else "Absent"
                             Box(
@@ -977,7 +987,7 @@ private fun AttendanceTab(
                                     Icon(
                                         if (hasNotes) Icons.Rounded.CheckCircle else Icons.Rounded.AddCircleOutline,
                                         if (hasNotes) "Noted" else "Mark notes",
-                                        tint = if (hasNotes) Color(0xFF10B981) else colors.warning,
+                                        tint = if (hasNotes) colors.success else colors.warning,
                                         modifier = Modifier.size(18.dp)
                                     )
                                 }
@@ -1005,12 +1015,12 @@ private fun AttendanceTab(
                                 ) {
                                     Box(
                                         modifier = Modifier.size(6.dp).clip(CircleShape)
-                                            .background(if (isPresent) Color(0xFF10B981) else if (isOd) Color(0xFFF59E0B) else Color(0xFFEF4444))
+                                            .background(if (isPresent) colors.success else if (isOd) Color(0xFFF59E0B) else Color(0xFFEF4444))
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     Text(date.takeLast(2), fontSize = 10.sp, color = colors.textSecondary, modifier = Modifier.width(16.dp))
                                     Text(date, fontSize = 10.sp, color = colors.textPrimary, modifier = Modifier.weight(1f))
-                                    if (hasNotes) Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF10B981), modifier = Modifier.size(12.dp))
+                                    if (hasNotes) Icon(Icons.Rounded.CheckCircle, null, tint = colors.success, modifier = Modifier.size(12.dp))
                                 }
                             }
                         }
@@ -1030,7 +1040,7 @@ private fun AttendanceTab(
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     week.forEach { (date, status) ->
                                         val color = when {
-                                            status.lowercase() in listOf("present", "p") -> Color(0xFF10B981)
+                                            status.lowercase() in listOf("present", "p") -> colors.success
                                             status.lowercase() in listOf("on duty", "od") -> Color(0xFFF59E0B)
                                             else -> Color(0xFFEF4444)
                                         }
@@ -1054,17 +1064,17 @@ private fun AttendanceTab(
                     val allNoted = notedCount == missingCount
                     AmazeCard(
                         modifier = Modifier.fillMaxWidth(),
-                        backgroundColor = if (allNoted) Color(0xFF10B981).copy(alpha = 0.08f) else colors.danger.copy(alpha = 0.08f)
+                        backgroundColor = if (allNoted) colors.success.copy(alpha = 0.08f) else colors.danger.copy(alpha = 0.08f)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 if (allNoted) Icons.Rounded.CheckCircle else Icons.Rounded.Warning, null,
-                                tint = if (allNoted) Color(0xFF10B981) else colors.danger,
+                                tint = if (allNoted) colors.success else colors.danger,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(Modifier.width(8.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("$missingCount missed classes", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = if (allNoted) Color(0xFF10B981) else colors.danger))
+                                Text("$missingCount missed classes", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = if (allNoted) colors.success else colors.danger))
                                 Text(
                                     if (allNoted) "All marked as noted!" else "$notedCount of $missingCount noted",
                                     color = colors.textSecondary, fontSize = 11.sp
@@ -1090,7 +1100,7 @@ private fun StatusInsightCard(attPct: Double, totalClasses: Int, attendedClasses
         Triple("On the Edge", "You cannot afford to miss many classes. Safe to miss: $canMiss", Color(0xFFF59E0B))
     } else {
         val canMiss = (attendedClasses - (75.0 / 100.0 * (totalClasses + 1))).toInt().coerceAtLeast(0)
-        Triple("Safe Margin", "You can safely miss up to $canMiss classes.", Color(0xFF10B981))
+        Triple("Safe Margin", "You can safely miss up to $canMiss classes.", colors.success)
     }
 
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -1220,7 +1230,7 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("$m/$d", fontSize = 12.sp, color = colors.textPrimary, modifier = Modifier.weight(1f))
                         if (skipped) Text("SKIP", color = colors.danger, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        else Text("ATTEND", color = Color(0xFF10B981), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        else Text("ATTEND", color = colors.success, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1237,7 +1247,7 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
                     Text("Projected", fontSize = 11.sp, color = colors.textMuted)
                     Text("$predictedAttended / $predictedTotal", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
-                Text("${predictedPct.toInt()}%", fontWeight = FontWeight.Black, fontSize = 24.sp, color = when { predictedPct >= 85 -> Color(0xFF10B981); predictedPct >= 75 -> Color(0xFFF59E0B); else -> Color(0xFFEF4444) })
+                Text("${predictedPct.toInt()}%", fontWeight = FontWeight.Black, fontSize = 24.sp, color = when { predictedPct >= 85 -> colors.success; predictedPct >= 75 -> Color(0xFFF59E0B); else -> Color(0xFFEF4444) })
             }
         }
     }
@@ -1265,6 +1275,7 @@ private fun CoursePlanTab(
     var showSchedule by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val saveFile = rememberFileSaver()
+    val launchScope = scope
 
     LaunchedEffect(courseCode) {
         syllabusLoading = true
@@ -1289,25 +1300,27 @@ private fun CoursePlanTab(
                             Text("Course Syllabus", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text(courseCode, fontSize = 11.sp, color = colors.textMuted)
                         }
+                        val sb = syllabusBytes
+                        val se = syllabusError
                         when {
                             syllabusLoading -> CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                            syllabusBytes != null -> {
+                            sb != null -> {
                                 var downloadMsg by remember { mutableStateOf<String?>(null) }
                                 IconButton(onClick = {
                                     scope.launch {
-                                        val saved = saveFile("${courseCode}_syllabus.pdf", syllabusBytes!!)
+                                        val saved = saveFile("${courseCode}_syllabus.pdf", sb)
                                         downloadMsg = if (saved) "Saved!" else "Failed to save"
-                                        delay(2000)
+                                        delay(2.seconds)
                                         downloadMsg = null
                                     }
                                 }) {
                                     Icon(Icons.Rounded.Download, "Download Syllabus", tint = colors.accent)
                                 }
                                 downloadMsg?.let {
-                                    Text(it, fontSize = 10.sp, color = if (it == "Saved!") Color(0xFF10B981) else colors.danger)
+                                    Text(it, fontSize = 10.sp, color = if (it == "Saved!") colors.success else colors.danger)
                                 }
                             }
-                            syllabusError != null -> Text(syllabusError!!, fontSize = 10.sp, color = colors.danger)
+                            se != null -> Text(se, fontSize = 10.sp, color = colors.danger)
                         }
                     }
                     Spacer(Modifier.height(12.dp))
@@ -1364,12 +1377,13 @@ private fun CoursePlanTab(
                 Column {
                     Text("Quick Actions", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     Spacer(Modifier.height(12.dp))
-                    if (syllabusBytes != null) {
+                    val sb = syllabusBytes
+                    if (sb != null) {
                         AmazeButton(
                             "Download Syllabus PDF",
                             onClick = {
                                 scope.launch {
-                                    saveFile("${courseCode}_syllabus.pdf", syllabusBytes!!)
+                                    saveFile("${courseCode}_syllabus.pdf", sb)
                                 }
                             },
                             icon = Icons.Rounded.PictureAsPdf,
@@ -1473,17 +1487,17 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
                                     Spacer(Modifier.height(12.dp))
                                     AmazeButton(
                                         if (uploading) "Uploading..." else "Submit",
-                                        onClick = {
-                                            uploading = true
-                                            uploadStatus = null
-                                            kotlinx.coroutines.MainScope().launch {
-                                                try {
-                                                    val res = AmazeClient.postQBankPaper(courseCode, paperTitle, paperLink, paperType)
-                                                    uploadStatus = if (res?.success == true) "Paper uploaded!" else res?.message ?: "Upload failed"
-                                                } catch (e: Exception) { uploadStatus = "Error: ${e.message}" }
-                                                uploading = false
-                                            }
-                                        },
+                                            onClick = {
+                                                uploading = true
+                                                uploadStatus = null
+                                                kotlinx.coroutines.MainScope().launch {
+                                                    try {
+                                                        val res = AmazeClient.postQBankPaper(courseCode, paperTitle, paperLink, paperType)
+                                                        uploadStatus = if (res?.success == true) "Paper uploaded!" else res?.message ?: "Upload failed"
+                                                    } catch (e: Exception) { uploadStatus = "Error: ${e.message}" }
+                                                    uploading = false
+                                                }
+                                            },
                                         enabled = paperTitle.isNotBlank() && paperLink.isNotBlank() && !uploading,
                                         modifier = Modifier.fillMaxWidth()
                                     )
@@ -1493,10 +1507,10 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(
                                                 if (isSuccess) Icons.Rounded.CheckCircle else Icons.Rounded.Error,
-                                                null, tint = if (isSuccess) Color(0xFF10B981) else Color(0xFFEF4444), modifier = Modifier.size(16.dp)
+                                                null, tint = if (isSuccess) colors.success else Color(0xFFEF4444), modifier = Modifier.size(16.dp)
                                             )
                                             Spacer(Modifier.width(4.dp))
-                                            Text(it, color = if (isSuccess) Color(0xFF10B981) else Color(0xFFEF4444), fontSize = 11.sp)
+                                            Text(it, color = if (isSuccess) colors.success else Color(0xFFEF4444), fontSize = 11.sp)
                                         }
                                     }
                                 }
@@ -1511,9 +1525,10 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
             }
             "questions" -> {
                 Box(modifier = Modifier.fillMaxSize()) {
+                    val qe = questionsError
                     when {
                         questionsLoading -> CircularProgressIndicator(color = colors.accent, modifier = Modifier.align(Alignment.Center))
-                        questionsError != null -> Text(questionsError!!, color = colors.danger, modifier = Modifier.align(Alignment.Center))
+                        qe != null -> Text(qe, color = colors.danger, modifier = Modifier.align(Alignment.Center))
                         questions.isEmpty() -> Text("No questions available for $courseCode", color = colors.textMuted, modifier = Modifier.align(Alignment.Center))
                         else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                             items(questions) { q ->

@@ -39,6 +39,7 @@ import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.utils.rememberFileSaver
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.launch
 
 private fun normalizeType(raw: String?): String = when (raw?.uppercase()) {
@@ -51,18 +52,19 @@ fun CurriculumScreen() {
     val colors = AmazeTheme.colors
     val curriculumData by AppState.curriculum.collectAsState()
     val allGrades by AppState.allGrades.collectAsState()
+    val marksRes by AppState.marks.collectAsState()
 
     val categories = curriculumData?.categories ?: emptyList()
     val details = curriculumData?.details ?: emptyList()
-    val totalEarned = curriculumData?.totalCredits ?: 0
+    val totalEarned = marksRes?.cgpa?.creditsEarned?.toFloatOrNull() ?: (curriculumData?.totalCredits ?: 0).toFloat()
     val totalRequired = 160
 
     val attendanceRes by AppState.attendance.collectAsState()
-    val ongoingCredits = attendanceRes?.attendance?.mapNotNull { it.credits?.toIntOrNull() }?.sum() ?: 0
+    val ongoingCredits = attendanceRes?.attendance?.mapNotNull { it.credits?.toFloatOrNull() }?.sum() ?: 0f
 
-    val remainingCredits = (totalRequired - totalEarned - ongoingCredits).coerceAtLeast(0)
-    val earnedPct = if (totalRequired > 0) (totalEarned.toFloat() / totalRequired).coerceAtMost(1f) else 0f
-    val ongoingPct = if (totalRequired > 0) (ongoingCredits.toFloat() / totalRequired).coerceAtMost(1f - earnedPct) else 0f
+    val remainingCredits = (totalRequired.toFloat() - totalEarned - ongoingCredits).coerceAtLeast(0f).toInt()
+    val earnedPct = if (totalRequired > 0) (totalEarned / totalRequired).coerceAtMost(1f) else 0f
+    val ongoingPct = if (totalRequired > 0) (ongoingCredits / totalRequired).coerceAtMost(1f - earnedPct) else 0f
     val expectedGrad = if (remainingCredits <= 0) "Ready" else "${((remainingCredits + 23) / 24).coerceAtLeast(1)} sem"
 
     var expandedCategories by remember { mutableStateOf(setOf<String>()) }
@@ -74,7 +76,7 @@ fun CurriculumScreen() {
 
     LaunchedEffect(downloadMessage) {
         if (downloadMessage != null) {
-            delay(2500)
+            delay(2500.milliseconds)
             downloadMessage = null
         }
     }
@@ -163,7 +165,7 @@ fun CurriculumScreen() {
                                 Spacer(Modifier.height(8.dp))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     MetricBox("Earned", "${totalEarned.toFloat().let { if (it == it.toInt().toFloat()) it.toInt().toString() else String.format("%.1f", it) }}", Color(0xFF6366F1), colors)
-                                    MetricBox("In Prog.", "${ongoingCredits}", Color(0xFFFACC15), colors)
+                                    MetricBox("In Prog.", "${ongoingCredits.let { if (it == it.toInt().toFloat()) it.toInt().toString() else "%.1f".format(it) }}", Color(0xFFFACC15), colors)
                                     MetricBox("Remain.", "${remainingCredits}", Color(0xFF9CA3AF), colors)
                                     MetricBox("Req.", "$totalRequired", colors.textPrimary, colors)
                                     MetricBox("Grad.", expectedGrad, Color(0xFF10B981), colors)
@@ -197,7 +199,7 @@ fun CurriculumScreen() {
                     val baskets = catDetail?.baskets ?: emptyList()
                     val isOpen = expandedCategories.contains(cat.code)
 
-                    AmazeCard(modifier = Modifier.fillMaxWidth().clickable {
+                    AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = {
                         expandedCategories = if (isOpen) expandedCategories - cat.code else expandedCategories + cat.code
                     }) {
                         Column {
@@ -298,7 +300,7 @@ fun CurriculumScreen() {
                             }?.filter { it.items.isNotEmpty() } ?: emptyList()
                         } else catDetail?.baskets ?: emptyList()
 
-                        AmazeCard(modifier = Modifier.fillMaxWidth().clickable {
+                        AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = {
                             expandedCategories = if (isOpen) expandedCategories - "detail|${cat.code}" else expandedCategories + "detail|${cat.code}"
                         }) {
                             Column {

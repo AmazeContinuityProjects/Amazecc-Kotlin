@@ -41,6 +41,7 @@ import com.amazecc.app.shared.ui.components.PushPromptModal
 @Composable
 fun MoreScreen() {
     val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val notifPermissionManager = LocalNotificationPermissionManager.current
@@ -133,7 +134,7 @@ fun MoreScreen() {
             Text("Communities", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart3))
             Spacer(modifier = Modifier.height(12.dp))
 
-            AmazeCard(modifier = Modifier.fillMaxWidth().clickable { AppState.openClubHub("Directory") }) {
+            AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { AppState.openClubHub("Directory") }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Icon(Icons.Rounded.Groups, contentDescription = null, tint = colors.chart2, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(16.dp))
@@ -144,7 +145,7 @@ fun MoreScreen() {
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            AmazeCard(modifier = Modifier.fillMaxWidth().clickable { AppState.openClubHub("Feed") }) {
+            AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { AppState.openClubHub("Feed") }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Icon(Icons.Rounded.Explore, contentDescription = null, tint = colors.chart4, modifier = Modifier.size(28.dp))
                     Spacer(modifier = Modifier.width(16.dp))
@@ -202,6 +203,21 @@ fun MoreScreen() {
                                 showPushPrompt = true
                             } else {
                                 vitolNotif = enabled; SettingsManager.setNotifVitolRemindersEnabled(enabled)
+                                if (!enabled) AppState.rescheduleNotifications()
+                            }
+                        }
+                    )
+                    var taskNotif by remember { mutableStateOf(SettingsManager.isNotifTaskRemindersEnabled()) }
+                    ToggleRow(
+                        title = "Task Reminders",
+                        subtitle = "Remind about homework and tasks on due date",
+                        checked = taskNotif,
+                        onCheckedChange = { enabled ->
+                            if (enabled && !taskNotif && notifPermissionManager != null) {
+                                pendingToggleAction.value = { _ -> taskNotif = true; SettingsManager.setNotifTaskRemindersEnabled(true) }
+                                showPushPrompt = true
+                            } else {
+                                taskNotif = enabled; SettingsManager.setNotifTaskRemindersEnabled(enabled)
                                 if (!enabled) AppState.rescheduleNotifications()
                             }
                         }
@@ -286,7 +302,6 @@ fun MoreScreen() {
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column {
                     ClickableRow(title = "App Settings", icon = Icons.Rounded.Settings, onClick = { AppState.navigateTo(Screen.SETTINGS) })
-                    ClickableRow(title = "Activity Tree", icon = Icons.Rounded.GridView, onClick = { AppState.navigateTo(Screen.ACTIVITY_TREE) })
                     ClickableRow(title = "About AmazeCC", icon = Icons.Rounded.Info, onClick = { AppState.navigateTo(Screen.ABOUT) })
                     ClickableRow(title = "Fresher's Welcome", icon = Icons.Rounded.Star, onClick = { AppState.navigateTo(Screen.FRESHER_WELCOME) })
                     Spacer(modifier = Modifier.height(12.dp))

@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -96,7 +97,7 @@ fun ClubDetailScreen() {
                                 Icon(Icons.Rounded.CameraAlt, contentDescription = "Instagram", tint = colors.accent, modifier = Modifier.size(24.dp).clickable { uriHandler.openUri(instaUrl) })
                             }
                             if (!club.whatsapp.isNullOrBlank()) {
-                                Icon(Icons.Rounded.Chat, contentDescription = "WhatsApp", tint = colors.accent, modifier = Modifier.size(24.dp).clickable { uriHandler.openUri(club.whatsapp) })
+                                Icon(Icons.AutoMirrored.Rounded.Chat, contentDescription = "WhatsApp", tint = colors.accent, modifier = Modifier.size(24.dp).clickable { uriHandler.openUri(club.whatsapp) })
                             }
                         }
                     }
