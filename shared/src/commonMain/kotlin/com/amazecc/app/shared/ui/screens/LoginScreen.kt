@@ -132,13 +132,11 @@ fun LoginScreen() {
                     .border(2.dp, colors.accent.copy(alpha = 0.4f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(Res.drawable.ic_launcher),
+                androidx.compose.material3.Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Rounded.Person,
                     contentDescription = "AmazeCC Logo",
-                    modifier = Modifier
-                        .size(100.dp)
-                        .clip(CircleShape),
-                    contentScale = ContentScale.Crop
+                    tint = colors.accent,
+                    modifier = Modifier.size(48.dp)
                 )
             }
 

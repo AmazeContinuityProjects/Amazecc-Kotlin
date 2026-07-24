@@ -32,13 +32,14 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import com.amazecc.app.shared.ui.components.*
+import io.ktor.util.decodeBase64Bytes
 import com.amazecc.app.shared.ui.components.bouncySpring
 
 @Composable
 fun ProfileScreen() {
     val colors = AmazeTheme.colors
 
-    Column(
+    Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
     ) {
         ScreenHeader(
@@ -49,9 +50,7 @@ fun ProfileScreen() {
             onRefresh = AppState::refreshProfile
         )
 
-        Box(modifier = Modifier.weight(1f)) {
-            ProfileContent(colors)
-        }
+        ProfileContent(colors)
     }
 }
 
@@ -65,9 +64,10 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val scrollState = rememberScrollState()
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 18.dp, vertical = 12.dp).padding(bottom = 88.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 18.dp).padding(bottom = 88.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
+        com.amazecc.app.shared.ui.components.HeaderSpacer()
         // Avatar & name card
         AmazeCard(
             modifier = Modifier.fillMaxWidth(),
@@ -82,14 +82,25 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         .border(2.dp, colors.accent.copy(alpha = 0.5f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = (authorizedID ?: "?").take(2).uppercase(),
-                        style = AmazeTheme.typography.display.copy(
-                            color = colors.accent,
-                            fontWeight = FontWeight.Black,
-                            fontSize = 24.sp
+                    val photoBase64 = profile?.photoBase64
+                    if (photoBase64 != null) {
+                        val cleanBase64 = photoBase64.substringAfter("base64,")
+                        io.kamel.image.KamelImage(
+                            resource = io.kamel.image.asyncPainterResource(data = cleanBase64.decodeBase64Bytes()),
+                            contentDescription = "Profile Image",
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
                         )
-                    )
+                    } else {
+                        Text(
+                            text = (authorizedID ?: "?").take(2).uppercase(),
+                            style = AmazeTheme.typography.display.copy(
+                                color = colors.accent,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 24.sp
+                            )
+                        )
+                    }
                 }
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
@@ -109,7 +120,12 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(Modifier.height(6.dp))
-                    AmazeBadge(text = "ACTIVE ENROLLED", variant = BadgeVariant.SUCCESS)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        AmazeBadge(text = "ACTIVE ENROLLED", variant = BadgeVariant.SUCCESS)
+                        if (profile?.batch?.isNotBlank() == true) {
+                            AmazeBadge(text = profile?.batch ?: "", variant = BadgeVariant.INFO)
+                        }
+                    }
                 }
             }
         }
@@ -171,20 +187,27 @@ private data class ProfileItem(val icon: ImageVector, val label: String, val val
 
 @Composable
 private fun ProfileGroupCard(title: String, items: List<ProfileItem>, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+    AmazeCard(modifier = Modifier.fillMaxWidth(), accentStrip = true) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = title,
-                style = AmazeTheme.typography.categoryLabel.copy(color = colors.accent),
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            Box(
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(colors.accent.copy(alpha = 0.12f))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold)
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
             items.forEach { item ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.10f)),
+                        modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.10f)).border(1.dp, colors.accent.copy(alpha = 0.2f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(item.icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))

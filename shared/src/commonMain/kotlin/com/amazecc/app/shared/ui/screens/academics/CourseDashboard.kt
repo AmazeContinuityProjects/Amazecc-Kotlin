@@ -23,7 +23,14 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
+import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 
 @Composable
 fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
@@ -58,7 +65,11 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
         semesterGroups.any { it.semesterSubId == id }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+    ) {
         ScreenHeader(
             title = "Course Dashboard",
             description = "All courses across semesters",
@@ -67,72 +78,137 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
             onRefresh = AppState::refreshAllAcademic
         )
 
-        // Search bar
-        Box(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(12.dp)).background(colors.surface).padding(horizontal = 12.dp, vertical = 4.dp)
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Search, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                TextField(
-                    value = searchQuery, onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search by code or title...", color = colors.textMuted, fontSize = 13.sp) },
-                    modifier = Modifier.weight(1f),
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
-                )
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Rounded.Close, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
+            item {
+                HeaderSpacer()
+            }
+
+            // Search bar item
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(colors.surface)
+                        .border(1.dp, colors.border.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 14.dp, vertical = 4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Search, null, tint = colors.accent, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(8.dp))
+                        TextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Search course by code, title, or faculty...", color = colors.textMuted, fontSize = 13.sp) },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent,
+                                focusedTextColor = colors.textPrimary,
+                                unfocusedTextColor = colors.textPrimary
+                            )
+                        )
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Rounded.Close, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
+                            }
+                        }
                     }
                 }
+                Spacer(Modifier.height(10.dp))
             }
-        }
 
-        // Semester filter chips
-        Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            semesterIds.forEach { semId ->
-                val isSelected = selectedSemester == semId
-                val label = if (semId == "All") "All Semesters" else AppState.semesterMap[semId]?.let {
-                    val parts = it.split(" ")
-                    if (parts.size >= 2) "${parts[0]} ${parts[1].take(4)}" else it.take(20)
-                } ?: semId.take(10)
-                Box(
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) colors.accent else colors.surface)
-                        .clickable { selectedSemester = semId }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+            // Semester filter chips item
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(label, color = if (isSelected) colors.background else colors.textSecondary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp, maxLines = 1)
-                }
-            }
-        }
+                    semesterIds.forEach { semId ->
+                        val isSelected = selectedSemester == semId
+                        val label = if (semId == "All") "All Semesters" else AppState.semesterMap[semId]?.let {
+                            val parts = it.split(" ")
+                            if (parts.size >= 2) "${parts[0]} ${parts[1].take(4)}" else it.take(20)
+                        } ?: semId.take(10)
 
-        if (filteredGroups.keys.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(8.dp))
-                    Text("No courses found", color = colors.textMuted)
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val scale by animateFloatAsState(
+                            targetValue = if (isPressed) 0.94f else 1f,
+                            animationSpec = bouncySpring()
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
+                                }
+                                .clip(CircleShape)
+                                .background(if (isSelected) colors.accent else colors.surface)
+                                .border(1.dp, if (isSelected) colors.accent else colors.border.copy(alpha = 0.6f), CircleShape)
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    onClick = { selectedSemester = semId }
+                                )
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                label,
+                                color = if (isSelected) Color.White else colors.textPrimary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
+                Spacer(Modifier.height(12.dp))
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(bottom = 88.dp),
-                verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
-            ) {
+
+            if (filteredGroups.keys.isEmpty()) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(54.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Text("No courses found", color = colors.textMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            } else {
                 filteredGroups.forEach { (semId, courses) ->
                     item {
-                        Spacer(Modifier.height(8.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        ) {
                             Text(
                                 text = courses.firstOrNull()?.semesterName ?: AppState.semesterMap[semId] ?: semId,
                                 style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent),
                                 modifier = Modifier.weight(1f)
                             )
-                            Text("${courses.size} courses", fontSize = 11.sp, color = colors.textMuted)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(colors.accent.copy(alpha = 0.1f))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text("${courses.size} courses", fontSize = 11.sp, color = colors.accent, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                     items(courses) { course ->
@@ -156,19 +232,34 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
     val isEmbedded = (course.theory != null && course.lab != null) || (course.theoryAtt != null && course.labAtt != null)
 
     fun attColor(pct: Double) = when {
-        pct >= 85.0 -> colors.chart1
-        pct >= 75.0 -> colors.chart3
-        else -> colors.chart5
+        pct >= 85.0 -> Color(0xFF10B981)
+        pct >= 75.0 -> Color(0xFFF59E0B)
+        else -> Color(0xFFEF4444)
     }
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.97f else 1f,
+        animationSpec = bouncySpring()
+    )
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(RoundedCornerShape(20.dp))
             .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-                .padding(AmazeTheme.spacing.cardPadding)
+            .border(1.dp, colors.border.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(16.dp)
     ) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -179,29 +270,33 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                     Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(iconColor.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
                         Text(label, style = AmazeTheme.typography.subheading.copy(color = iconColor, fontWeight = FontWeight.Black, fontSize = 16.sp))
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                         Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     }
                     if (attPct > 0) {
                         val c = attColor(attPct)
-                        Box(modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
                             Text("${attPct.toInt()}%", style = AmazeTheme.typography.body.copy(color = c, fontWeight = FontWeight.Black, fontSize = 15.sp))
                         }
                     }
                 } else {
+                    Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(colors.accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                        Text("EMB", style = AmazeTheme.typography.subheading.copy(color = colors.accent, fontWeight = FontWeight.Black, fontSize = 14.sp))
+                    }
+                    Spacer(Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                         Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     }
                 }
-                Spacer(Modifier.width(4.dp))
-                Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(22.dp))
             }
             if (isEmbedded) {
                 Spacer(Modifier.height(12.dp))
-                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.4f)))
                 Spacer(Modifier.height(10.dp))
                 embeddedRow(course.theory, theoryAtt, "TH", colors.chart2, colors)
                 Spacer(Modifier.height(8.dp))

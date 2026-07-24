@@ -271,7 +271,7 @@ private fun PersonalizationPage(
             listOf(AppTheme.LIGHT to Icons.Rounded.LightMode, AppTheme.DARK to Icons.Rounded.DarkMode, AppTheme.SYSTEM to Icons.Rounded.BrightnessAuto).forEach { (theme, icon) ->
                 val isSelected = selectedTheme == theme
                 Box(
-                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small)).clickable { onThemeChange(theme) }.padding(vertical = AmazeTheme.spacing.sm),
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small)).clickable { onThemeChange(theme); AppState.changeTheme(theme) }.padding(vertical = AmazeTheme.spacing.sm),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -289,7 +289,7 @@ private fun PersonalizationPage(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             listOf(AccentTheme.OCEAN to Color(0xFF0EA5E9), AccentTheme.FOREST to Color(0xFF10B981), AccentTheme.LAVENDER to Color(0xFF8B5CF6), AccentTheme.SUNSET to Color(0xFFF97316)).forEach { (accent, accentColor) ->
                 val isSelected = selectedAccent == accent
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onAccentChange(accent) }) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onAccentChange(accent); AppState.changeAccent(accent) }) {
                     Box(
                         modifier = Modifier.size(44.dp).clip(CircleShape).background(accentColor).border(if (isSelected) 3.dp else 0.dp, if (isSelected) colors.accent else Color.Transparent, CircleShape).padding(if (isSelected) 0.dp else 0.dp),
                         contentAlignment = Alignment.Center
@@ -309,7 +309,7 @@ private fun PersonalizationPage(
             listOf(0.85f to "Small", 1.0f to "Default", 1.15f to "Large").forEach { (scale, label) ->
                 val isSelected = uiScale == scale
                 Box(
-                    modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.xs)).clickable { onUiScaleChange(scale) }.padding(horizontal = AmazeTheme.spacing.lg, vertical = AmazeTheme.spacing.sm)
+                    modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.xs)).clickable { onUiScaleChange(scale); AppState.changeUiScale(scale) }.padding(horizontal = AmazeTheme.spacing.lg, vertical = AmazeTheme.spacing.sm)
                 ) {
                     Text(label, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
                 }
@@ -622,11 +622,18 @@ private fun CompletionPage(colors: com.amazecc.app.shared.theme.AmazeColors, syn
 // ─── Shared Components ───
 @Composable
 private fun ToggleRow(title: String, subtitle: String, icon: ImageVector, checked: Boolean, onCheckedChange: (Boolean) -> Unit, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    Row(modifier = Modifier.fillMaxWidth().clickable { onCheckedChange(!checked) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+    val notifPermissionManager = com.amazecc.app.shared.ui.components.LocalNotificationPermissionManager.current
+    val handleToggle: (Boolean) -> Unit = { newChecked ->
+        if (newChecked) {
+            notifPermissionManager?.requestPermission()
+        }
+        onCheckedChange(newChecked)
+    }
+    Row(modifier = Modifier.fillMaxWidth().clickable { handleToggle(!checked) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(if (checked) colors.chart5.copy(alpha = 0.12f) else colors.accent.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = if (checked) colors.chart5 else colors.accent, modifier = Modifier.size(18.dp)) }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) { Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary)); Text(subtitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)) }
-        Switch(checked = checked, onCheckedChange = onCheckedChange, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = Color.White))
+        Switch(checked = checked, onCheckedChange = handleToggle, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = Color.White))
     }
 }
 

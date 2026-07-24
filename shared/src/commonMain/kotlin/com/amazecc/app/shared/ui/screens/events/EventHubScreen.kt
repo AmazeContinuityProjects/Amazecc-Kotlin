@@ -83,7 +83,7 @@ fun EventHubScreen() {
         AppState.syncEventsAndClubs()
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
@@ -96,10 +96,14 @@ fun EventHubScreen() {
             onRefresh = AppState::syncEventsAndClubs
         )
 
-        Box(
-            modifier = Modifier.weight(1f).padding(16.dp)
-        ) {
-            EventsTab()
+        Column(modifier = Modifier.fillMaxSize()) {
+            com.amazecc.app.shared.ui.components.HeaderSpacer()
+
+            Box(
+                modifier = Modifier.weight(1f).padding(horizontal = 16.dp)
+            ) {
+                EventsTab()
+            }
         }
     }
 }

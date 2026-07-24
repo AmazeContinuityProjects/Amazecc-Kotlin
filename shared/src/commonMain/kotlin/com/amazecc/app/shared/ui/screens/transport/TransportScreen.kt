@@ -81,6 +81,7 @@ fun TransportScreen() {
                     showSyncButton = true,
                     onRefresh = { AppState.refreshTransport() }
                 )
+                com.amazecc.app.shared.ui.components.HeaderSpacer()
             }
             
             item {

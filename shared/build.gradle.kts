@@ -1,22 +1,19 @@
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.jetbrains.compose)
     alias(libs.plugins.compose.compiler)
 }
 
-kotlin {
-    androidTarget {
-        compilations.all {
-            compileTaskProvider.configure {
-                compilerOptions {
-                    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-                    freeCompilerArgs.add("-Xexpect-actual-classes")
-                }
-            }
-        }
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
     }
+}
+
+kotlin {
+    targets.getByName("android")
     
     listOf(
         iosX64(),
@@ -65,16 +62,10 @@ kotlin {
             implementation(libs.ktor.client.darwin)
         }
     }
-}
 
-android {
-    namespace = "com.amazecc.app.shared"
-    compileSdk = 34
-    defaultConfig {
+    android {
+        namespace = "com.amazecc.app.shared"
+        compileSdk = 35
         minSdk = 24
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
     }
 }

@@ -30,7 +30,9 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.CardVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -87,7 +89,7 @@ fun AcademicsScreen() {
         return
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
@@ -105,6 +107,9 @@ fun AcademicsScreen() {
             contentPadding = PaddingValues(start = AmazeTheme.spacing.pageHorizontal, end = AmazeTheme.spacing.pageHorizontal, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.md)
         ) {
+            item {
+                HeaderSpacer()
+            }
             // Stats overview
             item {
                 StatsOverviewCard(currentCgpa, avgAttendance, creditsEarned, totalRequiredCredits)
@@ -176,14 +181,26 @@ private fun cgpaFormatted(cgpa: Double): String {
 @Composable
 fun StatsOverviewCard(cgpa: Double, attendance: Double, credits: Double, required: Double) {
     val colors = AmazeTheme.colors
+    val animCgpa by animateFloatAsState(targetValue = cgpa.toFloat(), animationSpec = com.amazecc.app.shared.ui.components.mediumSpring())
+    val animAtt by animateFloatAsState(targetValue = attendance.toFloat(), animationSpec = com.amazecc.app.shared.ui.components.mediumSpring())
+
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            StatBox("CGPA", cgpaFormatted(cgpa), Icons.Rounded.EmojiEvents, colors.chart1)
-            StatBox("Attendance", "${attendance.roundToInt()}%", Icons.Rounded.Percent, colors.accent)
-            StatBox("Credits", "${credits.toInt()}/${required.toInt()}", Icons.Rounded.School, colors.chart4)
+        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                StatBox("CGPA", cgpaFormatted(animCgpa.toDouble()), Icons.Rounded.EmojiEvents, colors.chart1)
+                StatBox("Attendance", "${animAtt.roundToInt()}%", Icons.Rounded.Percent, colors.accent)
+                StatBox("Credits", "${credits.toInt()}/${required.toInt()}", Icons.Rounded.School, colors.chart4)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            LinearProgressIndicator(
+                progress = { (credits / required).toFloat().coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                color = colors.chart4,
+                trackColor = colors.chart4.copy(alpha = 0.15f)
+            )
         }
     }
 }
@@ -193,7 +210,7 @@ fun StatBox(label: String, value: String, icon: ImageVector, iconColor: Color) {
     val colors = AmazeTheme.colors
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            modifier = Modifier.size(36.dp).clip(CircleShape).background(iconColor.copy(alpha = 0.15f)),
+            modifier = Modifier.size(36.dp).clip(CircleShape).background(iconColor.copy(alpha = 0.15f)).border(1.dp, iconColor.copy(alpha = 0.3f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(18.dp))

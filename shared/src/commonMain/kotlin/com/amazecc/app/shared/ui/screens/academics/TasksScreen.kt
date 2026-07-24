@@ -27,6 +27,11 @@ import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import com.amazecc.app.shared.ui.components.bouncySpring
 import kotlinx.datetime.*
 
 @Composable
@@ -53,8 +58,11 @@ fun TasksScreen() {
 
     val tabs = listOf("all" to "All", "pending" to "Pending", "today" to "Today", "done" to "Done")
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(title = "Tasks & Reminders", description = "Homework, reminders and to-dos", showBackButton = true)
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            com.amazecc.app.shared.ui.components.HeaderSpacer()
 
         if (pendingCount > 0 || overdueCount > 0) {
             Row(
@@ -91,21 +99,43 @@ fun TasksScreen() {
         ) {
             tabs.forEach { (key, label) ->
                 val isSelected = filter == key
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.94f else 1f,
+                    animationSpec = bouncySpring()
+                )
+
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSelected) colors.accent.copy(alpha = 0.12f) else colors.surface)
-                        .border(1.dp, if (isSelected) colors.accent.copy(alpha = 0.3f) else colors.border, RoundedCornerShape(8.dp))
-                        .clickable { filter = key }
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                        .weight(1f)
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .clip(CircleShape)
+                        .background(if (isSelected) colors.accent else colors.surface)
+                        .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = { filter = key }
+                        )
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text(label, style = AmazeTheme.typography.smallLabel.copy(
-                        color = if (isSelected) colors.accent else colors.textSecondary,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                    ))
+                    Text(
+                        label,
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSelected) colors.background else colors.textPrimary
+                        ),
+                        maxLines = 1
+                    )
                 }
             }
         }
+
 
         Spacer(Modifier.height(12.dp))
 
@@ -151,6 +181,7 @@ fun TasksScreen() {
             Icon(Icons.Rounded.Add, "Add task")
         }
     }
+}
 }
 
 @Composable

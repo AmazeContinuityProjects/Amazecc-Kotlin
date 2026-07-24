@@ -47,6 +47,13 @@ import com.amazecc.app.shared.ui.components.AmazeBadge
 import com.amazecc.app.shared.ui.components.BadgeVariant
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.components.bouncySpring
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.Assignment
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.utils.parseViewLink
 import com.amazecc.app.shared.utils.rememberFileSaver
 import kotlinx.coroutines.launch
@@ -152,7 +159,21 @@ fun CourseDetailScreen(onBack: () -> Unit) {
     val qcmTables = extractQcmTables(qcmViewRes?.data)
     val qcmLoading = AppState.isLoading.collectAsState().value
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    val tabIcons = mapOf(
+        "overview" to Icons.Rounded.Dashboard,
+        "grades" to Icons.Rounded.History,
+        "marks" to Icons.Rounded.Assessment,
+        "attendance" to Icons.Rounded.CheckCircle,
+        "plan" to Icons.AutoMirrored.Rounded.MenuBook,
+        "qbank" to Icons.Rounded.Folder,
+        "tasks" to Icons.AutoMirrored.Rounded.Assignment
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+    ) {
         ScreenHeader(
             title = group.courseCode,
             description = group.courseTitle,
@@ -160,43 +181,85 @@ fun CourseDetailScreen(onBack: () -> Unit) {
             showSyncButton = false
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            tabs.forEach { tab ->
-                val selected = innerTab == tab
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (selected) colors.accent else colors.surface)
-                        .clickable { innerTab = tab; if (tab == "overview" && qcmTables.isEmpty() && !qcmLoading) AppState.refreshQcmView() }
-                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        tabLabels[tab] ?: tab,
-                        color = if (selected) colors.background else colors.textSecondary,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 12.sp
+        Column(modifier = Modifier.fillMaxSize()) {
+            HeaderSpacer()
+
+            // Expressive Tab Bar Capsule
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                tabs.forEach { tab ->
+                    val selected = innerTab == tab
+                    val icon = tabIcons[tab] ?: Icons.Rounded.Circle
+
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.94f else 1f,
+                        animationSpec = bouncySpring()
                     )
+
+                    Box(
+                        modifier = Modifier
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .clip(CircleShape)
+                            .background(if (selected) colors.accent else colors.surface)
+                            .border(1.dp, if (selected) colors.accent else colors.border.copy(alpha = 0.6f), CircleShape)
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                onClick = {
+                                    innerTab = tab
+                                    if (tab == "overview" && qcmTables.isEmpty() && !qcmLoading) AppState.refreshQcmView()
+                                }
+                            )
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                icon,
+                                null,
+                                tint = if (selected) Color.White else colors.textSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                tabLabels[tab] ?: tab,
+                                color = if (selected) Color.White else colors.textPrimary,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 12.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
             }
-        }
 
-        when (innerTab) {
-            "overview" -> OverviewTab(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, qcmTables, qcmLoading, { AppState.refreshQcmView() }, colors)
-            "grades" -> GradeHistoryTab(courseCode, allGrades, group, colors)
-            "marks" -> MarksTab(group, isEmbedded, allGrades, mainSemesterId, colors)
-            "attendance" -> AttendanceTab(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, calendar, colors)
-            "plan" -> CoursePlanTab(courseCode, group.theory, group.lab, mainAtt, colors)
-            "qbank" -> QBankTab(courseCode, colors)
-            "tasks" -> {
-                val taskCodes = buildList {
-                    add(courseCode)
-                    group?.theory?.courseCode?.let { if (it != courseCode) add(it) }
-                    group?.lab?.courseCode?.let { if (it != courseCode) add(it) }
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                when (innerTab) {
+                    "overview" -> OverviewTab(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, qcmTables, qcmLoading, { AppState.refreshQcmView() }, colors)
+                    "grades" -> GradeHistoryTab(courseCode, allGrades, group, colors)
+                    "marks" -> MarksTab(group, isEmbedded, allGrades, mainSemesterId, colors)
+                    "attendance" -> AttendanceTab(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, calendar, colors)
+                    "plan" -> CoursePlanTab(courseCode, group.theory, group.lab, mainAtt, colors)
+                    "qbank" -> QBankTab(courseCode, colors)
+                    "tasks" -> {
+                        val taskCodes = buildList {
+                            add(courseCode)
+                            group?.theory?.courseCode?.let { if (it != courseCode) add(it) }
+                            group?.lab?.courseCode?.let { if (it != courseCode) add(it) }
+                        }
+                        CourseTasksTab(taskCodes, group.courseTitle, colors)
+                    }
                 }
-                CourseTasksTab(taskCodes, group.courseTitle, colors)
             }
         }
     }

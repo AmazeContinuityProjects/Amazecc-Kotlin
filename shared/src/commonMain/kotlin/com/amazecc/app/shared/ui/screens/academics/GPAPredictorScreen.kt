@@ -22,6 +22,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.style.TextOverflow
+import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
@@ -102,24 +109,49 @@ fun GPAPredictorScreen() {
 
             // Mode toggle
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                AmazeButton(
-                    text = "Project GPA",
-                    onClick = { activeMode = "project" },
-                    modifier = Modifier.weight(1f),
-                    variant = if (activeMode == "project") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY
-                )
-                AmazeButton(
-                    text = "What Grade?",
-                    onClick = { activeMode = "whatif" },
-                    modifier = Modifier.weight(1f),
-                    variant = if (activeMode == "whatif") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY
-                )
-                AmazeButton(
-                    text = "Course Targets",
-                    onClick = { activeMode = "course" },
-                    modifier = Modifier.weight(1f),
-                    variant = if (activeMode == "course") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY
-                )
+                listOf(
+                    "project" to "Project GPA",
+                    "whatif" to "What Grade?",
+                    "course" to "Course Targets"
+                ).forEach { (modeKey, label) ->
+                    val isSelected = activeMode == modeKey
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.94f else 1f,
+                        animationSpec = bouncySpring()
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .clip(CircleShape)
+                            .background(if (isSelected) colors.accent else colors.surface)
+                            .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                onClick = { activeMode = modeKey }
+                            )
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            label,
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) colors.background else colors.textPrimary,
+                                fontSize = 11.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
 
             if (activeMode == "course") {

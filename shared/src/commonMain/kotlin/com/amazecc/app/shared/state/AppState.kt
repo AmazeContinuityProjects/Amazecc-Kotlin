@@ -223,6 +223,19 @@ object AppState {
         _syncAdditional.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, true)
         _updateDialogDismissedVersion.value = SettingsManager.getString(SettingsManager.KEY_UPDATE_DISMISSED_VERSION, "")
 
+        val savedTheme = SettingsManager.getString(SettingsManager.KEY_APP_THEME, "")
+        if (savedTheme.isNotEmpty()) {
+            try { _theme.value = AppTheme.valueOf(savedTheme) } catch (_: Exception) {}
+        }
+        val savedAccent = SettingsManager.getString(SettingsManager.KEY_APP_ACCENT, "")
+        if (savedAccent.isNotEmpty()) {
+            try { _accent.value = AccentTheme.valueOf(savedAccent) } catch (_: Exception) {}
+        }
+        val savedScale = SettingsManager.getString(SettingsManager.KEY_UI_SCALE, "")
+        if (savedScale.isNotEmpty()) {
+            savedScale.toFloatOrNull()?.let { _uiScale.value = it }
+        }
+
         val savedNav = SettingsManager.getString(SettingsManager.KEY_NAVBAR_ITEMS, "")
         if (savedNav.isNotEmpty()) {
             val tabs = savedNav.split(",").mapNotNull { name ->
@@ -298,6 +311,14 @@ object AppState {
         _studentProfile.value = _cachedStudentProfile.value?.data
         loadCachedData<VitolRes>(SettingsManager.CACHE_VITOL, _vitolData)
         loadCachedData<CabTripsRes>(SettingsManager.CACHE_CAB_TRIPS, _cabTrips)
+
+        // Auto-sync Moodle & Library in background if credentials are saved
+        if (_moodleData.value == null && SettingsManager.getMoodleCredentials() != null) {
+            syncMoodle()
+        }
+        if ((_library.value == null || _libraryLoginRequired.value) && SettingsManager.getLibraryCredentials() != null) {
+            syncLibrary()
+        }
         // Load all semesters attendance & marks cache
         try {
             val cachedAtt = settings.getString(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, "")
@@ -1834,16 +1855,29 @@ object AppState {
         }
     }
 
+    fun syncMoodle() {
+        val creds = SettingsManager.getMoodleCredentials() ?: return
+        saveMoodleCredentials(creds.first, creds.second)
+    }
+
+    fun syncLibrary() {
+        val creds = SettingsManager.getLibraryCredentials() ?: return
+        saveLibraryCredentials(creds.first, creds.second)
+    }
+
     fun changeTheme(theme: AppTheme) {
         _theme.value = theme
+        SettingsManager.setString(SettingsManager.KEY_APP_THEME, theme.name)
     }
 
     fun changeAccent(accent: AccentTheme) {
         _accent.value = accent
+        SettingsManager.setString(SettingsManager.KEY_APP_ACCENT, accent.name)
     }
 
     fun changeUiScale(scale: Float) {
         _uiScale.value = scale
+        SettingsManager.setString(SettingsManager.KEY_UI_SCALE, scale.toString())
     }
 
     fun setDecimalValues(enabled: Boolean) {

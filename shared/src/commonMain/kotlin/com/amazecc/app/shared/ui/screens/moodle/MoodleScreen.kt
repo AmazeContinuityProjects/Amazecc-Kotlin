@@ -17,6 +17,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.model.MoodleAssignment
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -39,7 +40,7 @@ fun MoodleScreen() {
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
@@ -53,9 +54,12 @@ fun MoodleScreen() {
         )
 
         if (showLogin) {
-            MoodleLoginView(
-                onLoginSuccess = { showLogin = false }
-            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                com.amazecc.app.shared.ui.components.HeaderSpacer()
+                MoodleLoginView(
+                    onLoginSuccess = { showLogin = false }
+                )
+            }
         } else {
             val assignments = moodleData?.data ?: emptyList()
             if (assignments.isEmpty()) {
@@ -73,6 +77,9 @@ fun MoodleScreen() {
                     verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm),
                     contentPadding = PaddingValues(bottom = 88.dp)
                 ) {
+                    item {
+                        com.amazecc.app.shared.ui.components.HeaderSpacer()
+                    }
                     items(assignments) { assignment ->
                         MoodleAssignmentCard(assignment)
                     }
@@ -89,8 +96,9 @@ fun MoodleLoginView(onLoginSuccess: () -> Unit) {
     val spacing = AmazeTheme.spacing
     val scope = rememberCoroutineScope()
     
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    val storedCreds = SettingsManager.getMoodleCredentials()
+    var username by remember { mutableStateOf(storedCreds?.first ?: "") }
+    var password by remember { mutableStateOf(storedCreds?.second ?: "") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -104,14 +112,14 @@ fun MoodleLoginView(onLoginSuccess: () -> Unit) {
         Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.accent, modifier = Modifier.size(64.dp))
         Spacer(modifier = Modifier.height(spacing.lg))
         Text("Connect to Moodle", style = AmazeTheme.typography.heading.copy(color = colors.textPrimary))
-        Text("Enter your V-TOP credentials to sync", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
+        Text("Enter your credentials to sync assignments persistently", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
         
         Spacer(modifier = Modifier.height(spacing.xl))
         
         OutlinedTextField(
             value = username,
             onValueChange = { username = it },
-            label = { Text("Registration Number") },
+            label = { Text("Registration Number / Username") },
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = colors.accent,
@@ -150,28 +158,45 @@ fun MoodleLoginView(onLoginSuccess: () -> Unit) {
         if (isLoading) {
             CircularProgressIndicator(color = colors.accent)
         } else {
-            AmazeButton(
-                text = "Sync Assignments",
-                onClick = {
-                    if (username.isBlank() || password.isBlank()) {
-                        errorMessage = "Please enter both fields"
-                        return@AmazeButton
-                    }
-                    isLoading = true
-                    errorMessage = null
-                    scope.launch {
-                        val res = AmazeClient.fetchMoodleData(username, password)
-                        isLoading = false
-                        if (res.success) {
-                            AppState.updateMoodleData(res)
-                            onLoginSuccess()
-                        } else {
-                            errorMessage = res.message ?: "Authentication failed"
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                AmazeButton(
+                    text = if (storedCreds != null) "Update & Sync Assignments" else "Save & Sync Assignments",
+                    onClick = {
+                        if (username.isBlank() || password.isBlank()) {
+                            errorMessage = "Please enter both fields"
+                            return@AmazeButton
                         }
+                        isLoading = true
+                        errorMessage = null
+                        scope.launch {
+                            AppState.saveMoodleCredentials(username, password)
+                            val res = AmazeClient.fetchMoodleData(username, password)
+                            isLoading = false
+                            if (res.success) {
+                                AppState.updateMoodleData(res)
+                                onLoginSuccess()
+                            } else {
+                                errorMessage = res.message ?: "Authentication failed"
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (storedCreds != null) {
+                    OutlinedButton(
+                        onClick = {
+                            SettingsManager.clearMoodleCredentials()
+                            username = ""
+                            password = ""
+                            errorMessage = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(radius.small)
+                    ) {
+                        Text("Clear Saved Credentials", style = AmazeTheme.typography.body.copy(color = colors.dangerText))
                     }
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
+                }
+            }
         }
     }
 }

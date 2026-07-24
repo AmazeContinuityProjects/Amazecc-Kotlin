@@ -27,6 +27,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.utils.AttendanceTimetable
@@ -60,12 +64,8 @@ fun DailyPlannerScreen() {
     val calendarMonths = calendarRes?.months ?: emptyList()
 
     val today = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
-    val todayAbbrev = remember(today) {
-        when (today.dayOfWeek) {
-            DayOfWeek.SUNDAY -> "SUN"; DayOfWeek.MONDAY -> "MON"; DayOfWeek.TUESDAY -> "TUE"
-            DayOfWeek.WEDNESDAY -> "WED"; DayOfWeek.THURSDAY -> "THU"; DayOfWeek.FRIDAY -> "FRI"
-            DayOfWeek.SATURDAY -> "SAT"; else -> "MON"
-        }
+    val todayAbbrev = remember(today, calendarRes) {
+        AttendanceTimetable.getTodayAttendanceDay(calendarRes).name
     }
 
     val weekDays = remember(today) {
@@ -216,41 +216,54 @@ fun DailyPlannerScreen() {
                 }
                 val isHoliday = holidayMap[wd.fullDate] == true
 
-                Column(
-                    modifier = Modifier
-                        .background(
-                            if (isSelected) colors.accent else colors.surface,
-                            RoundedCornerShape(14.dp)
-                        )
-                        .border(
-                            1.dp,
-                            when {
-                                isSelected -> colors.accent
-                                wd.isToday -> colors.accent.copy(alpha = 0.4f)
-                                else -> colors.border
-                            },
-                            RoundedCornerShape(14.dp)
-                        )
-                        .clickable { selectedDay = wd.abbrev }
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = wd.abbrev,
-                        style = AmazeTheme.typography.smallLabel.copy(
-                            color = if (isSelected) Color.White.copy(alpha=0.8f) else colors.textSecondary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp
-                        )
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.94f else 1f,
+                        animationSpec = com.amazecc.app.shared.ui.components.bouncySpring()
                     )
-                    Text(
-                        text = "${wd.date}",
-                        style = AmazeTheme.typography.subheading.copy(
-                            color = if (isSelected) Color.White else colors.textPrimary,
-                            fontWeight = if (wd.isToday) FontWeight.Black else FontWeight.Bold,
-                            fontSize = if (wd.isToday) 18.sp else 16.sp
+
+                    Column(
+                        modifier = Modifier
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .clip(CircleShape)
+                            .background(if (isSelected) colors.accent else colors.surface)
+                            .border(
+                                1.dp,
+                                when {
+                                    isSelected -> colors.accent
+                                    wd.isToday -> colors.accent.copy(alpha = 0.5f)
+                                    else -> colors.border
+                                },
+                                CircleShape
+                            )
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                onClick = { selectedDay = wd.abbrev }
+                            )
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = wd.abbrev,
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = if (isSelected) colors.background.copy(alpha = 0.8f) else colors.textSecondary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp
+                            )
                         )
-                    )
+                        Text(
+                            text = "${wd.date}",
+                            style = AmazeTheme.typography.subheading.copy(
+                                color = if (isSelected) colors.background else colors.textPrimary,
+                                fontWeight = if (wd.isToday) FontWeight.Black else FontWeight.Bold,
+                                fontSize = if (wd.isToday) 18.sp else 16.sp
+                            )
+                        )
                     if (isHoliday) {
                         Text(
                             "Holiday",

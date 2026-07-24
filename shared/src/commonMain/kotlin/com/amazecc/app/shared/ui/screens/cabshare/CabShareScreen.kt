@@ -49,7 +49,7 @@ fun CabShareScreen() {
     var activeSubTab by remember { mutableStateOf("Find Ride") }
     val tabs = listOf("Find Ride", "Create Trip", "My Trips")
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(
             title = "Cab Share",
             description = "Find or offer rides to airport, railway station, etc.",
@@ -58,7 +58,8 @@ fun CabShareScreen() {
             onRefresh = AppState::refreshCabShare
         )
 
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            com.amazecc.app.shared.ui.components.HeaderSpacer()
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

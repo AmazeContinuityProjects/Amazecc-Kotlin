@@ -196,7 +196,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
     var selectedDay by remember { mutableStateOf<Int?>(null) }
     val listState = rememberLazyListState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
         if (showHeader) {
             ScreenHeader(
                 title = "Academic Calendar",
@@ -235,6 +235,9 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 88.dp)
                 ) {
+                    item {
+                        com.amazecc.app.shared.ui.components.HeaderSpacer()
+                    }
                     // ── Month selector ──
                     item {
                         if (allMonths.isNotEmpty()) {

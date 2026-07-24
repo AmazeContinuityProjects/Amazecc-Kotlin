@@ -35,80 +35,85 @@ fun FfcsPlannerScreen() {
 
     var activeTab by remember { mutableStateOf(0) }
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(
             title = "FFCS Planner",
             description = "Plan your timetable"
         )
-        
-        // Tabs
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-            val tabs = listOf("Target Courses", "Generated TTs")
-            tabs.forEachIndexed { index, title ->
-                val selected = activeTab == index
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(horizontal = 4.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (selected) colors.accent else colors.surface)
-                        .clickable { activeTab = index }
-                        .padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        title, 
-                        style = AmazeTheme.typography.caption.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = if (selected) colors.textPrimary else colors.textSecondary
+
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+            com.amazecc.app.shared.ui.components.HeaderSpacer()
+
+            // Tabs
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                val tabs = listOf("Target Courses", "Generated TTs")
+                tabs.forEachIndexed { index, title ->
+                    val selected = activeTab == index
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 4.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (selected) colors.accent else colors.surface)
+                            .clickable { activeTab = index }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            title, 
+                            style = AmazeTheme.typography.caption.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = if (selected) colors.textPrimary else colors.textSecondary
+                            )
                         )
-                    )
+                    }
                 }
             }
-        }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-            if (activeTab == 0) {
-                // Target Courses & Manual Constraints
-                if (targetCourses.isEmpty()) {
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text("No target courses added yet.", color = colors.textMuted)
-                    }
-                } else {
-                    LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
-                        items(locks) { lock ->
-                            ConstraintCard(lock)
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Box(modifier = Modifier.weight(1f)) {
+                if (activeTab == 0) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        // Target Courses & Manual Constraints
+                        if (targetCourses.isEmpty()) {
+                            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                Text("No target courses added yet.", color = colors.textMuted)
+                            }
+                        } else {
+                            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 16.dp)) {
+                                items(locks) { lock ->
+                                    ConstraintCard(lock)
+                                }
+                            }
                         }
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                AmazeButton(
-                    text = "Auto Generate",
-                    icon = Icons.Rounded.AutoAwesome,
-                    variant = ButtonVariant.PRIMARY,
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                    onClick = { 
-                        activeTab = 1
-                        FfcsViewModel.generate() 
-                    }
-                )
-            } else {
-                // Generated Timetables Output
-                if (isGenerating) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = colors.accent)
-                    }
-                } else if (generated.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(error ?: "No results found.", color = colors.danger)
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        AmazeButton(
+                            text = "Auto Generate",
+                            icon = Icons.Rounded.AutoAwesome,
+                            variant = ButtonVariant.PRIMARY,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 96.dp),
+                            onClick = { 
+                                activeTab = 1
+                                FfcsViewModel.generate() 
+                            }
+                        )
                     }
                 } else {
-                    LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
-                        items(generated) { tt ->
+                    // Generated Timetables Output
+                    if (isGenerating) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = colors.accent)
+                        }
+                    } else if (generated.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(error ?: "No results found.", color = colors.danger)
+                        }
+                    } else {
+                        LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 96.dp)) {
+                            items(generated) { tt ->
                             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                                 Column {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -175,6 +180,7 @@ fun FfcsPlannerScreen() {
             }
         }
     }
+}
 }
 
 @Composable

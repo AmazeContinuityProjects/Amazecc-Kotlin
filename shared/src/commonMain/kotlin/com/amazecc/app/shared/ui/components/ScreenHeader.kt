@@ -16,10 +16,12 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,7 +62,11 @@ fun ScreenHeader(
         AppState.headerOnRefresh.value = onRefresh
         AppState.headerSyncModules.value = syncModules
     }
-    Spacer(modifier = modifier.fillMaxWidth().height(105.dp))
+}
+
+@Composable
+fun HeaderSpacer(modifier: Modifier = Modifier) {
+    Spacer(modifier = modifier.fillMaxWidth().statusBarsPadding().height(78.dp))
 }
 
 @Composable
@@ -77,15 +83,16 @@ fun FloatingScreenHeader(
     val isLoading by AppState.isLoading.collectAsState()
     val syncStatus by AppState.syncStatus.collectAsState()
     val moduleStates by SyncEngine.moduleStates.collectAsState()
+    val appHeaderRefresh by AppState.headerOnRefresh.collectAsState()
 
     val effectiveModules = remember(syncModules) {
         if (syncModules.isNotEmpty()) syncModules
         else AppState.headerSyncModules.value
     }
 
-    val isModuleLoading = remember(effectiveModules, moduleStates) {
+    val isModuleLoading = remember(effectiveModules, moduleStates, isLoading) {
         if (effectiveModules.isEmpty()) isLoading
-        else effectiveModules.any { moduleStates[it]?.status == SyncStatus.LOADING }
+        else isLoading || effectiveModules.any { moduleStates[it]?.status == SyncStatus.LOADING }
     }
 
     val moduleSyncText = remember(effectiveModules, moduleStates) {
@@ -93,13 +100,27 @@ fun FloatingScreenHeader(
             ?.let { moduleStates[it]?.let { "Syncing ${it.status.name}..." } }
     }
 
+    val effectiveRefresh = onRefresh ?: appHeaderRefresh
+
+    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
+    val rotationAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(1000, easing = androidx.compose.animation.core.LinearEasing)
+        )
+    )
+
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .background(colors.background.copy(alpha = 0.94f))
-            .border(1.dp, colors.accent.copy(alpha = 0.22f), RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .padding(top = 16.dp, bottom = 16.dp, start = 8.dp, end = 16.dp)
+            .statusBarsPadding()
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .shadow(16.dp, RoundedCornerShape(26.dp), clip = false)
+            .clip(RoundedCornerShape(26.dp))
+            .background(colors.navBackground.copy(alpha = 0.90f))
+            .border(1.dp, colors.accent.copy(alpha = 0.28f), RoundedCornerShape(26.dp))
+            .padding(vertical = 12.dp, horizontal = 14.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -108,41 +129,54 @@ fun FloatingScreenHeader(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 if (showBackButton) {
-                    IconButton(onClick = { AppState.navigateBack() }) {
+                    IconButton(
+                        onClick = { AppState.navigateBack() },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(colors.accent.copy(alpha = 0.12f), CircleShape)
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "Back",
-                            tint = colors.textPrimary
+                            tint = colors.textPrimary,
+                            modifier = Modifier.size(20.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                 } else {
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                 }
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = title,
                         style = AmazeTheme.typography.display.copy(
                             color = colors.textPrimary,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Black
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.Bold
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Text(
-                        text = description,
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if ((isModuleLoading || isLoading) && (moduleSyncText ?: syncStatus) != null) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                    if (description.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = description,
+                            style = AmazeTheme.typography.caption.copy(
+                                color = colors.textSecondary,
+                                fontSize = 12.sp
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (isModuleLoading && (moduleSyncText ?: syncStatus) != null) {
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = moduleSyncText ?: syncStatus ?: "",
                             style = AmazeTheme.typography.smallLabel.copy(
                                 color = colors.accent,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
                             ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -152,8 +186,10 @@ fun FloatingScreenHeader(
             }
 
             if (showSyncButton) {
-                val syncAction = onRefresh ?: {
-                    if (effectiveModules.isNotEmpty()) {
+                val syncAction: () -> Unit = {
+                    if (effectiveRefresh != null) {
+                        effectiveRefresh()
+                    } else if (effectiveModules.isNotEmpty()) {
                         SyncEngine.setShowSyncDialog(true)
                         AppState.loadAllData()
                     } else {
@@ -164,23 +200,21 @@ fun FloatingScreenHeader(
                     onClick = syncAction,
                     enabled = !isModuleLoading,
                     modifier = Modifier
-                        .size(44.dp)
-                        .background(colors.accent.copy(alpha = if (isModuleLoading) 0.2f else 0.1f), CircleShape)
+                        .size(40.dp)
+                        .background(colors.accent.copy(alpha = if (isModuleLoading) 0.20f else 0.12f), CircleShape)
                 ) {
-                    if (isModuleLoading) {
-                        CircularProgressIndicator(
-                            color = colors.accent,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Sync Data",
-                            tint = colors.accent,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Rounded.Refresh,
+                        contentDescription = "Sync Data",
+                        tint = colors.accent,
+                        modifier = Modifier
+                            .size(20.dp)
+                            .graphicsLayer {
+                                if (isModuleLoading) {
+                                    rotationZ = rotationAngle
+                                }
+                            }
+                    )
                 }
             }
         }

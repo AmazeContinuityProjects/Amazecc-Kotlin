@@ -52,6 +52,7 @@ fun SettingsScreen() {
 
     var availableCalendars by remember { mutableStateOf<List<NamedCalendar>>(emptyList()) }
     var preferredCalendarName by remember { mutableStateOf(SettingsManager.getPreferredCalendar() ?: "") }
+    
     LaunchedEffect(selectedSemester) {
         scope.launch {
             try {
@@ -70,37 +71,50 @@ fun SettingsScreen() {
         Screen.PROJECTS, Screen.WISHLIST
     )
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 16.dp, start = 16.dp, end = 16.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { AppState.navigateBack() }) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = colors.textPrimary)
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Column {
-                Text("App Settings", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Text("Customize your app experience", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
-            }
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+    ) {
+        ScreenHeader(
+            title = "App Settings",
+            description = "Customize your app experience & sync preferences",
+            showBackButton = true,
+            showSyncButton = false
+        )
 
         Column(
-            modifier = Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 88.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(Modifier.height(8.dp))
+            HeaderSpacer()
 
-            SettingsSection("Appearance", Icons.Rounded.Palette, colors) {
+            // ═══════════════════════════════════════════
+            // 1. Appearance & Themes
+            // ═══════════════════════════════════════════
+            SettingsSection("Appearance & Theme", Icons.Rounded.Palette, colors) {
                 val activeTheme by AppState.theme.collectAsState()
                 val activeAccent by AppState.accent.collectAsState()
 
-                SettingsRow("Theme", colors) {
+                SettingsRow("Color Theme", colors) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AmazeButton("Light", { AppState.changeTheme(AppTheme.LIGHT) }, modifier = Modifier.weight(1f), variant = if (activeTheme == AppTheme.LIGHT) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
-                        AmazeButton("Dark", { AppState.changeTheme(AppTheme.DARK) }, modifier = Modifier.weight(1f), variant = if (activeTheme == AppTheme.DARK) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
+                        listOf(AppTheme.LIGHT to "Light", AppTheme.DARK to "Dark", AppTheme.SYSTEM to "System").forEach { (theme, label) ->
+                            val isSelected = activeTheme == theme
+                            AmazeButton(
+                                text = label,
+                                onClick = { AppState.changeTheme(theme) },
+                                modifier = Modifier.weight(1f),
+                                variant = if (isSelected) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY
+                            )
+                        }
                     }
                 }
+
+                Spacer(Modifier.height(4.dp))
 
                 SettingsRow("Accent Color", colors) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -112,28 +126,75 @@ fun SettingsScreen() {
                 }
             }
 
-            SettingsSection("Display", Icons.Rounded.Visibility, colors) {
+            // ═══════════════════════════════════════════
+            // 2. Display & Scale Preferences
+            // ═══════════════════════════════════════════
+            SettingsSection("Display & Layout Scale", Icons.Rounded.Visibility, colors) {
                 val cgpaHidden by AppState.cgpaHidden.collectAsState()
                 val attendanceMode by AppState.attendanceDisplayMode.collectAsState()
+                val currentScale by AppState.uiScale.collectAsState()
 
-                SettingsToggle("Hide CGPA", cgpaHidden, { AppState.setCgpaHidden(it) }, colors)
-                SettingsRow("Attendance Display", colors) {
+                SettingsToggle("Hide CGPA on Dashboard", cgpaHidden, { AppState.setCgpaHidden(it) }, colors)
+                
+                HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+
+                SettingsRow("Attendance Display Format", colors) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AmazeButton("Percentage", { AppState.setAttendanceDisplayMode("percentage") }, modifier = Modifier.weight(1f), variant = if (attendanceMode == "percentage") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
-                        AmazeButton("Fraction", { AppState.setAttendanceDisplayMode("fraction") }, modifier = Modifier.weight(1f), variant = if (attendanceMode == "fraction") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
+                        AmazeButton("Percentage (%)", { AppState.setAttendanceDisplayMode("percentage") }, modifier = Modifier.weight(1f), variant = if (attendanceMode == "percentage") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
+                        AmazeButton("Fraction (x/y)", { AppState.setAttendanceDisplayMode("fraction") }, modifier = Modifier.weight(1f), variant = if (attendanceMode == "fraction") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
+                    }
+                }
+
+                HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+
+                SettingsRow("UI Zoom & Scale", colors) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Rounded.ZoomOut, null, tint = colors.textSecondary, modifier = Modifier.size(18.dp))
+                            Slider(
+                                value = currentScale,
+                                onValueChange = { AppState.changeUiScale(it) },
+                                valueRange = 0.7f..1.5f,
+                                steps = 7,
+                                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                                colors = SliderDefaults.colors(thumbColor = colors.accent, activeTrackColor = colors.accent)
+                            )
+                            Icon(Icons.Rounded.ZoomIn, null, tint = colors.textSecondary, modifier = Modifier.size(18.dp))
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Current Zoom: ", color = colors.textSecondary, fontSize = 12.sp)
+                            OutlinedTextField(
+                                value = "${(currentScale * 100).toInt()}",
+                                onValueChange = { text ->
+                                    val pct = text.filter { it.isDigit() }.take(3).toIntOrNull()
+                                    if (pct != null) AppState.changeUiScale(pct.coerceIn(70, 150) / 100f)
+                                },
+                                modifier = Modifier.width(76.dp).height(48.dp),
+                                singleLine = true,
+                                textStyle = AmazeTheme.typography.body.copy(textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent),
+                                suffix = { Text("%", color = colors.textMuted, fontSize = 11.sp) }
+                            )
+                        }
                     }
                 }
             }
 
-            SettingsSection("Navigation Bar", Icons.Rounded.Navigation, colors) {
+            // ═══════════════════════════════════════════
+            // 3. Navigation Bar Customization
+            // ═══════════════════════════════════════════
+            SettingsSection("Bottom Navigation Tabs", Icons.Rounded.Navigation, colors) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Info, null, tint = colors.accent, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Select up to 4 tabs for the bottom bar. Home is always pinned.", color = colors.textSecondary, fontSize = 12.sp)
+                    Text("Pin up to 4 modules to your bottom bar. Home is always pinned.", color = colors.textSecondary, fontSize = 12.sp)
                 }
                 Spacer(Modifier.height(8.dp))
-                Text("Available (${selectedTabs.size}/4)", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 12.sp)
-                Spacer(Modifier.height(4.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Pinned Tabs", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
+                    Text("${selectedTabs.size}/4 selected", fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 12.sp)
+                }
+                Spacer(Modifier.height(6.dp))
                 availableTabs.forEach { tab ->
                     val (icon, label) = getScreenIconAndLabel(tab)
                     val isSelected = selectedTabs.contains(tab)
@@ -141,7 +202,8 @@ fun SettingsScreen() {
 
                     Row(
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) colors.glassSurface else colors.surface)
+                            .background(if (isSelected) colors.accent.copy(alpha = 0.1f) else colors.surface)
+                            .border(1.dp, if (isSelected) colors.accent.copy(alpha = 0.3f) else colors.border.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                             .clickable(enabled = isEnabled || isSelected) {
                                 val newSet = if (isSelected) selectedTabs - tab
                                 else if (selectedTabs.size < 4) selectedTabs + tab else selectedTabs
@@ -153,13 +215,16 @@ fun SettingsScreen() {
                     ) {
                         Icon(icon, label, tint = if (isSelected) colors.accent else if (!isEnabled) colors.textMuted else colors.textPrimary, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(12.dp))
-                        Text(label, color = if (isSelected) colors.textPrimary else if (!isEnabled) colors.textMuted else colors.textSecondary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                        Text(label, color = if (isSelected) colors.textPrimary else if (!isEnabled) colors.textMuted else colors.textSecondary, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
                         Checkbox(checked = isSelected, onCheckedChange = null, enabled = isEnabled, colors = CheckboxDefaults.colors(checkedColor = colors.accent, uncheckedColor = colors.textMuted, checkmarkColor = colors.background))
                     }
                     Spacer(Modifier.height(4.dp))
                 }
             }
 
+            // ═══════════════════════════════════════════
+            // 4. Default Academic Calendar
+            // ═══════════════════════════════════════════
             SettingsSection("Academic Calendar", Icons.Rounded.CalendarMonth, colors) {
                 Text("Choose which calendar to display by default", color = colors.textSecondary, fontSize = 12.sp)
                 Spacer(Modifier.height(8.dp))
@@ -172,6 +237,7 @@ fun SettingsScreen() {
                         Row(
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                                 .background(if (isSelected) colors.accent.copy(alpha = 0.12f) else colors.surface)
+                                .border(1.dp, if (isSelected) colors.accent else colors.border.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                                 .clickable {
                                     preferredCalendarName = cal.name
                                     SettingsManager.savePreferredCalendar(cal.name)
@@ -189,7 +255,75 @@ fun SettingsScreen() {
                 }
             }
 
-            SettingsSection("Data Sync", Icons.Rounded.Sync, colors) {
+            // ═══════════════════════════════════════════
+            // 5. Account Credentials Storage
+            // ═══════════════════════════════════════════
+            SettingsSection("Persistent Credentials", Icons.Rounded.Lock, colors) {
+                val savedUsername = SettingsManager.getString(SettingsManager.KEY_USERNAME)
+                val moodleCreds = SettingsManager.getMoodleCredentials()
+                val libCreds = SettingsManager.getLibraryCredentials()
+
+                // VTOP
+                SettingsRow("VTOP Credentials", colors) {
+                    Text(if (savedUsername.isNotBlank()) "$savedUsername / ••••••••" else "No VTOP credentials saved", color = colors.textSecondary, fontSize = 12.sp)
+                }
+
+                var showCredEditor by remember { mutableStateOf(false) }
+                if (showCredEditor) {
+                    var username by remember { mutableStateOf(savedUsername) }
+                    var password by remember { mutableStateOf("") }
+                    AmazeTextField(value = username, onValueChange = { username = it }, label = "Registration Number", placeholder = "", modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    AmazeTextField(value = password, onValueChange = { password = it }, label = "Password", placeholder = "", modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    AmazeButton("Save & Overwrite VTOP", onClick = { SettingsManager.saveCredentials(username, password); showCredEditor = false }, modifier = Modifier.fillMaxWidth())
+                } else {
+                    AmazeButton("Edit VTOP Credentials", onClick = { showCredEditor = true }, variant = ButtonVariant.SECONDARY, modifier = Modifier.fillMaxWidth())
+                }
+
+                HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+
+                // Moodle
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("Moodle LMS Account", color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(if (moodleCreds != null) "Linked as ${moodleCreds.first}" else "Not linked", color = colors.textSecondary, fontSize = 11.sp)
+                    }
+                    if (moodleCreds != null) {
+                        TextButton(onClick = { SettingsManager.clearMoodleCredentials(); AppState.updateMoodleData(com.amazecc.app.shared.model.MoodleRes(success = false, message = "Cleared")) }) {
+                            Text("Unlink", color = colors.dangerText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        TextButton(onClick = { AppState.navigateTo(Screen.MOODLE) }) {
+                            Text("Link", color = colors.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+
+                // Library
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("Library Account", color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(if (libCreds != null) "Linked as ${libCreds.first}" else "Not linked", color = colors.textSecondary, fontSize = 11.sp)
+                    }
+                    if (libCreds != null) {
+                        TextButton(onClick = { SettingsManager.clearLibraryCredentials(); AppState.saveLibraryCredentials("", "") }) {
+                            Text("Unlink", color = colors.dangerText, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        TextButton(onClick = { AppState.navigateTo(Screen.LIBRARIES) }) {
+                            Text("Link", color = colors.accent, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            // ═══════════════════════════════════════════
+            // 6. Data Sync Engine
+            // ═══════════════════════════════════════════
+            SettingsSection("Data Sync & Cache", Icons.Rounded.Sync, colors) {
                 val syncExam by AppState.syncExam.collectAsState()
                 val syncProfile by AppState.syncProfile.collectAsState()
                 val syncAdditional by AppState.syncAdditional.collectAsState()
@@ -198,7 +332,7 @@ fun SettingsScreen() {
 
                 // Sync Status Summary
                 Row(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                         .background(colors.accent.copy(alpha = 0.08f)).padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -213,7 +347,7 @@ fun SettingsScreen() {
 
                 // Action buttons row
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    AmazeButton("Sync All", onClick = {
+                    AmazeButton("Sync All Data", onClick = {
                         SyncEngine.setShowSyncDialog(true)
                         SyncEngine.resetAllStates()
                         AppState.loadAllData()
@@ -238,16 +372,16 @@ fun SettingsScreen() {
                     val isLoading = state.status == SyncStatus.LOADING
 
                     Row(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
                             .background(if (isLoading) colors.accent.copy(alpha = 0.06f) else colors.surface)
-                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dotColor))
                         Spacer(Modifier.width(8.dp))
                         Text(module.displayName, color = colors.textPrimary, fontSize = 12.sp, modifier = Modifier.weight(1f))
                         if (state.lastSynced != null) {
-                            Text(formatModuleTime(state.lastSynced), color = colors.textSecondary, fontSize = 9.sp)
+                            Text(formatModuleTime(state.lastSynced), color = colors.textSecondary, fontSize = 10.sp)
                             Spacer(Modifier.width(6.dp))
                         }
                         if (isLoading) {
@@ -269,72 +403,18 @@ fun SettingsScreen() {
                 Spacer(Modifier.height(8.dp))
 
                 // Toggle switches for optional modules
-                SettingsToggle("Exam Schedule", syncExam, { AppState.setSyncExam(it) }, colors)
-                SettingsToggle("Profile Data", syncProfile, { AppState.setSyncProfile(it) }, colors)
-                SettingsToggle("Additional (Projects/Wishlist)", syncAdditional, { AppState.setSyncAdditional(it) }, colors)
-
-                Spacer(Modifier.height(8.dp))
-                AmazeButton("Open Sync Popup", onClick = {
-                    SyncEngine.setShowSyncDialog(true)
-                }, modifier = Modifier.fillMaxWidth(), variant = ButtonVariant.SECONDARY)
+                SettingsToggle("Include Exam Schedule", syncExam, { AppState.setSyncExam(it) }, colors)
+                SettingsToggle("Include Profile Data", syncProfile, { AppState.setSyncProfile(it) }, colors)
+                SettingsToggle("Include Projects & Wishlist", syncAdditional, { AppState.setSyncAdditional(it) }, colors)
             }
 
-            SettingsSection("UI & Zoom", Icons.Rounded.ZoomIn, colors) {
-                val currentScale by AppState.uiScale.collectAsState()
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Rounded.ZoomOut, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
-                    Slider(
-                        value = currentScale,
-                        onValueChange = { AppState.changeUiScale(it) },
-                        valueRange = 0.7f..1.5f,
-                        steps = 7,
-                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                        colors = SliderDefaults.colors(thumbColor = colors.accent, activeTrackColor = colors.accent)
-                    )
-                    Icon(Icons.Rounded.ZoomIn, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
-                }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Zoom: ", color = colors.textSecondary, fontSize = 12.sp)
-                    OutlinedTextField(
-                        value = "${(currentScale * 100).toInt()}",
-                        onValueChange = { text ->
-                            val pct = text.filter { it.isDigit() }.take(3).toIntOrNull()
-                            if (pct != null) AppState.changeUiScale(pct.coerceIn(70, 150) / 100f)
-                        },
-                        modifier = Modifier.width(72.dp).height(48.dp),
-                        singleLine = true,
-                        textStyle = AmazeTheme.typography.body.copy(textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent),
-                        suffix = { Text("%", color = colors.textMuted, fontSize = 11.sp) }
-                    )
-                }
-            }
-
-            SettingsSection("Credentials", Icons.Rounded.Lock, colors) {
-                val savedUsername = SettingsManager.getString(SettingsManager.KEY_USERNAME)
-                val savedPassword = SettingsManager.getString(SettingsManager.KEY_PASSWORD)
-
-                SettingsRow("Saved Credentials", colors) {
-                    Text(if (savedUsername.isNotBlank()) "$savedUsername / ****" else "No credentials saved", color = colors.textSecondary, fontSize = 12.sp)
-                }
-
-                var showCredEditor by remember { mutableStateOf(false) }
-                if (showCredEditor) {
-                    var username by remember { mutableStateOf(savedUsername) }
-                    var password by remember { mutableStateOf("") }
-                    AmazeTextField(value = username, onValueChange = { username = it }, label = "Registration Number", placeholder = "", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    AmazeTextField(value = password, onValueChange = { password = it }, label = "Password", placeholder = "", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    AmazeButton("Save & Overwrite", onClick = { SettingsManager.saveCredentials(username, password) }, modifier = Modifier.fillMaxWidth())
-                }
-                AmazeButton(if (showCredEditor) "Cancel" else "Edit Credentials", onClick = { showCredEditor = !showCredEditor }, variant = ButtonVariant.SECONDARY, modifier = Modifier.fillMaxWidth())
-            }
-
+            // ═══════════════════════════════════════════
+            // 7. Danger Zone
+            // ═══════════════════════════════════════════
             SettingsSection("Danger Zone", Icons.Rounded.Warning, colors) {
-                AmazeButton("Clear All Caches", onClick = { SettingsManager.clearAll() }, variant = ButtonVariant.DANGER, modifier = Modifier.fillMaxWidth())
+                AmazeButton("Clear All Local Caches", onClick = { SettingsManager.clearAll() }, variant = ButtonVariant.DANGER, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
-                AmazeButton("Close Student Session", onClick = { AppState.logout() }, variant = ButtonVariant.DANGER, modifier = Modifier.fillMaxWidth())
+                AmazeButton("Log Out Student Session", onClick = { AppState.logout() }, variant = ButtonVariant.DANGER, modifier = Modifier.fillMaxWidth())
             }
 
             Spacer(Modifier.height(24.dp))
@@ -368,6 +448,13 @@ private fun SettingsRow(label: String, colors: com.amazecc.app.shared.theme.Amaz
 
 @Composable
 private fun SettingsToggle(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val notifPermissionManager = LocalNotificationPermissionManager.current
+    val handleToggle: (Boolean) -> Unit = { newChecked ->
+        if (newChecked) {
+            notifPermissionManager?.requestPermission()
+        }
+        onCheckedChange(newChecked)
+    }
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -376,7 +463,7 @@ private fun SettingsToggle(label: String, checked: Boolean, onCheckedChange: (Bo
         Text(label, color = colors.textPrimary, fontSize = 12.sp, modifier = Modifier.weight(1f))
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = handleToggle,
             colors = SwitchDefaults.colors(checkedThumbColor = colors.accent, checkedTrackColor = colors.accent.copy(alpha = 0.3f))
         )
     }

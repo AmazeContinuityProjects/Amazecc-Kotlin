@@ -22,6 +22,11 @@ object SettingsManager {
     const val KEY_NAVBAR_ITEMS = "navbar_items"
     const val KEY_PREFERRED_CALENDAR = "preferred_calendar_name"
 
+    // Theme & Display preferences
+    const val KEY_APP_THEME = "app_theme"
+    const val KEY_APP_ACCENT = "app_accent"
+    const val KEY_UI_SCALE = "app_ui_scale"
+
     // Update checker
     const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"
 

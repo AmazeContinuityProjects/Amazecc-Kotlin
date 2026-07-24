@@ -289,7 +289,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
         filtered.sorted().map { Pair(it, roomTypes[it] ?: "Theory") }
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
         ScreenHeader(
             title = "Free Classrooms",
             description = "Find an empty spot to sit",
@@ -301,6 +301,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
+            com.amazecc.app.shared.ui.components.HeaderSpacer()
             Text(
                 "SELECT BLOCK",
                 style = AmazeTheme.typography.smallLabel.copy(

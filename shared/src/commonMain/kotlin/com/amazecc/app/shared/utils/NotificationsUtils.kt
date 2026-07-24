@@ -27,7 +27,8 @@ object NotificationsUtils {
     suspend fun scheduleClassReminders(
         attendance: List<Map<String, Any>>,
         slotMap: Map<String, Map<String, SlotInfo>>,
-        offsetMinutes: Int = SettingsManager.getNotifOffsetMinutes()
+        offsetMinutes: Int = SettingsManager.getNotifOffsetMinutes(),
+        calendar: CalendarRes? = com.amazecc.app.shared.state.AppState.calendar.value
     ) {
         if (!SettingsManager.isNotifClassRemindersEnabled()) return
         if (!requestNotificationPermissions()) return
@@ -42,17 +43,7 @@ object NotificationsUtils {
 
         for (i in 0 until 7) {
             val targetDate = today.plus(DatePeriod(days = i))
-            val dayOfWeek = targetDate.dayOfWeek
-            val attDay = when (dayOfWeek) {
-                DayOfWeek.MONDAY -> AttendanceDay.MON
-                DayOfWeek.TUESDAY -> AttendanceDay.TUE
-                DayOfWeek.WEDNESDAY -> AttendanceDay.WED
-                DayOfWeek.THURSDAY -> AttendanceDay.THU
-                DayOfWeek.FRIDAY -> AttendanceDay.FRI
-                DayOfWeek.SATURDAY -> AttendanceDay.SAT
-                DayOfWeek.SUNDAY -> AttendanceDay.SUN
-                else -> continue
-            }
+            val attDay = AttendanceTimetable.getAttendanceDayForDate(targetDate, calendar)
 
             val dayCards = AttendanceTimetable.buildAttendanceDayCardsMap(attendance, slotMap)[attDay] ?: emptyList()
             for (c in dayCards) {

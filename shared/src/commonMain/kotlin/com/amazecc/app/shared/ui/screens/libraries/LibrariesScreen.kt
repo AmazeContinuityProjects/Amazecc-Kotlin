@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.ui.screens.libraries
 
+import com.amazecc.app.shared.repository.SettingsManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -74,7 +75,7 @@ fun LibrariesScreen() {
         )
     }
 
-    Column(
+    Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
     ) {
         ScreenHeader(
@@ -84,10 +85,13 @@ fun LibrariesScreen() {
             else "Browse the catalog",
             showBackButton = false,
             showSyncButton = true,
-            onRefresh = { AppState.saveLibraryCredentials("", "") }
+            onRefresh = { AppState.syncLibrary() }
         )
 
-        Row(
+        Column(modifier = Modifier.fillMaxSize()) {
+            com.amazecc.app.shared.ui.components.HeaderSpacer()
+
+            Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
@@ -117,6 +121,7 @@ fun LibrariesScreen() {
         }
     }
 }
+}
 
 // ═══════════════════════════════════════════
 //  Library Login Dialog
@@ -128,8 +133,9 @@ private fun LibraryLoginDialog(
     onLogin: (String, String) -> Unit
 ) {
     val colors = AmazeTheme.colors
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    val storedCreds = SettingsManager.getLibraryCredentials()
+    var username by remember { mutableStateOf(storedCreds?.first ?: "") }
+    var password by remember { mutableStateOf(storedCreds?.second ?: "") }
     var showPassword by remember { mutableStateOf(false) }
     var isLoggingIn by remember { mutableStateOf(false) }
 

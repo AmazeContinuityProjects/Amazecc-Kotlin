@@ -38,6 +38,7 @@ import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.utils.AttendanceDay
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.CourseAttendanceInfo
@@ -68,6 +69,7 @@ fun AttendanceScreen() {
             showSyncButton = true,
             onRefresh = AppState::refreshCurrentSemester
         )
+        HeaderSpacer()
 
         Row(
             modifier = Modifier
@@ -212,8 +214,8 @@ fun OverallPredictorScreen() {
         buildWorkingDays(calendarMonths)
     }
 
-    val futureClassesMap = remember(allWorkingDays, dayCardsMap, selectedMode, impDates, resetTrigger) {
-        computeFutureClasses(courses, dayCardsMap, allWorkingDays, selectedMode, impDates)
+    val futureClassesMap = remember(allWorkingDays, dayCardsMap, selectedMode, impDates, resetTrigger, calendarRes) {
+        computeFutureClasses(courses, dayCardsMap, allWorkingDays, selectedMode, impDates, calendarRes)
     }
 
     val predictions = remember(skipDates, futureClassesMap, courses) {
@@ -275,15 +277,44 @@ fun OverallPredictorScreen() {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             modes.forEach { mode ->
                 val isSelected = selectedMode == mode
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.94f else 1f,
+                    animationSpec = bouncySpring()
+                )
+                val displayLabel = when (mode) {
+                    "CAT1" -> "CAT - I"
+                    "CAT2" -> "CAT - II"
+                    "FAT" -> "FAT"
+                    else -> "LID"
+                }
+
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .background(if (isSelected) colors.accent else colors.surface, RoundedCornerShape(8.dp))
-                        .clickable { selectedMode = mode }
-                        .padding(horizontal = 8.dp, vertical = 10.dp),
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .clip(CircleShape)
+                        .background(if (isSelected) colors.accent else colors.surface)
+                        .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = { selectedMode = mode }
+                        )
+                        .padding(horizontal = 6.dp, vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(mode, color = if (isSelected) Color.White else colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                    Text(
+                        displayLabel,
+                        color = if (isSelected) colors.background else colors.textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        maxLines = 1
+                    )
                 }
             }
         }
@@ -647,21 +678,14 @@ private fun computeFutureClasses(
     dayCardsMap: Map<AttendanceDay, List<CourseAttendanceInfo>>,
     allWorkingDays: List<Triple<Int, Int, Int>>,
     selectedMode: String,
-    impDates: Map<String, SimpleDate>
+    impDates: Map<String, SimpleDate>,
+    calendar: com.amazecc.app.shared.model.CalendarRes? = null
 ): Map<String, FutureClassInfo> {
     fun dayOfWeekToAbbr(y: Int, m: Int, d: Int): String? {
         return try {
-            val day = LocalDate(y, m, d).dayOfWeek
-            when (day) {
-                DayOfWeek.SUNDAY -> "SUN"
-                DayOfWeek.MONDAY -> "MON"
-                DayOfWeek.TUESDAY -> "TUE"
-                DayOfWeek.WEDNESDAY -> "WED"
-                DayOfWeek.THURSDAY -> "THU"
-                DayOfWeek.FRIDAY -> "FRI"
-                DayOfWeek.SATURDAY -> "SAT"
-                else -> null
-            }
+            val date = LocalDate(y, m, d)
+            val attDay = AttendanceTimetable.getAttendanceDayForDate(date, calendar)
+            attDay.name
         } catch (_: Exception) { null }
     }
 

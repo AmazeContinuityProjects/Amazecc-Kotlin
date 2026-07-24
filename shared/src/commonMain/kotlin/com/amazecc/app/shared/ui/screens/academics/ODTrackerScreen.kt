@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -25,6 +26,13 @@ import com.amazecc.app.shared.model.ODEntry
 import com.amazecc.app.shared.model.ODListItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.graphicsLayer
+import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.utils.parseViewLink
@@ -195,27 +203,48 @@ fun ODTrackerScreen() {
             )
         }
 
-        TabRow(
-            selectedTabIndex = activeTab,
-            containerColor = colors.background,
-            contentColor = colors.accent,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    modifier = Modifier.tabIndicatorOffset(tabPositions[activeTab]),
-                    color = colors.accent
-                )
-            }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             tabLabels.forEachIndexed { idx, label ->
-                Tab(
-                    selected = activeTab == idx,
-                    onClick = { activeTab = idx },
-                    text = {
-                        Text(label, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp))
-                    },
-                    selectedContentColor = colors.accent,
-                    unselectedContentColor = colors.textSecondary
+                val isSelected = activeTab == idx
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.94f else 1f,
+                    animationSpec = bouncySpring()
                 )
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .clip(CircleShape)
+                        .background(if (isSelected) colors.accent else colors.surface)
+                        .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = { activeTab = idx }
+                        )
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        label,
+                        style = AmazeTheme.typography.body.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSelected) colors.background else colors.textPrimary,
+                            fontSize = 13.sp
+                        )
+                    )
+                }
             }
         }
 

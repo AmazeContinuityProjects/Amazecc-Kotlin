@@ -42,7 +42,7 @@ fun PaymentsScreen() {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(
             title = "Payments",
             description = "View dues and transaction history",
@@ -50,6 +50,9 @@ fun PaymentsScreen() {
             showSyncButton = true,
             onRefresh = AppState::refreshPayments
         )
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            com.amazecc.app.shared.ui.components.HeaderSpacer()
 
         // Wallet balance card
         AmazeCard(
@@ -157,6 +160,7 @@ fun PaymentsScreen() {
             }
         }
     }
+}
 }
 
 @Composable

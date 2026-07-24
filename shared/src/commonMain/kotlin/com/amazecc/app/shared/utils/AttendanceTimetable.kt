@@ -76,10 +76,63 @@ object AttendanceTimetable {
         return TimeRange(start, end)
     }
 
-    fun getTodayAttendanceDay(): AttendanceDay {
-        val currentMoment = Clock.System.now()
-        val datetime = currentMoment.toLocalDateTime(TimeZone.currentSystemDefault())
-        return datetime.dayOfWeek.toAttendanceDay()
+    fun parseMonthNumber(monthStr: String): Int? {
+        val m = monthStr.trim().lowercase()
+        val mInt = m.toIntOrNull()
+        if (mInt != null && mInt in 1..12) return mInt
+        return when (m.take(3)) {
+            "jan" -> 1; "feb" -> 2; "mar" -> 3; "apr" -> 4; "may" -> 5; "jun" -> 6
+            "jul" -> 7; "aug" -> 8; "sep" -> 9; "oct" -> 10; "nov" -> 11; "dec" -> 12
+            else -> null
+        }
+    }
+
+    fun parseDayOrderFromText(text: String?): AttendanceDay? {
+        if (text.isNullOrBlank()) return null
+        val lower = text.lowercase()
+        return when {
+            lower.contains("monday day order") || lower.contains("day order: monday") || lower.contains("mon day order") -> AttendanceDay.MON
+            lower.contains("tuesday day order") || lower.contains("day order: tuesday") || lower.contains("tue day order") -> AttendanceDay.TUE
+            lower.contains("wednesday day order") || lower.contains("day order: wednesday") || lower.contains("wed day order") -> AttendanceDay.WED
+            lower.contains("thursday day order") || lower.contains("day order: thursday") || lower.contains("thu day order") -> AttendanceDay.THU
+            lower.contains("friday day order") || lower.contains("day order: friday") || lower.contains("fri day order") -> AttendanceDay.FRI
+            lower.contains("saturday day order") || lower.contains("day order: saturday") || lower.contains("sat day order") -> AttendanceDay.SAT
+            lower.contains("sunday day order") || lower.contains("day order: sunday") || lower.contains("sun day order") -> AttendanceDay.SUN
+            else -> null
+        }
+    }
+
+    fun getDayOrderOverrideForDate(date: kotlinx.datetime.LocalDate, calendar: com.amazecc.app.shared.model.CalendarRes?): AttendanceDay? {
+        if (calendar == null) return null
+        val monthNum = date.monthNumber
+        val dayNum = date.dayOfMonth
+        for (m in calendar.months) {
+            val mNum = parseMonthNumber(m.month)
+            if (mNum == monthNum) {
+                for (d in m.days) {
+                    if (d.date == dayNum) {
+                        for (e in d.events) {
+                            val overrideDay = parseDayOrderFromText(e.text)
+                                ?: parseDayOrderFromText(e.category)
+                                ?: parseDayOrderFromText(e.type)
+                            if (overrideDay != null) return overrideDay
+                        }
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    fun getAttendanceDayForDate(date: kotlinx.datetime.LocalDate, calendar: com.amazecc.app.shared.model.CalendarRes?): AttendanceDay {
+        val override = getDayOrderOverrideForDate(date, calendar)
+        if (override != null) return override
+        return date.dayOfWeek.toAttendanceDay()
+    }
+
+    fun getTodayAttendanceDay(calendar: com.amazecc.app.shared.model.CalendarRes? = null): AttendanceDay {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        return getAttendanceDayForDate(now, calendar)
     }
 
     fun buildAttendanceDayCardsMap(
@@ -170,10 +223,11 @@ object AttendanceTimetable {
 
     fun getTodayAttendanceClasses(
         attendance: List<Map<String, Any>> = emptyList(),
-        slotMap: Map<String, Map<String, SlotInfo>> = emptyMap()
+        slotMap: Map<String, Map<String, SlotInfo>> = emptyMap(),
+        calendar: com.amazecc.app.shared.model.CalendarRes? = null
     ): List<CourseAttendanceInfo> {
         val dayCardsMap = buildAttendanceDayCardsMap(attendance, slotMap)
-        return dayCardsMap[getTodayAttendanceDay()] ?: emptyList()
+        return dayCardsMap[getTodayAttendanceDay(calendar)] ?: emptyList()
     }
 
     fun currentTimeInMinutes(): Int {

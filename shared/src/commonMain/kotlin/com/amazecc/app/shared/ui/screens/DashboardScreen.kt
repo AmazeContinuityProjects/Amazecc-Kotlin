@@ -1,7 +1,14 @@
 package com.amazecc.app.shared.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.InfiniteRepeatableSpec
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -134,7 +141,9 @@ fun DashboardScreen() {
         }
     }
 
-    val cgpa = marksRes?.cgpa?.cgpa ?: "—"
+    val isCgpaHidden by AppState.cgpaHidden.collectAsState()
+    val rawCgpa = marksRes?.cgpa?.cgpa ?: "—"
+    val cgpa = if (isCgpaHidden) "•••" else rawCgpa
     val credits = marksRes?.cgpa?.creditsEarned ?: "—"
 
     val avatarText = (profile?.name ?: authorizedID ?: "U").take(2).uppercase()
@@ -159,6 +168,7 @@ fun DashboardScreen() {
                 .padding(horizontal = spacing.pageHorizontal)
                 .padding(bottom = 88.dp)
         ) {
+            Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
             Spacer(modifier = Modifier.height(spacing.lg))
 
             // ── Profile Header ──
@@ -264,8 +274,10 @@ fun DashboardScreen() {
             ) {
                 item {
                     GlassMetricCard(
-                        "CGPA", cgpa, Icons.Rounded.Star, colors,
-                        iconTint = colors.warning, surfaceBg = colors.warningSurface
+                        "CGPA", cgpa, if (isCgpaHidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Star, colors,
+                        iconTint = if (isCgpaHidden) colors.textMuted else colors.warning,
+                        surfaceBg = colors.warningSurface,
+                        onClick = { AppState.setCgpaHidden(!isCgpaHidden) }
                     )
                 }
                 item {
@@ -276,8 +288,9 @@ fun DashboardScreen() {
                     )
                 }
                 item {
+                    val odClasses = courses.sumOf { (it.totalClasses - it.attendedClasses).coerceAtLeast(0) }
                     GlassMetricCard(
-                        "ODs", "0", Icons.Rounded.CheckCircle, colors,
+                        "ODs", if (courses.isNotEmpty()) "$odClasses" else "—", Icons.Rounded.CheckCircle, colors,
                         iconTint = colors.success, surfaceBg = colors.successSurface,
                         onClick = { AppState.navigateTo(Screen.OD_TRACKER) }
                     )
@@ -371,7 +384,8 @@ fun DashboardScreen() {
                     inner.mapValues { (_, time) -> SlotInfo(time) }
                 }
             }
-            val todayClasses = remember(courses) {
+            val calendarRes by AppState.calendar.collectAsState()
+            val todayClasses = remember(courses, calendarRes) {
                 AttendanceTimetable.getTodayAttendanceClasses(
                     attendance = courses.map { item ->
                         mapOf(
@@ -384,7 +398,8 @@ fun DashboardScreen() {
                             "venue" to (item.slotVenue ?: "")
                         )
                     },
-                    slotMap = slotMapTyped
+                    slotMap = slotMapTyped,
+                    calendar = calendarRes
                 )
             }
 
@@ -403,6 +418,11 @@ fun DashboardScreen() {
                 AttendanceTimetable.findNextClass(todayClasses)
             }
 
+            val todayDate = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
+            val dayOrderOverride = remember(todayDate, calendarRes) {
+                AttendanceTimetable.getDayOrderOverrideForDate(todayDate, calendarRes)
+            }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -419,13 +439,25 @@ fun DashboardScreen() {
                         Icon(Icons.Rounded.School, null, tint = colors.accent, modifier = Modifier.size(18.dp))
                     }
                     Spacer(modifier = Modifier.width(spacing.sm))
-                    Text(
-                        text = "Today's Classes",
-                        style = AmazeTheme.typography.subheading.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = colors.textPrimary
+                    Column {
+                        Text(
+                            text = "Today's Classes",
+                            style = AmazeTheme.typography.subheading.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = colors.textPrimary
+                            )
                         )
-                    )
+                        if (dayOrderOverride != null) {
+                            Text(
+                                text = "⚡ ${dayOrderOverride.name} Day Order",
+                                style = AmazeTheme.typography.caption.copy(
+                                    color = colors.accent,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
                 }
                 if (todayClasses.isNotEmpty()) {
                     Box(
@@ -513,20 +545,39 @@ fun DashboardScreen() {
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     if (isCurrent) {
+                                        val livePulse = rememberInfiniteTransition(label = "livePulse")
+                                        val liveBgAlpha by livePulse.animateFloat(
+                                            initialValue = 0.10f,
+                                            targetValue = 0.30f,
+                                            animationSpec = InfiniteRepeatableSpec(
+                                                animation = tween(700),
+                                                repeatMode = RepeatMode.Reverse
+                                            ),
+                                            label = "liveBgAlpha"
+                                        )
                                         Box(
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(radius.xs))
-                                                .background(colors.accent.copy(alpha = 0.15f))
-                                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                                                .clip(CircleShape)
+                                                .background(colors.danger.copy(alpha = liveBgAlpha))
+                                                .border(1.dp, colors.danger.copy(alpha = 0.4f), CircleShape)
+                                                .padding(horizontal = 10.dp, vertical = 3.dp)
                                         ) {
-                                            Text(
-                                                "LIVE",
-                                                style = AmazeTheme.typography.smallLabel.copy(
-                                                    color = colors.accent,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 10.sp
+                                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(6.dp)
+                                                        .clip(CircleShape)
+                                                        .background(colors.danger)
                                                 )
-                                            )
+                                                Text(
+                                                    "LIVE",
+                                                    style = AmazeTheme.typography.smallLabel.copy(
+                                                        color = colors.danger,
+                                                        fontWeight = FontWeight.Black,
+                                                        fontSize = 10.sp
+                                                    )
+                                                )
+                                            }
                                         }
                                         Spacer(modifier = Modifier.width(spacing.xs))
                                     }

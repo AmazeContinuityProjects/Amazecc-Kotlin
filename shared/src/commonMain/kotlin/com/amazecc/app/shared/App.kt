@@ -178,7 +178,8 @@ fun App() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .align(Alignment.BottomCenter)
-                                .padding(bottom = 16.dp)
+                                .navigationBarsPadding()
+                                .padding(bottom = 8.dp)
                         ) {
                             com.amazecc.app.shared.ui.components.BottomNavigationBar()
                         }

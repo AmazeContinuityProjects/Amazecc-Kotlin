@@ -1,13 +1,13 @@
 package com.amazecc.app.shared.ui.screens
 
-import amazecc_app.shared.generated.resources.Res
-import amazecc_app.shared.generated.resources.ic_launcher
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,7 +25,6 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
-import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun SplashScreen() {
@@ -63,13 +62,11 @@ fun SplashScreen() {
                     .border(2.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(28.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Image(
-                    painter = painterResource(Res.drawable.ic_launcher),
+                androidx.compose.material3.Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Rounded.School,
                     contentDescription = "AmazeCC Logo",
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(RoundedCornerShape(20.dp)),
-                    contentScale = ContentScale.Crop
+                    tint = colors.accent,
+                    modifier = Modifier.size(64.dp)
                 )
             }
 

@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -26,6 +27,10 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
@@ -98,34 +103,52 @@ fun FacultyInfoScreen() {
                 ) {
                     schools.forEach { school ->
                         val isSelected = selectedSchoolId == school.id
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = if (isSelected) colors.accent else colors.surface,
-                            onClick = {
-                                if (school.id != selectedSchoolId) {
-                                    selectedSchoolId = school.id
-                                    faculties = emptyList()
-                                    searchTerm = ""
-                                    error = null
-                                    loadingFaculties = true
-                                    scope.launch {
-                                        try {
-                                            val res = AmazeClient.postFacultyScrape(school.id)
-                                            if (res.success) faculties = res.faculties
-                                            else error = res.error
-                                        } catch (e: Exception) { error = e.message }
-                                        loadingFaculties = false
-                                    }
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val scale by animateFloatAsState(
+                            targetValue = if (isPressed) 0.94f else 1f,
+                            animationSpec = bouncySpring()
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
                                 }
-                            }
+                                .clip(CircleShape)
+                                .background(if (isSelected) colors.accent else colors.surface)
+                                .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    onClick = {
+                                        if (school.id != selectedSchoolId) {
+                                            selectedSchoolId = school.id
+                                            faculties = emptyList()
+                                            searchTerm = ""
+                                            error = null
+                                            loadingFaculties = true
+                                            scope.launch {
+                                                try {
+                                                    val res = AmazeClient.postFacultyScrape(school.id)
+                                                    if (res.success) faculties = res.faculties
+                                                    else error = res.error
+                                                } catch (e: Exception) { error = e.message }
+                                                loadingFaculties = false
+                                            }
+                                        }
+                                    }
+                                )
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 school.school_name,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                                 style = AmazeTheme.typography.body.copy(
                                     fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (isSelected) Color.White else colors.textPrimary
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) colors.background else colors.textPrimary
                                 ),
                                 maxLines = 1
                             )

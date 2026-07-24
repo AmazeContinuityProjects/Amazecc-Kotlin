@@ -34,7 +34,7 @@ fun HostelScreen() {
     var activeSubTab by remember { mutableStateOf("Details") }
     val tabs = listOf("Details", "Mess Menu", "Laundry", "Counselling")
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
@@ -47,7 +47,8 @@ fun HostelScreen() {
             onRefresh = AppState::refreshHostel
         )
 
-        Column(modifier = Modifier.weight(1f)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            com.amazecc.app.shared.ui.components.HeaderSpacer()
             // Horizontal scrollable tabs
             Row(
                 modifier = Modifier

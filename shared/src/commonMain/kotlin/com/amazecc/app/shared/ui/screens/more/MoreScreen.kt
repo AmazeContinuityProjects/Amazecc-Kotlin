@@ -73,7 +73,7 @@ fun MoreScreen() {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = colors.background
     ) { paddingValues ->
-    Column(modifier = Modifier.fillMaxSize().background(colors.background).padding(paddingValues).padding(horizontal = 16.dp)) {
+    Box(modifier = Modifier.fillMaxSize().background(colors.background).padding(paddingValues)) {
         ScreenHeader(
             title = "More",
             description = "Modules, Communities & Info",
@@ -81,7 +81,8 @@ fun MoreScreen() {
             showSyncButton = false
         )
 
-        Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 88.dp)) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 88.dp)) {
+            com.amazecc.app.shared.ui.components.HeaderSpacer()
 
             Text("App Library", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart1))
             Spacer(modifier = Modifier.height(12.dp))

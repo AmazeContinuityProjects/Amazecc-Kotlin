@@ -11,8 +11,7 @@ import org.jetbrains.compose.resources.Font
 @Composable
 fun getOutfitFontFamily() = FontFamily(
     Font(Res.font.outfit_regular, FontWeight.Normal),
-    Font(Res.font.outfit_bold, FontWeight.Bold),
-    Font(Res.font.outfit_black, FontWeight.Black)
+    Font(Res.font.outfit_bold, FontWeight.Bold)
 )
 
 @Composable
@@ -20,8 +19,7 @@ fun getGeistFontFamily() = FontFamily(
     Font(Res.font.geist_regular, FontWeight.Normal),
     Font(Res.font.geist_medium, FontWeight.Medium),
     Font(Res.font.geist_semibold, FontWeight.SemiBold),
-    Font(Res.font.geist_bold, FontWeight.Bold),
-    Font(Res.font.geist_black, FontWeight.Black)
+    Font(Res.font.geist_bold, FontWeight.Bold)
 )
 
 data class AmazeTypography(
@@ -42,7 +40,7 @@ fun getAmazeTypography(): AmazeTypography {
     return AmazeTypography(
         display = TextStyle(
             fontFamily = displayFont,
-            fontWeight = FontWeight.Black,
+            fontWeight = FontWeight.Bold,
             fontSize = 32.sp,
             lineHeight = 36.sp,
             letterSpacing = (-0.6).sp
@@ -84,7 +82,7 @@ fun getAmazeTypography(): AmazeTypography {
         ),
         categoryLabel = TextStyle(
             fontFamily = displayFont,
-            fontWeight = FontWeight.ExtraBold,
+            fontWeight = FontWeight.Bold,
             fontSize = 11.sp,
             lineHeight = 14.sp,
             letterSpacing = 1.2.sp

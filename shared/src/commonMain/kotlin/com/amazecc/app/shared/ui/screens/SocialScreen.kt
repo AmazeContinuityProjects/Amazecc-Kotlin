@@ -24,6 +24,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import com.amazecc.app.shared.ui.components.bouncySpring
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -47,7 +52,7 @@ fun SocialScreen() {
     val tabs = listOf("Friends", "Groups", "Common Slots", "Share Schedule")
     var activeTab by remember { mutableStateOf(0) }
 
-    Column(
+    Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
     ) {
         ScreenHeader(
@@ -58,19 +63,53 @@ fun SocialScreen() {
             onRefresh = AppState::refreshCurrentSemester
         )
 
-        TabRow(
-            selectedTabIndex = activeTab,
-            containerColor = colors.background,
-            contentColor = colors.accent
+        Column(modifier = Modifier.fillMaxSize()) {
+            com.amazecc.app.shared.ui.components.HeaderSpacer()
+
+            Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             tabs.forEachIndexed { index, tab ->
-                Tab(
-                    selected = activeTab == index,
-                    onClick = { activeTab = index },
-                    text = { Text(tab, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)) },
-                    selectedContentColor = colors.accent,
-                    unselectedContentColor = colors.textSecondary
+                val isSelected = activeTab == index
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(
+                    targetValue = if (isPressed) 0.94f else 1f,
+                    animationSpec = bouncySpring()
                 )
+
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        }
+                        .clip(CircleShape)
+                        .background(if (isSelected) colors.accent else colors.surface)
+                        .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = { activeTab = index }
+                        )
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = tab,
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        ),
+                        color = if (isSelected) colors.background else colors.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
 
@@ -83,6 +122,7 @@ fun SocialScreen() {
             }
         }
     }
+}
 }
 
 @Composable
@@ -487,3 +527,4 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         }
     }
 }
+
