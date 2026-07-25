@@ -2,6 +2,7 @@ package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
+import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.config.SlotMap
@@ -213,6 +214,12 @@ object AppState {
     private val _attendance = MutableStateFlow<AttendanceRes?>(null)
     val attendance: StateFlow<AttendanceRes?> = _attendance.asStateFlow()
 
+    private val _currentLiveClass = MutableStateFlow<CourseAttendanceInfo?>(null)
+    val currentLiveClass: StateFlow<CourseAttendanceInfo?> = _currentLiveClass.asStateFlow()
+    
+    private val _liveClassTick = MutableStateFlow(0)
+    val liveClassTick: StateFlow<Int> = _liveClassTick.asStateFlow()
+
     private val _allSemesterAttendance = MutableStateFlow<Map<String, AttendanceRes?>>(emptyMap())
     val allSemesterAttendance: StateFlow<Map<String, AttendanceRes?>> = _allSemesterAttendance.asStateFlow()
 
@@ -401,29 +408,29 @@ object AppState {
 
     // ── Mark cached modules as SUCCESS in SyncEngine ──
     private fun updateModuleStatesFromCache() {
-        if (_attendance.value != null) SyncEngine.updateModuleState(SyncModule.ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_timetable.value != null) SyncEngine.updateModuleState(SyncModule.TIMETABLE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_marks.value != null) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_allGrades.value != null) SyncEngine.updateModuleState(SyncModule.GRADES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_curriculum.value != null) SyncEngine.updateModuleState(SyncModule.CURRICULUM, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_hostelDetails.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_DETAILS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_hostelLeaves.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_LEAVES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_examSchedule.value != null) SyncEngine.updateModuleState(SyncModule.EXAM_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_calendar.value != null) SyncEngine.updateModuleState(SyncModule.CALENDAR, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_calendarsList.value != null) SyncEngine.updateModuleState(SyncModule.CALENDARS_LIST, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_qcmView.value != null) SyncEngine.updateModuleState(SyncModule.QCM_VIEW, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_payments.value != null) SyncEngine.updateModuleState(SyncModule.PAYMENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_library.value != null) SyncEngine.updateModuleState(SyncModule.LIBRARY, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_transportData.value != null) SyncEngine.updateModuleState(SyncModule.TRANSPORT, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_buses.value != null) SyncEngine.updateModuleState(SyncModule.BUSES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_lms.value != null) SyncEngine.updateModuleState(SyncModule.LMS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_events.value != null) SyncEngine.updateModuleState(SyncModule.EVENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_clubs.value != null) SyncEngine.updateModuleState(SyncModule.CLUBS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_cachedStudentProfile.value != null) SyncEngine.updateModuleState(SyncModule.STUDENT_PROFILE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_vitolData.value != null) SyncEngine.updateModuleState(SyncModule.VITOL, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_cabTrips.value != null) SyncEngine.updateModuleState(SyncModule.CAB_TRIPS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_allSemesterAttendance.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
-        if (_allSemesterMarks.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now()))
+        if (_attendance.value != null) SyncEngine.updateModuleState(SyncModule.ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_timetable.value != null) SyncEngine.updateModuleState(SyncModule.TIMETABLE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_marks.value != null) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_allGrades.value != null) SyncEngine.updateModuleState(SyncModule.GRADES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_curriculum.value != null) SyncEngine.updateModuleState(SyncModule.CURRICULUM, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_hostelDetails.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_DETAILS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_hostelLeaves.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_LEAVES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_examSchedule.value != null) SyncEngine.updateModuleState(SyncModule.EXAM_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_calendar.value != null) SyncEngine.updateModuleState(SyncModule.CALENDAR, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_calendarsList.value != null) SyncEngine.updateModuleState(SyncModule.CALENDARS_LIST, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_qcmView.value != null) SyncEngine.updateModuleState(SyncModule.QCM_VIEW, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_payments.value != null) SyncEngine.updateModuleState(SyncModule.PAYMENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_library.value != null) SyncEngine.updateModuleState(SyncModule.LIBRARY, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_transportData.value != null) SyncEngine.updateModuleState(SyncModule.TRANSPORT, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_buses.value != null) SyncEngine.updateModuleState(SyncModule.BUSES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_lms.value != null) SyncEngine.updateModuleState(SyncModule.LMS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_events.value != null) SyncEngine.updateModuleState(SyncModule.EVENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_clubs.value != null) SyncEngine.updateModuleState(SyncModule.CLUBS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_cachedStudentProfile.value != null) SyncEngine.updateModuleState(SyncModule.STUDENT_PROFILE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_vitolData.value != null) SyncEngine.updateModuleState(SyncModule.VITOL, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_cabTrips.value != null) SyncEngine.updateModuleState(SyncModule.CAB_TRIPS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_allSemesterAttendance.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_allSemesterMarks.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
     }
 
     fun restoreSession(): Boolean {
@@ -578,7 +585,7 @@ object AppState {
 
     val todayTasks: List<HomeworkTask>
         get() {
-            val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+            val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
             return _tasks.value.filter { it.dueDate == today && !it.completed }
         }
 
@@ -1722,6 +1729,100 @@ object AppState {
         }
     }
 
+    private fun updateOnboardingStep(name: String, status: String) {
+        _onboardingSyncSteps.value = _onboardingSyncSteps.value.map {
+            if (it.name == name) it.copy(status = status) else it
+        }
+    }
+
+    private suspend fun syncOnboardingAttendance(sem: String) {
+        updateOnboardingStep("Attendance", "syncing")
+        try {
+            val res = AmazeClient.getAcademicData(sem)
+            if (res.attendance.error == null) {
+                _attendance.value = res.attendance
+                cacheData(SettingsManager.CACHE_ATTENDANCE, res.attendance)
+                res.marks?.let {
+                    _marks.value = it
+                    cacheData(SettingsManager.CACHE_MARKS, it)
+                }
+            }
+            updateOnboardingStep("Attendance", "done")
+        } catch (_: Exception) { updateOnboardingStep("Attendance", "failed") }
+    }
+
+    private suspend fun syncOnboardingTimetable(sem: String) {
+        updateOnboardingStep("Timetable", "syncing")
+        try {
+            val res = AmazeClient.getTimetable(sem)
+            if (res.error == null) {
+                _timetable.value = res
+                cacheData(SettingsManager.CACHE_TIMETABLE, res)
+            }
+            updateOnboardingStep("Timetable", "done")
+        } catch (_: Exception) { updateOnboardingStep("Timetable", "failed") }
+    }
+
+    private suspend fun syncOnboardingGrades() {
+        updateOnboardingStep("Grades", "syncing")
+        try {
+            val res = AmazeClient.getAllGrades()
+            if (res.error == null) {
+                _allGrades.value = res
+                cacheData(SettingsManager.CACHE_GRADES, res)
+            }
+            updateOnboardingStep("Grades", "done")
+        } catch (_: Exception) { updateOnboardingStep("Grades", "failed") }
+    }
+
+    private suspend fun syncOnboardingCurriculum(sem: String) {
+        updateOnboardingStep("Curriculum", "syncing")
+        try {
+            val res = AmazeClient.getCurriculum(semesterId = sem)
+            if (res.error == null) {
+                _curriculum.value = res
+                cacheData(SettingsManager.CACHE_CURRICULUM, res)
+            }
+            updateOnboardingStep("Curriculum", "done")
+        } catch (_: Exception) { updateOnboardingStep("Curriculum", "failed") }
+    }
+
+    private suspend fun syncOnboardingHostel() {
+        updateOnboardingStep("Hostel", "syncing")
+        try {
+            val res = AmazeClient.getHostelDetails()
+            if (res.error == null) {
+                _hostelDetails.value = res
+                cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, res)
+            }
+            updateOnboardingStep("Hostel", "done")
+        } catch (_: Exception) { updateOnboardingStep("Hostel", "failed") }
+    }
+
+    private suspend fun syncOnboardingPayments() {
+        updateOnboardingStep("Payments", "syncing")
+        try {
+            val res = AmazeClient.getPayments()
+            if (res.error == null) {
+                _payments.value = res
+                cacheData(SettingsManager.CACHE_PAYMENTS, res)
+            }
+            updateOnboardingStep("Payments", "done")
+        } catch (_: Exception) { updateOnboardingStep("Payments", "failed") }
+    }
+
+    private suspend fun syncOnboardingEvents() {
+        updateOnboardingStep("Events", "syncing")
+        try {
+            val res = AmazeClient.getEvents()
+            if (res.error == null) {
+                _events.value = res
+                cacheData(SettingsManager.CACHE_EVENTS, res)
+            }
+            updateOnboardingStep("Events", "done")
+        } catch (_: Exception) { updateOnboardingStep("Events", "failed") }
+    }
+
     fun startOnboardingSync() {
         scope.launch {
             val steps = listOf(
@@ -1730,14 +1831,8 @@ object AppState {
             )
             _onboardingSyncSteps.value = steps.map { AppState.SyncStep(it, "pending") }
 
-            fun updateStep(name: String, status: String) {
-                _onboardingSyncSteps.value = _onboardingSyncSteps.value.map {
-                    if (it.name == name) it.copy(status = status) else it
-                }
-            }
-
             // Session refresh
-            updateStep("Session", "syncing")
+            updateOnboardingStep("Session", "syncing")
             try {
                 val creds = SettingsManager.getCredentials()
                 if (creds != null) {
@@ -1753,93 +1848,19 @@ object AppState {
                         loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
                     }
                 }
-                updateStep("Session", "done")
-            } catch (_: Exception) { updateStep("Session", "failed") }
+                updateOnboardingStep("Session", "done")
+            } catch (_: Exception) { updateOnboardingStep("Session", "failed") }
 
             val sem = _selectedSemester.value
 
             supervisorScope {
-                launch {
-                    updateStep("Attendance", "syncing")
-                    try {
-                        val res = AmazeClient.getAcademicData(sem)
-                        if (res.attendance.error == null) {
-                            _attendance.value = res.attendance
-                            cacheData(SettingsManager.CACHE_ATTENDANCE, res.attendance)
-                            res.marks?.let {
-                                _marks.value = it
-                                cacheData(SettingsManager.CACHE_MARKS, it)
-                            }
-                        }
-                        updateStep("Attendance", "done")
-                    } catch (_: Exception) { updateStep("Attendance", "failed") }
-                }
-                launch {
-                    updateStep("Timetable", "syncing")
-                    try {
-                        val res = AmazeClient.getTimetable(sem)
-                        if (res.error == null) {
-                            _timetable.value = res
-                            cacheData(SettingsManager.CACHE_TIMETABLE, res)
-                        }
-                        updateStep("Timetable", "done")
-                    } catch (_: Exception) { updateStep("Timetable", "failed") }
-                }
-                launch {
-                    updateStep("Grades", "syncing")
-                    try {
-                        val res = AmazeClient.getAllGrades()
-                        if (res.error == null) {
-                            _allGrades.value = res
-                            cacheData(SettingsManager.CACHE_GRADES, res)
-                        }
-                        updateStep("Grades", "done")
-                    } catch (_: Exception) { updateStep("Grades", "failed") }
-                }
-                launch {
-                    updateStep("Curriculum", "syncing")
-                    try {
-                        val res = AmazeClient.getCurriculum(semesterId = sem)
-                        if (res.error == null) {
-                            _curriculum.value = res
-                            cacheData(SettingsManager.CACHE_CURRICULUM, res)
-                        }
-                        updateStep("Curriculum", "done")
-                    } catch (_: Exception) { updateStep("Curriculum", "failed") }
-                }
-                launch {
-                    updateStep("Hostel", "syncing")
-                    try {
-                        val res = AmazeClient.getHostelDetails()
-                        if (res.error == null) {
-                            _hostelDetails.value = res
-                            cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, res)
-                        }
-                        updateStep("Hostel", "done")
-                    } catch (_: Exception) { updateStep("Hostel", "failed") }
-                }
-                launch {
-                    updateStep("Payments", "syncing")
-                    try {
-                        val res = AmazeClient.getPayments()
-                        if (res.error == null) {
-                            _payments.value = res
-                            cacheData(SettingsManager.CACHE_PAYMENTS, res)
-                        }
-                        updateStep("Payments", "done")
-                    } catch (_: Exception) { updateStep("Payments", "failed") }
-                }
-                launch {
-                    updateStep("Events", "syncing")
-                    try {
-                        val res = AmazeClient.getEvents()
-                        if (res.error == null) {
-                            _events.value = res
-                            cacheData(SettingsManager.CACHE_EVENTS, res)
-                        }
-                        updateStep("Events", "done")
-                    } catch (_: Exception) { updateStep("Events", "failed") }
-                }
+                launch { syncOnboardingAttendance(sem) }
+                launch { syncOnboardingTimetable(sem) }
+                launch { syncOnboardingGrades() }
+                launch { syncOnboardingCurriculum(sem) }
+                launch { syncOnboardingHostel() }
+                launch { syncOnboardingPayments() }
+                launch { syncOnboardingEvents() }
             }
         }
     }

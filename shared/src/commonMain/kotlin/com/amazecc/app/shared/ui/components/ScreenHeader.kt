@@ -18,6 +18,7 @@ import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,6 +33,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
+import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
@@ -66,7 +68,13 @@ fun ScreenHeader(
 
 @Composable
 fun HeaderSpacer(modifier: Modifier = Modifier) {
-    Spacer(modifier = modifier.fillMaxWidth().statusBarsPadding().height(78.dp))
+    val liveClass by AppState.currentLiveClass.collectAsState()
+    val baseHeight = 78.dp
+    val height by androidx.compose.animation.core.animateDpAsState(
+        targetValue = if (liveClass != null) baseHeight + 70.dp else baseHeight,
+        animationSpec = bouncySpring()
+    )
+    Spacer(modifier = modifier.fillMaxWidth().statusBarsPadding().height(height))
 }
 
 @Composable
@@ -136,11 +144,12 @@ fun FloatingScreenHeader(
             .border(1.dp, colors.accent.copy(alpha = borderAlpha), RoundedCornerShape(26.dp))
             .padding(vertical = 12.dp, horizontal = 14.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 if (showBackButton) {
                     IconButton(
@@ -247,6 +256,108 @@ fun FloatingScreenHeader(
                         )
                     }
                 }
+            }
+        }
+        
+        val currentLiveClass by AppState.currentLiveClass.collectAsState()
+        val tick by AppState.liveClassTick.collectAsState()
+        
+        androidx.compose.animation.AnimatedVisibility(
+            visible = currentLiveClass != null,
+            enter = androidx.compose.animation.slideInVertically(initialOffsetY = { -it }) + androidx.compose.animation.fadeIn(),
+        ) {
+            currentLiveClass?.let { cls ->
+                Spacer(modifier = Modifier.height(14.dp))
+                DynamicIslandLiveClass(
+                    cls = cls,
+                    tick = tick,
+                    colors = colors
+                )
+            }
+        }
+        } // Closing for Column
+    }
+}
+
+@Composable
+fun DynamicIslandLiveClass(
+    cls: CourseAttendanceInfo,
+    tick: Int,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val livePulse = androidx.compose.animation.core.rememberInfiniteTransition(label = "livePulse")
+    val liveBgAlpha by livePulse.animateFloat(
+        initialValue = 0.40f,
+        targetValue = 0.80f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(800),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "liveBgAlpha"
+    )
+    
+    val remaining = remember(tick) { com.amazecc.app.shared.utils.AttendanceTimetable.remainingMinutes(cls.time) }
+    val minsStr = if (remaining >= 60) "${remaining / 60}h ${remaining % 60}m" else "${remaining}m"
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(32.dp))
+            .background(Color.Black.copy(alpha = 0.85f))
+            .border(1.5.dp, colors.accent.copy(alpha = liveBgAlpha), RoundedCornerShape(32.dp))
+            .clickable { cls.courseCode?.let { AppState.openCourseDetail(it) } }
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(colors.accent.copy(alpha = liveBgAlpha))
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "LIVE NOW",
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            color = colors.accent,
+                            fontWeight = FontWeight.Black,
+                            fontSize = 9.sp
+                        )
+                    )
+                    Text(
+                        text = cls.courseTitle ?: "Class",
+                        style = AmazeTheme.typography.body.copy(
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(colors.accent.copy(alpha = 0.15f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "$minsStr left",
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        color = colors.accent,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 12.sp
+                    )
+                )
             }
         }
     }

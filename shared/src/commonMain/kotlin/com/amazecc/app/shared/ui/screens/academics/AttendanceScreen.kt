@@ -336,8 +336,8 @@ fun OverallPredictorScreen() {
         }
 
         val totalWorkingDays = allWorkingDays.size
-        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-        val todayVal = today.year * 10000 + today.monthNumber * 100 + today.dayOfMonth
+        val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val todayVal = today.year * 10000 + today.month.number * 100 + today.dayOfMonth
         val remainingDays = allWorkingDays.count { (y, m, d) ->
             val dateVal = y * 10000 + m * 100 + d
             dateVal >= todayVal && (cutoffDate == null || dateVal <= cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day)
@@ -769,9 +769,9 @@ private fun computeFutureClasses(
         val courseDayAbbrs = courseDays.map { it.name }
 
         val futureDates = mutableListOf<FutureDate>()
-        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         // Use start of today so we include today's remaining classes
-        val todayVal = today.year * 10000 + today.monthNumber * 100 + today.dayOfMonth
+        val todayVal = today.year * 10000 + today.month.number * 100 + today.dayOfMonth
         for ((y, m, d) in allWorkingDays) {
             val dateVal = y * 10000 + m * 100 + d
             // Only count instructional days from today onwards (>= today)
@@ -810,7 +810,7 @@ fun TimetableGridScreen() {
     val dayFull = mapOf("MON" to "Monday", "TUE" to "Tuesday", "WED" to "Wednesday", "THU" to "Thursday", "FRI" to "Friday", "SAT" to "Saturday")
 
     val calendarRes by AppState.calendar.collectAsState()
-    val todayDate = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
+    val todayDate = remember { kotlinx.datetime.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
     val mondayDate = remember(todayDate) { todayDate.minus(DatePeriod(days = todayDate.dayOfWeek.ordinal)) }
 
     // Map each calendar day of week to any Day Order override for this week's dates

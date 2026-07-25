@@ -73,6 +73,7 @@ fun GradesScreen() {
             showBackButton = true,
             showSyncButton = false
         )
+        com.amazecc.app.shared.ui.components.HeaderSpacer()
 
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 88.dp),
@@ -101,8 +102,8 @@ fun GradesScreen() {
             // Stats Grid
             StatsGrid(gradeList, colors)
 
-            // Course List
-            CourseList(gradeList, expandedCourseId, { expandedCourseId = it }, colors)
+            // Grades List
+            GradesList(gradeList, expandedCourseId, { expandedCourseId = it }, colors)
         }
     }
 }
@@ -321,25 +322,26 @@ private fun StatCard(label: String, value: String, icon: androidx.compose.ui.gra
 }
 
 @Composable
-private fun CourseList(gradeList: List<GradeItem>, expandedCourseId: String?, onToggle: (String?) -> Unit, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Courses", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+private fun GradesList(gradeList: List<GradeItem>, expandedCourseId: String?, onToggle: (String?) -> Unit, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text("Course Grades", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         if (gradeList.isEmpty()) {
             Text("No courses found for this semester.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
         } else {
             gradeList.forEachIndexed { idx, course ->
                 val key = "${course.courseCode}-$idx"
-                CourseCard(course, expandedCourseId == key, { onToggle(if (expandedCourseId == key) null else key) }, colors)
+                val gradeIdx = gradeColorIndex[course.grade] ?: 4
+                val gradeColor = gradeChartColor(gradeIdx, colors)
+                val isPass = course.grade !in listOf("F", "N")
+                
+                GradeCourseCard(course, expandedCourseId == key, { onToggle(if (expandedCourseId == key) null else key) }, gradeColor, isPass, colors)
             }
         }
     }
 }
 
 @Composable
-private fun CourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> Unit, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    val gradeIdx = gradeColorIndex[course.grade] ?: 4
-    val gradeColor = gradeChartColor(gradeIdx, colors)
-    val isPass = course.grade !in listOf("F", "N")
+private fun GradeCourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> Unit, gradeColor: Color, isPass: Boolean, colors: com.amazecc.app.shared.theme.AmazeColors) {
     val gColor = if (isPass) colors.chart1 else colors.chart5
 
     Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(18.dp)).clickable { onToggle() }) {

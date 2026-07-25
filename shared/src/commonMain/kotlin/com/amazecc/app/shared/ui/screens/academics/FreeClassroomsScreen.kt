@@ -27,8 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.data.CampusSchemas
+import com.amazecc.app.shared.data.FfcsReportData
 import com.amazecc.app.shared.model.CampusSchema
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
@@ -39,8 +39,6 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.Json
-import org.jetbrains.compose.resources.ExperimentalResourceApi
-import amazecc_app.shared.generated.resources.Res
 
 data class SimpleParsedCourse(
     val code: String,
@@ -74,7 +72,35 @@ private fun timeToMinutes(timeStr: String): Int {
     return hours * 60 + minutes
 }
 
-@OptIn(ExperimentalResourceApi::class)
+private fun parseCsv(text: String): List<SimpleParsedCourse> {
+    val lines = text.replace("\r", "").split("\n").drop(1)
+    return lines.mapNotNull { line ->
+        if (line.isBlank()) return@mapNotNull null
+        var inQuotes = false
+        val cols = mutableListOf<String>()
+        val current = StringBuilder()
+        for (char in line) {
+            if (char == '\"') {
+                inQuotes = !inQuotes
+            } else if (char == ',' && !inQuotes) {
+                cols.add(current.toString().trim())
+                current.clear()
+            } else {
+                current.append(char)
+            }
+        }
+        cols.add(current.toString().trim())
+
+        if (cols.size >= 7) {
+            val code = cols.getOrNull(0) ?: ""
+            val type = cols.getOrNull(2) ?: ""
+            val slot = cols.getOrNull(4) ?: ""
+            val room = cols.getOrNull(6) ?: ""
+            if (code.isNotEmpty() && room.isNotEmpty()) SimpleParsedCourse(code, type, room, slot) else null
+        } else null
+    }
+}
+
 @Composable
 fun FreeClassroomsScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
@@ -146,108 +172,79 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
 
     var courses by remember { mutableStateOf<List<SimpleParsedCourse>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf(false) }
     var refreshTrigger by remember { mutableStateOf(0) }
 
-    // Read & Parse ffcsReport.csv (handling \r\n cleanly)
     LaunchedEffect(refreshTrigger) {
         loading = true
+        loadError = false
         try {
             val parsed = withContext(Dispatchers.Default) {
-                val bytes = try {
-                    Res.readBytes("files/ffcsReport.csv")
-                } catch (e: Exception) {
-                    try {
-                        AmazeClient.getFFCSReport()
-                    } catch (innerE: Exception) {
-                        null
-                    }
-                }
-                
-                if (bytes == null) return@withContext emptyList<SimpleParsedCourse>()
-                
-                val text = bytes.decodeToString().replace("\r", "")
-                val lines = text.split("\n").drop(1)
-                
-                lines.mapNotNull { line ->
-                    if (line.isBlank()) return@mapNotNull null
-                    var inQuotes = false
-                    val cols = mutableListOf<String>()
-                    val current = StringBuilder()
-                    for (char in line) {
-                        if (char == '\"') {
-                            inQuotes = !inQuotes
-                        } else if (char == ',' && !inQuotes) {
-                            cols.add(current.toString().trim())
-                            current.clear()
-                        } else {
-                            current.append(char)
-                        }
-                    }
-                    cols.add(current.toString().trim())
-                    
-                    if (cols.size >= 7) {
-                        val code = cols.getOrNull(0) ?: ""
-                        val type = cols.getOrNull(2) ?: ""
-                        val slot = cols.getOrNull(4) ?: ""
-                        val room = cols.getOrNull(6) ?: ""
-                        if (code.isNotEmpty() && room.isNotEmpty()) SimpleParsedCourse(code, type, room, slot) else null
-                    } else null
-                }
+                parseCsv(FfcsReportData.CSV_DATA)
             }
             courses = parsed
+            if (parsed.isEmpty()) loadError = true
         } catch (e: Exception) {
             e.printStackTrace()
+            loadError = true
         } finally {
             loading = false
         }
     }
 
-    // Time-based Free Rooms Calculation
-    val freeRoomsData = remember(selectedDay, selectedTime, courses, schema) {
-        if (courses.isEmpty() || selectedTime.isEmpty()) return@remember emptyList<Pair<String, String>>()
-        
+    // Free Rooms Calculation (exact match approach matching reference amazecc)
+    data class RoomCounts(val theory: Int, val lab: Int)
+
+    val freeRoomsByBlock = remember(selectedDay, selectedTime, courses, schema) {
+        if (courses.isEmpty() || selectedTime.isEmpty()) return@remember emptyMap<String, Pair<List<String>, List<String>>>()
+
         val reqTimeSplit = selectedTime.split(" - ")
-        if (reqTimeSplit.size < 2) return@remember emptyList<Pair<String, String>>()
-        val reqStartMin = timeToMinutes(reqTimeSplit[0])
-        val reqEndMin = timeToMinutes(reqTimeSplit[1])
+        if (reqTimeSplit.size < 2) return@remember emptyMap<String, Pair<List<String>, List<String>>>()
+        val reqStart = reqTimeSplit[0].trim()
+        val reqEnd = reqTimeSplit[1].trim()
+        
+        val reqStartMins = timeToMinutes(reqStart)
+        val reqEndMins = timeToMinutes(reqEnd)
 
         val targetSlots = mutableSetOf<String>()
-        schema.theory.forEach { p ->
-            if (p.start.isNotEmpty() && p.end.isNotEmpty()) {
-                val pStart = timeToMinutes(p.start)
-                val pEnd = timeToMinutes(p.end)
-                if (pStart < reqEndMin && pEnd > reqStartMin) {
-                    if (p.days.containsKey(selectedDay)) {
-                        (p.days[selectedDay] ?: return@forEach).split("+").forEach { targetSlots.add(it.trim().uppercase()) }
-                    }
-                }
+        val selDayUpper = selectedDay.uppercase()
+
+        for (p in schema.theory) {
+            val pStart = timeToMinutes(p.start)
+            val pEnd = timeToMinutes(p.end)
+            if (pStart < reqEndMins && pEnd > reqStartMins) {
+                val slotsStr = p.days[selDayUpper] ?: ""
+                slotsStr.split("+").forEach { targetSlots.add(it.trim().uppercase()) }
             }
         }
         
-        schema.lab.forEach { p ->
-            if (p.start.isNotEmpty() && p.end.isNotEmpty()) {
-                val pStart = timeToMinutes(p.start)
-                val pEnd = timeToMinutes(p.end)
-                if (pStart < reqEndMin && pEnd > reqStartMin) {
-                    if (p.days.containsKey(selectedDay)) {
-                        (p.days[selectedDay] ?: return@forEach).split("+").forEach { targetSlots.add(it.trim().uppercase()) }
-                    }
-                }
+        for (p in schema.lab) {
+            val pStart = timeToMinutes(p.start)
+            val pEnd = timeToMinutes(p.end)
+            if (pStart < reqEndMins && pEnd > reqStartMins) {
+                val slotsStr = p.days[selDayUpper] ?: ""
+                slotsStr.split("+").forEach { targetSlots.add(it.trim().uppercase()) }
             }
         }
+
+        if (targetSlots.isEmpty()) return@remember emptyMap<String, Pair<List<String>, List<String>>>()
 
         val allRooms = mutableSetOf<String>()
         val occupiedRooms = mutableSetOf<String>()
-        val roomTypes = mutableMapOf<String, String>()
+        val roomCounts = mutableMapOf<String, RoomCounts>()
 
         for (c in courses) {
             val r = c.room.uppercase().trim()
-            if (r.isEmpty() || r == "NIL" || r.contains("ONLINE") || r == "N/A") continue
+            if (r.isEmpty() || r == "NIL" || r.contains("ONLINE") || r == "N/A" || r == "UNK-UNK") continue
             allRooms.add(r)
 
+            val current = roomCounts.getOrPut(r) { RoomCounts(0, 0) }
             val t = c.type.uppercase()
-            val isLab = t.contains("LA") || t == "LO" || c.slot.uppercase().contains("L")
-            roomTypes[r] = if (isLab) "Lab" else "Theory"
+            if (t.contains("LA") || t == "LO" || c.slot.uppercase().contains("L")) {
+                roomCounts[r] = RoomCounts(current.theory, current.lab + 1)
+            } else {
+                roomCounts[r] = RoomCounts(current.theory + 1, current.lab)
+            }
 
             val cSlots = c.slot.split("+").map { it.trim().uppercase() }
             if (targetSlots.any { tSlot -> cSlots.contains(tSlot) }) {
@@ -255,46 +252,61 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
             }
         }
 
-        val free = allRooms.filter { !occupiedRooms.contains(it) }
-        free.sorted().map { Pair(it, roomTypes[it] ?: "Theory") }
+        val freeRooms = allRooms.filter { !occupiedRooms.contains(it) }
+
+        val grouped = mutableMapOf<String, MutableList<Pair<String, String>>>()
+        for (room in freeRooms) {
+            val block = extractBlockName(room)
+            val bk = if (block.isNotBlank()) block else "OTHER"
+            val counts = roomCounts[room] ?: RoomCounts(0, 0)
+            val type = if (counts.lab > counts.theory) "Lab" else "Theory"
+            grouped.getOrPut(bk) { mutableListOf() }.add(room to type)
+        }
+
+        grouped.mapValues { (_, rooms) ->
+            val theory = rooms.filter { it.second == "Theory" }.map { it.first }.sorted()
+            val lab = rooms.filter { it.second == "Lab" }.map { it.first }.sorted()
+            theory to lab
+        }
     }
 
-    // Dynamic Building Blocks extracted from free rooms
-    val dynamicBlocks = remember(freeRoomsData) {
-        if (freeRoomsData.isEmpty()) listOf("ALL" to 0)
+    val freeRoomsTotal = remember(freeRoomsByBlock) {
+        freeRoomsByBlock.values.sumOf { (theory, lab) -> theory.size + lab.size }
+    }
+
+    val dynamicBlocks = remember(freeRoomsByBlock) {
+        if (freeRoomsByBlock.isEmpty()) listOf("ALL" to 0)
         else {
-            val blockCounts = mutableMapOf<String, Int>()
-            freeRoomsData.forEach { (room, _) ->
-                val block = extractBlockName(room)
-                if (block.isNotBlank()) {
-                    blockCounts[block] = (blockCounts[block] ?: 0) + 1
-                }
-            }
-            val list = blockCounts.entries.sortedByDescending { it.value }.map { it.key to it.value }
-            listOf("ALL" to freeRoomsData.size) + list
+            val list = freeRoomsByBlock.entries.map { (block, rooms) ->
+                block to (rooms.first.size + rooms.second.size)
+            }.sortedByDescending { it.second }
+            listOf("ALL" to freeRoomsTotal) + list
         }
     }
 
-    // Filtered Rooms List
-    val filteredRooms = remember(freeRoomsData, selectedBlock, selectedTypeFilter, searchRoomQuery) {
-        var list = freeRoomsData
-
-        if (!selectedBlock.equals("ALL", ignoreCase = true)) {
-            list = list.filter { (room, _) ->
-                val block = extractBlockName(room)
-                block.equals(selectedBlock, ignoreCase = true) || room.startsWith(selectedBlock, ignoreCase = true)
-            }
+    val filteredRooms = remember(freeRoomsByBlock, selectedBlock, selectedTypeFilter, searchRoomQuery) {
+        val filtered = if (selectedBlock.equals("ALL", ignoreCase = true)) {
+            freeRoomsByBlock
+        } else {
+            freeRoomsByBlock.filterKeys { it.equals(selectedBlock, ignoreCase = true) }
         }
 
-        if (selectedTypeFilter != "ALL") {
-            list = list.filter { (_, type) -> type.equals(selectedTypeFilter, ignoreCase = true) }
+        val result = mutableListOf<Pair<String, String>>()
+        for ((_, rooms) in filtered) {
+            val (theory, lab) = rooms
+            if (selectedTypeFilter == "ALL" || selectedTypeFilter == "Theory") {
+                theory.forEach { room -> result.add(room to "Theory") }
+            }
+            if (selectedTypeFilter == "ALL" || selectedTypeFilter == "Lab") {
+                lab.forEach { room -> result.add(room to "Lab") }
+            }
         }
 
         if (searchRoomQuery.isNotBlank()) {
-            list = list.filter { (room, _) -> room.contains(searchRoomQuery, ignoreCase = true) }
+            result.filter { (room, _) -> room.contains(searchRoomQuery, ignoreCase = true) }
+        } else {
+            result
         }
-
-        list
     }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
@@ -416,43 +428,58 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // ── Free Classrooms Results Summary ──
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${filteredRooms.size} Free Rooms Available",
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                )
-                IconButton(
-                    onClick = { refreshTrigger++ },
-                    modifier = Modifier.size(32.dp).background(colors.accent.copy(alpha = 0.1f), CircleShape)
-                ) {
-                    Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = colors.accent, modifier = Modifier.size(16.dp))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
             if (loading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = colors.accent)
                 }
-            } else if (filteredRooms.isEmpty()) {
+            } else if (loadError) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.MeetingRoom, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                         Spacer(Modifier.height(12.dp))
-                        Text("No free classrooms found.", color = colors.textSecondary, fontWeight = FontWeight.Bold)
-                        Text("Try selecting a different time slot or block.", color = colors.textMuted, fontSize = 12.sp)
+                        Text("Unable to load classroom data.", color = colors.textSecondary, fontWeight = FontWeight.Bold)
+                        Text("No course timetable data available.", color = colors.textMuted, fontSize = 12.sp)
+                        Spacer(Modifier.height(16.dp))
+                        OutlinedButton(onClick = { refreshTrigger++ }) {
+                            Text("Retry")
+                        }
                     }
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
-                    items(filteredRooms) { (room, type) ->
-                        FreeClassroomCard(room, type, colors)
+                // ── Free Classrooms Results Summary ──
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${filteredRooms.size} Free Rooms Available",
+                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    )
+                    IconButton(
+                        onClick = { refreshTrigger++ },
+                        modifier = Modifier.size(32.dp).background(colors.accent.copy(alpha = 0.1f), CircleShape)
+                    ) {
+                        Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = colors.accent, modifier = Modifier.size(16.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                if (filteredRooms.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.MeetingRoom, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                            Spacer(Modifier.height(12.dp))
+                            Text("No free classrooms found.", color = colors.textSecondary, fontWeight = FontWeight.Bold)
+                            Text("Try selecting a different time slot or block.", color = colors.textMuted, fontSize = 12.sp)
+                        }
+                    }
+                } else {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+                        items(filteredRooms) { (room, type) ->
+                            FreeClassroomCard(room, type, colors)
+                        }
                     }
                 }
             }

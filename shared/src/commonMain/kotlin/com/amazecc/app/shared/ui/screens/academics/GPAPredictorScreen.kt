@@ -44,18 +44,25 @@ private val gradePointMap = mapOf(
 fun GPAPredictorScreen() {
     val colors = AmazeTheme.colors
     val marksRes by AppState.marks.collectAsState()
+    val attendanceRes by AppState.attendance.collectAsState()
 
     val currentCgpa = marksRes?.cgpa?.cgpa?.toDoubleOrNull() ?: 0.0
     val creditsEarned = marksRes?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
 
     var activeMode by remember { mutableStateOf("project") }
 
-    // Projection mode state
+    var coursesInitialized by remember { mutableStateOf(false) }
     var courses by remember { mutableStateOf(listOf<ProjectedCourse>()) }
-    var newCourseName by remember { mutableStateOf("") }
-    var newCourseCredits by remember { mutableStateOf("3") }
-    var newCourseGrade by remember { mutableStateOf("A") }
-    var gradeExpanded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(attendanceRes) {
+        if (!coursesInitialized) {
+            val att = attendanceRes?.attendance ?: emptyList()
+            if (att.isNotEmpty()) {
+                courses = att.map { ProjectedCourse(it.courseTitle ?: "Course", 3.0, "A") }.distinctBy { it.name }
+                coursesInitialized = true
+            }
+        }
+    }
 
     // What-if mode state
     var targetCgpa by remember { mutableStateOf("") }
@@ -160,22 +167,19 @@ fun GPAPredictorScreen() {
                     colors = colors
                 )
             } else if (activeMode == "project") {
-                ProjectionMode(
+                InteractiveGradeCanvas(
                     courses = courses,
+                    onCourseChange = { idx, updated ->
+                        val newList = courses.toMutableList()
+                        newList[idx] = updated
+                        courses = newList
+                    },
                     onAdd = { name, cred, grade ->
                         courses = courses + ProjectedCourse(name, cred, grade)
                     },
                     onRemove = { idx ->
                         courses = courses.toMutableList().apply { removeAt(idx) }
                     },
-                    newCourseName = newCourseName,
-                    onNewCourseNameChange = { newCourseName = it },
-                    newCourseCredits = newCourseCredits,
-                    onNewCourseCreditsChange = { newCourseCredits = it },
-                    newCourseGrade = newCourseGrade,
-                    onNewCourseGradeChange = { newCourseGrade = it },
-                    gradeExpanded = gradeExpanded,
-                    onGradeExpandedChange = { gradeExpanded = it },
                     colors = colors
                 )
             } else {
@@ -233,166 +237,96 @@ private fun StatItem(label: String, value: String, icon: androidx.compose.ui.gra
 }
 
 @Composable
-private fun ProjectionMode(
+private fun InteractiveGradeCanvas(
     courses: List<ProjectedCourse>,
+    onCourseChange: (Int, ProjectedCourse) -> Unit,
     onAdd: (String, Double, String) -> Unit,
     onRemove: (Int) -> Unit,
-    newCourseName: String,
-    onNewCourseNameChange: (String) -> Unit,
-    newCourseCredits: String,
-    onNewCourseCreditsChange: (String) -> Unit,
-    newCourseGrade: String,
-    onNewCourseGradeChange: (String) -> Unit,
-    gradeExpanded: Boolean,
-    onGradeExpandedChange: (Boolean) -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val gradeList = listOf("F", "E", "D", "C", "B", "A", "S")
+
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
-            text = "Add Hypothetical Courses",
-            style = AmazeTheme.typography.subheading.copy(
-                fontWeight = FontWeight.Bold,
-                color = colors.textPrimary
-            )
+            text = "Tactile Grade Balancing",
+            style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+        )
+        Text(
+            text = "Slide your expected grades to dynamically balance your CGPA.",
+            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
         )
 
-        OutlinedTextField(
-            value = newCourseName,
-            onValueChange = onNewCourseNameChange,
-            label = { Text("Course Name") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = colors.surface,
-                unfocusedContainerColor = colors.surface,
-                focusedBorderColor = colors.accent,
-                unfocusedBorderColor = colors.border,
-                focusedTextColor = colors.textPrimary,
-                unfocusedTextColor = colors.textPrimary
-            )
-        )
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedTextField(
-                value = newCourseCredits,
-                onValueChange = { onNewCourseCreditsChange(it.filter { c -> c.isDigit() || c == '.' }) },
-                label = { Text("Credits") },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = colors.surface,
-                    unfocusedContainerColor = colors.surface,
-                    focusedBorderColor = colors.accent,
-                    unfocusedBorderColor = colors.border,
-                    focusedTextColor = colors.textPrimary,
-                    unfocusedTextColor = colors.textPrimary
-                )
-            )
-
-            Box(modifier = Modifier.weight(1f)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(colors.surface)
-                        .border(1.dp, colors.border, RoundedCornerShape(12.dp))
-                        .clickable { onGradeExpandedChange(!gradeExpanded) }
-                        .padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(newCourseGrade, color = colors.textPrimary, fontWeight = FontWeight.SemiBold)
-                        Icon(Icons.Rounded.KeyboardArrowDown, null, tint = colors.textSecondary)
-                    }
-                }
-                DropdownMenu(
-                    expanded = gradeExpanded,
-                    onDismissRequest = { onGradeExpandedChange(false) },
-                    modifier = Modifier.background(colors.surface)
-                ) {
-                    gradePointMap.keys.forEach { grade ->
-                        DropdownMenuItem(
-                            text = { Text("$grade (${gradePointMap[grade]})", color = colors.textPrimary) },
-                            onClick = {
-                                onNewCourseGradeChange(grade)
-                                onGradeExpandedChange(false)
-                            }
-                        )
-                    }
-                }
+        courses.forEachIndexed { index, course ->
+            val gradeIndex = gradeList.indexOf(course.grade).coerceAtLeast(0)
+            
+            val gradeColor = when (course.grade) {
+                "S" -> Color(0xFF10B981)
+                "A" -> Color(0xFF3B82F6)
+                "B" -> Color(0xFFF59E0B)
+                else -> Color(0xFFEF4444)
             }
-        }
 
-        AmazeButton(
-            text = "Add Course",
-            onClick = {
-                val creds = newCourseCredits.toDoubleOrNull() ?: return@AmazeButton
-                if (newCourseName.isNotBlank() && creds > 0.0) {
-                    onAdd(newCourseName, creds, newCourseGrade)
-                    onNewCourseNameChange("")
-                    onNewCourseCreditsChange("3")
-                }
-            },
-            modifier = Modifier.fillMaxWidth(),
-            icon = Icons.Rounded.Add
-        )
-
-        if (courses.isNotEmpty()) {
-            HorizontalDivider(color = colors.border)
-            Text(
-                text = "Added Courses",
-                style = AmazeTheme.typography.body.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.textPrimary
-                )
-            )
-
-            courses.forEachIndexed { index, course ->
-                val gradeColor = when (course.grade) {
-                    "S" -> Color(0xFF10B981); "A" -> Color(0xFF3B82F6)
-                    "B" -> Color(0xFFF59E0B); else -> Color(0xFFEF4444)
-                }
-                AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Box(
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(40.dp)
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(gradeColor.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 course.grade,
-                                style = AmazeTheme.typography.body.copy(
-                                    color = gradeColor,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 14.sp
-                                )
+                                style = AmazeTheme.typography.body.copy(color = gradeColor, fontWeight = FontWeight.Black, fontSize = 18.sp)
                             )
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(course.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
-                            Text("${course.credits.toInt()} credits", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                            Text(course.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.clickable { if (course.credits > 1.0) onCourseChange(index, course.copy(credits = course.credits - 1.0)) }.background(colors.surface, CircleShape).padding(4.dp)) {
+                                    Icon(Icons.Rounded.Remove, null, modifier = Modifier.size(14.dp), tint = colors.textSecondary)
+                                }
+                                Text("${course.credits.toInt()} Credits", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), modifier = Modifier.padding(horizontal = 8.dp))
+                                Box(modifier = Modifier.clickable { onCourseChange(index, course.copy(credits = course.credits + 1.0)) }.background(colors.surface, CircleShape).padding(4.dp)) {
+                                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(14.dp), tint = colors.textSecondary)
+                                }
+                            }
                         }
                         IconButton(onClick = { onRemove(index) }) {
                             Icon(Icons.Rounded.Close, null, tint = colors.danger)
                         }
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Slider(
+                        value = gradeIndex.toFloat(),
+                        onValueChange = { newIdx ->
+                            val newGrade = gradeList[newIdx.toInt()]
+                            if (newGrade != course.grade) {
+                                onCourseChange(index, course.copy(grade = newGrade))
+                            }
+                        },
+                        valueRange = 0f..6f,
+                        steps = 5,
+                        colors = SliderDefaults.colors(
+                            thumbColor = gradeColor,
+                            activeTrackColor = gradeColor,
+                            inactiveTrackColor = colors.border
+                        )
+                    )
                 }
             }
         }
+
+        AmazeButton(
+            text = "Add Course",
+            onClick = { onAdd("New Course", 3.0, "A") },
+            modifier = Modifier.fillMaxWidth(),
+            variant = ButtonVariant.SECONDARY,
+            icon = Icons.Rounded.Add
+        )
     }
 }
 

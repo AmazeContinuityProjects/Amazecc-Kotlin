@@ -12,6 +12,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
@@ -129,6 +130,50 @@ fun DashboardScreen() {
         courses + semesterCourses
     }
 
+    val slotMapTyped = remember {
+        SlotMap.map.mapValues { (_, inner) ->
+            inner.mapValues { (_, time) -> SlotInfo(time) }
+        }
+    }
+    val calendarRes by AppState.calendar.collectAsState()
+    val todayClasses = remember(courses, calendarRes) {
+        AttendanceTimetable.getTodayAttendanceClasses(
+            attendance = courses.map { item ->
+                mapOf(
+                    "courseCode" to item.courseCode,
+                    "courseTitle" to item.courseTitle,
+                    "courseType" to item.courseType,
+                    "faculty" to item.faculty,
+                    "slotName" to (item.slotName ?: ""),
+                    "attendancePercentage" to item.attendancePercentage,
+                    "venue" to (item.slotVenue ?: "")
+                )
+            },
+            slotMap = slotMapTyped,
+            calendar = calendarRes
+        )
+    }
+
+    var tick by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1.minutes)
+            tick++
+        }
+    }
+
+    val currentClass = remember(todayClasses, tick) {
+        AttendanceTimetable.findCurrentClass(todayClasses)
+    }
+    val nextClass = remember(todayClasses, tick) {
+        AttendanceTimetable.findNextClass(todayClasses)
+    }
+
+    val todayDate = remember { kotlinx.datetime.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
+    val dayOrderOverride = remember(todayDate, calendarRes) {
+        AttendanceTimetable.getDayOrderOverrideForDate(todayDate, calendarRes)
+    }
+
     val overallAttendance = remember(courses) {
         if (courses.isEmpty()) 0f
         else {
@@ -162,6 +207,7 @@ fun DashboardScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
+
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -379,50 +425,14 @@ fun DashboardScreen() {
 
             Spacer(modifier = Modifier.height(spacing.lg))
 
+            BunkOMeterCard(
+                attendance = attendanceRes,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(spacing.lg))
+
             // ── Today's Classes ──
-            val slotMapTyped = remember {
-                SlotMap.map.mapValues { (_, inner) ->
-                    inner.mapValues { (_, time) -> SlotInfo(time) }
-                }
-            }
-            val calendarRes by AppState.calendar.collectAsState()
-            val todayClasses = remember(courses, calendarRes) {
-                AttendanceTimetable.getTodayAttendanceClasses(
-                    attendance = courses.map { item ->
-                        mapOf(
-                            "courseCode" to item.courseCode,
-                            "courseTitle" to item.courseTitle,
-                            "courseType" to item.courseType,
-                            "faculty" to item.faculty,
-                            "slotName" to (item.slotName ?: ""),
-                            "attendancePercentage" to item.attendancePercentage,
-                            "venue" to (item.slotVenue ?: "")
-                        )
-                    },
-                    slotMap = slotMapTyped,
-                    calendar = calendarRes
-                )
-            }
-
-            var tick by remember { mutableStateOf(0) }
-            LaunchedEffect(Unit) {
-                while (true) {
-                    delay(1.minutes)
-                    tick++
-                }
-            }
-
-            val currentClass = remember(todayClasses, tick) {
-                AttendanceTimetable.findCurrentClass(todayClasses)
-            }
-            val nextClass = remember(todayClasses, tick) {
-                AttendanceTimetable.findNextClass(todayClasses)
-            }
-
-            val todayDate = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
-            val dayOrderOverride = remember(todayDate, calendarRes) {
-                AttendanceTimetable.getDayOrderOverrideForDate(todayDate, calendarRes)
-            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -497,10 +507,19 @@ fun DashboardScreen() {
                     }
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     todayClasses.forEach { cls ->
                         val isCurrent = cls == currentClass
                         val isNext = cls == nextClass
+                        val clsIndex = todayClasses.indexOf(cls)
+                        val currIndex = todayClasses.indexOf(currentClass)
+                        val isPast = currIndex != -1 && clsIndex < currIndex
+                        
                         val pct = cls.attendancePercentage?.replace("%", "")?.toDoubleOrNull() ?: 0.0
                         val cardBg = when {
                             isCurrent -> colors.accentSurface
@@ -520,7 +539,12 @@ fun DashboardScreen() {
 
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth()
+                                .width(280.dp)
+                                .graphicsLayer {
+                                    if (isPast) {
+                                        alpha = 0.55f // fade past classes
+                                    }
+                                }
                                 .clip(RoundedCornerShape(radius.medium))
                                 .background(cardBg)
                                 .then(
@@ -893,7 +917,7 @@ fun DashboardScreen() {
 }
 
 private fun getGreeting(): String {
-    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+    val now = kotlinx.datetime.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
     return when {
         now.hour < 12 -> "Morning"
         now.hour < 17 -> "Afternoon"
@@ -1070,3 +1094,5 @@ private fun GlassActionCard(
         }
     }
 }
+
+
