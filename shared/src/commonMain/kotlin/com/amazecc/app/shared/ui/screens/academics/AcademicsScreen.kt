@@ -117,29 +117,39 @@ fun AcademicsScreen() {
 
             // Hub grid
             item {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 160.dp),
-                    horizontalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm),
-                    verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm),
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 600.dp),
-                    userScrollEnabled = false
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
                 ) {
-                    items(hubCards) { card ->
-                        HubCardItem(card = card, onClick = {
-                            when (card.id) {
-                                "course-dashboard" -> currentView = "course-dashboard"
-                                "grades" -> AppState.navigateTo(Screen.GRADES)
-                                "predictor" -> AppState.navigateTo(Screen.GPA_PREDICTOR)
-                                "makeup" -> AppState.navigateTo(Screen.MAKEUP_COMPRE)
-                                "circulars" -> AppState.navigateTo(Screen.CIRCULARS)
-                                "curriculum" -> AppState.navigateTo(Screen.CURRICULUM)
-                                "od-tracker" -> AppState.navigateTo(Screen.OD_TRACKER)
-                                "marks-timeline" -> AppState.navigateTo(Screen.MARKS_TIMELINE)
-                                "vitol" -> AppState.navigateTo(Screen.VITOL)
-                                "qbank" -> AppState.navigateTo(Screen.QBANK)
-                                "tasks" -> AppState.navigateTo(Screen.TASKS)
+                    hubCards.chunked(2).forEach { rowCards ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
+                        ) {
+                            rowCards.forEach { card ->
+                                Box(modifier = Modifier.weight(1f)) {
+                                    HubCardItem(card = card, onClick = {
+                                        when (card.id) {
+                                            "course-dashboard" -> currentView = "course-dashboard"
+                                            "grades" -> AppState.navigateTo(Screen.GRADES)
+                                            "predictor" -> AppState.navigateTo(Screen.GPA_PREDICTOR)
+                                            "makeup" -> AppState.navigateTo(Screen.MAKEUP_COMPRE)
+                                            "circulars" -> AppState.navigateTo(Screen.CIRCULARS)
+                                            "curriculum" -> AppState.navigateTo(Screen.CURRICULUM)
+                                            "od-tracker" -> AppState.navigateTo(Screen.OD_TRACKER)
+                                            "marks-timeline" -> AppState.navigateTo(Screen.MARKS_TIMELINE)
+                                            "vitol" -> AppState.navigateTo(Screen.VITOL)
+                                            "qbank" -> AppState.navigateTo(Screen.QBANK)
+                                            "tasks" -> AppState.navigateTo(Screen.TASKS)
+                                        }
+                                    })
+                                }
                             }
-                        })
+                            // Fill empty space if row is not full
+                            if (rowCards.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
             }

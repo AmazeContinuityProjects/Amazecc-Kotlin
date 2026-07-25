@@ -11,6 +11,8 @@ data class HomeworkTask(
     val description: String = "",
     val dueDate: String,
     val type: String = "homework",
+    val priority: String = "medium", // high, medium, low
+    val estimatedMinutes: Int = 0,
     val completed: Boolean = false,
     val createdAt: String
 )
