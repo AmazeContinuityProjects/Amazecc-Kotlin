@@ -52,6 +52,9 @@ fun App() {
     val syncError by AppState.error.collectAsState()
 
     val uiScale by AppState.uiScale.collectAsState()
+    val hapticEnabled by AppState.hapticEnabled.collectAsState()
+    val animationsEnabled by AppState.animationsEnabled.collectAsState()
+    val showSearch by AppState.showSearch.collectAsState()
     val clipboardManager = LocalClipboardManager.current
 
     // Observe SyncEngine outside of AppState.init to avoid classloading deadlocks
@@ -65,7 +68,9 @@ fun App() {
 
     AmazeTheme(
         appTheme = currentTheme,
-        accentTheme = currentAccent
+        accentTheme = currentAccent,
+        hapticEnabled = hapticEnabled,
+        animationsEnabled = animationsEnabled
     ) {
         val colors = AmazeTheme.colors
         
@@ -93,6 +98,13 @@ fun App() {
                             AppState.loadAllData()
                         }
                     )
+
+                    // Global Spotlight Search Overlay
+                    if (showSearch) {
+                        com.amazecc.app.shared.ui.components.CommandPalette(
+                            onDismiss = { AppState.setSearchOpen(false) }
+                        )
+                    }
 
                     // Crossfade screen transitions
                     Box(modifier = Modifier.fillMaxSize()) {

@@ -54,6 +54,14 @@ object AppState {
     val headerOnRefresh = MutableStateFlow<(() -> Unit)?>(null)
     val headerSyncModules = MutableStateFlow<Set<SyncModule>>(emptySet())
     
+    // Global Spotlight Search
+    private val _showSearch = MutableStateFlow(false)
+    val showSearch: StateFlow<Boolean> = _showSearch.asStateFlow()
+
+    fun setSearchOpen(open: Boolean) {
+        _showSearch.value = open
+    }
+    
     private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
 
@@ -89,6 +97,12 @@ object AppState {
 
     private val _attendanceDisplayMode = MutableStateFlow("percentage")
     val attendanceDisplayMode: StateFlow<String> = _attendanceDisplayMode.asStateFlow()
+
+    private val _hapticEnabled = MutableStateFlow(true)
+    val hapticEnabled: StateFlow<Boolean> = _hapticEnabled.asStateFlow()
+
+    private val _animationsEnabled = MutableStateFlow(true)
+    val animationsEnabled: StateFlow<Boolean> = _animationsEnabled.asStateFlow()
 
     private val _calendarView = MutableStateFlow("List")
     val calendarView: StateFlow<String> = _calendarView.asStateFlow()
@@ -235,6 +249,9 @@ object AppState {
         if (savedScale.isNotEmpty()) {
             savedScale.toFloatOrNull()?.let { _uiScale.value = it }
         }
+
+        _hapticEnabled.value = SettingsManager.getBoolean(SettingsManager.KEY_HAPTIC_ENABLED, true)
+        _animationsEnabled.value = SettingsManager.getBoolean(SettingsManager.KEY_ANIMATIONS_ENABLED, true)
 
         val savedNav = SettingsManager.getString(SettingsManager.KEY_NAVBAR_ITEMS, "")
         if (savedNav.isNotEmpty()) {
@@ -1912,6 +1929,16 @@ object AppState {
     fun setAttendanceDisplayMode(mode: String) {
         _attendanceDisplayMode.value = mode
         SettingsManager.setString(SettingsManager.KEY_ATTENDANCE_MODE, mode)
+    }
+
+    fun setHapticEnabled(enabled: Boolean) {
+        _hapticEnabled.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_HAPTIC_ENABLED, enabled)
+    }
+
+    fun setAnimationsEnabled(enabled: Boolean) {
+        _animationsEnabled.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_ANIMATIONS_ENABLED, enabled)
     }
 
     fun setSyncExam(enabled: Boolean) {

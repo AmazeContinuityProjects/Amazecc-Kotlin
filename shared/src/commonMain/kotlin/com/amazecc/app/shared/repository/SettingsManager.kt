@@ -26,6 +26,8 @@ object SettingsManager {
     const val KEY_APP_THEME = "app_theme"
     const val KEY_APP_ACCENT = "app_accent"
     const val KEY_UI_SCALE = "app_ui_scale"
+    const val KEY_HAPTIC_ENABLED = "haptic_enabled"
+    const val KEY_ANIMATIONS_ENABLED = "animations_enabled"
 
     // Update checker
     const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"

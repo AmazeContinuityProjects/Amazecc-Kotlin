@@ -101,16 +101,25 @@ fun SettingsScreen() {
                 val activeAccent by AppState.accent.collectAsState()
 
                 SettingsRow("Color Theme", colors) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(AppTheme.LIGHT to "Light", AppTheme.DARK to "Dark", AppTheme.SYSTEM to "System").forEach { (theme, label) ->
-                            val isSelected = activeTheme == theme
-                            AmazeButton(
-                                text = label,
-                                onClick = { AppState.changeTheme(theme) },
-                                modifier = Modifier.weight(1f),
-                                variant = if (isSelected) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(AppTheme.LIGHT to "Light", AppTheme.DARK to "Dark", AppTheme.SYSTEM to "System").forEach { (theme, label) ->
+                                val isSelected = activeTheme == theme
+                                AmazeButton(
+                                    text = label,
+                                    onClick = { AppState.changeTheme(theme) },
+                                    modifier = Modifier.weight(1f),
+                                    variant = if (isSelected) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY
+                                )
+                            }
                         }
+                        val isAmoled = activeTheme == AppTheme.AMOLED
+                        AmazeButton(
+                            text = if (isAmoled) "✦ AMOLED Pure Black" else "AMOLED Pure Black",
+                            onClick = { AppState.changeTheme(AppTheme.AMOLED) },
+                            modifier = Modifier.fillMaxWidth(),
+                            variant = if (isAmoled) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY
+                        )
                     }
                 }
 
@@ -127,7 +136,33 @@ fun SettingsScreen() {
             }
 
             // ═══════════════════════════════════════════
-            // 2. Display & Scale Preferences
+            // 2.5 Interactions & Feel
+            // ═══════════════════════════════════════════
+            SettingsSection("Interactions & Feel", Icons.Rounded.Vibration, colors) {
+                val hapticEnabled by AppState.hapticEnabled.collectAsState()
+                val animationsEnabled by AppState.animationsEnabled.collectAsState()
+
+                SettingsSimpleToggle(
+                    label = "Haptic Feedback",
+                    description = "Vibrate on button taps, card presses & navigation",
+                    checked = hapticEnabled,
+                    onCheckedChange = { AppState.setHapticEnabled(it) },
+                    colors = colors
+                )
+
+                HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+
+                SettingsSimpleToggle(
+                    label = "Spring Animations",
+                    description = "Bouncy press-scale effects on interactive elements",
+                    checked = animationsEnabled,
+                    onCheckedChange = { AppState.setAnimationsEnabled(it) },
+                    colors = colors
+                )
+            }
+
+            // ═══════════════════════════════════════════
+            // 3. Display & Scale Preferences
             // ═══════════════════════════════════════════
             SettingsSection("Display & Layout Scale", Icons.Rounded.Visibility, colors) {
                 val cgpaHidden by AppState.cgpaHidden.collectAsState()
@@ -443,6 +478,34 @@ private fun SettingsRow(label: String, colors: com.amazecc.app.shared.theme.Amaz
         Text(label, color = colors.textPrimary, fontWeight = FontWeight.Medium, fontSize = 12.sp)
         Spacer(Modifier.height(6.dp))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, content = content)
+    }
+}
+
+@Composable
+private fun SettingsSimpleToggle(
+    label: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(label, color = colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Text(description, color = colors.textSecondary, fontSize = 11.sp)
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = colors.accent,
+                checkedTrackColor = colors.accent.copy(alpha = 0.3f)
+            )
+        )
     }
 }
 

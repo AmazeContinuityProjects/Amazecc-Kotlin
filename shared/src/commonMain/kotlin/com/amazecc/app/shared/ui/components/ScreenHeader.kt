@@ -75,6 +75,7 @@ fun FloatingScreenHeader(
     description: String,
     showBackButton: Boolean = true,
     showSyncButton: Boolean = true,
+    isScrolled: Boolean = false,
     onRefresh: (() -> Unit)? = null,
     syncModules: Set<SyncModule> = emptySet(),
     modifier: Modifier = Modifier
@@ -84,6 +85,19 @@ fun FloatingScreenHeader(
     val syncStatus by AppState.syncStatus.collectAsState()
     val moduleStates by SyncEngine.moduleStates.collectAsState()
     val appHeaderRefresh by AppState.headerOnRefresh.collectAsState()
+
+    val headerElevation by androidx.compose.animation.core.animateDpAsState(
+        targetValue = if (isScrolled) 20.dp else 10.dp,
+        animationSpec = bouncySpring()
+    )
+    val bgAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isScrolled) 0.96f else 0.88f,
+        animationSpec = bouncySpring()
+    )
+    val borderAlpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (isScrolled) 0.45f else 0.22f,
+        animationSpec = bouncySpring()
+    )
 
     val effectiveModules = remember(syncModules) {
         if (syncModules.isNotEmpty()) syncModules
@@ -116,10 +130,10 @@ fun FloatingScreenHeader(
             .fillMaxWidth()
             .statusBarsPadding()
             .padding(horizontal = 14.dp, vertical = 6.dp)
-            .shadow(16.dp, RoundedCornerShape(26.dp), clip = false)
+            .shadow(headerElevation, RoundedCornerShape(26.dp), clip = false)
             .clip(RoundedCornerShape(26.dp))
-            .background(colors.navBackground.copy(alpha = 0.90f))
-            .border(1.dp, colors.accent.copy(alpha = 0.28f), RoundedCornerShape(26.dp))
+            .background(colors.navBackground.copy(alpha = bgAlpha))
+            .border(1.dp, colors.accent.copy(alpha = borderAlpha), RoundedCornerShape(26.dp))
             .padding(vertical = 12.dp, horizontal = 14.dp)
     ) {
         Row(
@@ -185,36 +199,53 @@ fun FloatingScreenHeader(
                 }
             }
 
-            if (showSyncButton) {
-                val syncAction: () -> Unit = {
-                    if (effectiveRefresh != null) {
-                        effectiveRefresh()
-                    } else if (effectiveModules.isNotEmpty()) {
-                        SyncEngine.setShowSyncDialog(true)
-                        AppState.loadAllData()
-                    } else {
-                        AppState.loadAllData()
-                    }
-                }
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
-                    onClick = syncAction,
-                    enabled = !isModuleLoading,
+                    onClick = { AppState.setSearchOpen(true) },
                     modifier = Modifier
                         .size(40.dp)
-                        .background(colors.accent.copy(alpha = if (isModuleLoading) 0.20f else 0.12f), CircleShape)
+                        .background(colors.accent.copy(alpha = 0.12f), CircleShape)
                 ) {
                     Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = "Sync Data",
+                        imageVector = Icons.Rounded.Search,
+                        contentDescription = "Search App",
                         tint = colors.accent,
-                        modifier = Modifier
-                            .size(20.dp)
-                            .graphicsLayer {
-                                if (isModuleLoading) {
-                                    rotationZ = rotationAngle
-                                }
-                            }
+                        modifier = Modifier.size(20.dp)
                     )
+                }
+
+                if (showSyncButton) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    val syncAction: () -> Unit = {
+                        if (effectiveRefresh != null) {
+                            effectiveRefresh()
+                        } else if (effectiveModules.isNotEmpty()) {
+                            SyncEngine.setShowSyncDialog(true)
+                            AppState.loadAllData()
+                        } else {
+                            AppState.loadAllData()
+                        }
+                    }
+                    IconButton(
+                        onClick = syncAction,
+                        enabled = !isModuleLoading,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(colors.accent.copy(alpha = if (isModuleLoading) 0.20f else 0.12f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Sync Data",
+                            tint = colors.accent,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .graphicsLayer {
+                                    if (isModuleLoading) {
+                                        rotationZ = rotationAngle
+                                    }
+                                }
+                        )
+                    }
                 }
             }
         }

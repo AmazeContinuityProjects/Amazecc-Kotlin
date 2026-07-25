@@ -52,6 +52,7 @@ import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.BadgeVariant
 import com.amazecc.app.shared.ui.components.CardVariant
+import com.amazecc.app.shared.ui.components.BunkOMeterCard
 import com.amazecc.app.shared.ui.components.CommandPalette
 import com.amazecc.app.shared.ui.components.UpdateDialog
 import com.amazecc.app.shared.ui.components.UpdateResultDialog
@@ -803,6 +804,11 @@ fun DashboardScreen() {
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(spacing.lg))
+
+            // ── Bunk-O-Meter Widget ──
+            BunkOMeterCard(attendance = attendanceRes)
 
             Spacer(modifier = Modifier.height(spacing.lg))
 

@@ -29,6 +29,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,15 +73,21 @@ fun AmazeButton(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val hapticEnabled = LocalHapticEnabled.current
+    val animationsEnabled = LocalAnimationsEnabled.current
+    val haptic = LocalHapticFeedback.current
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
+        targetValue = if (animationsEnabled && isPressed) 0.95f else 1f,
         animationSpec = bouncySpring()
     )
 
     val spacing = AmazeTheme.spacing
 
     Button(
-        onClick = onClick,
+        onClick = {
+            if (hapticEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+            onClick()
+        },
         modifier = modifier.height(48.dp).graphicsLayer {
             scaleX = scale
             scaleY = scale
@@ -139,8 +147,11 @@ fun AmazeCard(
     val radius = AmazeTheme.radius
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val hapticEnabled = LocalHapticEnabled.current
+    val animationsEnabled = LocalAnimationsEnabled.current
+    val haptic = LocalHapticFeedback.current
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
+        targetValue = if (animationsEnabled && isPressed) 0.96f else 1f,
         animationSpec = bouncySpring()
     )
 
@@ -191,7 +202,10 @@ fun AmazeCard(
                     Modifier.clickable(
                         interactionSource = interactionSource,
                         indication = null,
-                        onClick = onClick
+                        onClick = {
+                            if (hapticEnabled) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            onClick()
+                        }
                     )
                 } else {
                     Modifier

@@ -36,6 +36,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Text
@@ -117,9 +119,12 @@ fun BottomNavItem(
     val colors = AmazeTheme.colors
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
+    val hapticEnabled = LocalHapticEnabled.current
+    val animationsEnabled = LocalAnimationsEnabled.current
+    val haptic = LocalHapticFeedback.current
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.88f else if (isSelected) 1.05f else 1f,
+        targetValue = if (animationsEnabled && isPressed) 0.88f else if (animationsEnabled && isSelected) 1.05f else 1f,
         animationSpec = bouncySpring()
     )
 
@@ -143,7 +148,10 @@ fun BottomNavItem(
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = onClick
+                onClick = {
+                    if (hapticEnabled) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onClick()
+                }
             )
             .padding(horizontal = if (isSelected) 14.dp else 10.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center

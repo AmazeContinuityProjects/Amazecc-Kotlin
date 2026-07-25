@@ -36,6 +36,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeButton
+import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
@@ -364,6 +365,58 @@ fun OverallPredictorScreen() {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("${calendarMonths.size}", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Text("Months", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // ── Multi-Day Batch Simulator Card ──
+        var batchBunkDays by remember { mutableStateOf(1f) }
+        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.TaskAlt, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Multi-Day Bunk Simulator", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp))
+                }
+                Spacer(Modifier.height(4.dp))
+                Text("Simulate skipping upcoming working days across all courses at once.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("Skip Next ${batchBunkDays.toInt()} Working Day${if (batchBunkDays.toInt() > 1) "s" else ""}", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                    Slider(
+                        value = batchBunkDays,
+                        onValueChange = { batchBunkDays = it },
+                        valueRange = 1f..7f,
+                        steps = 5,
+                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                        colors = SliderDefaults.colors(thumbColor = colors.accent, activeTrackColor = colors.accent)
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    AmazeButton(
+                        text = "Simulate ${batchBunkDays.toInt()} Day Bunk",
+                        onClick = {
+                            val daysToBunkCount = batchBunkDays.toInt()
+                            val newSkipMap = mutableMapOf<String, Set<String>>()
+                            predictions.forEach { pred ->
+                                val datesToSkip = pred.futureDates.take(daysToBunkCount).map { it.display }.toSet()
+                                newSkipMap[pred.course.courseCode] = datesToSkip
+                            }
+                            skipDates = newSkipMap
+                        },
+                        modifier = Modifier.weight(1f),
+                        variant = ButtonVariant.PRIMARY
+                    )
+                    if (skipDates.isNotEmpty()) {
+                        AmazeButton(
+                            text = "Reset",
+                            onClick = { skipDates = emptyMap(); resetTrigger++ },
+                            modifier = Modifier.weight(0.4f),
+                            variant = ButtonVariant.SECONDARY
+                        )
+                    }
+                }
             }
         }
 

@@ -7,7 +7,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 enum class AppTheme {
-    LIGHT, DARK, SYSTEM
+    LIGHT, DARK, AMOLED, SYSTEM
 }
 
 enum class AccentTheme {
@@ -232,6 +232,8 @@ val LocalAmazeTypography = staticCompositionLocalOf {
 fun AmazeTheme(
     appTheme: AppTheme = AppTheme.SYSTEM,
     accentTheme: AccentTheme = AccentTheme.OCEAN,
+    hapticEnabled: Boolean = true,
+    animationsEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val accent = when (accentTheme) {
@@ -313,6 +315,39 @@ fun AmazeTheme(
             glassSurface = GlassSurfaceDark,
             glassBorder = GlassBorderDark
         )
+        AppTheme.AMOLED -> AmazeColors(
+            background = Color.Black,
+            surface = Color(0xFF080808),
+            elevatedSurface = Color(0xFF111111),
+            border = Color(0xFF222222),
+            textPrimary = NeutralTextPrimaryDark,
+            textSecondary = NeutralTextSecondaryDark,
+            textMuted = NeutralTextMutedDark,
+            accent = accent,
+            accentSurface = accent.copy(alpha = 0.15f),
+            accentContainer = accent.copy(alpha = 0.30f),
+            success = ColorSuccess,
+            successSurface = ColorSuccessSurfaceDark,
+            successText = ColorSuccessTextDark,
+            warning = ColorWarning,
+            warningSurface = ColorWarningSurfaceDark,
+            warningText = ColorWarningTextDark,
+            danger = ColorDanger,
+            dangerSurface = ColorDangerSurfaceDark,
+            dangerText = ColorDangerTextDark,
+            info = ColorInfo,
+            infoSurface = ColorInfoSurfaceDark,
+            infoText = ColorInfoTextDark,
+            chart1 = Chart1Dark,
+            chart2 = Chart2Dark,
+            chart3 = Chart3Dark,
+            chart4 = Chart4Dark,
+            chart5 = Chart5Dark,
+            navBackground = Color.Black,
+            navBorder = Color(0xFF1A1A1A),
+            glassSurface = Color(0xFF0D0D0D),
+            glassBorder = Color(0xFF1F1F1F)
+        )
         AppTheme.SYSTEM -> error("System theme must be resolved before selecting colors")
     }
 
@@ -326,8 +361,13 @@ fun AmazeTheme(
         LocalAmazeRadius provides radius,
         LocalAmazeSpacing provides spacing,
         LocalAmazeTypography provides typography,
-        content = content
-    )
+    ) {
+        com.amazecc.app.shared.ui.components.ProvideInteractionPrefs(
+            hapticEnabled = hapticEnabled,
+            animationsEnabled = animationsEnabled,
+            content = content
+        )
+    }
 }
 
 object AmazeTheme {

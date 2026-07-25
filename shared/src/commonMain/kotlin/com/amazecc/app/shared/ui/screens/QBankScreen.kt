@@ -82,7 +82,7 @@ fun QBankScreen() {
                 }
             }
         } else {
-            ScreenHeader(title = "Question Bank", description = "Access past year question papers", showBackButton = true)
+            ScreenHeader(title = "Exam Prep Hub & QBank", description = "Targeted practice papers and exam preparation", showBackButton = true)
         }
 
         if (loading) {
@@ -94,8 +94,33 @@ fun QBankScreen() {
                 Text(error ?: "Error", color = colors.danger)
             }
         } else if (selectedCourse == null) {
-            Text("Select a course", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.padding(16.dp))
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+                // ── Exam Prep Countdown Banner ──
+                Spacer(Modifier.height(12.dp))
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(colors.warning.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.Timer, null, tint = colors.warning, modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Exam Preparation Hub", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            Text("Select a course below to launch interactive question practice", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+
+                Text("Select Course for Practice", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Spacer(Modifier.height(8.dp))
+
+                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(courses) { course ->
                     AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { loadQuestions(course) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -113,6 +138,7 @@ fun QBankScreen() {
                 }
                 item { Spacer(Modifier.height(16.dp)) }
             }
+        }
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 if (questions.isEmpty()) {
