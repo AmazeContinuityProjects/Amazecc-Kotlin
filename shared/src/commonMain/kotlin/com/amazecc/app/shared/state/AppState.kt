@@ -37,7 +37,8 @@ enum class Screen { SPLASH,
     COURSE_ATTENDANCE, MAKEUP_COMPRE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
     MARKS_TIMELINE, VITOL, FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
     FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, CLUB_DETAIL,
-    COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB, TASKS
+    COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB, TASKS, EXAM_SCHEDULE,
+    CHANGELOG, HALL_OF_FAME, ARREAR
 }
 
 object AppState {
@@ -175,6 +176,8 @@ object AppState {
     val syncProfile: StateFlow<Boolean> = _syncProfile.asStateFlow()
     private val _syncAdditional = MutableStateFlow(true)
     val syncAdditional: StateFlow<Boolean> = _syncAdditional.asStateFlow()
+    private val _syncArrear = MutableStateFlow(true)
+    val syncArrear: StateFlow<Boolean> = _syncArrear.asStateFlow()
 
     // Student profile data
     private val _studentProfile = MutableStateFlow<StudentProfile?>(null)
@@ -1975,6 +1978,11 @@ object AppState {
     fun setSyncAdditional(enabled: Boolean) {
         _syncAdditional.value = enabled
         SettingsManager.setBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, enabled)
+    }
+
+    fun setSyncArrear(enabled: Boolean) {
+        _syncArrear.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_ARREAR, enabled)
     }
 
     fun updateStudentProfile(profile: StudentProfile?) {

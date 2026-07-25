@@ -1,8 +1,14 @@
 package com.amazecc.app.shared.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -10,30 +16,72 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
-import com.amazecc.app.shared.model.ApiTable
-import com.amazecc.app.shared.model.ArrearResponse
+import com.amazecc.app.shared.model.FeedbackSemester
+import com.amazecc.app.shared.model.FeedbackTableRow
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+
+data class SemesterFeedbackState(
+    val semester: FeedbackSemester,
+    val rows: List<FeedbackTableRow>,
+    val isExpanded: Boolean = true
+)
 
 @Composable
 fun FeedbackStatusScreen() {
     val colors = AmazeTheme.colors
-    var response by remember { mutableStateOf<ArrearResponse?>(null) }
+    val scope = rememberCoroutineScope()
+    
+    var semestersData by remember { mutableStateOf<List<SemesterFeedbackState>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         try {
-            response = AmazeClient.getFeedbackStatus()
+            val initialRes = AmazeClient.getFeedbackStatus()
+            if (!initialRes.success) {
+                error = initialRes.error ?: "Failed to load feedback status"
+                loading = false
+                return@LaunchedEffect
+            }
+            
+            val sems = initialRes.semesters ?: emptyList()
+            val initialRows = initialRes.feedbackTable ?: emptyList()
+            
+            val stateList = mutableListOf<SemesterFeedbackState>()
+            
+            // The initially fetched one is the selected one
+            val initialSelectedIdx = sems.indexOfFirst { it.selected }
+            
+            // To fetch the others concurrently
+            coroutineScope {
+                val fetchJobs = sems.mapIndexed { idx, sem ->
+                    async {
+                        if (idx == initialSelectedIdx) {
+                            SemesterFeedbackState(sem, initialRows, isExpanded = true)
+                        } else {
+                            val res = AmazeClient.getFeedbackStatus(sem.value)
+                            SemesterFeedbackState(sem, res.feedbackTable ?: emptyList(), isExpanded = false)
+                        }
+                    }
+                }
+                stateList.addAll(fetchJobs.awaitAll())
+            }
+            
+            semestersData = stateList
         } catch (e: Exception) {
-            response = ArrearResponse(success = false, message = e.message, error = e.toString())
+            error = e.message
         }
         loading = false
     }
@@ -54,8 +102,26 @@ fun FeedbackStatusScreen() {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(32.dp))
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text("Loading feedback status...", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
+                }
+            }
+        } else if (error != null) {
+            Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Rounded.ErrorOutline, null, tint = colors.danger, modifier = Modifier.size(32.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(error ?: "Unknown error", color = colors.danger)
+                    }
+                }
+            }
+        } else if (semestersData.isEmpty() || semestersData.all { it.rows.isEmpty() }) {
+             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Rounded.Info, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("No feedback data available", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
                 }
             }
         } else {
@@ -63,55 +129,19 @@ fun FeedbackStatusScreen() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = 88.dp)
             ) {
-                val res = response
-                if (res == null || res.success == false) {
-                    item {
-                        AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                                Icon(Icons.Rounded.Info, null, tint = colors.textMuted, modifier = Modifier.size(32.dp))
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(res?.message ?: "No data available", color = colors.textSecondary)
+                items(semestersData, key = { it.semester.value }) { semData ->
+                    FeedbackSemesterCard(
+                        state = semData,
+                        onToggleExpand = { 
+                            semestersData = semestersData.map { 
+                                if (it.semester.value == semData.semester.value) it.copy(isExpanded = !it.isExpanded) else it 
                             }
-                        }
-                    }
-                } else {
-                    if (res.keyValuePairs.isNotEmpty()) {
-                        item { KPICard(pairs = res.keyValuePairs, colors = colors) }
-                    }
-                    res.tables.forEach { table ->
-                        item { DataTableCard(table = table, colors = colors) }
-                    }
-                    res.messages.forEach { msg ->
-                        item {
-                            AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                                Text(msg.message, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
-                            }
-                        }
-                    }
-                }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun KPICard(
-    pairs: List<com.amazecc.app.shared.model.KeyValuePair>,
-    colors: com.amazecc.app.shared.theme.AmazeColors
-) {
-    AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            pairs.forEach { pair ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(pair.label, style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
-                    Text(pair.value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        },
+                        colors = colors
+                    )
                 }
             }
         }
@@ -119,54 +149,149 @@ private fun KPICard(
 }
 
 @Composable
-private fun DataTableCard(
-    table: ApiTable,
+fun FeedbackSemesterCard(
+    state: SemesterFeedbackState,
+    onToggleExpand: () -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (table.title != null) {
-                Text(
-                    table.title,
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                )
-            }
-            Row(modifier = Modifier
-                .fillMaxWidth()
-                .background(colors.accent.copy(alpha = 0.08f), RoundedCornerShape(6.dp))
-                .padding(horizontal = 8.dp, vertical = 6.dp)
+    val doneCount = state.rows.count { 
+        (it.midSemester?.lowercase()?.contains("given") == true) || 
+        (it.teeSemester?.lowercase()?.contains("given") == true)
+    }
+    val totalCount = state.rows.size
+    val isComplete = doneCount == totalCount && totalCount > 0
+
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column {
+            // Header Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onToggleExpand() }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                table.headers.forEachIndexed { idx, header ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (state.isExpanded) Icons.Rounded.KeyboardArrowDown else Icons.Rounded.KeyboardArrowRight,
+                        contentDescription = "Expand",
+                        tint = colors.textSecondary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        header,
-                        modifier = Modifier.weight(1f),
+                        text = state.semester.text,
+                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    )
+                }
+                
+                // Status Badge
+                Box(
+                    modifier = Modifier
+                        .background(
+                            if (isComplete) colors.success.copy(alpha = 0.15f) else colors.danger.copy(alpha = 0.15f),
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "$doneCount/$totalCount done",
                         style = AmazeTheme.typography.caption.copy(
-                            color = colors.accent,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp
+                            color = if (isComplete) colors.success else colors.danger,
+                            fontWeight = FontWeight.Bold
                         )
                     )
                 }
             }
-            table.rows.forEach { row ->
-                Row(
+
+            AnimatedVisibility(
+                visible = state.isExpanded,
+                enter = expandVertically(animationSpec = tween(300)),
+                exit = shrinkVertically(animationSpec = tween(300))
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    row.forEachIndexed { idx, cell ->
+                    if (state.rows.isEmpty()) {
                         Text(
-                            cell,
-                            modifier = Modifier.weight(1f),
-                            style = AmazeTheme.typography.body.copy(
-                                color = colors.textPrimary,
-                                fontSize = 12.sp
-                            ),
-                            maxLines = 2
+                            text = "No courses found",
+                            style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
+                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = 8.dp)
                         )
+                    } else {
+                        state.rows.forEach { row ->
+                            FeedbackRowItem(row, colors)
+                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+fun FeedbackRowItem(row: FeedbackTableRow, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val midGiven = row.midSemester?.lowercase()?.contains("given") == true
+    val teeGiven = row.teeSemester?.lowercase()?.contains("given") == true
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.background, RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Icon(Icons.Rounded.Book, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = row.feedbackType ?: "N/A",
+                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 14.sp),
+                maxLines = 1
+            )
+        }
+        
+        Spacer(modifier = Modifier.width(12.dp))
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FeedbackBadge(text = "Mid Sem", isGiven = midGiven, colors = colors)
+            FeedbackBadge(text = "TEE", isGiven = teeGiven, colors = colors)
+        }
+    }
+}
+
+@Composable
+fun FeedbackBadge(text: String, isGiven: Boolean, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    Row(
+        modifier = Modifier
+            .background(
+                if (isGiven) colors.success.copy(alpha = 0.15f) else colors.danger.copy(alpha = 0.15f),
+                RoundedCornerShape(6.dp)
+            )
+            .padding(horizontal = 6.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (isGiven) Icons.Rounded.CheckCircle else Icons.Rounded.Cancel,
+            contentDescription = null,
+            tint = if (isGiven) colors.success else colors.danger,
+            modifier = Modifier.size(12.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = text,
+            style = AmazeTheme.typography.caption.copy(
+                fontSize = 10.sp,
+                color = if (isGiven) colors.success else colors.danger,
+                fontWeight = FontWeight.Bold
+            )
+        )
     }
 }

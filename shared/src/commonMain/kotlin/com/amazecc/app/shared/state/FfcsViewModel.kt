@@ -73,7 +73,7 @@ object FfcsViewModel {
         
         scope.launch {
             try {
-                val results = FfcsEngine.generateTimetables(_targetCourses.value, _locks.value)
+                val results = FfcsEngine.generateTimetables(_targetCourses.value, _locks.value, FriendsViewModel.friends.value)
                 _generatedTimetables.value = results
             } catch (e: Exception) {
                 _errorMsg.value = e.message ?: "Failed to generate timetables."

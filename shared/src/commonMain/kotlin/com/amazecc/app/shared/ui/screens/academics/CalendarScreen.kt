@@ -143,7 +143,12 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
 
     val activeMonth = allMonths.getOrNull(selectedMonthIdx)
 
-    val activeMonthEvents = remember(activeMonth, moodleData, examData) {
+    var filterHolidays by remember { mutableStateOf(true) }
+    var filterExams by remember { mutableStateOf(true) }
+    var filterODs by remember { mutableStateOf(true) }
+    var filterClasses by remember { mutableStateOf(true) }
+
+    val activeMonthEvents = remember(activeMonth, moodleData, examData, filterHolidays, filterExams, filterODs, filterClasses) {
         val map = mutableMapOf<Int, MutableList<ConsolidatedEvent>>()
         if (activeMonth == null) return@remember map
 
@@ -153,9 +158,18 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
             val list = map.getOrPut(day.date) { mutableListOf() }
             day.events.forEach { ev ->
                 val type = if (ev.type.isNotBlank()) ev.type else "Event"
+                
+                val isHoliday = ev.text.contains("Holiday", true) || ev.text.contains("Vacation", true) || ev.text.contains("Pooja", true)
+                val isOD = ev.text.contains("OD", true) || ev.text.contains("On Duty", true) || type.contains("OD", true)
+                val isClass = ev.text.contains("Instructional Day", true) || type.contains("Instructional", true) || ev.text.contains("Working Day", true)
+                
+                if (isHoliday && !filterHolidays) return@forEach
+                if (isOD && !filterODs) return@forEach
+                if (isClass && !filterClasses) return@forEach
+                
                 val col = try {
                     ev.color?.let { Color(it.removePrefix("#").toLong(16) or 0xFF000000) }
-                } catch (_: Exception) { null } ?: (if (ev.text.contains("Holiday", true)) Color.Red else colors.accent)
+                } catch (_: Exception) { null } ?: (if (isHoliday) Color.Red else colors.accent)
                 list.add(ConsolidatedEvent(ev.text, type, ev.category ?: "", col))
             }
         }
@@ -168,10 +182,12 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                     val mNum = parts[1].toInt()
                     val dNum = parts[2].substring(0, 2).toInt()
                     if (y == yearNum && mNum == monthNum && !m.done && !m.hidden) {
-                        val list = map.getOrPut(dNum) { mutableListOf() }
-                        val nameParts = m.name.split("/")
-                        val taskName = if (nameParts.size >= 3) nameParts.drop(2).joinToString("/") else m.name
-                        list.add(ConsolidatedEvent(taskName, "Moodle", "Due", colors.chart3))
+                        if (filterClasses) { // Moodle fits under academic classes/tasks
+                            val list = map.getOrPut(dNum) { mutableListOf() }
+                            val nameParts = m.name.split("/")
+                            val taskName = if (nameParts.size >= 3) nameParts.drop(2).joinToString("/") else m.name
+                            list.add(ConsolidatedEvent(taskName, "Moodle", "Due", colors.chart3))
+                        }
                     }
                 }
             } catch (e: Exception) { println("AmazeCC: CalendarScreen moodleEvents — ${e.message}") }
@@ -182,9 +198,11 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                 try {
                     val parts = ex.examDate.split("-")
                     if (parts.size >= 3) {
-                        val dNum = parts[0].toInt()
-                        val list = map.getOrPut(dNum) { mutableListOf() }
-                        list.add(ConsolidatedEvent("${ex.courseCode} ($type)", "Exam", "${ex.examTime} · ${ex.venue}", colors.warning))
+                        if (filterExams) {
+                            val dNum = parts[0].toInt()
+                            val list = map.getOrPut(dNum) { mutableListOf() }
+                            list.add(ConsolidatedEvent("${ex.courseCode} ($type)", "Exam", "${ex.examTime} · ${ex.venue}", colors.warning))
+                        }
                     }
                 } catch (e: Exception) { println("AmazeCC: CalendarScreen examEvents — ${e.message}") }
             }
@@ -237,6 +255,59 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                 ) {
                     item {
                         com.amazecc.app.shared.ui.components.HeaderSpacer()
+                    }
+                    // ── Filters ──
+                    item {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(horizontal = spacing.pageHorizontal)
+                        ) {
+                            val filters = listOf(
+                                "Classes" to filterClasses,
+                                "Exams" to filterExams,
+                                "Holidays" to filterHolidays,
+                                "ODs" to filterODs
+                            )
+                            items(filters) { (label, isActive) ->
+                                val interactionSource = remember { MutableInteractionSource() }
+                                val isPressed by interactionSource.collectIsPressedAsState()
+                                val scale by animateFloatAsState(
+                                    targetValue = if (isPressed) 0.94f else 1f,
+                                    animationSpec = bouncySpring()
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .graphicsLayer { scaleX = scale; scaleY = scale }
+                                        .clip(CircleShape)
+                                        .background(if (isActive) colors.accent else colors.surface)
+                                        .border(1.dp, if (isActive) colors.accent else colors.border, CircleShape)
+                                        .clickable(
+                                            interactionSource = interactionSource,
+                                            indication = null,
+                                            onClick = {
+                                                when (label) {
+                                                    "Classes" -> filterClasses = !filterClasses
+                                                    "Exams" -> filterExams = !filterExams
+                                                    "Holidays" -> filterHolidays = !filterHolidays
+                                                    "ODs" -> filterODs = !filterODs
+                                                }
+                                            }
+                                        )
+                                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        style = AmazeTheme.typography.smallLabel.copy(
+                                            color = if (isActive) colors.background else colors.textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 12.sp
+                                        )
+                                    )
+                                }
+                            }
+                        }
                     }
                     // ── Month selector ──
                     item {

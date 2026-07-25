@@ -2,7 +2,10 @@ package com.amazecc.app.shared.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -115,132 +118,220 @@ fun CommandPalette(
         else allCommands.filter { it.label.contains(query, ignoreCase = true) }
     }
 
-    AlertDialog(
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        containerColor = colors.surface,
-        shape = RoundedCornerShape(20.dp),
-        title = {
-            AmazeTextField(
-                value = query,
-                onValueChange = { query = it },
-                label = "",
-                placeholder = "Spotlight Search (Courses, Screens, Tasks)...",
-                leadingIcon = {
-                    Icon(Icons.Rounded.Search, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
-                }
-            )
-        },
-        text = {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                if (courseResults.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "📚 COURSES",
-                            style = AmazeTheme.typography.categoryLabel.copy(color = colors.textMuted),
-                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp)
-                        )
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        val scale by androidx.compose.animation.core.animateFloatAsState(
+            targetValue = 1f,
+            animationSpec = bouncySpring(),
+            label = "scale"
+        )
+        val alpha by androidx.compose.animation.core.animateFloatAsState(
+            targetValue = 1f,
+            animationSpec = androidx.compose.animation.core.tween(300),
+            label = "alpha"
+        )
+        
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(colors.background.copy(alpha = 0.4f))
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss
+                ),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Box(
+                modifier = Modifier
+                    .padding(top = 80.dp, start = 16.dp, end = 16.dp)
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        this.alpha = alpha
                     }
-                    items(courseResults) { item ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(colors.accent.copy(alpha = 0.08f))
-                                .clickable {
-                                    AppState.navigateTo(Screen.COURSE_ATTENDANCE)
-                                    onDismiss()
-                                }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(colors.accent.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Rounded.Class, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(item.courseCode, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
-                                Text(item.courseTitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                            }
-                            Text(item.attendancePct, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                        }
-                    }
-                }
-
-                if (taskResults.isNotEmpty()) {
-                    item {
-                        Text(
-                            text = "✅ TASKS",
-                            style = AmazeTheme.typography.categoryLabel.copy(color = colors.textMuted),
-                            modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp)
-                        )
-                    }
-                    items(taskResults) { item ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(colors.surface)
-                                .clickable {
-                                    AppState.navigateTo(Screen.TASKS)
-                                    onDismiss()
-                                }
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Rounded.TaskAlt, null, tint = colors.success, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(item.title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
-                                Text("${item.courseCode} • Due ${item.dueDate}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Text(
-                        text = "🚀 SCREENS & NAVIGATION",
-                        style = AmazeTheme.typography.categoryLabel.copy(color = colors.textMuted),
-                        modifier = Modifier.padding(vertical = 4.dp, horizontal = 4.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(colors.surface.copy(alpha = 0.95f))
+                    .border(1.dp, colors.border, RoundedCornerShape(24.dp))
+                    .clickable(
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
                     )
-                }
-                items(filteredCommands) { cmd ->
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Header / Search Bar
                     Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .clickable {
-                                AppState.navigateTo(cmd.screen)
-                                onDismiss()
-                            }
-                            .padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(colors.accent.copy(alpha = 0.1f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(cmd.icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-                        }
+                        Icon(Icons.Rounded.Search, contentDescription = null, tint = colors.accent, modifier = Modifier.size(24.dp))
                         Spacer(Modifier.width(12.dp))
-                        Text(cmd.label, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
+                        androidx.compose.foundation.text.BasicTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            textStyle = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 18.sp),
+                            modifier = Modifier.weight(1f),
+                            decorationBox = { innerTextField ->
+                                if (query.isEmpty()) {
+                                    Text("What do you need?", style = AmazeTheme.typography.body.copy(color = colors.textMuted, fontSize = 18.sp))
+                                }
+                                innerTextField()
+                            },
+                            singleLine = true
+                        )
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { query = "" }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Rounded.Close, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                    
+                    HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+                    
+                    // Results
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                        contentPadding = PaddingValues(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (courseResults.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "📚 COURSES",
+                                    style = AmazeTheme.typography.categoryLabel.copy(color = colors.textMuted),
+                                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                                )
+                            }
+                            items(courseResults, key = { it.courseCode }) { item ->
+                                AmazeCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        AppState.openCourseDetail(item.courseCode)
+                                        onDismiss()
+                                    },
+                                    variant = com.amazecc.app.shared.ui.components.CardVariant.GLASS
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(colors.accent.copy(alpha = 0.15f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Rounded.Class, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(item.courseCode, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                                            Text(item.courseTitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                                        }
+                                        AmazeBadge(
+                                            text = item.attendancePct,
+                                            variant = com.amazecc.app.shared.ui.components.BadgeVariant.INFO
+                                        )
+                                    }
+                                }
+                            }
+                            item { Spacer(Modifier.height(4.dp)) }
+                        }
+                        
+                        if (taskResults.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "✅ TASKS",
+                                    style = AmazeTheme.typography.categoryLabel.copy(color = colors.textMuted),
+                                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                                )
+                            }
+                            items(taskResults, key = { it.title + it.courseCode }) { item ->
+                                AmazeCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        AppState.navigateTo(Screen.TASKS)
+                                        onDismiss()
+                                    },
+                                    variant = com.amazecc.app.shared.ui.components.CardVariant.GLASS
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Rounded.TaskAlt, null, tint = colors.success, modifier = Modifier.size(24.dp))
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(item.title, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                                            Text("${item.courseCode} • Due ${item.dueDate}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                                        }
+                                    }
+                                }
+                            }
+                            item { Spacer(Modifier.height(4.dp)) }
+                        }
+
+                        if (filteredCommands.isNotEmpty()) {
+                            item {
+                                Text(
+                                    text = "🚀 SCREENS",
+                                    style = AmazeTheme.typography.categoryLabel.copy(color = colors.textMuted),
+                                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                                )
+                            }
+                            items(filteredCommands, key = { it.label }) { cmd ->
+                                AmazeCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        AppState.navigateTo(cmd.screen)
+                                        onDismiss()
+                                    },
+                                    variant = com.amazecc.app.shared.ui.components.CardVariant.GLASS
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(40.dp)
+                                                .clip(RoundedCornerShape(12.dp))
+                                                .background(colors.textSecondary.copy(alpha = 0.1f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(cmd.icon, null, tint = colors.textPrimary, modifier = Modifier.size(20.dp))
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(cmd.label, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (courseResults.isEmpty() && taskResults.isEmpty() && filteredCommands.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                                        Spacer(Modifier.height(12.dp))
+                                        Text("No results found for \"$query\"", style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = {}
-    )
+        }
+    }
 }

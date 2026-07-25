@@ -158,6 +158,10 @@ fun App() {
                             Screen.CLUB_DETAIL -> com.amazecc.app.shared.ui.screens.events.ClubDetailScreen()
                             Screen.MOODLE -> MoodleScreen()
                             Screen.TASKS -> TasksScreen()
+                            Screen.EXAM_SCHEDULE -> ExamScheduleScreen()
+                            Screen.CHANGELOG -> ChangelogScreen()
+                            Screen.HALL_OF_FAME -> HallOfFameScreen()
+                            Screen.ARREAR -> ArrearTabScreen()
                             else -> {}
                         }
                     }

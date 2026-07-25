@@ -649,7 +649,27 @@ object AmazeClient {
             LibraryRes(success = false, message = e.message, error = e.toString())
         }
     }
-
+    
+    suspend fun renewLibraryBook(bookId: String): BasicRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return BasicRes(success = true, message = "Book renewed successfully.")
+        }
+        return try {
+            val creds = com.amazecc.app.shared.repository.SettingsManager.getLibraryCredentials()
+            if (creds == null) return BasicRes(success = false, message = "Library credentials not found.")
+            val response: HttpResponse = httpClient.post("$baseUrl/api/koha/renew") {
+                contentType(io.ktor.http.ContentType.Application.Json)
+                setBody(mapOf("username" to creds.first, "password" to creds.second, "bookId" to bookId))
+            }
+            if (response.status.value in 200..299) {
+                jsonConfig.decodeFromString(response.bodyAsText())
+            } else {
+                BasicRes(success = false, message = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            BasicRes(success = false, message = e.message)
+        }
+    }
     suspend fun getTransportData(): TransportDataRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return TransportDataRes(
@@ -865,6 +885,29 @@ object AmazeClient {
             }
         } catch (e: Exception) {
             QBankRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getQBankPapers(courseCode: String): QBankPapersRes {
+        if (useMockData) {
+            return QBankPapersRes(
+                success = true,
+                data = listOf(
+                    QBankPaper("1", "Mid Term 2023", "https://example.com/paper1.pdf", "Mid Term"),
+                    QBankPaper("2", "End Term 2023", "https://example.com/paper2.pdf", "End Term"),
+                    QBankPaper("3", "FAT 2022", "https://example.com/paper3.pdf", "FAT")
+                )
+            )
+        }
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/qbank/papers?course=${courseCode.encodeURLParameter()}")
+            if (response.status.value in 200..299) {
+                response.body()
+            } else {
+                QBankPapersRes(success = false, message = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            QBankPapersRes(success = false, message = e.message, error = e.toString())
         }
     }
 
@@ -1345,18 +1388,24 @@ object AmazeClient {
         return postAuthorized<ArrearResponse>("wishlist") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
-    suspend fun getFeedbackStatus(): ArrearResponse {
+    suspend fun getFeedbackStatus(semesterId: String? = null): FeedbackStatusRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                keyValuePairs = listOf(KeyValuePair("Total Feedbacks", "6"), KeyValuePair("Pending", "2"), KeyValuePair("Submitted", "4")),
-                tables = listOf(ApiTable(title = "Feedback Status", headers = listOf("Course Code", "Course Title", "Status", "Due Date"), rows = listOf(
-                    listOf("CSE1001", "Software Engineering", "Submitted", "2026-07-10"),
-                    listOf("CSE2002", "Database Management Systems", "Pending", "2026-07-15"),
-                    listOf("MAT2001", "Differential Equations", "Submitted", "2026-07-08")
-                )))
+            return FeedbackStatusRes(
+                success = true,
+                semesters = listOf(FeedbackSemester("Fall 2026", "CH20262701", true)),
+                feedbackTable = listOf(
+                    FeedbackTableRow("Software Engineering", "Given", "Given"),
+                    FeedbackTableRow("Database Management Systems", "Given", "Not Given"),
+                    FeedbackTableRow("Differential Equations", "Not Given", "Not Given")
+                )
             )
         }
-        return postAuthorized<ArrearResponse>("feedback") ?: ArrearResponse(success = false, message = "Empty response")
+        return try {
+            val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
+            postAuthorized<FeedbackStatusRes>("feedback-status", params) ?: FeedbackStatusRes(success = false, error = "Empty response")
+        } catch (e: Exception) {
+            FeedbackStatusRes(success = false, error = e.message)
+        }
     }
 
     suspend fun getBonafide(): ArrearResponse {

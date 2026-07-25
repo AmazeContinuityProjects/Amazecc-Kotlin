@@ -308,18 +308,45 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
             }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.CalendarToday, null, tint = dueColor, modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Due: ${book.dueDate ?: "—"}", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold, color = dueColor))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.CalendarToday, null, tint = dueColor, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Due: ${book.dueDate ?: "—"}", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold, color = dueColor))
+                }
+                if (book.fineAmount != null) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(book.fineAmount, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = if (isOverdue) colors.chart5 else colors.textSecondary))
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text("ID: ${book.bookId}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
             }
-            if (book.fineAmount != null) {
-                Text(book.fineAmount, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = if (isOverdue) colors.chart5 else colors.textSecondary))
+            
+            var renewing by remember { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
+            
+            Button(
+                onClick = {
+                    scope.launch {
+                        renewing = true
+                        val res = AmazeClient.renewLibraryBook(book.bookId)
+                        AppState.syncLibrary()
+                        renewing = false
+                    }
+                },
+                modifier = Modifier.height(36.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = cardColor),
+                contentPadding = PaddingValues(horizontal = 12.dp)
+            ) {
+                if (renewing) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                } else {
+                    Text("Renew", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
             }
         }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text("ID: ${book.bookId}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
     }
 }
 

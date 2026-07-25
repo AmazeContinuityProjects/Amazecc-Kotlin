@@ -260,6 +260,62 @@ fun HostelMessTab() {
             }
         }
     }
+
+    Spacer(modifier = Modifier.height(24.dp))
+    Text("Feedback & Requests", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+    Spacer(modifier = Modifier.height(12.dp))
+    
+    var feedbackType by remember { mutableStateOf("Food Quality") }
+    var feedbackMessage by remember { mutableStateOf("") }
+    var feedbackSubmitted by remember { mutableStateOf(false) }
+    
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        AmazeDropdown(
+            options = listOf("Food Quality", "Hygiene", "Mess Change Request", "Other"),
+            selectedOption = feedbackType,
+            onOptionSelected = { feedbackType = it },
+            label = "Request Type"
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            "Message",
+            style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Bold)
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        OutlinedTextField(
+            value = feedbackMessage,
+            onValueChange = { feedbackMessage = it },
+            modifier = Modifier.fillMaxWidth().height(100.dp),
+            placeholder = { Text("Enter your feedback or request details...", style = AmazeTheme.typography.body.copy(color = colors.textMuted)) },
+            shape = RoundedCornerShape(AmazeTheme.radius.small),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = colors.surface,
+                unfocusedContainerColor = colors.surface,
+                focusedBorderColor = colors.accent,
+                unfocusedBorderColor = colors.border,
+                focusedTextColor = colors.textPrimary,
+                unfocusedTextColor = colors.textPrimary,
+                cursorColor = colors.accent
+            )
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        AmazeButton(
+            text = if (feedbackSubmitted) "Submitted Successfully" else "Submit",
+            onClick = {
+                if (feedbackMessage.isNotBlank()) feedbackSubmitted = true
+            },
+            variant = if (feedbackSubmitted) ButtonVariant.SECONDARY else ButtonVariant.PRIMARY,
+            modifier = Modifier.fillMaxWidth(),
+            enabled = feedbackMessage.isNotBlank() && !feedbackSubmitted
+        )
+        if (feedbackSubmitted) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Your feedback has been submitted.",
+                style = AmazeTheme.typography.caption.copy(color = colors.successText)
+            )
+        }
+    }
 }
 
 @Composable

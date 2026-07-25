@@ -100,3 +100,25 @@ data class AllGradesRes(
     val success: Boolean = true,
     val message: String? = null
 )
+
+@Serializable
+data class FeedbackSemester(
+    val text: String,
+    val value: String,
+    val selected: Boolean = false
+)
+
+@Serializable
+data class FeedbackTableRow(
+    val feedbackType: String? = null,
+    val midSemester: String? = null,
+    val teeSemester: String? = null
+)
+
+@Serializable
+data class FeedbackStatusRes(
+    val success: Boolean = true,
+    val error: String? = null,
+    val semesters: List<FeedbackSemester>? = null,
+    val feedbackTable: List<FeedbackTableRow>? = null
+)

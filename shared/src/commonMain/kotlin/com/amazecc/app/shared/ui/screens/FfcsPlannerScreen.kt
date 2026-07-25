@@ -126,6 +126,11 @@ fun FfcsPlannerScreen() {
                                             Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(colors.danger.copy(alpha=0.15f)).padding(horizontal = 8.dp, vertical = 4.dp)) {
                                                 Text("Gaps: ${tt.metrics.gaps}", style = AmazeTheme.typography.smallLabel.copy(color = colors.danger, fontWeight = FontWeight.Bold))
                                             }
+                                            if (tt.metrics.socialScore > 0) {
+                                                Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(colors.successText.copy(alpha=0.15f)).padding(horizontal = 8.dp, vertical = 4.dp)) {
+                                                    Text("Social: ${tt.metrics.socialScore}", style = AmazeTheme.typography.smallLabel.copy(color = colors.successText, fontWeight = FontWeight.Bold))
+                                                }
+                                            }
                                         }
                                     }
                                     

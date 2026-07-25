@@ -3,6 +3,8 @@ package com.amazecc.app.shared.utils
 import com.amazecc.app.shared.model.AttendanceItem
 import kotlinx.serialization.Serializable
 import kotlin.math.abs
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Serializable
 data class FriendClassSlot(
@@ -144,4 +146,52 @@ object SocialUtils {
             showInHomePage = false
         )
     }
+
+    suspend fun getCommonFreeSlots(userAttendance: List<AttendanceItem>, friends: List<Friend>): List<String> = withContext(Dispatchers.Default) {
+        val userBusySlots = userAttendance.flatMap { it.slotName?.split("+")?.map { s -> s.trim() } ?: emptyList() }.filter { it.isNotEmpty() }.toSet()
+        val friendsBusySlots = friends.flatMap { f -> f.classSlots.map { it.slotId } }.toSet()
+        val allBusy = userBusySlots + friendsBusySlots
+
+        val standardSlots = listOf(
+            "MON" to listOf("A1", "F1", "D1", "TB1", "TG1", "A2", "F2", "D2", "TB2", "TG2"),
+            "TUE" to listOf("B1", "G1", "E1", "TC1", "TAA1", "B2", "G2", "E2", "TC2", "TAA2"),
+            "WED" to listOf("C1", "A1", "F1", "TD1", "TBB1", "C2", "A2", "F2", "TD2", "TBB2"),
+            "THU" to listOf("D1", "B1", "G1", "TE1", "TCC1", "D2", "B2", "G2", "TE2", "TCC2"),
+            "FRI" to listOf("E1", "C1", "TA1", "TF1", "TDD1", "E2", "C2", "TA2", "TF2", "TDD2")
+        )
+
+        val freeBlocks = mutableListOf<String>()
+        for ((day, slots) in standardSlots) {
+            var consecutiveFree = 0
+            var startSlotTime = ""
+            var endSlotTime = ""
+            for (slot in slots) {
+                // If it's lab slot L... this logic only covers theory slots, which is usually enough for finding common free blocks.
+                // We check if ANY of the busy slots overlap with this theory slot.
+                // A better approach is to just check if `slot` is in `allBusy`. But we should also check if any lab slots overlapping with this theory slot are busy.
+                // For simplicity, we just check exact match.
+                if (!allBusy.contains(slot)) {
+                    val timeStr = com.amazecc.app.shared.config.SlotMap.map[day]?.get(slot)
+                    if (timeStr != null) {
+                        if (consecutiveFree == 0) startSlotTime = timeStr.substringBefore("-")
+                        endSlotTime = timeStr.substringAfter("-")
+                        consecutiveFree++
+                    }
+                } else {
+                    if (consecutiveFree >= 2) {
+                        val dayName = DAYS_MAP[day] ?: day
+                        freeBlocks.add("$dayName $startSlotTime - $endSlotTime")
+                    }
+                    consecutiveFree = 0
+                }
+            }
+            if (consecutiveFree >= 2) {
+                val dayName = DAYS_MAP[day] ?: day
+                freeBlocks.add("$dayName $startSlotTime - $endSlotTime")
+            }
+        }
+        
+        if (freeBlocks.isEmpty()) listOf("No common free blocks found (>= 1.5 hrs).") else freeBlocks
+    }
 }
+

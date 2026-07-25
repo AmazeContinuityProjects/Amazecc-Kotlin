@@ -362,6 +362,7 @@ fun SettingsScreen() {
                 val syncExam by AppState.syncExam.collectAsState()
                 val syncProfile by AppState.syncProfile.collectAsState()
                 val syncAdditional by AppState.syncAdditional.collectAsState()
+                val syncArrear by AppState.syncArrear.collectAsState()
                 val moduleStates by SyncEngine.moduleStates.collectAsState()
                 val syncProgress by SyncEngine.syncProgress.collectAsState()
 
@@ -441,6 +442,7 @@ fun SettingsScreen() {
                 SettingsToggle("Include Exam Schedule", syncExam, { AppState.setSyncExam(it) }, colors)
                 SettingsToggle("Include Profile Data", syncProfile, { AppState.setSyncProfile(it) }, colors)
                 SettingsToggle("Include Projects & Wishlist", syncAdditional, { AppState.setSyncAdditional(it) }, colors)
+                SettingsToggle("Include Arrear Info", syncArrear, { AppState.setSyncArrear(it) }, colors)
             }
 
             // ═══════════════════════════════════════════

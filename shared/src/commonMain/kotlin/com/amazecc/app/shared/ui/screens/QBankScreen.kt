@@ -2,6 +2,7 @@ package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,14 +38,21 @@ fun QBankScreen() {
     val showAnswer = remember { mutableStateMapOf<String, Boolean>() }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
+    
+    var activeTab by remember { mutableStateOf("Practice Mode") }
+    val tabs = listOf("Practice Mode", "Paper Archive")
+    var papers by remember { mutableStateOf<List<QBankPaper>>(emptyList()) }
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
     fun loadQuestions(course: QBankCourse) {
         selectedCourse = course
         scope.launch {
             loading = true
             try {
-                val res = AmazeClient.getQBankQuestions(course.courseCode)
-                if (res.success) questions = res.data else error = res.message
+                val qRes = AmazeClient.getQBankQuestions(course.courseCode)
+                if (qRes.success) questions = qRes.data else error = qRes.message
+                val pRes = AmazeClient.getQBankPapers(course.courseCode)
+                if (pRes.success) papers = pRes.data
             } catch (e: Exception) { error = e.message }
             loading = false
         }
@@ -121,7 +129,7 @@ fun QBankScreen() {
                 Spacer(Modifier.height(8.dp))
 
                 LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
-                items(courses) { course ->
+                items(courses, key = { it.courseCode }) { course ->
                     AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { loadQuestions(course) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
@@ -140,8 +148,30 @@ fun QBankScreen() {
             }
         }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
-                if (questions.isEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                tabs.forEach { tab ->
+                    val isSelected = activeTab == tab
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = { activeTab = tab },
+                        label = { Text(tab, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.SemiBold)) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = colors.accent, selectedLabelColor = androidx.compose.ui.graphics.Color.White,
+                            containerColor = colors.surface, labelColor = colors.textSecondary
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            borderColor = colors.border, selectedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                            enabled = true, selected = isSelected
+                        )
+                    )
+                }
+            }
+            if (activeTab == "Practice Mode") {
+                LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+                    if (questions.isEmpty()) {
                     item {
                         AmazeCard(modifier = Modifier.fillMaxWidth()) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
@@ -167,10 +197,10 @@ fun QBankScreen() {
                         )
                     }
                 } else {
-                    itemsIndexed(questions) { index, q ->
+                    itemsIndexed(questions, key = { _, q -> q.question_id }) { index, q ->
                         AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { activeQuestionIndex = index }) {
                             Column {
-                                Text(q.question_text, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                LatexViewer(latex = q.question_text, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp, max = 200.dp))
                                 Spacer(Modifier.height(8.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (q.question_type.isNotBlank()) AmazeBadge(text = q.question_type, variant = BadgeVariant.INFO)
@@ -186,6 +216,38 @@ fun QBankScreen() {
                     }
                 }
                 item { Spacer(Modifier.height(16.dp)) }
+            }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+                    if (papers.isEmpty()) {
+                        item {
+                            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("No papers found in the archive.", color = colors.textSecondary)
+                                }
+                            }
+                        }
+                    } else {
+                        items(papers, key = { it.link }) { paper ->
+                            AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { uriHandler.openUri(paper.link) }) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.chart1.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                                        Icon(Icons.AutoMirrored.Rounded.Article, null, tint = colors.chart1, modifier = Modifier.size(20.dp))
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(paper.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                                        Text(paper.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                    }
+                                    Icon(Icons.Rounded.OpenInNew, null, tint = colors.textMuted)
+                                }
+                            }
+                        }
+                    }
+                    item { Spacer(Modifier.height(16.dp)) }
+                }
             }
         }
     }
@@ -208,7 +270,7 @@ private fun QuestionDetailView(
         Column(modifier = Modifier.fillMaxWidth()) {
             Text("Question ${index + 1} of $total", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
             Spacer(Modifier.height(8.dp))
-            Text(question.question_text, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            LatexViewer(latex = question.question_text, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 300.dp))
             Spacer(Modifier.height(16.dp))
             
             if (!question.options.isNullOrEmpty()) {

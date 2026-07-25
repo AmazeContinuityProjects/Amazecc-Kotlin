@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -165,6 +166,14 @@ fun CourseAttendanceScreen() {
     val predictedPct = if (predictedTotal > 0) predictedAttended.toDouble() / predictedTotal * 100 else 0.0
     val currentPct = course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0
 
+    // Independent What-If state
+    var whatIfAttend by remember { mutableStateOf(0f) }
+    var whatIfMiss by remember { mutableStateOf(0f) }
+    
+    val whatIfTotal = course.totalClasses + whatIfAttend.toInt() + whatIfMiss.toInt()
+    val whatIfAttended = course.attendedClasses + whatIfAttend.toInt()
+    val whatIfPct = if (whatIfTotal > 0) whatIfAttended.toDouble() / whatIfTotal * 100 else 0.0
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -244,8 +253,8 @@ fun CourseAttendanceScreen() {
 
         when (activeTab) {
             "Predictor" -> {
-            PredictorTab(
-                mode = mode,
+                PredictorTab(
+                    mode = mode,
                     onModeChange = { mode = it },
                     futureDates = futureClassDates,
                     skipDates = skipDates,
@@ -255,6 +264,15 @@ fun CourseAttendanceScreen() {
                     predictedPct = predictedPct,
                     predictedAttended = predictedAttended,
                     predictedTotal = predictedTotal,
+                    whatIfAttend = whatIfAttend,
+                    onWhatIfAttendChange = { whatIfAttend = it },
+                    whatIfMiss = whatIfMiss,
+                    onWhatIfMissChange = { whatIfMiss = it },
+                    whatIfPct = whatIfPct,
+                    whatIfTotal = whatIfTotal,
+                    whatIfAttended = whatIfAttended,
+                    currentAttended = course.attendedClasses,
+                    currentTotal = course.totalClasses,
                     colors = colors
                 )
             }
@@ -294,12 +312,73 @@ private fun PredictorTab(
     predictedPct: Double,
     predictedAttended: Int,
     predictedTotal: Int,
+    whatIfAttend: Float,
+    onWhatIfAttendChange: (Float) -> Unit,
+    whatIfMiss: Float,
+    onWhatIfMissChange: (Float) -> Unit,
+    whatIfPct: Double,
+    whatIfTotal: Int,
+    whatIfAttended: Int,
+    currentAttended: Int,
+    currentTotal: Int,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val modes = listOf("CAT1", "CAT2", "LID")
+    val scrollState = androidx.compose.foundation.rememberScrollState()
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Cutoff Target", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp)) {
+        
+        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Calculate, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Interactive What-If", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp))
+                }
+                Spacer(Modifier.height(12.dp))
+                
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                    Column {
+                        Text("If I attend", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        Text("${whatIfAttend.toInt()} classes", style = AmazeTheme.typography.body.copy(color = Color(0xFF10B981), fontWeight = FontWeight.Bold))
+                    }
+                    Text(
+                        pctFormatted(whatIfPct),
+                        style = AmazeTheme.typography.heading.copy(
+                            color = projectedColor(whatIfPct),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 32.sp
+                        )
+                    )
+                }
+                Slider(
+                    value = whatIfAttend,
+                    onValueChange = onWhatIfAttendChange,
+                    valueRange = 0f..50f,
+                    colors = SliderDefaults.colors(thumbColor = Color(0xFF10B981), activeTrackColor = Color(0xFF10B981))
+                )
+                
+                Spacer(Modifier.height(4.dp))
+                
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                    Column {
+                        Text("And miss", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        Text("${whatIfMiss.toInt()} classes", style = AmazeTheme.typography.body.copy(color = colors.danger, fontWeight = FontWeight.Bold))
+                    }
+                    Text("$whatIfAttended / $whatIfTotal", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                }
+                Slider(
+                    value = whatIfMiss,
+                    onValueChange = onWhatIfMissChange,
+                    valueRange = 0f..50f,
+                    colors = SliderDefaults.colors(thumbColor = colors.danger, activeTrackColor = colors.danger)
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Date-based Predictor", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         Spacer(modifier = Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             modes.forEach { m ->
@@ -333,8 +412,8 @@ private fun PredictorTab(
                 )
             }
         } else {
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
-                items(futureDates.sortedBy { it.first * 10000 + it.second * 100 + it.third }) { (y, m, d) ->
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                futureDates.sortedBy { it.first * 10000 + it.second * 100 + it.third }.forEach { (y, m, d) ->
                     val key = y * 10000 + m * 100 + d
                     val skipped = key in skipDates
                     val dateStr = "${m}/${d}/$y"

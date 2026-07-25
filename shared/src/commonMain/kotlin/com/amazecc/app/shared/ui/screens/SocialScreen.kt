@@ -314,6 +314,8 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     var showAddDialog by remember { mutableStateOf(false) }
     var codeInput by remember { mutableStateOf("") }
     
+    var selectedFriend by remember { mutableStateOf<com.amazecc.app.shared.utils.Friend?>(null) }
+
     if (showAddDialog) {
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
@@ -350,6 +352,49 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         )
     }
 
+    if (selectedFriend != null) {
+        AlertDialog(
+            onDismissRequest = { selectedFriend = null },
+            title = { Text("${selectedFriend!!.name}'s Timetable", fontWeight = FontWeight.Bold) },
+            text = {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val days = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
+                    for (day in days) {
+                        val daySlots = selectedFriend!!.classSlots.filter { it.day == day }
+                        if (daySlots.isNotEmpty()) {
+                            item {
+                                Text(day, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent), modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                            }
+                            items(daySlots.sortedBy { it.timeSlot }, key = { it.slotId + it.courseCode }) { slot ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.background).padding(8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(slot.courseCode, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                        Text(slot.courseTitle, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(slot.slotId, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                                        Text(slot.venue, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedFriend = null }) { Text("Close", color = colors.accent) }
+            },
+            containerColor = colors.surface,
+            titleContentColor = colors.textPrimary,
+            textContentColor = colors.textSecondary
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         AmazeButton(
             text = "Add Friend via Code",
@@ -366,8 +411,8 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
-                items(friends) { friend ->
-                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                items(friends, key = { it.regNumber }) { friend ->
+                    AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { selectedFriend = friend }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier.size(40.dp).clip(CircleShape).background(colors.accent),
@@ -394,6 +439,7 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
 @Composable
 private fun CommonSlotsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val friends by com.amazecc.app.shared.state.FriendsViewModel.friends.collectAsState()
+    val attendance by AppState.attendance.collectAsState()
     
     if (friends.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -402,21 +448,28 @@ private fun CommonSlotsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         return
     }
     
-    // In a real app, we would intersect user's free slots with friends' free slots.
-    // For this UI, we mock the result of the complex algorithm.
+    val attList = attendance?.attendance ?: emptyList()
+    var commonSlots by remember { mutableStateOf(emptyList<String>()) }
+
+    LaunchedEffect(attList, friends) {
+        commonSlots = SocialUtils.getCommonFreeSlots(attList, friends)
+    }
+    
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
         item {
             Text("Common Free Slots", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Spacer(Modifier.height(4.dp))
-            Text("Times when you and selected friends are free", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+            Text("Times when you and ALL added friends are free", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
         }
         
-        val dummySlots = listOf("Monday 10:00 - 11:30", "Tuesday 14:00 - 15:30", "Friday 08:00 - 09:30")
-        
-        items(dummySlots) { slot ->
+        items(commonSlots, key = { it }) { slot ->
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.EventAvailable, null, tint = colors.successText)
+                    if (slot.startsWith("No ")) {
+                        Icon(Icons.Rounded.EventBusy, null, tint = colors.dangerText)
+                    } else {
+                        Icon(Icons.Rounded.EventAvailable, null, tint = colors.successText)
+                    }
                     Spacer(Modifier.width(12.dp))
                     Text(slot, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
@@ -489,7 +542,7 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             }
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
-                items(groups) { group ->
+                items(groups, key = { it.id }) { group ->
                     val memberNames = group.memberRegNumbers.mapNotNull { reg ->
                         friends.find { it.regNumber == reg }?.name
                     }

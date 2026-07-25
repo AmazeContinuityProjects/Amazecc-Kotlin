@@ -41,7 +41,8 @@ object FfcsEngine {
 
     suspend fun generateTimetables(
         optionsPerCourse: List<List<ParsedCourse>>,
-        locks: List<CourseLock> = emptyList() // The new lock constraint
+        locks: List<CourseLock> = emptyList(),
+        friends: List<com.amazecc.app.shared.utils.Friend> = emptyList()
     ): List<TimetableState> = withContext(Dispatchers.Default) {
         val results = mutableListOf<List<ParsedCourse>>()
         val maxResults = 50
@@ -128,18 +129,31 @@ object FfcsEngine {
             }
 
             val metrics = FfcsMetrics.calculateTimetableMetrics(mappedCourses)
+            var socialScore = 0
+            if (friends.isNotEmpty()) {
+                mappedCourses.forEach { mc ->
+                    mc.slots.forEach { slot ->
+                        friends.forEach { f ->
+                            if (f.classSlots.any { it.slotId == slot }) {
+                                socialScore++
+                            }
+                        }
+                    }
+                }
+            }
+            val finalMetrics = metrics.copy(socialScore = socialScore)
             
             TimetableState(
                 id = "tt_$idx",
                 name = "Generated TT ${idx + 1}",
                 courses = mappedCourses,
-                metrics = metrics
+                metrics = finalMetrics
             )
         }
 
-        // Sort by most balanced (HalfDays vs Gaps)
+        // Sort by most balanced (HalfDays vs Gaps vs Social)
         generated.sortedByDescending { tt ->
-            (tt.metrics.halfDays * 10) + ((20 - tt.metrics.gaps) * 5)
+            (tt.metrics.halfDays * 10) + ((20 - tt.metrics.gaps) * 5) + (tt.metrics.socialScore * 15)
         }
     }
 }

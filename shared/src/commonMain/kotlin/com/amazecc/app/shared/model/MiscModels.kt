@@ -7,6 +7,12 @@ import kotlinx.serialization.json.JsonElement
 
 
 @Serializable
+data class BasicRes(
+    val success: Boolean,
+    val message: String? = null
+)
+
+@Serializable
 data class LoginResponse(
     val success: Boolean,
     val message: String,
@@ -305,6 +311,23 @@ data class QBankRes(
     val error: String? = null,
     val message: String? = null
 )
+
+@Serializable
+data class QBankPaper(
+    val paper_id: String,
+    val title: String,
+    val link: String,
+    val type: String
+)
+
+@Serializable
+data class QBankPapersRes(
+    val success: Boolean = true,
+    val data: List<QBankPaper> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
 
 @Serializable
 data class EventHubRes(
