@@ -43,6 +43,7 @@ import com.amazecc.app.shared.utils.AttendanceDay
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.utils.SlotInfo
+import kotlinx.datetime.*
 import com.amazecc.app.shared.utils.TimeMath
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DayOfWeek
@@ -755,12 +756,37 @@ fun TimetableGridScreen() {
     val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT")
     val dayFull = mapOf("MON" to "Monday", "TUE" to "Tuesday", "WED" to "Wednesday", "THU" to "Thursday", "FRI" to "Friday", "SAT" to "Saturday")
 
+    val calendarRes by AppState.calendar.collectAsState()
+    val todayDate = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
+    val mondayDate = remember(todayDate) { todayDate.minus(DatePeriod(days = todayDate.dayOfWeek.ordinal)) }
+
+    // Map each calendar day of week to any Day Order override for this week's dates
+    val weekDayOverrides = remember(mondayDate, calendarRes) {
+        val map = mutableMapOf<String, AttendanceDay>()
+        (0..6).forEach { offset ->
+            val date = mondayDate.plus(DatePeriod(days = offset))
+            val override = AttendanceTimetable.getDayOrderOverrideForDate(date, calendarRes)
+            if (override != null) {
+                val calendarDayAbbr = when (date.dayOfWeek) {
+                    DayOfWeek.MONDAY -> "MON"; DayOfWeek.TUESDAY -> "TUE"; DayOfWeek.WEDNESDAY -> "WED"
+                    DayOfWeek.THURSDAY -> "THU"; DayOfWeek.FRIDAY -> "FRI"; DayOfWeek.SATURDAY -> "SAT"
+                    DayOfWeek.SUNDAY -> "SUN"; else -> ""
+                }
+                if (calendarDayAbbr.isNotEmpty()) {
+                    map[calendarDayAbbr] = override
+                }
+            }
+        }
+        map
+    }
+
     // Build a map: day -> (slotCode -> courseInfo)
-    val daySlotMap = remember(courses, timetableRes) {
+    val daySlotMap = remember(courses, timetableRes, weekDayOverrides) {
         val map = mutableMapOf<String, MutableMap<String, AttendanceItem>>()
         for (day in days) {
             map[day] = mutableMapOf()
-            val daySlots = SlotMap.map[day] ?: continue
+            val effectiveDay = weekDayOverrides[day]?.name ?: day
+            val daySlots = SlotMap.map[effectiveDay] ?: continue
             for (course in courses) {
                 val slotRaw = (course.slotName ?: "")
                 val slots = slotRaw.split("+")
@@ -776,16 +802,17 @@ fun TimetableGridScreen() {
     }
 
     // Collect all unique time ranges per day, sorted
-    val dayTimeSlots = remember {
+    val dayTimeSlots = remember(weekDayOverrides) {
         val map = mutableMapOf<String, List<Pair<String, String>>>() // day -> list of (slotCode, timeRange)
         for (day in days) {
-            val slots = SlotMap.map[day]?.entries?.sortedBy { TimeMath.toMinutes(it.value.split("-")[0]) } ?: emptyList()
+            val effectiveDay = weekDayOverrides[day]?.name ?: day
+            val slots = SlotMap.map[effectiveDay]?.entries?.sortedBy { TimeMath.toMinutes(it.value.split("-")[0]) } ?: emptyList()
             map[day] = slots.map { it.key to it.value }
         }
         map
     }
 
-        var selectedDay by remember { mutableStateOf<String?>(null) }
+    var selectedDay by remember { mutableStateOf<String?>(null) }
     var showTimetableDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -803,19 +830,20 @@ fun TimetableGridScreen() {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             days.forEach { day ->
                 val isSelected = selectedDay == day
+                val overrideForDay = weekDayOverrides[day]
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(8.dp))
                         .background(if (isSelected) colors.accent else colors.surface)
-                        .border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(8.dp))
+                        .border(if (isSelected) 0.dp else 1.dp, if (overrideForDay != null) colors.accent.copy(alpha = 0.5f) else colors.border, RoundedCornerShape(8.dp))
                         .clickable { selectedDay = if (isSelected) null else day }
                         .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        day.take(3),
-                        color = if (isSelected) Color.White else colors.textPrimary,
+                        if (overrideForDay != null) "${day.take(3)}⚡" else day.take(3),
+                        color = if (isSelected) Color.White else if (overrideForDay != null) colors.accent else colors.textPrimary,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp
                     )
@@ -829,19 +857,36 @@ fun TimetableGridScreen() {
                 items(days) { day ->
                     val dayCourses = daySlotMap[day]?.values?.distinct() ?: emptyList()
                     val daySlots = dayTimeSlots[day] ?: emptyList()
+                    val overrideForDay = weekDayOverrides[day]
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .background(colors.surface)
-                            .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+                            .border(1.dp, if (overrideForDay != null) colors.accent.copy(alpha = 0.4f) else colors.border, RoundedCornerShape(16.dp))
                             .padding(12.dp)
                     ) {
                         Column {
-                            Text(
-                                dayFull[day] ?: day,
-                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    dayFull[day] ?: day,
+                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                                )
+                                if (overrideForDay != null) {
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(colors.accent.copy(alpha = 0.12f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            "⚡ ${overrideForDay.name} Order",
+                                            style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                        )
+                                    }
+                                }
+                            }
                             Spacer(modifier = Modifier.height(4.dp))
                             if (dayCourses.isEmpty()) {
                                 Text("No classes", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))

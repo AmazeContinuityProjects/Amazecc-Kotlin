@@ -33,6 +33,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.utils.AttendanceDay
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.TimeMath
 import kotlinx.datetime.*
@@ -52,7 +53,9 @@ private data class WeekDay(
     val date: Int,
     val month: Int,
     val isToday: Boolean,
-    val fullDate: LocalDate
+    val fullDate: LocalDate,
+    val effectiveAbbrev: String,
+    val dayOrderOverride: AttendanceDay?
 )
 
 @Composable
@@ -68,20 +71,25 @@ fun DailyPlannerScreen() {
         AttendanceTimetable.getTodayAttendanceDay(calendarRes).name
     }
 
-    val weekDays = remember(today) {
+    val weekDays = remember(today, calendarRes) {
         val monday = today.minus(DatePeriod(days = today.dayOfWeek.ordinal))
         (0..6).map { offset ->
             val d = monday.plus(DatePeriod(days = offset))
-            val abbr = when (d.dayOfWeek) {
+            val baseAbbr = when (d.dayOfWeek) {
                 DayOfWeek.SUNDAY -> "SUN"; DayOfWeek.MONDAY -> "MON"; DayOfWeek.TUESDAY -> "TUE"
                 DayOfWeek.WEDNESDAY -> "WED"; DayOfWeek.THURSDAY -> "THU"; DayOfWeek.FRIDAY -> "FRI"
                 DayOfWeek.SATURDAY -> "SAT"; else -> "MON"
             }
-            WeekDay(abbr, d.dayOfMonth, d.monthNumber, d == today, d)
+            val dayOrderOverride = AttendanceTimetable.getDayOrderOverrideForDate(d, calendarRes)
+            val effectiveAbbrev = AttendanceTimetable.getAttendanceDayForDate(d, calendarRes).name
+            WeekDay(baseAbbr, d.dayOfMonth, d.monthNumber, d == today, d, effectiveAbbrev, dayOrderOverride)
         }
     }
 
-    var selectedDay by remember { mutableStateOf(todayAbbrev) }
+    var selectedDate by remember { mutableStateOf(today) }
+    val selectedWeekDay = remember(selectedDate, weekDays) {
+        weekDays.firstOrNull { it.fullDate == selectedDate } ?: weekDays.firstOrNull { it.isToday } ?: weekDays.first()
+    }
 
     // Check calendar for holiday/working day info
     val holidayMap = remember(calendarMonths) {
@@ -199,7 +207,7 @@ fun DailyPlannerScreen() {
         return timeline
     }
 
-    val scheduleData = remember(selectedDay, attendance) { buildDailySchedule(selectedDay) }
+    val scheduleData = remember(selectedWeekDay, attendance) { buildDailySchedule(selectedWeekDay.effectiveAbbrev) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Horizontal Day Selector with Dates
@@ -208,8 +216,8 @@ fun DailyPlannerScreen() {
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(weekDays) { wd ->
-                val isSelected = selectedDay == wd.abbrev
-                val dayMap = SlotMap.map[wd.abbrev] ?: emptyMap<String, String>()
+                val isSelected = selectedWeekDay.fullDate == wd.fullDate
+                val dayMap = SlotMap.map[wd.effectiveAbbrev] ?: emptyMap<String, String>()
                 val classCount = attendance.count { course ->
                     val slots = course.slotName.split("+").map { it.trim() }
                     slots.any { dayMap.containsKey(it) }
@@ -243,15 +251,15 @@ fun DailyPlannerScreen() {
                             .clickable(
                                 interactionSource = interactionSource,
                                 indication = null,
-                                onClick = { selectedDay = wd.abbrev }
+                                onClick = { selectedDate = wd.fullDate }
                             )
                             .padding(horizontal = 14.dp, vertical = 10.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = wd.abbrev,
+                            text = if (wd.dayOrderOverride != null) "${wd.abbrev}⚡" else wd.abbrev,
                             style = AmazeTheme.typography.smallLabel.copy(
-                                color = if (isSelected) colors.background.copy(alpha = 0.8f) else colors.textSecondary,
+                                color = if (isSelected) colors.background.copy(alpha = 0.8f) else if (wd.dayOrderOverride != null) colors.accent else colors.textSecondary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 10.sp
                             )
@@ -294,7 +302,28 @@ fun DailyPlannerScreen() {
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (selectedWeekDay.dayOrderOverride != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(colors.accent.copy(alpha = 0.12f))
+                    .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        "⚡ ${selectedWeekDay.dayOrderOverride.name} Day Order active for ${selectedWeekDay.abbrev}",
+                        style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent)
+                    )
+                }
+            }
+        }
 
         if (scheduleData.isEmpty()) {
             Box(
