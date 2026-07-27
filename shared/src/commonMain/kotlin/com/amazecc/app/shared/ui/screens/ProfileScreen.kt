@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import com.amazecc.app.shared.ui.components.*
 import io.ktor.util.decodeBase64Bytes
+import com.amazecc.app.shared.utils.toImageBitmap
 import com.amazecc.app.shared.ui.components.bouncySpring
 
 @Composable
@@ -60,6 +61,12 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val spacing = AmazeTheme.spacing
     val profile by AppState.studentProfile.collectAsState()
     val authorizedID by SessionManager.authorizedID.collectAsState()
+    val bankInfo by AppState.bankInfo.collectAsState()
+    val dayboarder by AppState.dayboarder.collectAsState()
+    val eptSchedule by AppState.eptSchedule.collectAsState()
+    val registrationSchedule by AppState.registrationSchedule.collectAsState()
+    val apaarId by AppState.apaarId.collectAsState()
+    val profileImages by AppState.profileImages.collectAsState()
 
     val scrollState = rememberScrollState()
 
@@ -82,11 +89,25 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         .border(2.dp, colors.accent.copy(alpha = 0.5f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    val photoBase64 = profile?.photoBase64
-                    if (photoBase64 != null) {
-                        val cleanBase64 = photoBase64.substringAfter("base64,")
-                        io.kamel.image.KamelImage(
-                            resource = io.kamel.image.asyncPainterResource(data = cleanBase64.decodeBase64Bytes()),
+                    val photoBase64 = profile?.photoBase64 
+                        ?: profileImages?.student?.photoBase64 
+                        ?: profileImages?.profile?.photoBase64 
+                        ?: profileImages?.studentPhoto
+                    val decodedBitmap = remember(photoBase64) {
+                        if (photoBase64 != null) {
+                            try {
+                                val cleanBase64 = photoBase64.substringAfter("base64,")
+                                    .replace("\n", "")
+                                    .replace("\r", "")
+                                    .replace(" ", "")
+                                cleanBase64.decodeBase64Bytes().toImageBitmap()
+                            } catch (e: Exception) { null }
+                        } else null
+                    }
+                    
+                    if (decodedBitmap != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = decodedBitmap,
                             contentDescription = "Profile Image",
                             modifier = Modifier.fillMaxSize().clip(CircleShape),
                             contentScale = androidx.compose.ui.layout.ContentScale.Crop
@@ -130,15 +151,85 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
             }
         }
 
+        // Profile Status Grid
+        val hasEpt = eptSchedule?.tables?.isNotEmpty() == true
+        val hasReg = registrationSchedule?.tables?.isNotEmpty() == true
+        val hasBank = bankInfo?.bankDetails != null || bankInfo?.fields?.isNotEmpty() == true
+        val hasDay = dayboarder?.fields?.isNotEmpty() == true
+        val hasApaar = apaarId?.hasApaar == true
+        val viteeeRank = profileImages?.credentials?.ranks?.firstOrNull()?.rank
+        
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AmazeCard(variant = CardVariant.DEFAULT) {
+                    Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.Event, null, tint = if (hasEpt) colors.accent else colors.textMuted)
+                        Spacer(Modifier.height(8.dp))
+                        Text("EPT Schedule", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        Text(if (hasEpt) "Scheduled" else "No EPT", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                    }
+                }
+                AmazeCard(variant = CardVariant.DEFAULT) {
+                    Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.AccountBalance, null, tint = if (hasBank) colors.accent else colors.textMuted)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Bank Info", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        Text(if (hasBank) "Available" else "Not available", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                    }
+                }
+                AmazeCard(variant = CardVariant.DEFAULT) {
+                    Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.EmojiEvents, null, tint = if (viteeeRank != null) colors.accent else colors.textMuted)
+                        Spacer(Modifier.height(8.dp))
+                        Text("VITEEE Rank", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        Text(viteeeRank ?: "N/A", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                    }
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AmazeCard(variant = CardVariant.DEFAULT) {
+                    Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.HowToReg, null, tint = if (hasReg) colors.accent else colors.textMuted)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Registration", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        Text(if (hasReg) "Available" else "No Schedule", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                    }
+                }
+                AmazeCard(variant = CardVariant.DEFAULT) {
+                    Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.Commute, null, tint = if (hasDay) colors.accent else colors.textMuted)
+                        Spacer(Modifier.height(8.dp))
+                        Text("Dayboarder", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        Text(if (hasDay) "Active" else "Not active", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                    }
+                }
+                AmazeCard(variant = CardVariant.DEFAULT) {
+                    Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.Badge, null, tint = if (hasApaar) colors.accent else colors.textMuted)
+                        Spacer(Modifier.height(8.dp))
+                        Text("APAAR ID", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                        Text(if (hasApaar) "Generated" else "Pending", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                    }
+                }
+            }
+        }
+        
         // Profile info cards
         val p = profile
         if (p != null) {
-            ProfileGroupCard("PERSONAL INFORMATION", listOf(
+            ProfileGroupCard("PERSONAL INFORMATION", listOfNotNull(
                 ProfileItem(Icons.Rounded.Email, "Email", p.email),
                 ProfileItem(Icons.Rounded.Phone, "Mobile", p.mobile),
                 ProfileItem(Icons.Rounded.School, "Program", p.program),
                 ProfileItem(Icons.Rounded.LocationOn, "Campus", p.campus),
                 ProfileItem(Icons.Rounded.DateRange, "Batch", p.batch),
+                p.nationality?.let { ProfileItem(Icons.Rounded.Public, "Nationality", it) },
+                p.nativeLanguage?.let { ProfileItem(Icons.Rounded.Translate, "Mother Tongue", it) },
+                p.religion?.let { ProfileItem(Icons.Rounded.TempleHindu, "Religion", it) },
+                p.community?.let { ProfileItem(Icons.Rounded.Groups, "Community", it) },
+                p.caste?.let { ProfileItem(Icons.Rounded.AccountBox, "Caste", it) },
+                p.physicallyChallenged?.let { ProfileItem(Icons.Rounded.Accessible, "Physically Challenged", it) },
+                p.aadharNumber?.let { ProfileItem(Icons.Rounded.Assignment, "Aadhar Number", it) }
             ), colors)
 
             val extraItems = mutableListOf<ProfileItem>()
@@ -148,6 +239,42 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
 
             if (extraItems.isNotEmpty()) {
                 ProfileGroupCard("ACADEMIC & CAMPUS DETAILS", extraItems, colors)
+            }
+            
+            // Faculty details from profileImages
+            val proc = profileImages?.proctor
+            if (proc != null && proc.details.isNotEmpty()) {
+                val items = proc.details.map { (k, v) ->
+                    val icon = when (k.lowercase()) {
+                        "name" -> Icons.Rounded.Person
+                        "designation" -> Icons.Rounded.Badge
+                        "school" -> Icons.Rounded.AccountBalance
+                        "mobile" -> Icons.Rounded.Phone
+                        "intercom" -> Icons.Rounded.Call
+                        "email" -> Icons.Rounded.Email
+                        else -> Icons.Rounded.Info
+                    }
+                    ProfileItem(icon, k, v)
+                }
+                ProfileGroupCard("PROCTOR DETAILS", items, colors)
+            }
+
+            val dean = profileImages?.hodDean
+            if (dean != null && dean.people.isNotEmpty()) {
+                val items = dean.people.flatMap { person ->
+                    val roleLabel = person.role
+                    person.details.map { (k, v) ->
+                        val icon = when (k.lowercase()) {
+                            "name" -> Icons.Rounded.Person
+                            "designation" -> Icons.Rounded.Badge
+                            "intercom" -> Icons.Rounded.Call
+                            "email" -> Icons.Rounded.Email
+                            else -> Icons.Rounded.Info
+                        }
+                        ProfileItem(icon, "$roleLabel $k", v)
+                    }
+                }
+                ProfileGroupCard("DEAN & HOD DETAILS", items, colors)
             }
         } else {
             AmazeCard(modifier = Modifier.fillMaxWidth()) {

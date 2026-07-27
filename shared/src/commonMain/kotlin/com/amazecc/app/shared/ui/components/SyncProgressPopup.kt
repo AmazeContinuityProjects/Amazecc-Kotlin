@@ -230,7 +230,7 @@ fun SyncProgressPopup(
                     .padding(horizontal = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                items(SyncModule.entries.filter { it.cacheKey != null || it == SyncModule.ALL_SEMESTER_ATTENDANCE || it == SyncModule.CAB_TRIPS || it == SyncModule.VITOL }) { module ->
+                items(SyncModule.entries.filter { it.cacheKey != null || it == SyncModule.ALL_SEMESTER_ATTENDANCE || it == SyncModule.CAB_TRIPS }) { module ->
                     val state = moduleStates[module] ?: ModuleState()
                     ModuleSyncRow(module, state, colors)
                 }
@@ -447,8 +447,14 @@ private fun moduleShortName(module: SyncModule): String = when (module) {
     SyncModule.CLUBS -> "Clubs"
     SyncModule.QCM_VIEW -> "QCM"
     SyncModule.STUDENT_PROFILE -> "Profile"
-    SyncModule.CAB_TRIPS -> "Cab"
-    SyncModule.VITOL -> "Vitol"
+    SyncModule.CAB_TRIPS -> "Cab Share"
+    SyncModule.CIRCULARS -> "Circ"
+    SyncModule.PROFILE_IMAGES -> "Imgs"
+    SyncModule.BANK_INFO -> "Bank"
+    SyncModule.DAYBOARDER -> "Day"
+    SyncModule.EPT_SCHEDULE -> "EPT"
+    SyncModule.REGISTRATION_SCHEDULE -> "Reg"
+    SyncModule.APAAR_ID -> "APAAR"
 }
 
 private fun formatTimeAgo(instant: Instant): String {

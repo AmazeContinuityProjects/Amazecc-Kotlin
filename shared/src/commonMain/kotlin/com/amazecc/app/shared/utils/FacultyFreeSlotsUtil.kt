@@ -1,7 +1,8 @@
 package com.amazecc.app.shared.utils
 
 import com.amazecc.app.shared.config.SlotMap
-import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.data.FfcsReportData
+import com.amazecc.app.shared.model.FacultyProfile
 
 data class FacultySlot(
     val day: String,
@@ -26,41 +27,96 @@ object FacultyFreeSlotsUtil {
     )
 
     val workingDays = listOf("MON", "TUE", "WED", "THU", "FRI")
-    val allTimeSlots: List<String> by lazy {
-        val times = mutableSetOf<String>()
-        for ((_, slots) in SlotMap.map) {
-            for ((_, time) in slots) {
-                times.add(time)
-            }
-        }
-        times.sortedBy { TimeMath.toMinutes(it.split("-").getOrNull(0)) }
-    }
 
-    fun getFacultySchedule(facultyName: String, courses: List<AttendanceItem>): FacultyFreeSlotsResult {
+    fun getFacultySchedule(faculty: FacultyProfile): FacultyFreeSlotsResult {
         val occupied = mutableListOf<FacultySlot>()
 
-        for (course in courses) {
-            if (!course.faculty.equals(facultyName, ignoreCase = true)) continue
-            val slotStr = course.slotName ?: continue
-            val slotCodes = slotStr.split("+").map { it.trim() }.filter { it.isNotEmpty() }
+        val lines = FfcsReportData.CSV_DATA.replace("\r", "").split("\n").drop(1)
+        for (line in lines) {
+            if (line.isBlank()) continue
 
-            for (code in slotCodes) {
+            var inQuotes = false
+            val cols = mutableListOf<String>()
+            val current = StringBuilder()
+            for (char in line) {
+                if (char == '\"') {
+                    inQuotes = !inQuotes
+                } else if (char == ',' && !inQuotes) {
+                    cols.add(current.toString().trim())
+                    current.clear()
+                } else {
+                    current.append(char)
+                }
+            }
+            cols.add(current.toString().trim())
+
+            if (cols.size < 6) continue
+
+            val csvFacultyRaw = cols[5].trim().replace("\r", "")
+            if (!matchesFaculty(csvFacultyRaw, faculty)) continue
+
+            val code = cols[0].trim().replace("\r", "")
+            val title = cols[1].trim().replace("\r", "")
+            val slotStr = cols[4].trim().replace("\r", "")
+
+            if (slotStr.isEmpty() || slotStr.equals("NIL", ignoreCase = true)) continue
+
+            val slotCodes = slotStr.split("+").map { it.trim().uppercase() }.filter { it.isNotEmpty() }
+
+            for (slotCode in slotCodes) {
                 for ((day, daySlots) in SlotMap.map) {
-                    val time = daySlots[code] ?: continue
+                    val time = daySlots[slotCode] ?: continue
                     occupied.add(FacultySlot(
                         day = day,
                         timeRange = time,
-                        courseCode = course.courseCode,
-                        courseTitle = course.courseTitle,
-                        slotCode = code
+                        courseCode = code,
+                        courseTitle = title,
+                        slotCode = slotCode
                     ))
                 }
             }
         }
 
         val free = computeFreeSlots(occupied)
+        return FacultyFreeSlotsResult(faculty.name, occupied, free)
+    }
 
-        return FacultyFreeSlotsResult(facultyName, occupied, free)
+    private fun matchesFaculty(csvFacultyRaw: String, faculty: FacultyProfile): Boolean {
+        val idRegex = Regex("""\(([^)]+)\)""")
+        val idMatch = idRegex.find(csvFacultyRaw)
+        val extractedId = idMatch?.groupValues?.getOrNull(1)?.trim()
+
+        if (extractedId != null) {
+            if (extractedId.equals(faculty.id, ignoreCase = true) ||
+                extractedId.equals(faculty.employeeId, ignoreCase = true)
+            ) return true
+        }
+
+        val csvName = csvFacultyRaw.replace(idRegex, "").trim()
+
+        fun normalize(s: String): String {
+            return s.lowercase()
+                .replace(Regex("""\b(dr|prof|mr|mrs|ms)\.?\b"""), "")
+                .replace(Regex("""[.\s]+"""), " ")
+                .trim()
+        }
+
+        val normCsv = normalize(csvName)
+        val normFaculty = normalize(faculty.name)
+        if (normCsv.isEmpty() || normFaculty.isEmpty()) return false
+        if (normCsv == normFaculty) return true
+
+        // Containment — only when the longer string is substantially longer
+        if (normCsv.contains(normFaculty) && normCsv.length >= normFaculty.length * 3) return true
+        if (normFaculty.contains(normCsv) && normFaculty.length >= normCsv.length * 3) return true
+
+        // Token overlap — exclude single-char tokens (initials are too common)
+        val csvTokens = normCsv.split(" ").filter { it.length > 1 }
+        val facultyTokens = normFaculty.split(" ").filter { it.length > 1 }
+        if (csvTokens.isEmpty() || facultyTokens.isEmpty()) return false
+
+        val common = csvTokens.intersect(facultyTokens.toSet()).size
+        return common >= csvTokens.size / 2 && common >= facultyTokens.size / 2 && common > 0
     }
 
     private fun computeFreeSlots(occupied: List<FacultySlot>): Map<String, List<String>> {

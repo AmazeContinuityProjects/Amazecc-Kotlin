@@ -2,10 +2,14 @@ package com.amazecc.app.shared.ui.screens.payments
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.automirrored.rounded.*
@@ -54,113 +58,147 @@ fun PaymentsScreen() {
         Column(modifier = Modifier.fillMaxSize()) {
             com.amazecc.app.shared.ui.components.HeaderSpacer()
 
-        // Wallet balance card
-        AmazeCard(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            backgroundColor = colors.accent.copy(alpha = 0.1f)
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+            // Premium Wallet Card
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(AmazeTheme.radius.large))
+                    .background(androidx.compose.ui.graphics.Brush.linearGradient(
+                        colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
+                    ))
+                    .padding(20.dp)
             ) {
-                Box(
-                    modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(colors.accent.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Rounded.AccountBalanceWallet, null, tint = colors.accent, modifier = Modifier.size(24.dp))
-                }
-                Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("Wallet Balance", color = colors.textSecondary, fontSize = 11.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.AccountBalanceWallet, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text("VIT Wallet Balance", color = Color.White.copy(alpha = 0.9f), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium))
+                    }
+                    Spacer(Modifier.height(16.dp))
                     Text(
                         paymentsRes?.walletBalance?.replace("Rs.", "\u20B9")?.replace("INR", "\u20B9") ?: "\u20B9 0.00",
-                        fontWeight = FontWeight.Bold, fontSize = 22.sp, color = colors.accent
+                        fontWeight = FontWeight.Black, fontSize = 36.sp, color = Color.White
                     )
-                }
-            }
-        }
-
-        // Sub-tabs
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf("due" to "Dues", "receipts" to "Receipts", "wallet" to "Wallet").forEach { (key, label) ->
-                val sel = subTab == key
-                Box(
-                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp))
-                        .background(if (sel) colors.accent else colors.surface)
-                        .clickable { subTab = key }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(label, color = if (sel) colors.background else colors.textSecondary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                }
-            }
-        }
-
-        val dues = payments.filter { it.status != "PAID" }
-        val receipts = payments.filter { it.status == "PAID" }
-
-        when (subTab) {
-            "receipts" -> {
-                if (receipts.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text("No receipts found", color = colors.textMuted)
+                    Spacer(Modifier.height(20.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(
+                            onClick = { /* TODO */ },
+                            modifier = Modifier.weight(1f).height(42.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Rounded.Add, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Top Up", color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        Button(
+                            onClick = { /* TODO */ },
+                            modifier = Modifier.weight(1f).height(42.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f)),
+                            elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Rounded.History, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 88.dp)
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            // Sub-tabs (Bouncy Chips)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf("due" to "Dues", "receipts" to "Receipts").forEach { (key, label) ->
+                    val sel = subTab == key
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                            .background(if (sel) colors.accent else colors.surface)
+                            .border(1.dp, if (sel) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
+                            .clickable { subTab = key }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
-                        items(receipts) { payment ->
-                            PaymentReceiptCard(payment, colors)
-                        }
+                        Text(
+                            label,
+                            color = if (sel) Color.White else colors.textSecondary,
+                            style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)
+                        )
                     }
                 }
             }
-            "wallet" -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.AccountBalance, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.height(8.dp))
-                        Text("Wallet ledger coming soon", color = colors.textMuted)
+
+            val dues = payments.filter { it.status != "PAID" }
+            val receipts = payments.filter { it.status == "PAID" }
+
+            when (subTab) {
+                "receipts" -> {
+                    if (receipts.isEmpty()) {
+                        EmptyStateView(Icons.AutoMirrored.Rounded.ReceiptLong, "No receipts found", colors)
+                    } else {
+                        PaymentList(receipts, colors)
                     }
                 }
-            }
-            else -> {
-                if (dues.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Rounded.CheckCircle, null, tint = colors.chart1, modifier = Modifier.size(48.dp))
-                            Spacer(Modifier.height(8.dp))
-                            Text("All clear — no pending dues", color = colors.textMuted)
-                            if (receipts.isNotEmpty()) {
-                                Spacer(Modifier.height(4.dp))
-                                Text("${receipts.size} past receipts", color = colors.textSecondary, fontSize = 12.sp)
+                "wallet" -> {
+                    EmptyStateView(Icons.Rounded.AccountBalance, "Wallet ledger coming soon", colors)
+                }
+                else -> {
+                    if (dues.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText, modifier = Modifier.size(56.dp))
+                                Spacer(Modifier.height(12.dp))
+                                Text("All clear — no pending dues", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                                if (receipts.isNotEmpty()) {
+                                    Spacer(Modifier.height(6.dp))
+                                    Text("${receipts.size} past receipts", color = colors.textSecondary, style = AmazeTheme.typography.caption)
+                                }
                             }
                         }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(bottom = 88.dp)
-                    ) {
-                        items(dues) { payment ->
-                            PaymentReceiptCard(payment, colors)
-                        }
+                    } else {
+                        PaymentList(dues, colors)
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun EmptyStateView(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
+            Spacer(Modifier.height(16.dp))
+            Text(text, style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
+        }
+    }
+}
+
+@Composable
+private fun PaymentList(items: List<PaymentItem>, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
+    ) {
+        items(items) { payment ->
+            PaymentReceiptCard(payment, colors)
+        }
+    }
 }
 
 @Composable
@@ -168,23 +206,33 @@ private fun PaymentReceiptCard(payment: PaymentItem, colors: com.amazecc.app.sha
     val isPaid = payment.status == "PAID"
 
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Receipt, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Ref: ${payment.receiptNo ?: payment.billingId}", color = colors.textSecondary, fontSize = 11.sp)
+                    Box(
+                        modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(colors.accent.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Receipt, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text("Ref: ${payment.receiptNo ?: payment.billingId}", color = colors.textSecondary, style = AmazeTheme.typography.smallLabel)
+                        Text(payment.paymentDate ?: payment.dueDate ?: "", color = colors.textMuted, style = AmazeTheme.typography.caption)
+                    }
                 }
                 AmazeBadge(if (isPaid) "PAID" else "PENDING", variant = if (isPaid) BadgeVariant.SUCCESS else BadgeVariant.WARNING)
             }
-            Spacer(Modifier.height(12.dp))
-            Text(payment.description, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(payment.paymentDate ?: payment.dueDate ?: "", color = colors.textMuted, fontSize = 11.sp)
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
+            Text(payment.description, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Spacer(Modifier.height(16.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
-                Text(payment.amount.replace("Rs.", "\u20B9").replace("INR", "\u20B9"), fontWeight = FontWeight.Bold, fontSize = 18.sp, color = colors.accent)
-                AmazeButton("Receipt", icon = Icons.Rounded.Download, onClick = { /* TODO: download PDF */ }, variant = ButtonVariant.SECONDARY, modifier = Modifier.height(34.dp))
+                Text(payment.amount.replace("Rs.", "\u20B9").replace("INR", "\u20B9"), style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = colors.textPrimary))
+                if (isPaid) {
+                    AmazeButton("Receipt", icon = Icons.Rounded.Download, onClick = { /* TODO: download PDF */ }, variant = ButtonVariant.SECONDARY, modifier = Modifier.height(36.dp))
+                } else {
+                    AmazeButton("Pay Now", icon = Icons.Rounded.Payment, onClick = { /* TODO: Pay */ }, variant = ButtonVariant.PRIMARY, modifier = Modifier.height(36.dp))
+                }
             }
         }
     }

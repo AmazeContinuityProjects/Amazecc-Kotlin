@@ -3,6 +3,7 @@ package com.amazecc.app.shared.ui.screens.events
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,6 +25,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
 
@@ -47,14 +49,13 @@ fun ClubDetailScreen() {
 
     var isEnrolled by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(title = club.name ?: "Club Details", description = "Club Information", showBackButton = true, showSyncButton = false)
-
+    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(bottom = 88.dp)
         ) {
+            item { HeaderSpacer() }
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -120,7 +121,10 @@ fun ClubDetailScreen() {
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Box(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surface).padding(16.dp)
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                        .background(colors.surface.copy(alpha = 0.65f))
+                        .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                        .padding(16.dp)
                 ) {
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -138,7 +142,9 @@ fun ClubDetailScreen() {
                 Text("Club Feed", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Spacer(modifier = Modifier.height(8.dp))
                 Box(
-                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(16.dp)).background(colors.surface),
+                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(16.dp))
+                        .background(colors.surface.copy(alpha = 0.65f))
+                        .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("Feed Integration Coming Soon", color = colors.textMuted)
@@ -163,5 +169,7 @@ fun ClubDetailScreen() {
                 Spacer(modifier = Modifier.height(40.dp))
             }
         }
+        
+        ScreenHeader(title = club.name ?: "Club Details", description = "Club Information", showBackButton = true, showSyncButton = false)
     }
 }

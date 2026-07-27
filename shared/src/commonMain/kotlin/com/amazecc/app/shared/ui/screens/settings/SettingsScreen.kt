@@ -396,7 +396,7 @@ fun SettingsScreen() {
                 Spacer(Modifier.height(8.dp))
 
                 // Per-module status list
-                val modulesToShow = SyncModule.entries.filter { it.cacheKey != null || it == SyncModule.CAB_TRIPS || it == SyncModule.VITOL }
+                val modulesToShow = SyncModule.entries.filter { it.cacheKey != null || it == SyncModule.CAB_TRIPS }
                 modulesToShow.forEach { module ->
                     val state = moduleStates[module] ?: ModuleState()
                     val dotColor = when (state.status) {
@@ -492,13 +492,13 @@ private fun SettingsSimpleToggle(
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-            Text(label, color = colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-            Text(description, color = colors.textSecondary, fontSize = 11.sp)
+            Text(label, color = colors.textPrimary, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold))
+            Text(description, color = colors.textSecondary, style = AmazeTheme.typography.caption)
         }
         Switch(
             checked = checked,
@@ -521,11 +521,11 @@ private fun SettingsToggle(label: String, checked: Boolean, onCheckedChange: (Bo
         onCheckedChange(newChecked)
     }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, color = colors.textPrimary, fontSize = 12.sp, modifier = Modifier.weight(1f))
+        Text(label, color = colors.textPrimary, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold), modifier = Modifier.weight(1f))
         Switch(
             checked = checked,
             onCheckedChange = handleToggle,

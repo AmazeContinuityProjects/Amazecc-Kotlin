@@ -207,13 +207,12 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
         val reqEndMins = timeToMinutes(reqEnd)
 
         val targetSlots = mutableSetOf<String>()
-        val selDayUpper = selectedDay.uppercase()
 
         for (p in schema.theory) {
             val pStart = timeToMinutes(p.start)
             val pEnd = timeToMinutes(p.end)
             if (pStart < reqEndMins && pEnd > reqStartMins) {
-                val slotsStr = p.days[selDayUpper] ?: ""
+                val slotsStr = p.days[selectedDay] ?: ""
                 slotsStr.split("+").forEach { targetSlots.add(it.trim().uppercase()) }
             }
         }
@@ -222,7 +221,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
             val pStart = timeToMinutes(p.start)
             val pEnd = timeToMinutes(p.end)
             if (pStart < reqEndMins && pEnd > reqStartMins) {
-                val slotsStr = p.days[selDayUpper] ?: ""
+                val slotsStr = p.days[selectedDay] ?: ""
                 slotsStr.split("+").forEach { targetSlots.add(it.trim().uppercase()) }
             }
         }

@@ -34,8 +34,8 @@ import kotlinx.datetime.toLocalDateTime
 enum class Screen { SPLASH, 
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
-    COURSE_ATTENDANCE, MAKEUP_COMPRE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
-    MARKS_TIMELINE, VITOL, FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
+    COURSE_ATTENDANCE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
+    FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
     FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, CLUB_DETAIL,
     COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB, TASKS, EXAM_SCHEDULE,
     CHANGELOG, HALL_OF_FAME, ARREAR
@@ -184,6 +184,25 @@ object AppState {
     val studentProfile: StateFlow<StudentProfile?> = _studentProfile.asStateFlow()
     private val _cachedStudentProfile = MutableStateFlow<StudentProfileRes?>(null)
 
+    // Profile Extended Data
+    private val _profileImages = MutableStateFlow<ProfileImagesRes?>(null)
+    val profileImages: StateFlow<ProfileImagesRes?> = _profileImages.asStateFlow()
+    
+    private val _bankInfo = MutableStateFlow<BankInfoRes?>(null)
+    val bankInfo: StateFlow<BankInfoRes?> = _bankInfo.asStateFlow()
+    
+    private val _dayboarder = MutableStateFlow<DayboarderRes?>(null)
+    val dayboarder: StateFlow<DayboarderRes?> = _dayboarder.asStateFlow()
+    
+    private val _eptSchedule = MutableStateFlow<EptScheduleRes?>(null)
+    val eptSchedule: StateFlow<EptScheduleRes?> = _eptSchedule.asStateFlow()
+    
+    private val _registrationSchedule = MutableStateFlow<RegistrationScheduleRes?>(null)
+    val registrationSchedule: StateFlow<RegistrationScheduleRes?> = _registrationSchedule.asStateFlow()
+    
+    private val _apaarId = MutableStateFlow<ApaarIdRes?>(null)
+    val apaarId: StateFlow<ApaarIdRes?> = _apaarId.asStateFlow()
+
     val semesterMap = mapOf(
         "CH20262705" to "Winter Semester 2026-27",
         "CH20262701" to "Fall Semester 2026-27",
@@ -212,6 +231,25 @@ object AppState {
     data class SyncStep(val name: String, val status: String) // status: "pending", "syncing", "done", "failed"
     private val _onboardingSyncSteps = MutableStateFlow<List<SyncStep>>(emptyList())
     val onboardingSyncSteps: StateFlow<List<SyncStep>> = _onboardingSyncSteps.asStateFlow()
+    
+    // Command Palettes
+    private val _commandPaletteOpen = MutableStateFlow(false)
+    val commandPaletteOpen: StateFlow<Boolean> = _commandPaletteOpen.asStateFlow()
+    
+    private val _libraryPaletteOpen = MutableStateFlow(false)
+    val libraryPaletteOpen: StateFlow<Boolean> = _libraryPaletteOpen.asStateFlow()
+    
+    private val _eventPaletteOpen = MutableStateFlow(false)
+    val eventPaletteOpen: StateFlow<Boolean> = _eventPaletteOpen.asStateFlow()
+    
+    fun openCommandPalette() { _commandPaletteOpen.value = true }
+    fun closeCommandPalette() { _commandPaletteOpen.value = false }
+    
+    fun openLibraryPalette() { _libraryPaletteOpen.value = true }
+    fun closeLibraryPalette() { _libraryPaletteOpen.value = false }
+    
+    fun openEventPalette() { _eventPaletteOpen.value = true }
+    fun closeEventPalette() { _eventPaletteOpen.value = false }
 
     // Cached Data
     private val _attendance = MutableStateFlow<AttendanceRes?>(null)
@@ -336,8 +374,14 @@ object AppState {
         loadCachedData<ClubsRes>(SettingsManager.CACHE_CLUBS, _clubs)
         loadCachedData<StudentProfileRes>(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile)
         _studentProfile.value = _cachedStudentProfile.value?.data
-        loadCachedData<VitolRes>(SettingsManager.CACHE_VITOL, _vitolData)
+        loadCachedData<ProfileImagesRes>(SettingsManager.CACHE_PROFILE_IMAGES, _profileImages)
+        loadCachedData<BankInfoRes>(SettingsManager.CACHE_BANK_INFO, _bankInfo)
+        loadCachedData<DayboarderRes>(SettingsManager.CACHE_DAYBOARDER, _dayboarder)
+        loadCachedData<EptScheduleRes>(SettingsManager.CACHE_EPT_SCHEDULE, _eptSchedule)
+        loadCachedData<RegistrationScheduleRes>(SettingsManager.CACHE_REGISTRATION_SCHEDULE, _registrationSchedule)
+        loadCachedData<ApaarIdRes>(SettingsManager.CACHE_APAAR_ID, _apaarId)
         loadCachedData<CabTripsRes>(SettingsManager.CACHE_CAB_TRIPS, _cabTrips)
+        loadCachedData<CircularsRes>(SettingsManager.CACHE_CIRCULARS, _circulars)
 
         // Auto-sync Moodle & Library in background if credentials are saved
         if (_moodleData.value == null && SettingsManager.getMoodleCredentials() != null) {
@@ -355,6 +399,10 @@ object AppState {
             val cachedMarks = settings.getString(SettingsManager.CACHE_ALL_SEMESTER_MARKS, "")
             if (cachedMarks.isNotBlank()) _allSemesterMarks.value = jsonFormat.decodeFromString(cachedMarks)
         } catch (e: Exception) { println("AmazeCC: AppState loadCachedData allSemesterMarks — ${e.message}") }
+        try {
+            val cachedExams = settings.getString(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, "")
+            if (cachedExams.isNotBlank()) _allSemesterExams.value = jsonFormat.decodeFromString(cachedExams)
+        } catch (e: Exception) { println("AmazeCC: AppState loadCachedData allSemesterExams — ${e.message}") }
         // Also load moodle
         val cachedMoodle = settings.getString("moodle_data_cache", "")
         if (cachedMoodle.isNotBlank()) {
@@ -402,10 +450,16 @@ object AppState {
         if (_events.value != null) { cacheData(SettingsManager.CACHE_EVENTS, _events.value); saved++ }
         if (_clubs.value != null) { cacheData(SettingsManager.CACHE_CLUBS, _clubs.value); saved++ }
         if (_cachedStudentProfile.value != null) { cacheData(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile.value); saved++ }
-        if (_vitolData.value != null) { cacheData(SettingsManager.CACHE_VITOL, _vitolData.value); saved++ }
+        if (_profileImages.value != null) { cacheData(SettingsManager.CACHE_PROFILE_IMAGES, _profileImages.value); saved++ }
+        if (_bankInfo.value != null) { cacheData(SettingsManager.CACHE_BANK_INFO, _bankInfo.value); saved++ }
+        if (_dayboarder.value != null) { cacheData(SettingsManager.CACHE_DAYBOARDER, _dayboarder.value); saved++ }
+        if (_eptSchedule.value != null) { cacheData(SettingsManager.CACHE_EPT_SCHEDULE, _eptSchedule.value); saved++ }
+        if (_registrationSchedule.value != null) { cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, _registrationSchedule.value); saved++ }
+        if (_apaarId.value != null) { cacheData(SettingsManager.CACHE_APAAR_ID, _apaarId.value); saved++ }
         if (_cabTrips.value != null) { cacheData(SettingsManager.CACHE_CAB_TRIPS, _cabTrips.value); saved++ }
         if (_allSemesterAttendance.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value); saved++ }
         if (_allSemesterMarks.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value); saved++ }
+        if (_allSemesterExams.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value); saved++ }
         SyncEngine.addLog(SyncModule.ATTENDANCE, "Saved $saved modules offline", SyncStatus.SUCCESS)
     }
 
@@ -430,8 +484,14 @@ object AppState {
         if (_events.value != null) SyncEngine.updateModuleState(SyncModule.EVENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_clubs.value != null) SyncEngine.updateModuleState(SyncModule.CLUBS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_cachedStudentProfile.value != null) SyncEngine.updateModuleState(SyncModule.STUDENT_PROFILE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_vitolData.value != null) SyncEngine.updateModuleState(SyncModule.VITOL, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_profileImages.value != null) SyncEngine.updateModuleState(SyncModule.PROFILE_IMAGES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_bankInfo.value != null) SyncEngine.updateModuleState(SyncModule.BANK_INFO, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_dayboarder.value != null) SyncEngine.updateModuleState(SyncModule.DAYBOARDER, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_eptSchedule.value != null) SyncEngine.updateModuleState(SyncModule.EPT_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_registrationSchedule.value != null) SyncEngine.updateModuleState(SyncModule.REGISTRATION_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_apaarId.value != null) SyncEngine.updateModuleState(SyncModule.APAAR_ID, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_cabTrips.value != null) SyncEngine.updateModuleState(SyncModule.CAB_TRIPS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_circulars.value != null) SyncEngine.updateModuleState(SyncModule.CIRCULARS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_allSemesterAttendance.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_allSemesterMarks.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
     }
@@ -446,9 +506,6 @@ object AppState {
         return true
     }
 
-    private val _vitolData = MutableStateFlow<VitolRes?>(null)
-    val vitolData: StateFlow<VitolRes?> = _vitolData.asStateFlow()
-
     private val _allGrades = MutableStateFlow<AllGradesRes?>(null)
     val allGrades: StateFlow<AllGradesRes?> = _allGrades.asStateFlow()
 
@@ -460,6 +517,10 @@ object AppState {
 
     private val _examSchedule = MutableStateFlow<ExamScheduleRes?>(null)
     val examSchedule: StateFlow<ExamScheduleRes?> = _examSchedule.asStateFlow()
+    private val _allSemesterExams = MutableStateFlow<Map<String, ExamScheduleRes?>>(emptyMap())
+    val allSemesterExams: StateFlow<Map<String, ExamScheduleRes?>> = _allSemesterExams.asStateFlow()
+    private val _selectedExamSemester = MutableStateFlow("CH20262701")
+    val selectedExamSemester: StateFlow<String> = _selectedExamSemester.asStateFlow()
 
     private val _calendar = MutableStateFlow<CalendarRes?>(null)
     val calendar: StateFlow<CalendarRes?> = _calendar.asStateFlow()
@@ -547,9 +608,14 @@ object AppState {
     private val _cabLoading = MutableStateFlow(false)
     val cabLoading: StateFlow<Boolean> = _cabLoading.asStateFlow()
 
+    // Circulars state
+    private val _circulars = MutableStateFlow<CircularsRes?>(null)
+    val circulars: StateFlow<CircularsRes?> = _circulars.asStateFlow()
+
     // Tasks state
     private val _tasks = MutableStateFlow<List<HomeworkTask>>(emptyList())
     val tasks: StateFlow<List<HomeworkTask>> = _tasks.asStateFlow()
+
 
     private val tasksJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
     private val taskListSerializer = ListSerializer(HomeworkTask.serializer())
@@ -811,14 +877,33 @@ object AppState {
                         async {
                             syncModule(
                                 name = "Exam schedule",
-                                fetch = { AmazeClient.getExamSchedule() },
+                                fetch = { AmazeClient.getExamSchedule(semesterId = sem) },
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
                                     _examSchedule.value = it
                                     cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, it)
+                                    val examMap = _allSemesterExams.value.toMutableMap()
+                                    examMap[sem] = it
+                                    _allSemesterExams.value = examMap
                                 }
                             )
+                        },
+                        async {
+                            var examFailed = false
+                            for (semId in semesterIDs) {
+                                if (semId == sem) continue
+                                try {
+                                    val res = AmazeClient.getExamSchedule(semesterId = semId)
+                                    if (res.error == null && res.schedule.isNotEmpty()) {
+                                        val examCurrent = _allSemesterExams.value.toMutableMap()
+                                        examCurrent[semId] = res
+                                        _allSemesterExams.value = examCurrent
+                                    }
+                                } catch (_: Exception) { examFailed = true }
+                            }
+                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value)
+                            SyncModuleResult("All Semesters Exam Schedule", !examFailed)
                         },
                         async {
                             syncModule(
@@ -952,16 +1037,54 @@ object AppState {
                         },
                         async {
                             if (syncProfile.value) {
-                                syncModule(
-                                    name = "Student Profile",
-                                    fetch = { AmazeClient.getStudentProfile() },
-                                    isSuccess = { it.success && it.data != null },
-                                    errorMessage = { it.error },
-                                    update = {
-                                        _studentProfile.value = it.data
-                                        cacheData(SettingsManager.CACHE_STUDENT_PROFILE, it)
-                                    }
-                                )
+                                val profResults = supervisorScope {
+                                    listOf(
+                                        async {
+                                            syncModule("Student Profile", { AmazeClient.getStudentProfile() }, { it.success && it.data != null }, { it.error }) {
+                                                _studentProfile.value = it.data
+                                                _cachedStudentProfile.value = it
+                                                cacheData(SettingsManager.CACHE_STUDENT_PROFILE, it)
+                                            }
+                                        },
+                                        async {
+                                            syncModule("Profile Images", { AmazeClient.getProfileImages() }, { it.success }, { it.error }) {
+                                                _profileImages.value = it
+                                                cacheData(SettingsManager.CACHE_PROFILE_IMAGES, it)
+                                            }
+                                        },
+                                        async {
+                                            syncModule("Bank Information", { AmazeClient.getBankInfo() }, { it.success }, { it.error }) {
+                                                _bankInfo.value = it
+                                                cacheData(SettingsManager.CACHE_BANK_INFO, it)
+                                            }
+                                        },
+                                        async {
+                                            syncModule("Dayboarder Info", { AmazeClient.getDayboarderInfo() }, { it.success }, { it.error }) {
+                                                _dayboarder.value = it
+                                                cacheData(SettingsManager.CACHE_DAYBOARDER, it)
+                                            }
+                                        },
+                                        async {
+                                            syncModule("EPT Schedule", { AmazeClient.getEptSchedule() }, { it.success }, { it.error }) {
+                                                _eptSchedule.value = it
+                                                cacheData(SettingsManager.CACHE_EPT_SCHEDULE, it)
+                                            }
+                                        },
+                                        async {
+                                            syncModule("Registration Schedule", { AmazeClient.getRegistrationSchedule() }, { it.success }, { it.error }) {
+                                                _registrationSchedule.value = it
+                                                cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, it)
+                                            }
+                                        },
+                                        async {
+                                            syncModule("APAAR ID", { AmazeClient.getApaarId() }, { it.success }, { it.error }) {
+                                                _apaarId.value = it
+                                                cacheData(SettingsManager.CACHE_APAAR_ID, it)
+                                            }
+                                        }
+                                    ).awaitAll()
+                                }
+                                profResults.firstOrNull { !it.success } ?: SyncModuleResult("Profile & Extra", true)
                             } else SyncModuleResult("Student Profile", true)
                         },
                         async {
@@ -974,8 +1097,21 @@ object AppState {
                                     _myCabTrips.value = it
                                 }
                             )
+                        },
+                        async {
+                            syncModule(
+                                name = "Circulars",
+                                fetch = { AmazeClient.getCirculars() },
+                                isSuccess = { it.success },
+                                errorMessage = { it.error ?: it.message },
+                                update = {
+                                    _circulars.value = it
+                                    cacheData(SettingsManager.CACHE_CIRCULARS, it)
+                                }
+                            )
                         }
                     ).awaitAll()
+
                 }
                 updateSyncSummary(results)
             } finally {
@@ -991,7 +1127,6 @@ object AppState {
     private fun scheduleReminders() {
         val attendanceItems = _attendance.value?.attendance
         val assignments = _lms.value?.assignments
-        val vitolData = _vitolData.value?.data
         val moodleAssignments = _moodleData.value?.data?.filter { !it.done }?.map { a ->
             LMSAssignment("moodle_${a.hashCode()}", a.courseCode, a.taskTitle, "", a.due, "Pending")
         } ?: emptyList()
@@ -1006,7 +1141,7 @@ object AppState {
                 "attendancePercentage" to item.attendancePercentage,
                 "venue" to (item.slotVenue ?: "")
             )
-        }
+        } ?: emptyList()
         val typedSlotMap = SlotMap.map.mapValues { (_, inner) ->
             inner.mapValues { (_, time) -> SlotInfo(time) }
         }
@@ -1014,8 +1149,6 @@ object AppState {
             attendance = attMaps,
             slotMap = typedSlotMap,
             assignments = allAssignments,
-            vitolLimit = vitolData?.limit,
-            vitolConsumed = vitolData?.consumed,
             tasks = _tasks.value
         )
     }
@@ -1340,17 +1473,54 @@ object AppState {
             _isLoading.value = true
             _syncStatus.value = "Syncing profile..."
             try {
-                val result = syncModule(
-                    name = "Student Profile",
-                    fetch = { AmazeClient.getStudentProfile() },
-                    isSuccess = { it.success && it.data != null },
-                    errorMessage = { it.error },
-                    update = {
-                        _studentProfile.value = it.data
-                        cacheData(SettingsManager.CACHE_STUDENT_PROFILE, it)
-                    }
-                )
-                updateSyncSummary(listOf(result))
+                val results = supervisorScope {
+                    listOf(
+                        async {
+                            syncModule("Student Profile", { AmazeClient.getStudentProfile() }, { it.success && it.data != null }, { it.error }) {
+                                _studentProfile.value = it.data
+                                _cachedStudentProfile.value = it
+                                cacheData(SettingsManager.CACHE_STUDENT_PROFILE, it)
+                            }
+                        },
+                        async {
+                            syncModule("Profile Images", { AmazeClient.getProfileImages() }, { it.success }, { it.error }) {
+                                _profileImages.value = it
+                                cacheData(SettingsManager.CACHE_PROFILE_IMAGES, it)
+                            }
+                        },
+                        async {
+                            syncModule("Bank Information", { AmazeClient.getBankInfo() }, { it.success }, { it.error }) {
+                                _bankInfo.value = it
+                                cacheData(SettingsManager.CACHE_BANK_INFO, it)
+                            }
+                        },
+                        async {
+                            syncModule("Dayboarder Info", { AmazeClient.getDayboarderInfo() }, { it.success }, { it.error }) {
+                                _dayboarder.value = it
+                                cacheData(SettingsManager.CACHE_DAYBOARDER, it)
+                            }
+                        },
+                        async {
+                            syncModule("EPT Schedule", { AmazeClient.getEptSchedule() }, { it.success }, { it.error }) {
+                                _eptSchedule.value = it
+                                cacheData(SettingsManager.CACHE_EPT_SCHEDULE, it)
+                            }
+                        },
+                        async {
+                            syncModule("Registration Schedule", { AmazeClient.getRegistrationSchedule() }, { it.success }, { it.error }) {
+                                _registrationSchedule.value = it
+                                cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, it)
+                            }
+                        },
+                        async {
+                            syncModule("APAAR ID", { AmazeClient.getApaarId() }, { it.success }, { it.error }) {
+                                _apaarId.value = it
+                                cacheData(SettingsManager.CACHE_APAAR_ID, it)
+                            }
+                        }
+                    ).awaitAll()
+                }
+                updateSyncSummary(results)
             } finally { _isLoading.value = false }
         }
     }
@@ -1440,20 +1610,30 @@ object AppState {
         }
     }
 
+    fun selectExamSemester(semesterId: String) {
+        _selectedExamSemester.value = semesterId
+        _examSchedule.value = _allSemesterExams.value[semesterId]
+    }
+
     fun refreshExamSchedule() {
         if (_isLoading.value) return
         scope.launch {
             _isLoading.value = true
             _syncStatus.value = "Syncing exam schedule..."
             try {
+                val semId = _selectedExamSemester.value
                 val result = syncModule(
                     name = "Exam schedule",
-                    fetch = { AmazeClient.getExamSchedule() },
+                    fetch = { AmazeClient.getExamSchedule(semesterId = semId) },
                     isSuccess = { it.error == null },
                     errorMessage = { it.error },
                     update = {
                         _examSchedule.value = it
                         cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, it)
+                        val map = _allSemesterExams.value.toMutableMap()
+                        map[semId] = it
+                        _allSemesterExams.value = map
+                        cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value)
                     }
                 )
                 updateSyncSummary(listOf(result))
@@ -1478,6 +1658,28 @@ object AppState {
             } finally { _isLoading.value = false }
         }
     }
+
+    fun refreshCirculars() {
+        if (_isLoading.value) return
+        scope.launch {
+            _isLoading.value = true
+            _syncStatus.value = "Syncing circulars..."
+            try {
+                val result = syncModule(
+                    name = "Circulars",
+                    fetch = { AmazeClient.getCirculars() },
+                    isSuccess = { it.success },
+                    errorMessage = { it.error ?: it.message },
+                    update = {
+                        _circulars.value = it
+                        cacheData(SettingsManager.CACHE_CIRCULARS, it)
+                    }
+                )
+                updateSyncSummary(listOf(result))
+            } finally { _isLoading.value = false }
+        }
+    }
+
 
     private suspend fun <T> syncModule(
         name: String,
@@ -1536,7 +1738,7 @@ object AppState {
         _clubs.value = null
         
         _moodleData.value = null
-        _vitolData.value = null
+        _moodleData.value = null
         _cachedStudentProfile.value = null
         _curriculum.value = null
         _selectedSemester.value = "CH20262701"
@@ -1548,6 +1750,7 @@ object AppState {
         _cabJoinRequests.value = emptyMap()
         _allSemesterMarks.value = emptyMap()
         _allSemesterAttendance.value = emptyMap()
+        _allSemesterExams.value = emptyMap()
         _libraryLoginRequired.value = false
         _error.value = null
         _syncStatus.value = null
@@ -1572,7 +1775,7 @@ object AppState {
         settings.remove(SettingsManager.CACHE_CLUBS)
         settings.remove(SettingsManager.CACHE_CAB_TRIPS)
         settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
-        settings.remove(SettingsManager.CACHE_VITOL)
+        settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
         SettingsManager.clearLibraryCredentials()
         settings.remove(SettingsManager.SESSION_COOKIES)
         settings.remove(SettingsManager.SESSION_CSRF)
@@ -1606,10 +1809,6 @@ object AppState {
             a.courseCode.equals(courseCode, ignoreCase = true) ||
             a.name.contains(courseCode, ignoreCase = true)
         } ?: emptyList()
-    }
-
-    fun updateVitolData(data: VitolRes?) {
-        _vitolData.value = data
     }
 
     fun searchCabTrips(from: String, to: String, date: String) {

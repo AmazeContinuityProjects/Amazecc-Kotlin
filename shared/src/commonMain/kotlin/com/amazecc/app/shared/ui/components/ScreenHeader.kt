@@ -210,7 +210,7 @@ fun FloatingScreenHeader(
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
-                    onClick = { AppState.setSearchOpen(true) },
+                    onClick = { AppState.openCommandPalette() },
                     modifier = Modifier
                         .size(40.dp)
                         .background(colors.accent.copy(alpha = 0.12f), CircleShape)

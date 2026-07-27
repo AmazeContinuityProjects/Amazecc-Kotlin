@@ -108,9 +108,9 @@ fun EventHubScreen() {
     }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════
 //  Events Tab
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════
 
 @Composable
 private fun EventsTab() {
@@ -129,7 +129,7 @@ private fun EventsTab() {
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 88.dp)
         ) {
@@ -176,19 +176,21 @@ private fun EventsTab() {
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         categories.forEach { cat ->
-                            FilterChip(
-                                selected = selectedCategory == cat,
-                                onClick = { selectedCategory = cat },
-                                label = { Text(cat, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.SemiBold)) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = colors.accent, selectedLabelColor = Color.White,
-                                    containerColor = colors.surface, labelColor = colors.textSecondary
-                                ),
-                                border = FilterChipDefaults.filterChipBorder(
-                                    borderColor = colors.border, selectedBorderColor = Color.Transparent,
-                                    enabled = true, selected = selectedCategory == cat
+                            val sel = selectedCategory == cat
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                                    .background(if (sel) colors.accent else colors.surface)
+                                    .border(1.dp, if (sel) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
+                                    .clickable { selectedCategory = cat }
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    cat,
+                                    color = if (sel) Color.White else colors.textSecondary,
+                                    style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)
                                 )
-                            )
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
@@ -229,9 +231,9 @@ private fun EventsTab() {
     }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════
 //  Event Cards
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════
 
 @Composable
 private fun FeaturedEventCard(
@@ -239,89 +241,73 @@ private fun FeaturedEventCard(
     onViewDetails: () -> Unit
 ) {
     val colors = AmazeTheme.colors
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(colors.accent.copy(alpha = 0.15f), colors.accent.copy(alpha = 0.05f))
-                )
-            )
-            .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
-            .clickable(onClick = onViewDetails)
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onViewDetails),
+        backgroundColor = colors.surface
     ) {
         Column {
             val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() }
-            if (imgUrl != null) {
-                KamelImage(
-                    resource = asyncPainterResource(data = imgUrl),
-                    contentDescription = "Featured Event Image",
-                    contentScale = ContentScale.Crop,
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+            ) {
+                if (imgUrl != null) {
+                    KamelImage(
+                        resource = asyncPainterResource(data = imgUrl),
+                        contentDescription = "Featured Event Image",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        onLoading = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) },
+                        onFailure = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
+                    )
+                } else {
+                    AuthKamelImage(
+                        url = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
+                        contentDescription = "Featured Event Image",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                        onLoading = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) },
+                        onFailure = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Black.copy(alpha = 0.6f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(event.type, color = Color.White, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
+                }
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(140.dp),
-                    onLoading = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) },
-                    onFailure = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
-                )
-            } else {
-                AuthKamelImage(
-                    url = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
-                    contentDescription = "Featured Event Image",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(140.dp),
-                    onLoading = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) },
-                    onFailure = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
+                        .height(80.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))))
                 )
             }
-            Column(modifier = Modifier.padding(20.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Featured Event", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                    Badge(
-                        containerColor = colors.accent.copy(alpha = 0.2f),
-                        contentColor = colors.accent
-                    ) {
-                        Text(event.type, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    event.title,
+                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = colors.textPrimary)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.LocationOn, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(event.location, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                event.title,
-                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 20.sp)
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.LocationOn, null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(event.location, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                }
             }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(event.eligibility, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 13.sp), maxLines = 2)
-            Spacer(modifier = Modifier.height(14.dp))
-            Button(
-                onClick = onViewDetails,
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-            ) {
-                Icon(Icons.Rounded.Info, null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("View Details", fontWeight = FontWeight.Bold)
-            }
-        }
         }
     }
 }
@@ -334,24 +320,19 @@ private fun EventCard(
     onRegister: () -> Unit
 ) {
     val colors = AmazeTheme.colors
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(14.dp)
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        backgroundColor = colors.surface
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() }
             Box(
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(80.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(colors.accent.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
@@ -377,35 +358,7 @@ private fun EventCard(
                 }
             }
             Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.SemiBold))
-                    Badge(
-                        containerColor = when {
-                            isRegistered -> Color(0xFF10B981).copy(alpha = 0.12f)
-                            event.isPastEvent == true -> Color(0xFFEF4444).copy(alpha = 0.12f)
-                            else -> colors.accent.copy(alpha = 0.1f)
-                        },
-                        contentColor = when {
-                            isRegistered -> Color(0xFF10B981)
-                            event.isPastEvent == true -> Color(0xFFEF4444)
-                            else -> colors.accent
-                        }
-                    ) {
-                        Text(
-                            when {
-                                isRegistered -> "Registered"
-                                event.isPastEvent == true -> "Closed"
-                                else -> event.price
-                            },
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
+                Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     event.title,
@@ -414,59 +367,26 @@ private fun EventCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.LocationOn, null, tint = colors.textMuted, modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(event.location, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1)
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onRegister,
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isRegistered) Color(0xFF10B981).copy(alpha = 0.1f) else colors.accent,
-                            contentColor = if (isRegistered) Color(0xFF10B981) else Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        enabled = !isRegistered && event.isPastEvent != true,
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Icon(
-                            if (isRegistered) Icons.Rounded.CheckCircle else Icons.Rounded.HowToReg,
-                            null,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            if (isRegistered) "Registered" else "Register",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
-                    TextButton(
-                        onClick = onClick,
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                        modifier = Modifier.height(34.dp)
-                    ) {
-                        Text("Details", fontWeight = FontWeight.Medium, fontSize = 12.sp, color = colors.textSecondary)
-                    }
-                }
+            }
+            if (isRegistered) {
+                Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText, modifier = Modifier.size(28.dp))
+            } else if (event.isPastEvent == true) {
+                Text("Closed", style = AmazeTheme.typography.smallLabel.copy(color = colors.dangerText, fontWeight = FontWeight.Bold))
+            } else {
+                Text(event.price, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent))
             }
         }
     }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════
 //  Event Detail Bottom Sheet
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// ═══════════════════════════════════════════
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -712,6 +632,3 @@ private fun DetailRow(icon: ImageVector, label: String, value: String) {
         }
     }
 }
-
-
-

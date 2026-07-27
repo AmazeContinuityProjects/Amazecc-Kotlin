@@ -26,37 +26,25 @@ import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import kotlinx.coroutines.launch
 
 @Composable
 fun CircularsScreen() {
     val colors = AmazeTheme.colors
-    val scope = rememberCoroutineScope()
-    var loading by remember { mutableStateOf(true) }
-    var circulars by remember { mutableStateOf<List<CircularFolder>>(emptyList()) }
-    var error by remember { mutableStateOf<String?>(null) }
+    val circularsRes by AppState.circulars.collectAsState()
+    val isSyncing by AppState.isSyncing.collectAsState()
+    val loading = isSyncing && circularsRes == null
+    val circulars = circularsRes?.circulars ?: emptyList()
+    val error = circularsRes?.let { if (!it.success) it.message ?: it.error else null }
     var expandedFolders by remember { mutableStateOf(setOf<String>()) }
 
-    fun loadData() {
-        loading = true
-        error = null
-        scope.launch {
-            try {
-                val res = AmazeClient.getCirculars()
-                if (res.success) {
-                    circulars = res.circulars
-                } else {
-                    error = res.message ?: res.error ?: "Failed to load circulars"
-                }
-            } catch (e: Exception) {
-                error = e.message ?: e.toString()
-            }
-            loading = false
+    LaunchedEffect(Unit) {
+        if (circularsRes == null) {
+            AppState.refreshCirculars()
         }
     }
-
-    LaunchedEffect(Unit) { loadData() }
 
     Column(
         modifier = Modifier
@@ -85,7 +73,8 @@ fun CircularsScreen() {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(error ?: "Unknown error", color = colors.danger, style = AmazeTheme.typography.body.copy(textAlign = TextAlign.Center))
                     Spacer(modifier = Modifier.height(16.dp))
-                    TextButton(onClick = { loadData() }) {
+                    TextButton(onClick = { AppState.refreshCirculars() }) {
+
                         Text("Retry", color = colors.accent)
                     }
                 }
@@ -102,12 +91,14 @@ fun CircularsScreen() {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = 88.dp)
             ) {
+                item { HeaderSpacer() }
+
                 items(circulars) { folder ->
-                    val folderName = folder.name ?: "Untitled"
+                    val folderName = folder.title ?: "Untitled"
                     val isExpanded = folderName in expandedFolders
                     val items = folder.children ?: emptyList()
 

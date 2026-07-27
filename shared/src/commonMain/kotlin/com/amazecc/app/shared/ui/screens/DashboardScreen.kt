@@ -70,6 +70,7 @@ import kotlinx.datetime.toLocalDateTime
 import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
 import io.ktor.util.decodeBase64Bytes
+import com.amazecc.app.shared.utils.toImageBitmap
 
 @Composable
 fun DashboardScreen() {
@@ -78,6 +79,7 @@ fun DashboardScreen() {
     val spacing = AmazeTheme.spacing
     val authorizedID by SessionManager.authorizedID.collectAsState()
     val profile by AppState.studentProfile.collectAsState()
+    val profileImages by AppState.profileImages.collectAsState()
 
     val attendanceRes by AppState.attendance.collectAsState()
     val marksRes by AppState.marks.collectAsState()
@@ -231,11 +233,25 @@ fun DashboardScreen() {
                         .border(1.5.dp, colors.accent, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    val photoBase64 = profile?.photoBase64
-                    if (photoBase64 != null) {
-                        val cleanBase64 = photoBase64.substringAfter("base64,")
-                        KamelImage(
-                            resource = asyncPainterResource(data = cleanBase64.decodeBase64Bytes()),
+                    val photoBase64 = profile?.photoBase64 
+                        ?: profileImages?.student?.photoBase64 
+                        ?: profileImages?.profile?.photoBase64 
+                        ?: profileImages?.studentPhoto
+                    val decodedBitmap = remember(photoBase64) {
+                        if (photoBase64 != null) {
+                            try {
+                                val cleanBase64 = photoBase64.substringAfter("base64,")
+                                    .replace("\n", "")
+                                    .replace("\r", "")
+                                    .replace(" ", "")
+                                cleanBase64.decodeBase64Bytes().toImageBitmap()
+                            } catch (e: Exception) { null }
+                        } else null
+                    }
+
+                    if (decodedBitmap != null) {
+                        androidx.compose.foundation.Image(
+                            bitmap = decodedBitmap,
                             contentDescription = "Profile Image",
                             modifier = Modifier.fillMaxSize().clip(CircleShape),
                             contentScale = androidx.compose.ui.layout.ContentScale.Crop
@@ -351,84 +367,88 @@ fun DashboardScreen() {
                 animationSpec = tween(1500)
             )
 
-            // ── Attendance Ring Card ──
+            // ── Combined Attendance & Bunk-O-Meter Card ──
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(radius.large))
                     .background(colors.surface)
                     .border(1.dp, colors.border, RoundedCornerShape(radius.large))
-                    .padding(20.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier.size(88.dp)
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CircularProgressIndicator(
-                            progress = { animatedAttendance },
-                            modifier = Modifier.fillMaxSize(),
-                            color = if (overallAttendance >= 75f) colors.success
-                            else if (overallAttendance >= 50f) colors.warning
-                            else colors.danger,
-                            trackColor = colors.border,
-                            strokeWidth = 8.dp
-                        )
-                        Text(
-                            text = "${overallAttendance.toInt()}%",
-                            style = AmazeTheme.typography.subheading.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = colors.textPrimary,
-                                fontSize = 16.sp
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(spacing.md))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Overall Attendance",
-                            style = AmazeTheme.typography.body.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = colors.textPrimary
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = if (overallAttendance >= 75f) "You're on track!"
-                            else if (overallAttendance >= 50f) "Needs improvement!"
-                            else "Critical!",
-                            style = AmazeTheme.typography.caption.copy(
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.size(88.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                progress = { animatedAttendance },
+                                modifier = Modifier.fillMaxSize(),
                                 color = if (overallAttendance >= 75f) colors.success
                                 else if (overallAttendance >= 50f) colors.warning
                                 else colors.danger,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        AmazeButton(
-                            text = "Predict Attendance",
-                            onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
-                            modifier = Modifier.height(36.dp)
-                        )
+                                trackColor = colors.border,
+                                strokeWidth = 8.dp
+                            )
+                            Text(
+                                text = "${overallAttendance.toInt()}%",
+                                style = AmazeTheme.typography.subheading.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textPrimary,
+                                    fontSize = 16.sp
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(spacing.md))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Overall Attendance",
+                                style = AmazeTheme.typography.body.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textPrimary
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (overallAttendance >= 75f) "You're on track!"
+                                else if (overallAttendance >= 50f) "Needs improvement!"
+                                else "Critical!",
+                                style = AmazeTheme.typography.caption.copy(
+                                    color = if (overallAttendance >= 75f) colors.success
+                                    else if (overallAttendance >= 50f) colors.warning
+                                    else colors.danger,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            AmazeButton(
+                                text = "Predict Attendance",
+                                onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
+                                modifier = Modifier.height(36.dp)
+                            )
+                        }
                     }
+
+                    HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+
+                    BunkOMeterCard(
+                        attendance = attendanceRes,
+                        modifier = Modifier.fillMaxWidth(),
+                        isInnerCard = true
+                    )
                 }
             }
-
-            Spacer(modifier = Modifier.height(spacing.lg))
-
-            BunkOMeterCard(
-                attendance = attendanceRes,
-                modifier = Modifier.fillMaxWidth()
-            )
 
             Spacer(modifier = Modifier.height(spacing.lg))
 
@@ -507,11 +527,9 @@ fun DashboardScreen() {
                     }
                 }
             } else {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     todayClasses.forEach { cls ->
                         val isCurrent = cls == currentClass
@@ -539,7 +557,7 @@ fun DashboardScreen() {
 
                         Box(
                             modifier = Modifier
-                                .width(280.dp)
+                                .fillMaxWidth()
                                 .graphicsLayer {
                                     if (isPast) {
                                         alpha = 0.55f // fade past classes
@@ -829,12 +847,7 @@ fun DashboardScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(spacing.lg))
 
-            // ── Bunk-O-Meter Widget ──
-            BunkOMeterCard(attendance = attendanceRes)
-
-            Spacer(modifier = Modifier.height(spacing.lg))
 
             // ── Quick Actions ──
             Text(
@@ -909,7 +922,8 @@ fun DashboardScreen() {
     }
 
     if (showCommandPalette) {
-        CommandPalette(onDismiss = { showCommandPalette = false })
+        AppState.openCommandPalette()
+        showCommandPalette = false
     }
     if (showAddTaskDialog) {
         AddTaskDialog(onDismiss = { showAddTaskDialog = false })

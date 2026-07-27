@@ -66,19 +66,27 @@ object SettingsManager {
     const val CACHE_STUDENT_PROFILE = "cache_student_profile"
     const val KEY_MOODLE_USERNAME = "moodle_username"
     const val KEY_MOODLE_PASSWORD = "moodle_password"
-    const val CACHE_VITOL = "cache_vitol"
     const val CACHE_CAB_TRIPS = "cache_cab_trips"
     const val CACHE_ALL_SEMESTER_ATTENDANCE = "cache_all_semester_attendance"
     const val CACHE_ALL_SEMESTER_MARKS = "cache_all_semester_marks"
+    const val CACHE_ALL_SEMESTER_EXAMS = "cache_all_semester_exams"
     const val CACHE_CALENDARS_LIST = "cache_calendars_list"
     const val CACHE_QCM_VIEW = "cache_qcm_view"
     const val CACHE_TASKS = "cache_tasks"
+    const val CACHE_CIRCULARS = "cache_circulars"
     const val RESIDENTIAL_STATUS = "residential_status"
+    
+    // Additional profile cache keys
+    const val CACHE_PROFILE_IMAGES = "cache_profile_images"
+    const val CACHE_BANK_INFO = "cache_bank_info"
+    const val CACHE_DAYBOARDER = "cache_dayboarder"
+    const val CACHE_EPT_SCHEDULE = "cache_ept_schedule"
+    const val CACHE_REGISTRATION_SCHEDULE = "cache_registration_schedule"
+    const val CACHE_APAAR_ID = "cache_apaarid"
 
     // Notification preferences
     const val NOTIF_CLASS_REMINDERS = "notif_class_reminders"
     const val NOTIF_ASSIGNMENT_REMINDERS = "notif_assignment_reminders"
-    const val NOTIF_VITOL_REMINDERS = "notif_vitol_reminders"
     const val NOTIF_TASK_REMINDERS = "notif_task_reminders"
     const val NOTIF_OFFSET_MINUTES = "notif_offset_minutes"
     
@@ -192,9 +200,6 @@ object SettingsManager {
 
     fun isNotifAssignmentRemindersEnabled(): Boolean = getBoolean(NOTIF_ASSIGNMENT_REMINDERS, false)
     fun setNotifAssignmentRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_ASSIGNMENT_REMINDERS, enabled)
-
-    fun isNotifVitolRemindersEnabled(): Boolean = getBoolean(NOTIF_VITOL_REMINDERS, false)
-    fun setNotifVitolRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_VITOL_REMINDERS, enabled)
 
     fun isNotifTaskRemindersEnabled(): Boolean = getBoolean(NOTIF_TASK_REMINDERS, false)
     fun setNotifTaskRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_TASK_REMINDERS, enabled)

@@ -10,67 +10,94 @@ import kotlin.math.min
 
 object FfcsEngine {
 
-    // Converts a list of options into precise day/min periods based on SlotMap
-    private fun getPeriodsForCourse(course: ParsedCourse): List<Period> {
+    data class Period(val day: String, val startMin: Int, val endMin: Int)
+
+    private val colors = listOf(
+        "#2563EB", "#9333EA", "#10B981", "#DC2626", "#F59E0B",
+        "#EC4899", "#4F46E5", "#14B8A6", "#F97316", "#0891B2",
+        "#D946EF", "#84CC16", "#E11D48", "#7C3AED", "#0EA5E9",
+        "#EAB308", "#16A34A", "#D63384"
+    )
+
+    fun getPeriodsForSlot(slotStr: String): List<Period> {
         val periods = mutableListOf<Period>()
-        val slots = course.slot.split("+").map { it.trim() }.filter { it.isNotEmpty() }
-        
-        val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
-        days.forEach { day ->
+        val slots = slotStr.split("+").map { it.trim() }.filter { it.isNotEmpty() }
+        for (day in listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")) {
             val dayMap = SlotMap.map[day] ?: emptyMap()
-            slots.forEach { slot ->
-                val timeStr = dayMap[slot]
-                if (timeStr != null) {
-                    val parts = timeStr.split("-")
-                    if (parts.size == 2) {
-                        periods.add(Period(day, TimeMath.toMinutes(parts[0]), TimeMath.toMinutes(parts[1])))
-                    }
+            for (s in slots) {
+                val time = dayMap[s] ?: continue
+                val parts = time.split("-")
+                if (parts.size == 2) {
+                    periods.add(Period(day, TimeMath.toMinutes(parts[0]), TimeMath.toMinutes(parts[1])))
                 }
             }
         }
         return periods
     }
 
-    private data class Period(val day: String, val startMin: Int, val endMin: Int)
+    private fun periodsOverlap(a: List<Period>, b: List<Period>): Boolean {
+        for (pa in a) {
+            for (pb in b) {
+                if (pa.day == pb.day && max(pa.startMin, pb.startMin) < min(pa.endMin, pb.endMin)) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
 
-    private val colors = listOf(
-        "#EF4444", "#F97316", "#F59E0B", "#10B981",
-        "#14B8A6", "#06B6D4", "#3B82F6", "#6366F1",
-        "#8B5CF6", "#A855F7", "#D946EF", "#EC4899", "#E11D48"
-    )
+    private fun slotInBlockedList(slotStr: String, blockedSlots: Set<String>): Boolean {
+        val slots = slotStr.split("+").map { it.trim() }
+        for (day in listOf("MON", "TUE", "WED", "THU", "FRI")) {
+            for (s in slots) {
+                val time = SlotMap.map[day]?.get(s) ?: continue
+                if (blockedSlots.contains("$day|$time")) return true
+            }
+        }
+        return false
+    }
 
     suspend fun generateTimetables(
         optionsPerCourse: List<List<ParsedCourse>>,
         locks: List<CourseLock> = emptyList(),
-        friends: List<com.amazecc.app.shared.utils.Friend> = emptyList()
+        blockedSlots: Set<String> = emptySet(),
+        maxResults: Int = 50,
+        uniqueFaculty: Boolean = false,
+        morningPreference: Boolean = false
     ): List<TimetableState> = withContext(Dispatchers.Default) {
-        val results = mutableListOf<List<ParsedCourse>>()
-        val maxResults = 50
+        if (optionsPerCourse.isEmpty()) throw Exception("No courses selected for generation.")
 
-        // Filter options by locks
+        val results = mutableListOf<List<ParsedCourse>>()
+        val lockMap = locks.associateBy { it.code.uppercase() }
+
         val filteredOptions = optionsPerCourse.map { courseOptions ->
             if (courseOptions.isEmpty()) return@map emptyList()
-            val code = courseOptions.first().code
-            val lock = locks.find { it.code == code }
+            val code = courseOptions.first().code.uppercase()
+            val lock = lockMap[code]
+            var opts = courseOptions
+
             if (lock != null) {
-                courseOptions.filter { opt ->
-                    val slotMatches = lock.allowedSlots.isEmpty() || lock.allowedSlots.contains(opt.slot)
-                    val facultyMatches = lock.allowedFaculty.isEmpty() || lock.allowedFaculty.contains(opt.faculty)
-                    slotMatches && facultyMatches
+                if (lock.allowedFaculty.isNotEmpty()) {
+                    opts = opts.filter { it.faculty in lock.allowedFaculty }
                 }
-            } else {
-                courseOptions
+                if (lock.allowedSlots.isNotEmpty()) {
+                    opts = opts.filter { it.slot in lock.allowedSlots }
+                }
             }
+
+            if (blockedSlots.isNotEmpty()) {
+                opts = opts.filter { !slotInBlockedList(it.slot, blockedSlots) }
+            }
+
+            opts
         }
 
         if (filteredOptions.any { it.isEmpty() }) {
-            throw Exception("One or more courses have no available options (or all options were restricted by locks).")
+            throw Exception("One or more courses have no available options after applying constraints.")
         }
 
         val optionsWithPeriods = filteredOptions.map { options ->
-            options.map { opt ->
-                opt to getPeriodsForCourse(opt)
-            }
+            options.map { opt -> opt to getPeriodsForSlot(opt.slot) }
         }
 
         fun backtrack(
@@ -80,24 +107,22 @@ object FfcsEngine {
         ) {
             if (results.size >= maxResults) return
             if (courseIndex == optionsWithPeriods.size) {
+                if (uniqueFaculty) {
+                    val faculties = currentCombo.map { it.faculty.uppercase() }
+                    if (faculties.toSet().size != faculties.size) return
+                }
                 results.add(currentCombo.toList())
                 return
             }
 
             val options = optionsWithPeriods[courseIndex]
             for ((opt, periods) in options) {
-                var hasConflict = false
-                for (np in periods) {
-                    for (ep in currentPeriods) {
-                        if (np.day == ep.day && max(np.startMin, ep.startMin) < min(np.endMin, ep.endMin)) {
-                            hasConflict = true
-                            break
-                        }
-                    }
-                    if (hasConflict) break
+                if (morningPreference) {
+                    val anyAfternoon = periods.any { it.startMin >= 840 }
+                    if (anyAfternoon) continue
                 }
 
-                if (!hasConflict) {
+                if (!periodsOverlap(periods, currentPeriods)) {
                     currentCombo.add(opt)
                     val newPeriods = currentPeriods.toMutableList().apply { addAll(periods) }
                     backtrack(courseIndex + 1, currentCombo, newPeriods)
@@ -107,13 +132,13 @@ object FfcsEngine {
         }
 
         backtrack(0, mutableListOf(), mutableListOf())
-        yield() // Allow UI to breathe if this took too long synchronously
+        yield()
 
         if (results.isEmpty()) {
-            throw Exception("Could not generate any conflict-free timetables from the selected options.")
+            throw Exception("No conflict-free timetables found. Try removing some constraints.")
         }
 
-        val generated = results.mapIndexed { idx, combo ->
+        results.mapIndexed { idx, combo ->
             val mappedCourses = combo.mapIndexed { i, c ->
                 AddedCourse(
                     id = "id_${c.code}_${i}",
@@ -129,31 +154,12 @@ object FfcsEngine {
             }
 
             val metrics = FfcsMetrics.calculateTimetableMetrics(mappedCourses)
-            var socialScore = 0
-            if (friends.isNotEmpty()) {
-                mappedCourses.forEach { mc ->
-                    mc.slots.forEach { slot ->
-                        friends.forEach { f ->
-                            if (f.classSlots.any { it.slotId == slot }) {
-                                socialScore++
-                            }
-                        }
-                    }
-                }
-            }
-            val finalMetrics = metrics.copy(socialScore = socialScore)
-            
             TimetableState(
                 id = "tt_$idx",
-                name = "Generated TT ${idx + 1}",
+                name = "TT ${idx + 1}",
                 courses = mappedCourses,
-                metrics = finalMetrics
+                metrics = metrics
             )
-        }
-
-        // Sort by most balanced (HalfDays vs Gaps vs Social)
-        generated.sortedByDescending { tt ->
-            (tt.metrics.halfDays * 10) + ((20 - tt.metrics.gaps) * 5) + (tt.metrics.socialScore * 15)
-        }
+        }.sortedByDescending { (it.metrics.halfDays * 10) + ((20 - it.metrics.gaps) * 5) }
     }
 }

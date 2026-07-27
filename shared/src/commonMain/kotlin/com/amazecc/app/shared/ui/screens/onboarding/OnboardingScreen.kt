@@ -56,7 +56,6 @@ fun OnboardingScreen() {
     var residentialStatus by remember { mutableStateOf(AppState.residentialStatus.value) }
     var classNotif by remember { mutableStateOf(false) }
     var assignNotif by remember { mutableStateOf(false) }
-    var vitolNotif by remember { mutableStateOf(false) }
     var offsetMinutes by remember { mutableStateOf(15) }
 
     // Modules
@@ -143,7 +142,7 @@ fun OnboardingScreen() {
                 when (page) {
                     0 -> WelcomePage(colors, syncSteps)
                     1 -> PersonalizationPage(colors, selectedTheme, { selectedTheme = it }, selectedAccent, { selectedAccent = it }, uiScale, { uiScale = it }, cgpaHidden, { cgpaHidden = it }, attendanceMode, { attendanceMode = it })
-                    2 -> ResidentialNotifPage(colors, residentialStatus, { residentialStatus = it }, classNotif, { classNotif = it }, assignNotif, { assignNotif = it }, vitolNotif, { vitolNotif = it }, offsetMinutes, { offsetMinutes = it })
+                    2 -> ResidentialNotifPage(colors, residentialStatus, { residentialStatus = it }, classNotif, { classNotif = it }, assignNotif, { assignNotif = it }, offsetMinutes, { offsetMinutes = it })
                     3 -> ModulesPage(colors, availableModules, selectedModules) { selectedModules = it }
                     4 -> AccountsPage(colors, moodleUser, { moodleUser = it }, moodlePass, { moodlePass = it }, libUser, { libUser = it }, libPass, { libPass = it })
                     5 -> CompletionPage(colors, syncSteps)
@@ -190,7 +189,6 @@ fun OnboardingScreen() {
                         AppState.setPinnedNavTabs(selectedModules)
                         SettingsManager.setNotifClassRemindersEnabled(classNotif)
                         SettingsManager.setNotifAssignmentRemindersEnabled(assignNotif)
-                        SettingsManager.setNotifVitolRemindersEnabled(vitolNotif)
                         SettingsManager.setNotifOffsetMinutes(offsetMinutes)
                         SettingsManager.setOnboardingComplete(true)
                         AppState.navigateTo(Screen.HOME)
@@ -354,7 +352,6 @@ private fun ResidentialNotifPage(
     residentialStatus: String, onResidentialChange: (String) -> Unit,
     classNotif: Boolean, onClassNotifChange: (Boolean) -> Unit,
     assignNotif: Boolean, onAssignNotifChange: (Boolean) -> Unit,
-    vitolNotif: Boolean, onVitolNotifChange: (Boolean) -> Unit,
     offsetMinutes: Int, onOffsetChange: (Int) -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -390,8 +387,6 @@ private fun ResidentialNotifPage(
                 ToggleRow("Class Reminders", "Notify before each class starts", Icons.Rounded.Schedule, classNotif, onClassNotifChange, colors)
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = colors.border)
                 ToggleRow("Assignment Reminders", "Remind before deadlines", Icons.AutoMirrored.Rounded.Assignment, assignNotif, onAssignNotifChange, colors)
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = colors.border)
-                ToggleRow("VITOL Reminders", "Low balance alerts", Icons.Rounded.AccountBalanceWallet, vitolNotif, onVitolNotifChange, colors)
             }
         }
 

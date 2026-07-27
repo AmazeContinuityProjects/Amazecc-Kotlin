@@ -1,10 +1,7 @@
 package com.amazecc.app.shared.state
 
-import com.amazecc.app.shared.ffcs.CourseLock
-import com.amazecc.app.shared.ffcs.FfcsEngine
-import com.amazecc.app.shared.ffcs.ParsedCourse
-import com.amazecc.app.shared.ffcs.FfcsCourseProcessor
-import com.amazecc.app.shared.ffcs.TimetableState
+import com.amazecc.app.shared.data.FfcsReportData
+import com.amazecc.app.shared.ffcs.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,10 +9,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 object FfcsViewModel {
-    
-    // UI State
-    private val _targetCourses = MutableStateFlow<List<List<ParsedCourse>>>(emptyList())
-    val targetCourses: StateFlow<List<List<ParsedCourse>>> = _targetCourses
+
+    private val scope = CoroutineScope(Dispatchers.Main)
+
+    private val _allCourses = MutableStateFlow<List<ParsedCourse>>(emptyList())
+    val allCourses: StateFlow<List<ParsedCourse>> = _allCourses
+
+    private val _courseOfferings = MutableStateFlow<List<Pair<String, List<CourseOffering>>>>(emptyList())
+    val courseOfferings: StateFlow<List<Pair<String, List<CourseOffering>>>> = _courseOfferings
+
+    private val _selectedCodes = MutableStateFlow<Set<String>>(emptySet())
+    val selectedCodes: StateFlow<Set<String>> = _selectedCodes
 
     private val _locks = MutableStateFlow<List<CourseLock>>(emptyList())
     val locks: StateFlow<List<CourseLock>> = _locks
@@ -25,67 +29,230 @@ object FfcsViewModel {
 
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating
-    
+
     private val _errorMsg = MutableStateFlow<String?>(null)
     val errorMsg: StateFlow<String?> = _errorMsg
 
-    private val scope = CoroutineScope(Dispatchers.Main)
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading
 
-    fun addMockTargetCourses() {
-        val rawMockData = listOf(
-            ParsedCourse("CSE1001", "Problem Solving", "ETH", "3", "SJT 101", "L1+L2", "Prof A"),
-            ParsedCourse("CSE1001", "Problem Solving", "ETH", "3", "SJT 102", "L31+L32", "Prof B"),
-            ParsedCourse("MAT1011", "Calculus", "ETH", "4", "TT 201", "A1", "Prof X"),
-            ParsedCourse("MAT1011", "Calculus", "ELA", "0", "TT Lab", "L3", "Prof X"), // Will be grouped!
-            ParsedCourse("PHY1001", "Physics", "ETH", "3", "SMV 101", "D1", "Prof P")
-        )
-        
-        val processed = FfcsCourseProcessor.processCourses(rawMockData)
-        val grouped = processed.groupBy { it.code }.values.toList()
-        
-        _targetCourses.value = grouped
-        
-        // Initialize locks for each course
-        _locks.value = grouped.map { options ->
+    private val _blockedSlots = MutableStateFlow<Set<String>>(emptySet())
+    val blockedSlots: StateFlow<Set<String>> = _blockedSlots
+
+    private val _uniqueFaculty = MutableStateFlow(false)
+    val uniqueFaculty: StateFlow<Boolean> = _uniqueFaculty
+
+    private val _morningPreference = MutableStateFlow(false)
+    val morningPreference: StateFlow<Boolean> = _morningPreference
+
+    private val _maxResults = MutableStateFlow(50)
+    val maxResults: StateFlow<Int> = _maxResults
+
+    fun initFromCsv() {
+        scope.launch {
+            _isLoading.value = true
+            try {
+                val csvText = FfcsReportData.CSV_DATA
+                val parsed = FfcsCourseProcessor.parseFFCSCSV(csvText)
+                val processed = FfcsCourseProcessor.processCourses(parsed)
+                _allCourses.value = processed
+
+                val offerings = processed
+                    .groupBy { it.code.uppercase() }
+                    .map { (code, courseList) ->
+                        val first = courseList.first()
+                        val offs = courseList.map { c ->
+                            CourseOffering(
+                                faculty = c.faculty,
+                                slot = c.slot,
+                                room = c.room,
+                                code = code,
+                                title = c.title,
+                                type = c.type,
+                                credits = c.credits
+                            )
+                        }
+                        code to offs
+                    }
+                    .sortedBy { it.first }
+
+                _courseOfferings.value = offerings
+
+                _locks.value = offerings.map { (code, offs) ->
+                    CourseLock(
+                        code = code,
+                        title = offs.firstOrNull()?.title ?: "",
+                        allowedSlots = emptyList(),
+                        allowedFaculty = emptyList(),
+                        offerings = offs.map { it.toKey() }
+                    )
+                }
+
+                _errorMsg.value = null
+            } catch (e: Exception) {
+                _errorMsg.value = "Failed to load courses: ${e.message}"
+            }
+            _isLoading.value = false
+        }
+    }
+
+    fun initFromParsedCourses(parsed: List<ParsedCourse>) {
+        val processed = FfcsCourseProcessor.processCourses(parsed)
+        _allCourses.value = processed
+
+        val offerings = processed
+            .groupBy { it.code.uppercase() }
+            .map { (code, courseList) ->
+                val offs = courseList.map { c ->
+                    CourseOffering(
+                        faculty = c.faculty,
+                        slot = c.slot,
+                        room = c.room,
+                        code = code,
+                        title = c.title,
+                        type = c.type,
+                        credits = c.credits
+                    )
+                }
+                code to offs
+            }
+            .sortedBy { it.first }
+
+        _courseOfferings.value = offerings
+
+        _locks.value = offerings.map { (code, offs) ->
             CourseLock(
-                code = options.first().code,
-                title = options.first().title,
+                code = code,
+                title = offs.firstOrNull()?.title ?: "",
                 allowedSlots = emptyList(),
                 allowedFaculty = emptyList(),
-                offerings = options.map { "${it.faculty}|${it.slot}|${it.room}" }
+                offerings = offs.map { it.toKey() }
             )
         }
     }
-    
+
+    fun toggleCourse(code: String) {
+        val current = _selectedCodes.value.toMutableSet()
+        if (current.contains(code)) current.remove(code) else current.add(code)
+        _selectedCodes.value = current
+    }
+
     fun setLock(code: String, allowedSlots: List<String>, allowedFaculty: List<String>) {
         val current = _locks.value.toMutableList()
-        val index = current.indexOfFirst { it.code == code }
+        val index = current.indexOfFirst { it.code.equals(code, ignoreCase = true) }
         if (index != -1) {
-            current[index] = current[index].copy(allowedSlots = allowedSlots, allowedFaculty = allowedFaculty)
+            current[index] = current[index].copy(
+                allowedSlots = allowedSlots,
+                allowedFaculty = allowedFaculty
+            )
             _locks.value = current
         }
     }
 
-    fun generate() {
-        if (_targetCourses.value.isEmpty()) return
-        _isGenerating.value = true
-        _errorMsg.value = null
-        
-        scope.launch {
-            try {
-                val results = FfcsEngine.generateTimetables(_targetCourses.value, _locks.value, FriendsViewModel.friends.value)
-                _generatedTimetables.value = results
-            } catch (e: Exception) {
-                _errorMsg.value = e.message ?: "Failed to generate timetables."
-                _generatedTimetables.value = emptyList()
-            } finally {
-                _isGenerating.value = false
+    fun selectOffering(code: String, offering: CourseOffering) {
+        val current = _locks.value.toMutableList()
+        val index = current.indexOfFirst { it.code.equals(code, ignoreCase = true) }
+        if (index != -1) {
+            val lock = current[index]
+            val currentSlots = lock.allowedSlots.toMutableList()
+            val currentFaculty = lock.allowedFaculty.toMutableList()
+
+            if (currentSlots.contains(offering.slot) && currentFaculty.contains(offering.faculty)) {
+                currentSlots.remove(offering.slot)
+                currentFaculty.remove(offering.faculty)
+            } else {
+                currentSlots.add(offering.slot)
+                if (!currentFaculty.contains(offering.faculty)) {
+                    currentFaculty.add(offering.faculty)
+                }
             }
+
+            current[index] = lock.copy(
+                allowedSlots = currentSlots,
+                allowedFaculty = currentFaculty
+            )
+            _locks.value = current
         }
     }
 
-    fun clear() {
+    fun toggleBlockSlot(slotKey: String) {
+        val current = _blockedSlots.value.toMutableSet()
+        if (current.contains(slotKey)) current.remove(slotKey) else current.add(slotKey)
+        _blockedSlots.value = current
+    }
+
+    fun setUniqueFaculty(value: Boolean) {
+        _uniqueFaculty.value = value
+    }
+
+    fun setMorningPreference(value: Boolean) {
+        _morningPreference.value = value
+    }
+
+    fun setMaxResults(value: Int) {
+        _maxResults.value = value.coerceIn(1, 500)
+    }
+
+    fun generate() {
+        val selected = _selectedCodes.value
+        if (selected.isEmpty()) {
+            _errorMsg.value = "Select at least one course to generate."
+            return
+        }
+
+        _isGenerating.value = true
+        _errorMsg.value = null
+        _generatedTimetables.value = emptyList()
+
+        scope.launch {
+            try {
+                val lockMap = _locks.value.associateBy { it.code.uppercase() }
+                val optionsPerCourse = selected.mapNotNull { code ->
+                    val lock = lockMap[code.uppercase()]
+                    val allOpts = _allCourses.value.filter { it.code.uppercase() == code.uppercase() }
+
+                    if (lock != null && lock.allowedFaculty.isNotEmpty() && lock.allowedSlots.isNotEmpty()) {
+                        allOpts.filter { it.faculty in lock.allowedFaculty && it.slot in lock.allowedSlots }
+                    } else if (lock != null && lock.allowedFaculty.isNotEmpty()) {
+                        allOpts.filter { it.faculty in lock.allowedFaculty }
+                    } else if (lock != null && lock.allowedSlots.isNotEmpty()) {
+                        allOpts.filter { it.slot in lock.allowedSlots }
+                    } else {
+                        allOpts
+                    }.ifEmpty { null }
+                }
+
+                if (optionsPerCourse.isEmpty()) {
+                    throw Exception("No valid courses selected. Check your locks.")
+                }
+
+                val results = FfcsEngine.generateTimetables(
+                    optionsPerCourse = optionsPerCourse,
+                    locks = _locks.value,
+                    blockedSlots = _blockedSlots.value,
+                    maxResults = _maxResults.value,
+                    uniqueFaculty = _uniqueFaculty.value,
+                    morningPreference = _morningPreference.value
+                )
+
+                _generatedTimetables.value = results
+            } catch (e: Exception) {
+                _errorMsg.value = e.message ?: "Generation failed."
+                _generatedTimetables.value = emptyList()
+            }
+            _isGenerating.value = false
+        }
+    }
+
+    fun clearResults() {
         _generatedTimetables.value = emptyList()
         _errorMsg.value = null
+    }
+
+    fun resetSelection() {
+        _selectedCodes.value = emptySet()
+        _generatedTimetables.value = emptyList()
+        _errorMsg.value = null
+        _blockedSlots.value = emptySet()
     }
 }

@@ -390,12 +390,22 @@ object AmazeClient {
         }
     }
 
-    suspend fun getExamSchedule(): ExamScheduleRes {
+    suspend fun getExamSchedule(semesterId: String? = null): ExamScheduleRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            val semLabel = semesterId?.let { sem ->
+                mapOf(
+                    "CH20262705" to "Winter Semester 2026-27",
+                    "CH20262701" to "Fall Semester 2026-27",
+                    "CH20252605" to "Winter Semester 2025-26",
+                    "CH20252601" to "Fall Semester 2025-26",
+                    "CH20242505" to "Winter Semester 2024-25",
+                    "CH20242501" to "Fall Semester 2024-25"
+                )[sem]
+            } ?: "Fall Semester 2025-26"
             return ExamScheduleRes(
                 success = true,
                 schedule = mapOf(
-                    "Fall Semester 2025-26" to listOf(
+                    semLabel to listOf(
                         ExamItem("CSE1001", "Software Engineering", "1024", "A1", "2026-09-12", "FN", "08:30 AM", "09:00 AM - 12:00 PM", "SJT-401", "Row 3, Seat A", "A-32"),
                         ExamItem("CSE2002", "Database Management Systems", "1056", "B1", "2026-09-14", "AN", "01:30 PM", "02:00 PM - 05:00 PM", "TT-102", "Row 1, Seat C", "C-08")
                     )
@@ -403,7 +413,9 @@ object AmazeClient {
             )
         }
         return try {
-            postAuthorized<ExamScheduleRes>("arrear-schedule") ?: ExamScheduleRes(success = false, message = "Empty response")
+            val params = mutableMapOf<String, String>()
+            if (semesterId != null) params["semesterId"] = semesterId
+            postAuthorized<ExamScheduleRes>("arrear-schedule", params) ?: ExamScheduleRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             ExamScheduleRes(success = false, message = e.message, error = e.toString())
         }
@@ -1129,6 +1141,41 @@ object AmazeClient {
         }
     }
 
+    suspend fun getEptSchedule(): EptScheduleRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return EptScheduleRes(success = true)
+        return try {
+            postAuthorized<EptScheduleRes>("ept-schedule") ?: EptScheduleRes(success = false)
+        } catch (e: Exception) { EptScheduleRes(success = false, error = e.toString()) }
+    }
+
+    suspend fun getRegistrationSchedule(): RegistrationScheduleRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return RegistrationScheduleRes(success = true)
+        return try {
+            postAuthorized<RegistrationScheduleRes>("registration-schedule") ?: RegistrationScheduleRes(success = false)
+        } catch (e: Exception) { RegistrationScheduleRes(success = false, error = e.toString()) }
+    }
+
+    suspend fun getBankInfo(): BankInfoRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return BankInfoRes(success = true)
+        return try {
+            postAuthorized<BankInfoRes>("bank-info") ?: BankInfoRes(success = false)
+        } catch (e: Exception) { BankInfoRes(success = false, error = e.toString()) }
+    }
+
+    suspend fun getDayboarderInfo(): DayboarderRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return DayboarderRes(success = true)
+        return try {
+            postAuthorized<DayboarderRes>("dayboarder") ?: DayboarderRes(success = false)
+        } catch (e: Exception) { DayboarderRes(success = false, error = e.toString()) }
+    }
+
+    suspend fun getApaarId(): ApaarIdRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return ApaarIdRes(success = true)
+        return try {
+            postAuthorized<ApaarIdRes>("apaarid") ?: ApaarIdRes(success = false)
+        } catch (e: Exception) { ApaarIdRes(success = false, error = e.toString()) }
+    }
+
     suspend fun getMakeupExam(): ArrearResponse {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return ArrearResponse(
@@ -1200,17 +1247,17 @@ object AmazeClient {
             return CircularsRes(
                 success = true,
                 circulars = listOf(
-                    CircularFolder("Academic Calendar", listOf(
-                        CircularItem("CIR-001", "Revised Academic Calendar for 2026-27"),
-                        CircularItem("CIR-002", "Holiday List for Upcoming Semester")
+                    CircularItem(title = "Academic Calendar", children = listOf(
+                        CircularItem(id = "CIR-001", title = "Revised Academic Calendar for 2026-27"),
+                        CircularItem(id = "CIR-002", title = "Holiday List for Upcoming Semester")
                     )),
-                    CircularFolder("Examinations", listOf(
-                        CircularItem("CIR-003", "CAT I Examination Schedule"),
-                        CircularItem("CIR-004", "Makeup Exam Application Notice")
+                    CircularItem(title = "Examinations", children = listOf(
+                        CircularItem(id = "CIR-003", title = "CAT I Examination Schedule"),
+                        CircularItem(id = "CIR-004", title = "Makeup Exam Application Notice")
                     )),
-                    CircularFolder("General", listOf(
-                        CircularItem("CIR-005", "Hostel Fee Payment Deadline"),
-                        CircularItem("CIR-006", "Transport Route Changes Effective Aug 1")
+                    CircularItem(title = "General", children = listOf(
+                        CircularItem(id = "CIR-005", title = "Hostel Fee Payment Deadline"),
+                        CircularItem(id = "CIR-006", title = "Transport Route Changes Effective Aug 1")
                     ))
                 )
             )
@@ -1218,16 +1265,6 @@ object AmazeClient {
         return postAuthorized<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
     }
 
-    suspend fun getVitol(): VitolRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return VitolRes(
-                success = true,
-                message = "VITOL fetched (Demo)",
-                data = VitolData(balance = "500.00", limit = "2000.00", consumed = "1500.00", message = "Active")
-            )
-        }
-        return postAuthorized<VitolRes>("vitol") ?: VitolRes(success = false, message = "Empty response")
-    }
 
     // â”€â”€ Phase 3 endpoints â”€â”€
 

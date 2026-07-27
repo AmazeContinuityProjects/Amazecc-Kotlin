@@ -3,6 +3,7 @@ package com.amazecc.app.shared.ui.screens.libraries
 import com.amazecc.app.shared.repository.SettingsManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,9 +19,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -34,6 +32,7 @@ import com.amazecc.app.shared.model.BookItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.AmazeCard
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -92,35 +91,39 @@ fun LibrariesScreen() {
             com.amazecc.app.shared.ui.components.HeaderSpacer()
 
             Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            tabs.forEach { tab ->
-                val isSelected = activeTab == tab
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { activeTab = tab },
-                    label = { Text(tab, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.SemiBold)) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = colors.accent, selectedLabelColor = Color.White,
-                        containerColor = colors.surface, labelColor = colors.textSecondary
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        borderColor = colors.border, selectedBorderColor = Color.Transparent,
-                        enabled = true, selected = isSelected
-                    )
-                )
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                tabs.forEach { tab ->
+                    val isSelected = activeTab == tab
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                            .background(if (isSelected) colors.accent else colors.surface)
+                            .border(1.dp, if (isSelected) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
+                            .clickable { activeTab = tab }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            tab,
+                            color = if (isSelected) Color.White else colors.textSecondary,
+                            style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
             }
-        }
 
-        Box(modifier = Modifier.weight(1f)) {
-            when (activeTab) {
-                "Issued Books" -> IssuedBooksContent(issuedBooks, loginRequired) { showLoginDialog = true }
-                "Catalog Search" -> CatalogSearchContent()
+            Box(modifier = Modifier.weight(1f)) {
+                when (activeTab) {
+                    "Issued Books" -> IssuedBooksContent(issuedBooks, loginRequired) { showLoginDialog = true }
+                    "Catalog Search" -> CatalogSearchContent()
+                }
             }
         }
     }
-}
 }
 
 // ═══════════════════════════════════════════
@@ -248,13 +251,12 @@ private fun IssuedBooksContent(
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(start = 0.dp, end = 0.dp, bottom = 88.dp)
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 88.dp)
     ) {
         item {
             Text(
                 "${books.size} book${if (books.size != 1) "s" else ""} currently issued",
-                style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium),
-                modifier = Modifier.padding(horizontal = 16.dp)
+                style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium)
             )
         }
         items(books, key = { it.bookId }) { book ->
@@ -270,29 +272,13 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
     val index = book.bookId.hashCode().let { abs(it) % bookColors.size }
     val cardColor = when (bookColors[index]) { 1 -> colors.chart1; 2 -> colors.chart2; 3 -> colors.chart3; 4 -> colors.chart4; else -> colors.chart5 }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(18.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
-            .drawBehind {
-                val stripWidth = 4.dp.toPx()
-                drawRoundRect(
-                    color = cardColor,
-                    topLeft = Offset(0f, 0f),
-                    size = Size(stripWidth, size.height)
-                )
-            }
-            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp)
-    ) {
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Top) {
                 Box(
-                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(cardColor.copy(alpha = 0.12f)),
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(cardColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Rounded.Book, null, tint = cardColor, modifier = Modifier.size(20.dp)) }
+                ) { Icon(Icons.Rounded.Book, null, tint = cardColor, modifier = Modifier.size(24.dp)) }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(book.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 2)
@@ -302,12 +288,12 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
                 }
             }
             Box(
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (isOverdue) colors.chart5.copy(alpha = 0.12f) else colors.chart1.copy(alpha = 0.1f)).padding(horizontal = 10.dp, vertical = 4.dp)
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (isOverdue) colors.chart5.copy(alpha = 0.12f) else colors.successSurface).padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
-                Text(if (isOverdue) "Overdue" else "Issued", color = if (isOverdue) colors.chart5 else colors.chart1, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(if (isOverdue) "Overdue" else "Issued", color = if (isOverdue) colors.chart5 else colors.successText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -471,27 +457,12 @@ private fun SearchResultCard(book: BookItem, colors: com.amazecc.app.shared.them
     val index = book.bookId.hashCode().let { abs(it) % bookColors.size }
     val cardColor = when (bookColors[index]) { 1 -> colors.chart1; 2 -> colors.chart2; 3 -> colors.chart3; 4 -> colors.chart4; else -> colors.chart5 }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
-            .drawBehind {
-                val stripWidth = 4.dp.toPx()
-                drawRoundRect(
-                    color = cardColor,
-                    topLeft = Offset(0f, 0f),
-                    size = Size(stripWidth, size.height)
-                )
-            }
-            .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp)
-    ) {
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.Top) {
             Box(
-                modifier = Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(cardColor.copy(alpha = 0.12f)),
+                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(cardColor.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
-            ) { Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = cardColor, modifier = Modifier.size(20.dp)) }
+            ) { Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = cardColor, modifier = Modifier.size(24.dp)) }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(book.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 2)

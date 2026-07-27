@@ -36,6 +36,7 @@ import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeTextField
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.utils.rememberFileSaver
 import kotlinx.coroutines.delay
@@ -123,7 +124,7 @@ fun CurriculumScreen() {
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(Modifier.height(8.dp))
+            HeaderSpacer()
 
             if (curriculumData == null) {
                 Box(modifier = Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {

@@ -37,7 +37,13 @@ enum class SyncModule(
     QCM_VIEW("QCM View", SettingsManager.CACHE_QCM_VIEW),
     STUDENT_PROFILE("Student Profile", SettingsManager.CACHE_STUDENT_PROFILE),
     CAB_TRIPS("Cab Trips", SettingsManager.CACHE_CAB_TRIPS),
-    VITOL("Vitol", SettingsManager.CACHE_VITOL),
+    CIRCULARS("Circulars", SettingsManager.CACHE_CIRCULARS),
+    PROFILE_IMAGES("Profile Images", SettingsManager.CACHE_PROFILE_IMAGES),
+    BANK_INFO("Bank Information", SettingsManager.CACHE_BANK_INFO),
+    DAYBOARDER("Dayboarder Info", SettingsManager.CACHE_DAYBOARDER),
+    EPT_SCHEDULE("EPT Schedule", SettingsManager.CACHE_EPT_SCHEDULE),
+    REGISTRATION_SCHEDULE("Registration Schedule", SettingsManager.CACHE_REGISTRATION_SCHEDULE),
+    APAAR_ID("APAAR ID", SettingsManager.CACHE_APAAR_ID),
 }
 
 enum class SyncStatus { IDLE, LOADING, SUCCESS, ERROR }
@@ -56,19 +62,20 @@ data class LogLine(
 )
 
 data class SyncProgress(
-    val totalModules: Int = SyncModule.entries.size,
+    val totalModules: Int = 0,
     val completedModules: Int = 0,
     val activeModules: Set<SyncModule> = emptySet(),
 ) {
     val percentage: Float
-        get() = if (totalModules == 0) 0f else (completedModules.toFloat() / totalModules.toFloat()) * 100f
+        get() = if (totalModules == 0) 100f else (completedModules.toFloat() / totalModules.toFloat()) * 100f
     val displayText: String
-        get() = "$completedModules / $totalModules modules"
+        get() = if (totalModules == 0) "Complete" else "$completedModules / $totalModules modules"
 }
 
 object SyncEngine {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private val activeJobs = mutableMapOf<SyncModule, Job>()
+    private val syncSessionModules = mutableSetOf<SyncModule>()
 
     private val _moduleStates = MutableStateFlow(
         SyncModule.entries.associateWith { ModuleState() }
@@ -130,6 +137,10 @@ object SyncEngine {
 
     fun startSync(module: SyncModule, block: suspend () -> ModuleState): Job? {
         if (activeJobs[module]?.isActive == true) return null
+        if (activeJobs.isEmpty()) {
+            syncSessionModules.clear()
+        }
+        syncSessionModules.add(module)
         addLog(module, "Starting...", SyncStatus.LOADING)
         val job = scope.launch {
             updateModuleState(module, ModuleState(status = SyncStatus.LOADING))
@@ -159,7 +170,7 @@ object SyncEngine {
 
     fun startSyncAll(block: suspend (SyncModule) -> ModuleState) {
         SyncModule.entries.forEach { module ->
-            if (module.cacheKey != null || module == SyncModule.ALL_SEMESTER_ATTENDANCE || module == SyncModule.CAB_TRIPS || module == SyncModule.VITOL) {
+            if (module.cacheKey != null || module == SyncModule.ALL_SEMESTER_ATTENDANCE || module == SyncModule.CAB_TRIPS) {
                 startSync(module) { block(module) }
             }
         }
@@ -181,12 +192,12 @@ object SyncEngine {
 
     private fun recalculateProgress() {
         val states = _moduleStates.value
-        val completed = states.count { (_, s) ->
-            s.status == SyncStatus.SUCCESS || s.status == SyncStatus.ERROR
+        val completed = states.count { (m, s) ->
+            syncSessionModules.contains(m) && (s.status == SyncStatus.SUCCESS || s.status == SyncStatus.ERROR)
         }
         val active = states.filter { (_, s) -> s.status == SyncStatus.LOADING }.keys
         _syncProgress.value = SyncProgress(
-            totalModules = states.size,
+            totalModules = syncSessionModules.size,
             completedModules = completed,
             activeModules = active,
         )

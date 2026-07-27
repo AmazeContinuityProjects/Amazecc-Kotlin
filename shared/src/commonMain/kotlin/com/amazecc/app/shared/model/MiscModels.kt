@@ -414,7 +414,14 @@ data class StudentProfile(
     val section: String? = null,
     val advisorName: String? = null,
     val bloodGroup: String? = null,
-    val photoBase64: String? = null
+    val photoBase64: String? = null,
+    val nativeLanguage: String? = null,
+    val nationality: String? = null,
+    val community: String? = null,
+    val religion: String? = null,
+    val caste: String? = null,
+    val physicallyChallenged: String? = null,
+    val aadharNumber: String? = null
 )
 
 @Serializable
@@ -531,21 +538,6 @@ data class CabJoinRequestsRes(
     val message: String? = null
 )
 
-@Serializable
-data class VitolData(
-    val balance: String,
-    val limit: String,
-    val consumed: String,
-    val message: String
-)
-
-@Serializable
-data class VitolRes(
-    val success: Boolean = true,
-    val data: VitolData? = null,
-    val message: String? = null,
-    val error: String? = null
-)
 
 @Serializable
 data class ProfileImagesCredential(
@@ -585,6 +577,11 @@ data class ProfileImagesHodDeanPerson(
 )
 
 @Serializable
+data class ProfileImagesStudent(
+    val photoBase64: String? = null
+)
+
+@Serializable
 data class ProfileImagesHodDean(
     val title: String = "",
     val people: List<ProfileImagesHodDeanPerson> = emptyList()
@@ -596,6 +593,9 @@ data class ProfileImagesRes(
     val proctor: ProfileImagesProctor? = null,
     val hodDean: ProfileImagesHodDean? = null,
     val credentials: ProfileImagesCredentials? = null,
+    val student: ProfileImagesStudent? = null,
+    val profile: ProfileImagesStudent? = null,
+    val studentPhoto: String? = null,
     val error: String? = null
 )
 
@@ -639,4 +639,51 @@ data class CurriculumRes(
     val totalCredits: Int = 0,
     val categories: List<CurriculumCategory> = emptyList(),
     val details: List<CategoryDetail> = emptyList()
+)
+
+@Serializable
+data class EptScheduleRes(
+    val success: Boolean = true,
+    @Contextual
+    val tables: List<JsonElement>? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class RegistrationScheduleRes(
+    val success: Boolean = true,
+    @Contextual
+    val tables: List<JsonElement>? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class BankInfoRes(
+    val success: Boolean = true,
+    @Contextual
+    val bankDetails: JsonElement? = null,
+    @Contextual
+    val fields: Map<String, JsonElement>? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class DayboarderRes(
+    val success: Boolean = true,
+    @Contextual
+    val fields: Map<String, JsonElement>? = null,
+    val error: String? = null
+)
+
+@Serializable
+data class ApaarIdRes(
+    val success: Boolean = true,
+    val hasApaar: Boolean = false,
+    @Contextual
+    val formFields: Map<String, JsonElement>? = null,
+    @Contextual
+    val keyValuePairs: Map<String, JsonElement>? = null,
+    @Contextual
+    val tables: List<JsonElement>? = null,
+    val error: String? = null
 )

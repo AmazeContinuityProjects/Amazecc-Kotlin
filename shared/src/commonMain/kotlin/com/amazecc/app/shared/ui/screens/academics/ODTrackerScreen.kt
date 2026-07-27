@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.utils.parseViewLink
 import kotlinx.serialization.json.*
 
@@ -129,6 +130,8 @@ fun ODTrackerScreen() {
             showBackButton = true,
             showSyncButton = true
         )
+
+        HeaderSpacer()
 
         Column(
             modifier = Modifier

@@ -140,32 +140,10 @@ object NotificationsUtils {
         }
     }
 
-    suspend fun scheduleVitolReminders(limit: String?, consumed: String?) {
-        if (!SettingsManager.isNotifVitolRemindersEnabled()) return
-        if (!requestNotificationPermissions()) return
-        createNotificationChannels()
-
-        val limitVal = limit?.toIntOrNull() ?: return
-        val consumedVal = consumed?.toIntOrNull() ?: return
-        val remaining = (limitVal - consumedVal).coerceAtLeast(0)
-        val usagePercent = (consumedVal.toFloat() / limitVal.toFloat()) * 100f
-
-        if (usagePercent >= 80f) {
-            scheduleLocalNotification(
-                id = 3001,
-                title = "VITOL Limit Warning",
-                body = "You have used $consumedVal / $limitVal (${usagePercent.toInt()}%) — only $remaining trips left",
-                triggerTimeMs = Clock.System.now().toEpochMilliseconds()
-            )
-        }
-    }
-
     fun scheduleAll(
         attendance: List<Map<String, Any>>?,
         slotMap: Map<String, Map<String, SlotInfo>>?,
         assignments: List<LMSAssignment>?,
-        vitolLimit: String?,
-        vitolConsumed: String?,
         tasks: List<HomeworkTask>? = null
     ) {
         CoroutineScope(Dispatchers.Main).launch {
@@ -175,7 +153,6 @@ object NotificationsUtils {
             if (assignments != null && assignments.isNotEmpty()) {
                 scheduleAssignmentReminders(assignments)
             }
-            scheduleVitolReminders(vitolLimit, vitolConsumed)
             if (tasks != null && tasks.isNotEmpty()) {
                 scheduleTaskReminders(tasks)
             }

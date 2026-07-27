@@ -34,6 +34,7 @@ import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 
 private val gradePointMap = mapOf(
     "S" to 10.0, "A" to 9.0, "B" to 8.0, "C" to 7.0,
@@ -101,6 +102,8 @@ fun GPAPredictorScreen() {
                 .padding(bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            HeaderSpacer()
+
             // Current CGPA card
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Row(

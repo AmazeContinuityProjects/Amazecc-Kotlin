@@ -29,7 +29,8 @@ import kotlin.math.floor
 @Composable
 fun BunkOMeterCard(
     attendance: AttendanceRes?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isInnerCard: Boolean = false
 ) {
     val colors = AmazeTheme.colors
     val radius = AmazeTheme.radius
@@ -106,11 +107,18 @@ fun BunkOMeterCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(radius.large))
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(radius.large))
-            .clickable { AppState.navigateTo(Screen.COURSE_ATTENDANCE) }
-            .padding(spacing.cardPadding)
+            .then(
+                if (isInnerCard) {
+                    Modifier.clickable { AppState.navigateTo(Screen.COURSE_ATTENDANCE) }
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                } else {
+                    Modifier.clip(RoundedCornerShape(radius.large))
+                        .background(colors.surface)
+                        .border(1.dp, colors.border, RoundedCornerShape(radius.large))
+                        .clickable { AppState.navigateTo(Screen.COURSE_ATTENDANCE) }
+                        .padding(spacing.cardPadding)
+                }
+            )
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,

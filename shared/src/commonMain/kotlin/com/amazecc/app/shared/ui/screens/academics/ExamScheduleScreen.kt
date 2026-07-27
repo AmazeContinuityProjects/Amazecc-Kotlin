@@ -1,10 +1,13 @@
 package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -26,10 +29,19 @@ import com.amazecc.app.shared.ui.components.HeaderSpacer
 @Composable
 fun ExamScheduleScreen() {
     val colors = AmazeTheme.colors
+    val allExams by AppState.allSemesterExams.collectAsState()
     val examData by AppState.examSchedule.collectAsState()
-    
-    val schedule = examData?.schedule ?: emptyMap()
+    val selectedSemId by AppState.selectedExamSemester.collectAsState()
     val isAppLoading by AppState.isLoading.collectAsState()
+
+    val schedule = examData?.schedule ?: emptyMap()
+
+    val availableSemesters = remember(allExams) {
+        AppState.semesterIDs.filter {
+            val res = allExams[it]
+            res != null && res.schedule.isNotEmpty()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -41,8 +53,41 @@ fun ExamScheduleScreen() {
             description = "Upcoming exams, seating, and venue",
             showBackButton = true,
             showSyncButton = true,
-            onRefresh = AppState::refreshCurrentSemester
+            onRefresh = AppState::refreshExamSchedule
         )
+
+        if (availableSemesters.size > 1) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                availableSemesters.forEach { id ->
+                    val semName = AppState.semesterMap[id]?.let { full ->
+                        if (id.endsWith("1")) "FS ${full.take(4).takeLast(2)}" else "WS ${full.take(4).takeLast(2)}"
+                    } ?: id.takeLast(4)
+                    val isActive = id == selectedSemId
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isActive) colors.accent else colors.surface)
+                            .border(if (isActive) 0.dp else 1.dp, colors.border, RoundedCornerShape(12.dp))
+                            .clickable { AppState.selectExamSemester(id) }
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Text(
+                            semName,
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (isActive) Color.White else colors.textSecondary
+                            )
+                        )
+                    }
+                }
+            }
+        }
 
         if (isAppLoading && schedule.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -67,7 +112,7 @@ fun ExamScheduleScreen() {
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
         ) {
             item { HeaderSpacer() }
-            
+
             schedule.forEach { (type, exams) ->
                 item {
                     Text(
@@ -76,7 +121,7 @@ fun ExamScheduleScreen() {
                         modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
                     )
                 }
-                
+
                 items(exams) { exam ->
                     AmazeCard(
                         modifier = Modifier
@@ -107,11 +152,11 @@ fun ExamScheduleScreen() {
                                     )
                                 }
                             }
-                            
+
                             Spacer(modifier = Modifier.height(12.dp))
                             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
                             Spacer(modifier = Modifier.height(12.dp))
-                            
+
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween

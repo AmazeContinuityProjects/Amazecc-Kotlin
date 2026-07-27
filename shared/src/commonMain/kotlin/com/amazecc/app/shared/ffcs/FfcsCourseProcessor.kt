@@ -3,20 +3,35 @@ package com.amazecc.app.shared.ffcs
 object FfcsCourseProcessor {
 
     fun parseFFCSCSV(csvText: String): List<ParsedCourse> {
-        val lines = csvText.trim().split("\n")
+        val lines = csvText.trim().replace("\r", "").split("\n")
         val courses = mutableListOf<ParsedCourse>()
         for (line in lines) {
-            val parts = line.split(",").map { it.trim() }
-            if (parts.size >= 7 && !parts[0].equals("CODE", ignoreCase = true)) {
+            if (line.isBlank()) continue
+            var inQuotes = false
+            val cols = mutableListOf<String>()
+            val current = StringBuilder()
+            for (char in line) {
+                if (char == '\"') {
+                    inQuotes = !inQuotes
+                } else if (char == ',' && !inQuotes) {
+                    cols.add(current.toString().trim())
+                    current.clear()
+                } else {
+                    current.append(char)
+                }
+            }
+            cols.add(current.toString().trim())
+
+            if (cols.size >= 7 && !cols[0].equals("CODE", ignoreCase = true)) {
                 courses.add(
                     ParsedCourse(
-                        code = parts[0],
-                        title = parts[1],
-                        type = parts[2],
-                        credits = parts[3],
-                        slot = parts[4],
-                        faculty = parts[5],
-                        room = parts[6]
+                        code = cols[0],
+                        title = cols[1],
+                        type = cols[2],
+                        credits = cols[3],
+                        slot = cols[4],
+                        faculty = cols[5],
+                        room = cols[6]
                     )
                 )
             }

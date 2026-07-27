@@ -39,15 +39,9 @@ data class CircularItem(
 )
 
 @Serializable
-data class CircularFolder(
-    val name: String? = null,
-    val children: List<CircularItem>? = null
-)
-
-@Serializable
 data class CircularsRes(
     val success: Boolean = true,
-    val circulars: List<CircularFolder> = emptyList(),
+    val circulars: List<CircularItem> = emptyList(),
     val error: String? = null,
     val message: String? = null
 )

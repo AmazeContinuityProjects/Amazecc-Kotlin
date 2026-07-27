@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
-import com.amazecc.app.shared.state.AppState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -84,15 +83,14 @@ fun FacultyInfoScreen() {
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(title = "Faculty Info", description = "Global Faculty Directory", showBackButton = true)
-
+    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         if (loadingSchools) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = colors.accent)
             }
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
+                HeaderSpacer()
                 // School Pills
                 Row(
                     modifier = Modifier
@@ -244,48 +242,60 @@ fun FacultyInfoScreen() {
                 }
             }
         }
+        
+        ScreenHeader(title = "Faculty Info", description = "Global Faculty Directory", showBackButton = true)
     }
 }
 
 @Composable
 private fun FacultyCard(faculty: FacultyProfile, onClick: () -> Unit) {
     val colors = AmazeTheme.colors
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = colors.surface,
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
-    ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Avatar
-            Surface(
-                shape = CircleShape,
-                color = colors.accent.copy(alpha = 0.15f),
-                modifier = Modifier.size(44.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        faculty.name.take(2).uppercase(),
-                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 15.sp)
-                    )
+    var expanded by remember { mutableStateOf(false) }
+
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.clickable { expanded = !expanded }.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(
+                    shape = CircleShape,
+                    color = colors.accent.copy(alpha = 0.15f),
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            faculty.name.take(2).uppercase(),
+                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 15.sp)
+                        )
+                    }
                 }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(faculty.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(faculty.designation, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.width(8.dp))
+                Icon(
+                    if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    null,
+                    tint = colors.textMuted.copy(alpha = 0.5f),
+                    modifier = Modifier.size(24.dp)
+                )
             }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(faculty.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(2.dp))
-                Text(faculty.designation, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontSize = 12.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (expanded) {
+                Spacer(Modifier.height(16.dp))
+                HorizontalDivider(color = colors.border.copy(alpha = 0.3f))
+                Spacer(Modifier.height(12.dp))
                 if (faculty.email.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(faculty.email, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = 11.sp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("Email", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp))
+                    Text(faculty.email, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 13.sp))
+                    Spacer(Modifier.height(12.dp))
                 }
+                AmazeButton(
+                    text = "View Schedule",
+                    onClick = onClick,
+                    modifier = Modifier.fillMaxWidth(),
+                    variant = ButtonVariant.SECONDARY
+                )
             }
-            Spacer(Modifier.width(8.dp))
-            Icon(
-                Icons.Rounded.ChevronRight,
-                null,
-                tint = colors.textMuted.copy(alpha = 0.5f),
-                modifier = Modifier.size(20.dp)
-            )
         }
     }
 }
@@ -296,11 +306,9 @@ fun FacultyDetailScreen(
     onBack: () -> Unit
 ) {
     val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
-    val courses = attendanceRes?.attendance ?: emptyList()
 
-    val schedule = remember(faculty.name, courses) {
-        FacultyFreeSlotsUtil.getFacultySchedule(faculty.name, courses)
+    val schedule = remember(faculty) {
+        FacultyFreeSlotsUtil.getFacultySchedule(faculty)
     }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
@@ -319,6 +327,8 @@ fun FacultyDetailScreen(
         }
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+            item { HeaderSpacer() }
+
             // Info card
             item {
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {

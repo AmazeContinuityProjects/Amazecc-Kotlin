@@ -3,6 +3,10 @@ package com.amazecc.app.shared.ui.screens.more
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,15 +44,9 @@ fun ClubHubScreen() {
     var activeTab by remember(initialTab) { mutableStateOf(initialTab) }
     val tabs = listOf("Directory", "Feed")
 
-    Column(
-        modifier = Modifier.fillMaxSize().background(colors.background)
-    ) {
-        ScreenHeader(
-            title = "Club Hub",
-            description = "Explore clubs and community feed",
-            showBackButton = true,
-            showSyncButton = false
-        )
+    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            HeaderSpacer()
 
         TabRow(
             selectedTabIndex = tabs.indexOf(activeTab),
@@ -80,6 +78,14 @@ fun ClubHubScreen() {
                 "Feed" -> FeedTab(colors)
             }
         }
+        }
+
+        ScreenHeader(
+            title = "Club Hub",
+            description = "Explore clubs and community feed",
+            showBackButton = true,
+            showSyncButton = false
+        )
     }
 }
 
@@ -143,11 +149,17 @@ private fun DirectoryTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
 
 @Composable
 private fun ClubCard(club: ClubItem, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(targetValue = if (isPressed) 0.96f else 1f, animationSpec = bouncySpring())
+
     Box(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
-            .clickable { AppState.openClubDetail(club.id ?: "") }
+        modifier = Modifier.fillMaxWidth()
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(RoundedCornerShape(18.dp))
+            .background(colors.surface.copy(alpha = 0.65f)) // Glassmorphism
+            .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+            .clickable(interactionSource = interactionSource, indication = null) { AppState.openClubDetail(club.id ?: "") }
             .padding(16.dp)
     ) {
         Row(
@@ -246,8 +258,8 @@ private fun FeedTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
 private fun FeedPostCard(post: FeedPost, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Box(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+            .background(colors.surface.copy(alpha = 0.65f)) // Glassmorphism
+            .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
             .padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -212,11 +212,13 @@ fun TasksScreen() {
             AddTaskDialog(onDismiss = { showAddDialog = false })
         }
 
-        // FAB
-        Box(modifier = Modifier.fillMaxSize()) {
+        // FAB – sits above the floating bottom nav bar
+        Box(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
-                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 16.dp, bottom = 80.dp),
                 containerColor = colors.accent,
                 contentColor = colors.background
             ) {

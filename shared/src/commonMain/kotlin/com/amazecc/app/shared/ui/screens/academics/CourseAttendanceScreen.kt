@@ -28,9 +28,15 @@ import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import com.amazecc.app.shared.ui.components.bouncySpring
@@ -186,20 +192,70 @@ fun CourseAttendanceScreen() {
             showSyncButton = false
         )
 
-        // Stats bar
+        // Bunk-O-Meter Hero Section
         AmazeCard(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 18.dp, vertical = 8.dp),
             backgroundColor = colors.surface
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                PctStat("Current", pctFormatted(currentPct), Color(0xFF3B82F6))
-                PctStat("Future", "$futureCount classes", Color(0xFF8B5CF6))
-                PctStat("Projected", pctFormatted(predictedPct), projectedColor(predictedPct))
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.size(160.dp)) {
+                    val animatedPct by animateFloatAsState(
+                        targetValue = currentPct.toFloat(),
+                        animationSpec = tween(1500)
+                    )
+                    val sweepAngle = (animatedPct / 100f) * 240f
+                    val baseColor = colors.border
+                    val progressColor = projectedColor(currentPct)
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        drawArc(
+                            color = baseColor,
+                            startAngle = 150f,
+                            sweepAngle = 240f,
+                            useCenter = false,
+                            style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                        drawArc(
+                            color = progressColor,
+                            startAngle = 150f,
+                            sweepAngle = sweepAngle,
+                            useCenter = false,
+                            style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
+                        )
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            pctFormatted(currentPct),
+                            style = AmazeTheme.typography.display.copy(
+                                fontWeight = FontWeight.Black,
+                                fontSize = 36.sp,
+                                color = progressColor
+                            )
+                        )
+                        Text(
+                            if (currentPct >= 75) "SAFE" else "DANGER",
+                            style = AmazeTheme.typography.caption.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = if (currentPct >= 75) Color(0xFF10B981) else colors.danger
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    PctStat("Attended", "${course.attendedClasses}", Color(0xFF3B82F6))
+                    PctStat("Total", "${course.totalClasses}", colors.textPrimary)
+                    PctStat("Target (75%)", "${kotlin.math.ceil(course.totalClasses * 0.75).toInt()}", Color(0xFFF59E0B))
+                }
             }
         }
 
@@ -251,33 +307,40 @@ fun CourseAttendanceScreen() {
             }
         }
 
-        when (activeTab) {
-            "Predictor" -> {
-                PredictorTab(
-                    mode = mode,
-                    onModeChange = { mode = it },
-                    futureDates = futureClassDates,
-                    skipDates = skipDates,
-                    onToggleSkip = { key ->
-                        skipDates = if (key in skipDates) skipDates - key else skipDates + key
-                    },
-                    predictedPct = predictedPct,
-                    predictedAttended = predictedAttended,
-                    predictedTotal = predictedTotal,
-                    whatIfAttend = whatIfAttend,
-                    onWhatIfAttendChange = { whatIfAttend = it },
-                    whatIfMiss = whatIfMiss,
-                    onWhatIfMissChange = { whatIfMiss = it },
-                    whatIfPct = whatIfPct,
-                    whatIfTotal = whatIfTotal,
-                    whatIfAttended = whatIfAttended,
-                    currentAttended = course.attendedClasses,
-                    currentTotal = course.totalClasses,
-                    colors = colors
-                )
+        AnimatedContent(
+            targetState = activeTab,
+            transitionSpec = {
+                androidx.compose.animation.fadeIn(animationSpec = tween(300)) togetherWith androidx.compose.animation.fadeOut(animationSpec = tween(300))
             }
-            "Log" -> LogTab(course = course, colors = colors)
-            "Notes" -> NotesTab(courseCode = courseCode ?: "", colors = colors)
+        ) { tab ->
+            when (tab) {
+                "Predictor" -> {
+                    PredictorTab(
+                        mode = mode,
+                        onModeChange = { mode = it },
+                        futureDates = futureClassDates,
+                        skipDates = skipDates,
+                        onToggleSkip = { key ->
+                            skipDates = if (key in skipDates) skipDates - key else skipDates + key
+                        },
+                        predictedPct = predictedPct,
+                        predictedAttended = predictedAttended,
+                        predictedTotal = predictedTotal,
+                        whatIfAttend = whatIfAttend,
+                        onWhatIfAttendChange = { whatIfAttend = it },
+                        whatIfMiss = whatIfMiss,
+                        onWhatIfMissChange = { whatIfMiss = it },
+                        whatIfPct = whatIfPct,
+                        whatIfTotal = whatIfTotal,
+                        whatIfAttended = whatIfAttended,
+                        currentAttended = course.attendedClasses,
+                        currentTotal = course.totalClasses,
+                        colors = colors
+                    )
+                }
+                "Log" -> LogTab(course = course, colors = colors)
+                "Notes" -> NotesTab(courseCode = courseCode ?: "", colors = colors)
+            }
         }
     }
 }
@@ -351,12 +414,25 @@ private fun PredictorTab(
                         )
                     )
                 }
-                Slider(
-                    value = whatIfAttend,
-                    onValueChange = onWhatIfAttendChange,
-                    valueRange = 0f..50f,
-                    colors = SliderDefaults.colors(thumbColor = Color(0xFF10B981), activeTrackColor = Color(0xFF10B981))
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    IconButton(onClick = { if (whatIfAttend >= 1f) onWhatIfAttendChange(whatIfAttend - 1f) }) {
+                        Icon(Icons.Rounded.RemoveCircleOutline, contentDescription = "Decrease", tint = Color(0xFF10B981))
+                    }
+                    Slider(
+                        value = whatIfAttend,
+                        onValueChange = onWhatIfAttendChange,
+                        valueRange = 0f..50f,
+                        modifier = Modifier.weight(1f),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF10B981), 
+                            activeTrackColor = Color(0xFF10B981),
+                            inactiveTrackColor = Color(0xFF10B981).copy(alpha = 0.2f)
+                        )
+                    )
+                    IconButton(onClick = { if (whatIfAttend < 50f) onWhatIfAttendChange(whatIfAttend + 1f) }) {
+                        Icon(Icons.Rounded.AddCircleOutline, contentDescription = "Increase", tint = Color(0xFF10B981))
+                    }
+                }
                 
                 Spacer(Modifier.height(4.dp))
                 
@@ -367,12 +443,25 @@ private fun PredictorTab(
                     }
                     Text("$whatIfAttended / $whatIfTotal", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                 }
-                Slider(
-                    value = whatIfMiss,
-                    onValueChange = onWhatIfMissChange,
-                    valueRange = 0f..50f,
-                    colors = SliderDefaults.colors(thumbColor = colors.danger, activeTrackColor = colors.danger)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    IconButton(onClick = { if (whatIfMiss >= 1f) onWhatIfMissChange(whatIfMiss - 1f) }) {
+                        Icon(Icons.Rounded.RemoveCircleOutline, contentDescription = "Decrease", tint = colors.danger)
+                    }
+                    Slider(
+                        value = whatIfMiss,
+                        onValueChange = onWhatIfMissChange,
+                        valueRange = 0f..50f,
+                        modifier = Modifier.weight(1f),
+                        colors = SliderDefaults.colors(
+                            thumbColor = colors.danger, 
+                            activeTrackColor = colors.danger,
+                            inactiveTrackColor = colors.danger.copy(alpha = 0.2f)
+                        )
+                    )
+                    IconButton(onClick = { if (whatIfMiss < 50f) onWhatIfMissChange(whatIfMiss + 1f) }) {
+                        Icon(Icons.Rounded.AddCircleOutline, contentDescription = "Increase", tint = colors.danger)
+                    }
+                }
             }
         }
         
@@ -383,26 +472,32 @@ private fun PredictorTab(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             modes.forEach { m ->
                 val sel = mode == m
+                val bg by androidx.compose.animation.animateColorAsState(if (sel) colors.accent else colors.surface)
+                val tc by androidx.compose.animation.animateColorAsState(if (sel) Color.White else colors.textPrimary)
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .background(if (sel) colors.accent else colors.surface, RoundedCornerShape(8.dp))
+                        .background(bg, RoundedCornerShape(12.dp))
+                        .border(1.dp, if (sel) colors.accent else colors.border, RoundedCornerShape(12.dp))
                         .clickable { onModeChange(m) }
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(m, color = if (sel) Color.White else colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    Text(m, color = tc, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            "Future Classes (${futureDates.size}) — tap to mark skip",
-            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-        )
-        Spacer(modifier = Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                "Timeline (${futureDates.size} upcoming)",
+                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
+            )
+            Text("Tap to toggle skip", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+        }
+        Spacer(modifier = Modifier.height(8.dp))
 
         if (futureDates.isEmpty()) {
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -514,6 +609,7 @@ private fun PredictorTab(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LogTab(
     course: AttendanceItem,
@@ -533,50 +629,101 @@ private fun LogTab(
         } catch (_: Exception) { emptyList() }
     }
 
+    val chronoSorted = remember(detailedDays) { detailedDays.sortedBy { it.first } }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            StatChip("Attended", course.attendedClasses.toString(), Color(0xFF10B981), colors)
-            StatChip("Total", course.totalClasses.toString(), colors.accent, colors)
-            StatChip("Avg", course.attendancePercentage, Color(0xFF3B82F6), colors)
-        }
+        if (chronoSorted.isNotEmpty()) {
+            AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = colors.surface) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Attendance Heatmap", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp))
+                    Spacer(Modifier.height(12.dp))
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        chronoSorted.forEach { (_, status) ->
+                            val isPresent = status.lowercase() in listOf("present", "p")
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(if (isPresent) Color(0xFF10B981) else colors.danger)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF10B981)))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Present", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(colors.danger))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Absent", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        if (detailedDays.isNotEmpty()) {
             Text(
-                "Attendance Log (${detailedDays.size} entries)",
+                "Timeline (${detailedDays.size} entries)",
                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
             )
-            Spacer(modifier = Modifier.height(6.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+            Spacer(modifier = Modifier.height(8.dp))
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
                 items(detailedDays.sortedByDescending { it.first }) { (date, status) ->
                     val isPresent = status.lowercase() in listOf("present", "p")
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(colors.surface, RoundedCornerShape(8.dp))
-                            .padding(10.dp),
+                            .background(colors.surface, RoundedCornerShape(12.dp))
+                            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                            .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(date, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 13.sp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isPresent) Color(0xFF10B981).copy(alpha = 0.12f) else colors.danger.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    if (isPresent) Icons.Rounded.Check else Icons.Rounded.Close,
+                                    contentDescription = null,
+                                    tint = if (isPresent) Color(0xFF10B981) else colors.danger,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(date, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp))
+                                Text("Class Attended", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                            }
+                        }
+                        
                         Box(
                             modifier = Modifier
                                 .background(
-                                    if (isPresent) Color(0xFF10B981).copy(alpha = 0.12f)
-                                    else colors.danger.copy(alpha = 0.12f),
+                                    if (isPresent) Color(0xFF10B981)
+                                    else colors.danger,
                                     RoundedCornerShape(6.dp)
                                 )
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                if (isPresent) "Present" else "Absent",
-                                color = if (isPresent) Color(0xFF10B981) else colors.danger,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                                if (isPresent) "PRESENT" else "ABSENT",
+                                color = Color.White,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 0.5.sp
                             )
                         }
                     }

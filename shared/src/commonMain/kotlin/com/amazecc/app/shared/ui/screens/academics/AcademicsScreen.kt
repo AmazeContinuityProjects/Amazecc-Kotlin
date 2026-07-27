@@ -75,12 +75,9 @@ fun AcademicsScreen() {
         HubCard("curriculum", "Curriculum", "Track your completed courses and credit requirements.", Icons.AutoMirrored.Rounded.MenuBook, colors.chart1, colors.chart1.copy(alpha = 0.12f)),
         HubCard("predictor", "CGPA Predictor", "Estimate your future CGPA based on expected grades.", Icons.AutoMirrored.Rounded.TrendingUp, colors.chart3, colors.chart3.copy(alpha = 0.12f)),
         HubCard("qbank", "Question Bank", "Access and search past year question papers.", Icons.Rounded.Storage, colors.chart5, colors.chart5.copy(alpha = 0.12f)),
-        HubCard("makeup", "Makeup & Compre", "Makeup exam eligibility, schedule and compre info.", Icons.Rounded.School, colors.chart2, colors.chart2.copy(alpha = 0.12f)),
         HubCard("exam-schedule", "Exam Schedule", "Upcoming exams, seating, and venue details.", Icons.Rounded.EventSeat, colors.chart3, colors.chart3.copy(alpha = 0.12f)),
         HubCard("circulars", "Circulars", "Academic notices and circulars from VTOP.", Icons.Rounded.Campaign, colors.chart4, colors.chart4.copy(alpha = 0.12f)),
         HubCard("od-tracker", "OD Tracker", "Track on-duty hours, lab and theory.", Icons.Rounded.TaskAlt, colors.chart4, colors.chart4.copy(alpha = 0.12f)),
-        HubCard("marks-timeline", "Marks Timeline", "Assessment history and grade trend.", Icons.Rounded.Timeline, colors.chart1, colors.chart1.copy(alpha = 0.12f)),
-        HubCard("vitol", "VITOL Wallet", "Digital wallet balance and transactions.", Icons.Rounded.AccountBalanceWallet, colors.chart5, colors.chart5.copy(alpha = 0.12f)),
         HubCard("tasks", "Tasks & Reminders", "Homework, reminders and daily to-dos.", Icons.Rounded.CheckCircle, colors.chart1, colors.chart1.copy(alpha = 0.12f))
     )
 
@@ -134,13 +131,10 @@ fun AcademicsScreen() {
                                             "course-dashboard" -> currentView = "course-dashboard"
                                             "grades" -> AppState.navigateTo(Screen.GRADES)
                                             "predictor" -> AppState.navigateTo(Screen.GPA_PREDICTOR)
-                                            "makeup" -> AppState.navigateTo(Screen.MAKEUP_COMPRE)
                                             "exam-schedule" -> AppState.navigateTo(Screen.EXAM_SCHEDULE)
                                             "circulars" -> AppState.navigateTo(Screen.CIRCULARS)
                                             "curriculum" -> AppState.navigateTo(Screen.CURRICULUM)
                                             "od-tracker" -> AppState.navigateTo(Screen.OD_TRACKER)
-                                            "marks-timeline" -> AppState.navigateTo(Screen.MARKS_TIMELINE)
-                                            "vitol" -> AppState.navigateTo(Screen.VITOL)
                                             "qbank" -> AppState.navigateTo(Screen.QBANK)
                                             "tasks" -> AppState.navigateTo(Screen.TASKS)
                                         }

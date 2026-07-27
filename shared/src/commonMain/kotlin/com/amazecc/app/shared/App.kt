@@ -26,6 +26,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.Key
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
@@ -82,7 +89,14 @@ fun App() {
             )
         ) {
             Surface(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().onKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown && 
+                        (event.isMetaPressed || event.isCtrlPressed) && 
+                        event.key == Key.K) {
+                        AppState.openCommandPalette()
+                        true
+                    } else false
+                },
                 color = colors.background
             ) {
                 Scaffold(containerColor = colors.background) {
@@ -100,9 +114,27 @@ fun App() {
                     )
 
                     // Global Spotlight Search Overlay
-                    if (showSearch) {
+                    val commandPaletteOpen by AppState.commandPaletteOpen.collectAsState()
+                    val libraryPaletteOpen by AppState.libraryPaletteOpen.collectAsState()
+                    val eventPaletteOpen by AppState.eventPaletteOpen.collectAsState()
+
+                    if (commandPaletteOpen) {
                         com.amazecc.app.shared.ui.components.CommandPalette(
-                            onDismiss = { AppState.setSearchOpen(false) }
+                            isOpen = commandPaletteOpen,
+                            onClose = { AppState.closeCommandPalette() },
+                            commands = com.amazecc.app.shared.ui.components.rememberGlobalCommands()
+                        )
+                    }
+                    if (libraryPaletteOpen) {
+                        com.amazecc.app.shared.ui.components.LibraryPalette(
+                            isOpen = libraryPaletteOpen,
+                            onClose = { AppState.closeLibraryPalette() }
+                        )
+                    }
+                    if (eventPaletteOpen) {
+                        com.amazecc.app.shared.ui.components.EventPalette(
+                            isOpen = eventPaletteOpen,
+                            onClose = { AppState.closeEventPalette() }
                         )
                     }
 
@@ -139,13 +171,10 @@ fun App() {
                             Screen.GPA_PREDICTOR -> GPAPredictorScreen()
                             Screen.COURSE_DETAIL -> CourseDetailScreen { AppState.navigateTo(Screen.ACADEMICS) }
                             Screen.COURSE_ATTENDANCE -> CourseAttendanceScreen()
-                            Screen.MAKEUP_COMPRE -> MakeupCompreScreen()
                             Screen.CIRCULARS -> CircularsScreen()
                             Screen.CURRICULUM -> CurriculumScreen()
                             Screen.OD_TRACKER -> ODTrackerScreen()
                             Screen.COURSE_DASHBOARD -> CourseDashboardScreen { AppState.navigateTo(Screen.ACADEMICS) }
-                            Screen.MARKS_TIMELINE -> MarksTimelineScreen()
-                            Screen.VITOL -> VitolScreen()
                             Screen.FACULTY_INFO -> FacultyInfoScreen()
                             Screen.COURSE_MANAGEMENT -> CourseManagementScreen()
                             Screen.PROJECTS -> ProjectsScreen()
