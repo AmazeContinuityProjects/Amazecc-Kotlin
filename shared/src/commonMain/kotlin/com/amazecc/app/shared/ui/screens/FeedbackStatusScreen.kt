@@ -16,23 +16,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.FeedbackSemester
 import com.amazecc.app.shared.model.FeedbackTableRow
+import com.amazecc.app.shared.repository.SessionManager
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.components.AmazeCard
-import com.amazecc.app.shared.ui.components.ScreenHeader
-import kotlinx.coroutines.launch
+import com.amazecc.app.shared.ui.components.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 
-data class SemesterFeedbackState(
+private data class SemesterFeedbackState(
     val semester: FeedbackSemester,
     val rows: List<FeedbackTableRow>,
     val isExpanded: Boolean = true
@@ -42,60 +41,37 @@ data class SemesterFeedbackState(
 fun FeedbackStatusScreen() {
     val colors = AmazeTheme.colors
     val scope = rememberCoroutineScope()
-    
     var semestersData by remember { mutableStateOf<List<SemesterFeedbackState>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
-        try {
-            val initialRes = AmazeClient.getFeedbackStatus()
-            if (!initialRes.success) {
-                error = initialRes.error ?: "Failed to load feedback status"
-                loading = false
-                return@LaunchedEffect
-            }
-            
-            val sems = initialRes.semesters ?: emptyList()
-            val initialRows = initialRes.feedbackTable ?: emptyList()
-            
-            val stateList = mutableListOf<SemesterFeedbackState>()
-            
-            // The initially fetched one is the selected one
-            val initialSelectedIdx = sems.indexOfFirst { it.selected }
-            
-            // To fetch the others concurrently
-            coroutineScope {
-                val fetchJobs = sems.mapIndexed { idx, sem ->
-                    async {
-                        if (idx == initialSelectedIdx) {
-                            SemesterFeedbackState(sem, initialRows, isExpanded = true)
-                        } else {
-                            val res = AmazeClient.getFeedbackStatus(sem.value)
-                            SemesterFeedbackState(sem, res.feedbackTable ?: emptyList(), isExpanded = false)
-                        }
-                    }
-                }
-                stateList.addAll(fetchJobs.awaitAll())
-            }
-            
-            semestersData = stateList
-        } catch (e: Exception) {
-            error = e.message
+        refreshSession()
+        loadFeedback { data, err ->
+            semestersData = data
+            error = err
+            loading = false
         }
-        loading = false
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
+    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(
             title = "Feedback Status",
             description = "Course feedback status",
             showBackButton = true,
-            showSyncButton = false
+            showSyncButton = true,
+            onRefresh = {
+                scope.launch {
+                    loading = true
+                    error = null
+                    refreshSession()
+                    loadFeedback { data, err ->
+                        semestersData = data
+                        error = err
+                        loading = false
+                    }
+                }
+            }
         )
 
         if (loading) {
@@ -117,7 +93,7 @@ fun FeedbackStatusScreen() {
                 }
             }
         } else if (semestersData.isEmpty() || semestersData.all { it.rows.isEmpty() }) {
-             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Rounded.Info, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                     Spacer(modifier = Modifier.height(16.dp))
@@ -126,18 +102,16 @@ fun FeedbackStatusScreen() {
             }
         } else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = 88.dp)
             ) {
                 items(semestersData, key = { it.semester.value }) { semData ->
                     FeedbackSemesterCard(
                         state = semData,
-                        onToggleExpand = { 
-                            semestersData = semestersData.map { 
-                                if (it.semester.value == semData.semester.value) it.copy(isExpanded = !it.isExpanded) else it 
+                        onToggleExpand = {
+                            semestersData = semestersData.map {
+                                if (it.semester.value == semData.semester.value) it.copy(isExpanded = !it.isExpanded) else it
                             }
                         },
                         colors = colors
@@ -148,62 +122,93 @@ fun FeedbackStatusScreen() {
     }
 }
 
+private suspend fun refreshSession() {
+    val creds = SettingsManager.getCredentials() ?: return
+    try {
+        val loginRes = AmazeClient.login(creds.first, creds.second)
+        if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
+            SessionManager.saveSession(
+                cookies = loginRes.cookies,
+                csrf = loginRes.csrf,
+                authorizedID = loginRes.authorizedID,
+                clubToken = loginRes.clubToken
+            )
+            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
+            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
+            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
+            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+        }
+    } catch (_: Exception) { }
+}
+
+private suspend fun loadFeedback(onResult: (List<SemesterFeedbackState>, String?) -> Unit) {
+    try {
+        val initialRes = AmazeClient.getFeedbackStatus()
+        if (!initialRes.success) {
+            onResult(emptyList(), initialRes.error ?: "Failed to load feedback status")
+            return
+        }
+
+        val sems = initialRes.semesters ?: emptyList()
+        val initialRows = initialRes.feedbackTable ?: emptyList()
+        val initialSelectedIdx = sems.indexOfFirst { it.selected }
+
+        val stateList = coroutineScope {
+            sems.mapIndexed { idx, sem ->
+                async {
+                    if (idx == initialSelectedIdx) {
+                        SemesterFeedbackState(sem, initialRows, isExpanded = true)
+                    } else {
+                        val res = AmazeClient.getFeedbackStatus(sem.value)
+                        SemesterFeedbackState(sem, res.feedbackTable ?: emptyList(), isExpanded = false)
+                    }
+                }
+            }.awaitAll()
+        }
+
+        onResult(stateList, null)
+    } catch (e: Exception) {
+        onResult(emptyList(), e.message)
+    }
+}
+
 @Composable
-fun FeedbackSemesterCard(
+private fun FeedbackSemesterCard(
     state: SemesterFeedbackState,
     onToggleExpand: () -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val doneCount = state.rows.count { 
-        (it.midSemester?.lowercase()?.contains("given") == true) || 
+    val doneCount = state.rows.count {
+        (it.midSemester?.lowercase()?.contains("given") == true) ||
         (it.teeSemester?.lowercase()?.contains("given") == true)
     }
     val totalCount = state.rows.size
     val isComplete = doneCount == totalCount && totalCount > 0
 
-    AmazeCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column {
-            // Header Row
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onToggleExpand() }
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth().clickable { onToggleExpand() }.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = if (state.isExpanded) Icons.Rounded.KeyboardArrowDown else Icons.Rounded.KeyboardArrowRight,
-                        contentDescription = "Expand",
-                        tint = colors.textSecondary,
-                        modifier = Modifier.size(20.dp)
+                        contentDescription = "Expand", tint = colors.textSecondary, modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = state.semester.text,
-                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                    )
+                    Text(state.semester.text, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
-                
-                // Status Badge
                 Box(
-                    modifier = Modifier
-                        .background(
-                            if (isComplete) colors.success.copy(alpha = 0.15f) else colors.danger.copy(alpha = 0.15f),
-                            RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                    modifier = Modifier.background(
+                        if (isComplete) colors.success.copy(alpha = 0.15f) else colors.danger.copy(alpha = 0.15f),
+                        RoundedCornerShape(8.dp)
+                    ).padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
-                    Text(
-                        text = "$doneCount/$totalCount done",
-                        style = AmazeTheme.typography.caption.copy(
-                            color = if (isComplete) colors.success else colors.danger,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
+                    Text("$doneCount/$totalCount done", style = AmazeTheme.typography.caption.copy(
+                        color = if (isComplete) colors.success else colors.danger, fontWeight = FontWeight.Bold
+                    ))
                 }
             }
 
@@ -213,21 +218,14 @@ fun FeedbackSemesterCard(
                 exit = shrinkVertically(animationSpec = tween(300))
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (state.rows.isEmpty()) {
-                        Text(
-                            text = "No courses found",
-                            style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
-                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = 8.dp)
-                        )
+                        Text("No courses found", style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
+                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(vertical = 8.dp))
                     } else {
-                        state.rows.forEach { row ->
-                            FeedbackRowItem(row, colors)
-                        }
+                        state.rows.forEach { row -> FeedbackRowItem(row, colors) }
                     }
                 }
             }
@@ -236,30 +234,21 @@ fun FeedbackSemesterCard(
 }
 
 @Composable
-fun FeedbackRowItem(row: FeedbackTableRow, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun FeedbackRowItem(row: FeedbackTableRow, colors: com.amazecc.app.shared.theme.AmazeColors) {
     val midGiven = row.midSemester?.lowercase()?.contains("given") == true
     val teeGiven = row.teeSemester?.lowercase()?.contains("given") == true
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.background, RoundedCornerShape(12.dp))
-            .padding(12.dp),
+        modifier = Modifier.fillMaxWidth().background(colors.background, RoundedCornerShape(12.dp)).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
             Icon(Icons.Rounded.Book, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = row.feedbackType ?: "N/A",
-                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 14.sp),
-                maxLines = 1
-            )
+            Text(row.feedbackType ?: "N/A", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 14.sp), maxLines = 1)
         }
-        
         Spacer(modifier = Modifier.width(12.dp))
-        
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FeedbackBadge(text = "Mid Sem", isGiven = midGiven, colors = colors)
             FeedbackBadge(text = "TEE", isGiven = teeGiven, colors = colors)
@@ -268,30 +257,19 @@ fun FeedbackRowItem(row: FeedbackTableRow, colors: com.amazecc.app.shared.theme.
 }
 
 @Composable
-fun FeedbackBadge(text: String, isGiven: Boolean, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun FeedbackBadge(text: String, isGiven: Boolean, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Row(
-        modifier = Modifier
-            .background(
-                if (isGiven) colors.success.copy(alpha = 0.15f) else colors.danger.copy(alpha = 0.15f),
-                RoundedCornerShape(6.dp)
-            )
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+        modifier = Modifier.background(
+            if (isGiven) colors.success.copy(alpha = 0.15f) else colors.danger.copy(alpha = 0.15f),
+            RoundedCornerShape(6.dp)
+        ).padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = if (isGiven) Icons.Rounded.CheckCircle else Icons.Rounded.Cancel,
-            contentDescription = null,
-            tint = if (isGiven) colors.success else colors.danger,
-            modifier = Modifier.size(12.dp)
+            contentDescription = null, tint = if (isGiven) colors.success else colors.danger, modifier = Modifier.size(12.dp)
         )
         Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = text,
-            style = AmazeTheme.typography.caption.copy(
-                fontSize = 10.sp,
-                color = if (isGiven) colors.success else colors.danger,
-                fontWeight = FontWeight.Bold
-            )
-        )
+        Text(text, style = AmazeTheme.typography.caption.copy(fontSize = 10.sp, color = if (isGiven) colors.success else colors.danger, fontWeight = FontWeight.Bold))
     }
 }

@@ -2,6 +2,9 @@ package com.amazecc.app.shared.api
 
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
+import com.amazecc.app.shared.repository.SettingsManager
+import com.russhwolf.settings.set
+import kotlinx.datetime.Clock
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
@@ -23,11 +26,29 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
 import com.amazecc.app.shared.utils.AnalyzeCalendar
 import com.amazecc.app.shared.utils.UpdateConfig
 
 @Serializable
 data class LoginRequest(val username: String, val password: String)
+
+private val fallbackHubs = listOf(
+    CabShareHub(1, "VIT Chennai"),
+    CabShareHub(2, "Chennai Airport"),
+    CabShareHub(3, "Chennai Central Railway Station"),
+    CabShareHub(4, "Tambaram Railway Station"),
+    CabShareHub(5, "Chengalpattu Railway Station"),
+    CabShareHub(6, "Koyambedu Bus Stand"),
+    CabShareHub(7, "Kelambakkam"),
+    CabShareHub(8, "Sholinganallur"),
+    CabShareHub(9, "T Nagar"),
+    CabShareHub(10, "Guindy"),
+    CabShareHub(11, "OMR"),
+    CabShareHub(12, "Perungudi"),
+    CabShareHub(13, "Thoraipakkam"),
+    CabShareHub(14, "Velachery")
+)
 
 @Serializable
 data class MoodleLoginRequest(val username: String, val pass: String)
@@ -117,6 +138,25 @@ object AmazeClient {
         } else {
             null
         }
+    }
+
+    private suspend inline fun <reified T> postAuthorizedBody(endpoint: String, body: String): T? {
+        val cookies = SessionManager.cookies.value ?: return null
+        val authorizedID = SessionManager.authorizedID.value ?: return null
+        val csrf = SessionManager.csrf.value ?: return null
+        val response: HttpResponse = httpClient.post("$baseUrl/api/$endpoint") {
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("cookies", cookies)
+                put("authorizedID", authorizedID)
+                put("csrf", csrf)
+                val parsed = Json.parseToJsonElement(body).jsonObject
+                parsed.forEach { (k, v) -> put(k, v) }
+            })
+        }
+        return if (response.status == HttpStatusCode.OK) {
+            jsonConfig.decodeFromString<T>(response.bodyAsText())
+        } else null
     }
 
     suspend fun getAttendance(semesterId: String? = null): AttendanceRes {
@@ -854,6 +894,162 @@ object AmazeClient {
         } catch (e: Exception) {
             CabActionRes(success = false, message = e.message, error = e.toString())
         }
+    }
+
+    suspend fun cabShareAuth(username: String, password: String, phoneNumber: String): CabShareAuthRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabShareAuthRes(
+                success = true,
+                user = CabShareUser(
+                    reg_number = username,
+                    name = "Demo User",
+                    phone_number = phoneNumber,
+                    local_only = false
+                )
+            )
+        }
+        return try {
+            val params = buildJsonObject {
+                put("phone_number", phoneNumber)
+                put("username", username)
+                put("password", password)
+            }
+            postAuthorizedBody<CabShareAuthRes>("cabshare/auth", params.toString())
+                ?: CabShareAuthRes(success = false, error = "Empty response")
+        } catch (e: Exception) {
+            CabShareAuthRes(success = false, error = e.message)
+        }
+    }
+
+    suspend fun getCabHubs(): List<CabShareHub> {
+        return fallbackHubs
+    }
+
+    suspend fun searchCabShareTrips(fromHubId: Int?, toHubId: Int?, date: String): CabShareTripsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabShareTripsRes(success = true, trips = emptyList())
+        }
+        return try {
+            val params = mutableMapOf<String, String>()
+            fromHubId?.let { params["from_hub_id"] = it.toString() }
+            toHubId?.let { params["hub_id"] = it.toString() }
+            params["date"] = date
+            params["reg_number"] = SessionManager.authorizedID.value ?: ""
+            postAuthorized<CabShareTripsRes>("cabshare/trips", params)
+                ?: CabShareTripsRes(success = false, error = "Empty response")
+        } catch (e: Exception) {
+            CabShareTripsRes(success = false, error = e.message)
+        }
+    }
+
+    suspend fun createCabShareTrip(
+        fromHubId: Int, toHubId: Int, date: String, time: String,
+        tolerance: Double, seats: Int, gender: String, notes: String
+    ): CabActionRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabActionRes(success = true, message = "Trip created!", tripId = "CT-${(1000..9999).random()}")
+        }
+        return try {
+            val body = buildJsonObject {
+                put("reg_number", SessionManager.authorizedID.value ?: "")
+                put("from_hub_id", fromHubId)
+                put("hub_id", toHubId)
+                put("travel_date", date)
+                put("preferred_time", time)
+                put("tolerance_hours", tolerance)
+                put("gender_preference", gender)
+                put("notes", notes)
+                put("seat_options", buildJsonObject {
+                    put("requested", seats)
+                })
+            }
+            postAuthorizedBody<CabActionRes>("cabshare/trips", body.toString())
+                ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getMyCabShareTrips(regNumber: String): CabShareTripsRes {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
+            return CabShareTripsRes(success = true)
+        }
+        return try {
+            postAuthorized<CabShareTripsRes>("cabshare/trips/me?reg_number=$regNumber")
+                ?: CabShareTripsRes(success = false, error = "Empty response")
+        } catch (e: Exception) {
+            CabShareTripsRes(success = false, error = e.message)
+        }
+    }
+
+    suspend fun requestCabShareJoin(regNumber: String, tripId: Long): CabActionRes {
+        return try {
+            val body = buildJsonObject {
+                put("reg_number", regNumber)
+                put("trip_id", tripId)
+                put("action", "request")
+            }
+            postAuthorizedBody<CabActionRes>("cabshare/match", body.toString())
+                ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message)
+        }
+    }
+
+    suspend fun cabShareMatchAction(regNumber: String, matchId: Long, action: String): CabActionRes {
+        return try {
+            val body = buildJsonObject {
+                put("reg_number", regNumber)
+                put("match_id", matchId)
+                put("action", action)
+            }
+            postAuthorizedBody<CabActionRes>("cabshare/match", body.toString())
+                ?: CabActionRes(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            CabActionRes(success = false, message = e.message)
+        }
+    }
+
+    fun createLocalCabTrip(
+        fromHubId: Int, toHubId: Int, date: String, time: String,
+        tolerance: Double, seats: Int, gender: String, notes: String,
+        user: CabShareUser, hubs: List<CabShareHub>
+    ): CabShareTrip {
+        val fromHub = hubs.find { it.hub_id == fromHubId }
+        val toHub = hubs.find { it.hub_id == toHubId }
+        val trip = CabShareTrip(
+            trip_id = Clock.System.now().toEpochMilliseconds(),
+            reg_number = user.reg_number,
+            name = user.name.ifBlank { user.reg_number },
+            owner_name = user.name.ifBlank { user.reg_number },
+            owner_phone = user.phone_number,
+            from_hub_id = fromHubId,
+            hub_id = toHubId,
+            from_hub_name = fromHub?.hub_name ?: "",
+            hub_name = toHub?.hub_name ?: "",
+            travel_date = date,
+            preferred_time = time,
+            tolerance_hours = tolerance,
+            gender_preference = gender,
+            notes = notes,
+            local_only = true
+        )
+        val settings = com.russhwolf.settings.Settings()
+        val json = Json { ignoreUnknownKeys = true }
+        val serializer = ListSerializer(CabShareTrip.serializer())
+        val existing = try {
+            json.decodeFromString(serializer, settings.getString(SettingsManager.CACHE_CAB_LOCAL_TRIPS, "[]"))
+        } catch (_: Exception) { emptyList() }
+        settings[SettingsManager.CACHE_CAB_LOCAL_TRIPS] = json.encodeToString(serializer, listOf(trip) + existing)
+        return trip
+    }
+
+    fun getLocalCabTrips(): List<CabShareTrip> {
+        val settings = com.russhwolf.settings.Settings()
+        val json = Json { ignoreUnknownKeys = true }
+        return try {
+            json.decodeFromString(ListSerializer(CabShareTrip.serializer()), settings.getString(SettingsManager.CACHE_CAB_LOCAL_TRIPS, "[]"))
+        } catch (_: Exception) { emptyList() }
     }
 
     suspend fun getLMSAssignments(): LMSRes {

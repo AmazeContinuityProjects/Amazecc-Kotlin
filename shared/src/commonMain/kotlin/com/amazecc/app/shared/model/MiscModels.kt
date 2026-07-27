@@ -531,6 +531,75 @@ data class CabJoinRequest(
 )
 
 @Serializable
+data class CabShareUser(
+    val reg_number: String,
+    val name: String = "",
+    val phone_number: String = "",
+    val local_only: Boolean = false
+)
+
+@Serializable
+data class CabShareHub(
+    val hub_id: Int,
+    val hub_name: String
+)
+
+@Serializable
+data class CabShareTrip(
+    val trip_id: Long = 0,
+    val reg_number: String = "",
+    val name: String = "",
+    val owner_name: String = "",
+    val owner_phone: String = "",
+    val from_hub_id: Int? = null,
+    val hub_id: Int? = null,
+    val from_hub_name: String = "",
+    val hub_name: String = "",
+    val travel_date: String = "",
+    val preferred_time: String = "",
+    val tolerance_hours: Double = 1.0,
+    val seat_options: CabShareSeatOptions? = null,
+    val gender_preference: String = "mixed",
+    val notes: String = "",
+    val status: String = "active",
+    val match_status: String? = null,
+    val requests: List<CabShareMatchRequest> = emptyList(),
+    val local_only: Boolean = false
+)
+
+@Serializable
+data class CabShareSeatOptions(
+    val requested: Int = 1,
+    val max: Int = 4
+)
+
+@Serializable
+data class CabShareMatchRequest(
+    val match_id: Long = 0,
+    val name: String = "",
+    val phone_number: String = "",
+    val status: String = "pending"
+)
+
+@Serializable
+data class CabShareTripsRes(
+    val success: Boolean = true,
+    val trips: List<CabShareTrip> = emptyList(),
+    val my_trips: List<CabShareTrip> = emptyList(),
+    val joined_trips: List<CabShareTrip> = emptyList(),
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class CabShareAuthRes(
+    val success: Boolean = true,
+    val user: CabShareUser? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
 data class CabJoinRequestsRes(
     val success: Boolean = true,
     val requests: List<CabJoinRequest> = emptyList(),

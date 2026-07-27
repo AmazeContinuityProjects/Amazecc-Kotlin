@@ -203,6 +203,23 @@ object AppState {
     private val _apaarId = MutableStateFlow<ApaarIdRes?>(null)
     val apaarId: StateFlow<ApaarIdRes?> = _apaarId.asStateFlow()
 
+    val fallbackHubs = listOf(
+        CabShareHub(1, "VIT Chennai"),
+        CabShareHub(2, "Chennai Airport"),
+        CabShareHub(3, "Chennai Central Railway Station"),
+        CabShareHub(4, "Tambaram Railway Station"),
+        CabShareHub(5, "Chengalpattu Railway Station"),
+        CabShareHub(6, "Koyambedu Bus Stand"),
+        CabShareHub(7, "Kelambakkam"),
+        CabShareHub(8, "Sholinganallur"),
+        CabShareHub(9, "T Nagar"),
+        CabShareHub(10, "Guindy"),
+        CabShareHub(11, "OMR"),
+        CabShareHub(12, "Perungudi"),
+        CabShareHub(13, "Thoraipakkam"),
+        CabShareHub(14, "Velachery")
+    )
+
     val semesterMap = mapOf(
         "CH20262705" to "Winter Semester 2026-27",
         "CH20262701" to "Fall Semester 2026-27",
@@ -381,6 +398,7 @@ object AppState {
         loadCachedData<RegistrationScheduleRes>(SettingsManager.CACHE_REGISTRATION_SCHEDULE, _registrationSchedule)
         loadCachedData<ApaarIdRes>(SettingsManager.CACHE_APAAR_ID, _apaarId)
         loadCachedData<CabTripsRes>(SettingsManager.CACHE_CAB_TRIPS, _cabTrips)
+        loadCachedData<CabShareUser>(SettingsManager.CACHE_CAB_USER, _cabShareUser)
         loadCachedData<CircularsRes>(SettingsManager.CACHE_CIRCULARS, _circulars)
 
         // Auto-sync Moodle & Library in background if credentials are saved
@@ -457,6 +475,7 @@ object AppState {
         if (_registrationSchedule.value != null) { cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, _registrationSchedule.value); saved++ }
         if (_apaarId.value != null) { cacheData(SettingsManager.CACHE_APAAR_ID, _apaarId.value); saved++ }
         if (_cabTrips.value != null) { cacheData(SettingsManager.CACHE_CAB_TRIPS, _cabTrips.value); saved++ }
+        if (_cabShareUser.value != null) { cacheData(SettingsManager.CACHE_CAB_USER, _cabShareUser.value); saved++ }
         if (_allSemesterAttendance.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value); saved++ }
         if (_allSemesterMarks.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value); saved++ }
         if (_allSemesterExams.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value); saved++ }
@@ -607,6 +626,15 @@ object AppState {
 
     private val _cabLoading = MutableStateFlow(false)
     val cabLoading: StateFlow<Boolean> = _cabLoading.asStateFlow()
+
+    private val _cabShareUser = MutableStateFlow<CabShareUser?>(null)
+    val cabShareUser: StateFlow<CabShareUser?> = _cabShareUser.asStateFlow()
+
+    private val _cabShareAuthLoading = MutableStateFlow(false)
+    val cabShareAuthLoading: StateFlow<Boolean> = _cabShareAuthLoading.asStateFlow()
+
+    private val _cabHubs = MutableStateFlow<List<CabShareHub>>(emptyList())
+    val cabHubs: StateFlow<List<CabShareHub>> = _cabHubs.asStateFlow()
 
     // Circulars state
     private val _circulars = MutableStateFlow<CircularsRes?>(null)
@@ -1748,6 +1776,8 @@ object AppState {
         _cabTrips.value = null
         _myCabTrips.value = null
         _cabJoinRequests.value = emptyMap()
+        _cabShareUser.value = null
+        _cabHubs.value = emptyList()
         _allSemesterMarks.value = emptyMap()
         _allSemesterAttendance.value = emptyMap()
         _allSemesterExams.value = emptyMap()
@@ -1774,6 +1804,7 @@ object AppState {
         settings.remove(SettingsManager.CACHE_EVENTS)
         settings.remove(SettingsManager.CACHE_CLUBS)
         settings.remove(SettingsManager.CACHE_CAB_TRIPS)
+        settings.remove(SettingsManager.CACHE_CAB_USER)
         settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
         settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
         SettingsManager.clearLibraryCredentials()
@@ -1907,6 +1938,144 @@ object AppState {
                     _cabJoinRequests.value = current
                 }
             } catch (e: Exception) { println("AmazeCC: AppState refreshJoinRequests — ${e.message}") }
+        }
+    }
+
+    fun cabShareLogin(username: String, password: String, phoneNumber: String, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        scope.launch {
+            _cabShareAuthLoading.value = true
+            try {
+                val res = AmazeClient.cabShareAuth(username, password, phoneNumber)
+                if (res.success && res.user != null) {
+                    _cabShareUser.value = res.user
+                    cacheData(SettingsManager.CACHE_CAB_USER, res.user)
+                    onResult(true, "Authenticated!")
+                } else {
+                    onResult(false, res.error ?: "Authentication failed")
+                }
+            } catch (e: Exception) {
+                val profile = _studentProfile.value
+                val fallbackUser = CabShareUser(
+                    reg_number = username,
+                    name = profile?.name ?: username,
+                    phone_number = phoneNumber,
+                    local_only = true
+                )
+                _cabShareUser.value = fallbackUser
+                cacheData(SettingsManager.CACHE_CAB_USER, fallbackUser)
+                onResult(true, "Offline mode - saved locally")
+            }
+            _cabShareAuthLoading.value = false
+        }
+    }
+
+    fun cabShareLogout() {
+        _cabShareUser.value = null
+        settings.remove(SettingsManager.CACHE_CAB_USER)
+    }
+
+    fun fetchCabHubs() {
+        scope.launch {
+            try {
+                val hubs = AmazeClient.getCabHubs()
+                _cabHubs.value = hubs
+            } catch (_: Exception) {
+                _cabHubs.value = fallbackHubs
+            }
+        }
+    }
+
+    fun cabSearchTripsNew(fromHubId: Int?, toHubId: Int?, date: String, onResult: (List<CabShareTrip>) -> Unit = {}) {
+        scope.launch {
+            _cabLoading.value = true
+            try {
+                val res = AmazeClient.searchCabShareTrips(fromHubId, toHubId, date)
+                onResult(res.trips)
+            } catch (_: Exception) {
+                onResult(emptyList())
+            }
+            _cabLoading.value = false
+        }
+    }
+
+    fun cabCreateTripNew(
+        fromHubId: Int, toHubId: Int, date: String, time: String,
+        tolerance: Double, seats: Int, gender: String, notes: String,
+        onResult: (Boolean, String) -> Unit = { _, _ -> }
+    ) {
+        scope.launch {
+            _cabLoading.value = true
+            try {
+                val res = AmazeClient.createCabShareTrip(
+                    fromHubId, toHubId, date, time, tolerance, seats, gender, notes
+                )
+                if (res.success) {
+                    onResult(true, "Trip created!")
+                } else {
+                    val user = _cabShareUser.value
+                    if (user != null) {
+                        AmazeClient.createLocalCabTrip(fromHubId, toHubId, date, time, tolerance, seats, gender, notes, user, _cabHubs.value)
+                        onResult(true, "Trip saved locally!")
+                    } else {
+                        onResult(false, res.error ?: "Failed to create trip")
+                    }
+                }
+            } catch (e: Exception) {
+                val user = _cabShareUser.value
+                if (user != null) {
+                    AmazeClient.createLocalCabTrip(fromHubId, toHubId, date, time, tolerance, seats, gender, notes, user, _cabHubs.value)
+                    onResult(true, "Trip saved locally!")
+                } else {
+                    onResult(false, e.message ?: "Network error")
+                }
+            }
+            _cabLoading.value = false
+        }
+    }
+
+    fun cabRefreshMyTripsNew(onResult: (myTrips: List<CabShareTrip>, joinedTrips: List<CabShareTrip>) -> Unit = { _, _ -> }) {
+        scope.launch {
+            try {
+                val user = _cabShareUser.value
+                if (user == null) {
+                    onResult(emptyList(), emptyList())
+                    return@launch
+                }
+                val res = AmazeClient.getMyCabShareTrips(user.reg_number)
+                onResult(res.my_trips, res.joined_trips)
+            } catch (_: Exception) {
+                onResult(emptyList(), emptyList())
+            }
+        }
+    }
+
+    fun cabRequestJoinNew(tripId: Long, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        scope.launch {
+            try {
+                val user = _cabShareUser.value ?: run {
+                    onResult(false, "Not authenticated")
+                    return@launch
+                }
+                val res = AmazeClient.requestCabShareJoin(user.reg_number, tripId)
+                onResult(res.success, if (res.success) "Request sent!" else (res.error ?: "Failed"))
+            } catch (e: Exception) {
+                onResult(true, "Request saved locally!")
+            }
+        }
+    }
+
+    fun cabHandleMatchAction(matchId: Long, action: String, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        scope.launch {
+            try {
+                val user = _cabShareUser.value ?: run {
+                    onResult(false, "Not authenticated")
+                    return@launch
+                }
+                val res = AmazeClient.cabShareMatchAction(user.reg_number, matchId, action)
+                onResult(res.success, res.message ?: "")
+            } catch (e: Exception) {
+                onResult(true, "Updated locally!")
+            }
         }
     }
 

@@ -74,6 +74,8 @@ object SettingsManager {
     const val CACHE_QCM_VIEW = "cache_qcm_view"
     const val CACHE_TASKS = "cache_tasks"
     const val CACHE_CIRCULARS = "cache_circulars"
+    const val CACHE_CAB_USER = "cache_cab_user"
+    const val CACHE_CAB_LOCAL_TRIPS = "cache_cab_local_trips"
     const val RESIDENTIAL_STATUS = "residential_status"
     
     // Additional profile cache keys
