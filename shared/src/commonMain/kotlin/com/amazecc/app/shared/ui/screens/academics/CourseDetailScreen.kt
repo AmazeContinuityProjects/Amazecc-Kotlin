@@ -248,7 +248,7 @@ fun CourseDetailScreen(onBack: () -> Unit) {
                     "overview" -> OverviewTab(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, qcmTables, qcmLoading, { AppState.refreshQcmView() }, colors)
                     "grades" -> GradeHistoryTab(courseCode, allGrades, group, colors)
                     "marks" -> MarksTab(group, isEmbedded, allGrades, mainSemesterId, colors)
-                    "attendance" -> AttendanceTab(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, calendar, colors)
+                    "attendance" -> AttendanceTab(courseCode, group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, calendar, colors)
                     "plan" -> CoursePlanTab(courseCode, group.theory, group.lab, mainAtt, colors)
                     "qbank" -> QBankTab(courseCode, colors)
                     "tasks" -> {
@@ -854,6 +854,7 @@ private fun StatBox(label: String, value: String, colors: com.amazecc.app.shared
 
 @Composable
 private fun AttendanceTab(
+    courseCode: String,
     group: CourseGroup,
     theoryAtt: AttendanceItem?,
     labAtt: AttendanceItem?,
@@ -871,6 +872,23 @@ private fun AttendanceTab(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        AmazeCard(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            onClick = { AppState.openCourseAttendance(courseCode) }
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Full Attendance Dashboard", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
+                    Text("What-If predictor, log, notes & more", color = colors.textSecondary, fontSize = 11.sp)
+                }
+                Icon(Icons.Rounded.ArrowForward, null, tint = colors.accent)
+            }
+        }
+
         if (isEmbedded) {
             Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("theory" to "Theory", "lab" to "Lab").forEach { (key, label) ->

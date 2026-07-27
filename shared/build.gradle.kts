@@ -6,7 +6,17 @@ plugins {
     alias(libs.plugins.compose.compiler)
 }
 
+val copyVersionProps = tasks.register<Copy>("copyVersionProps") {
+    from(rootProject.file("version.properties"))
+    into(layout.projectDirectory.dir("src/commonMain/composeResources/files"))
+}
+
+tasks.named("copyNonXmlValueResourcesForCommonMain") {
+    dependsOn(copyVersionProps)
+}
+
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().configureEach {
+    dependsOn(copyVersionProps)
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }

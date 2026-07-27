@@ -68,6 +68,34 @@ fun CurriculumScreen() {
     val ongoingPct = if (totalRequired > 0) (ongoingCredits / totalRequired).coerceAtMost(1f - earnedPct) else 0f
     val expectedGrad = if (remainingCredits <= 0) "Ready" else "${((remainingCredits + 23) / 24).coerceAtLeast(1)} sem"
 
+    val completedCourseCodes = remember(allGrades) {
+        val codes = mutableSetOf<String>()
+        allGrades?.grades?.values?.forEach { semesterResult ->
+            semesterResult?.grades?.forEach { gradeItem ->
+                if (gradeItem.grade !in listOf("F", "N", "")) {
+                    codes.add(gradeItem.courseCode)
+                }
+            }
+        }
+        codes
+    }
+
+    val categoryEarnedCredits = remember(details, completedCourseCodes) {
+        val earned = mutableMapOf<String, Int>()
+        for (catDetail in details) {
+            var total = 0
+            for (basket in catDetail.baskets) {
+                for (item in basket.items) {
+                    if (item.code in completedCourseCodes) {
+                        total += item.credits
+                    }
+                }
+            }
+            earned[catDetail.code] = total
+        }
+        earned
+    }
+
     var expandedCategories by remember { mutableStateOf(setOf<String>()) }
     var expandedBaskets by remember { mutableStateOf(setOf<String>()) }
     var searchQuery by remember { mutableStateOf("") }
@@ -193,7 +221,7 @@ fun CurriculumScreen() {
                 Text("Credit Baskets", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
                 categories.forEach { cat ->
                     val required = cat.maxCredits.coerceAtLeast(1)
-                    val earned = cat.credits
+                    val earned = categoryEarnedCredits[cat.code] ?: 0
                     val pct = (earned.toFloat() / required).coerceAtMost(1f)
                     val isComplete = earned >= required
                     val catDetail = details.find { it.code == cat.code }
@@ -289,7 +317,8 @@ fun CurriculumScreen() {
                     )
 
                     filteredCategories.forEach { cat ->
-                        val pct = if (cat.maxCredits > 0) (cat.credits.toFloat() / cat.maxCredits).coerceAtMost(1f) else 0f
+                        val earnedCredits = categoryEarnedCredits[cat.code] ?: 0
+                        val pct = if (cat.maxCredits > 0) (earnedCredits.toFloat() / cat.maxCredits).coerceAtMost(1f) else 0f
                         val isOpen = expandedCategories.contains("detail|${cat.code}")
                         val catDetail = details.find { it.code == cat.code }
                         val baskets = if (searchQuery.isNotBlank()) {
@@ -310,7 +339,7 @@ fun CurriculumScreen() {
                                         modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp))
                                     Spacer(Modifier.width(8.dp))
                                     Text(cat.name, color = colors.textPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1)
-                                    Text("${cat.credits}/${cat.maxCredits}", color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                    Text("$earnedCredits/${cat.maxCredits}", color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                     Spacer(Modifier.width(4.dp))
                                     Icon(if (isOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
                                 }
@@ -331,13 +360,18 @@ fun CurriculumScreen() {
                                                 Text("${basket.credits} cr", color = colors.textMuted, fontSize = 11.sp)
                                             }
                                             basket.items.forEach { item ->
+                                                val isCompleted = item.code in completedCourseCodes
                                                 Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 3.dp, bottom = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                                                     Column(Modifier.weight(1f)) {
-                                                        Text(item.code, color = colors.textMuted, fontSize = 10.sp)
+                                                        Text(item.code, color = if (isCompleted) Color(0xFF10B981) else colors.textMuted, fontSize = 10.sp)
                                                         Text(item.name, color = colors.textPrimary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                     }
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                                        Text("${item.credits} cr", color = colors.textMuted, fontSize = 11.sp)
+                                                        if (isCompleted) {
+                                                            Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
+                                                            Spacer(Modifier.width(4.dp))
+                                                        }
+                                                        Text("${item.credits} cr", color = if (isCompleted) Color(0xFF10B981) else colors.textMuted, fontSize = 11.sp)
                                                         Spacer(Modifier.width(4.dp))
                                                     IconButton(
                                                         onClick = {

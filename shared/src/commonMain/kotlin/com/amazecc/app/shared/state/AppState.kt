@@ -55,6 +55,7 @@ object AppState {
     val headerShowSync = MutableStateFlow(true)
     val headerOnRefresh = MutableStateFlow<(() -> Unit)?>(null)
     val headerSyncModules = MutableStateFlow<Set<SyncModule>>(emptySet())
+    val headerBackOverride = MutableStateFlow<(() -> Unit)?>(null)
     
     // Global Spotlight Search
     private val _showSearch = MutableStateFlow(false)
@@ -612,6 +613,19 @@ object AppState {
     fun openClubHub(initialTab: String = "Directory") {
         _clubHubInitialTab.value = initialTab
         navigateTo(Screen.CLUB_HUB)
+    }
+
+    // Attendance initial view (Timetable / Predictor / Calendar)
+    private val _attendanceInitialView = MutableStateFlow("Timetable")
+    val attendanceInitialView: StateFlow<String> = _attendanceInitialView.asStateFlow()
+
+    fun openAttendanceView(view: String = "Timetable") {
+        _attendanceInitialView.value = view
+        navigateTo(Screen.ATTENDANCE)
+    }
+
+    fun resetAttendanceView() {
+        _attendanceInitialView.value = "Timetable"
     }
 
     // Cab Share state

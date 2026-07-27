@@ -228,8 +228,8 @@ fun LoginScreen() {
                             username = it
                             errorMessage = null
                         },
-                        label = "VTOP Registration Number",
-                        placeholder = "e.g. 25BYB1043",
+                        label = "VTOP Login ID",
+                        placeholder = "e.g. FUNNYBABY",
                         leadingIcon = {
                             Icon(Icons.Rounded.Person, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
                         },

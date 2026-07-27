@@ -55,8 +55,11 @@ import kotlinx.datetime.toLocalDateTime
 
 @Composable
 fun AttendanceScreen() {
-    var activeView by remember { mutableStateOf("Timetable") }
+    var activeView by remember { mutableStateOf(AppState.attendanceInitialView.value) }
     val views = listOf("Timetable", "Predictor", "Calendar")
+    LaunchedEffect(Unit) {
+        AppState.resetAttendanceView()
+    }
     val colors = AmazeTheme.colors
 
     Column(

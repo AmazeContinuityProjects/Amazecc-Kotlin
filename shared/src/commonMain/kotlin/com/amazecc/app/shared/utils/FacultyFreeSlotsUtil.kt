@@ -28,13 +28,25 @@ object FacultyFreeSlotsUtil {
 
     val workingDays = listOf("MON", "TUE", "WED", "THU", "FRI")
 
-    fun getFacultySchedule(faculty: FacultyProfile): FacultyFreeSlotsResult {
-        val occupied = mutableListOf<FacultySlot>()
+    private data class CsvRecord(
+        val code: String,
+        val title: String,
+        val slotStr: String,
+        val facultyRaw: String
+    )
 
+    private var csvParsed = false
+    private var csvRecords: List<CsvRecord> = emptyList()
+    private val idRegex = Regex("""\(([^)]+)\)""")
+    private val normalizeRegex1 = Regex("""\b(dr|prof|mr|mrs|ms)\.?\b""")
+    private val normalizeRegex2 = Regex("""[.\s]+""")
+
+    private fun ensureCsvParsed() {
+        if (csvParsed) return
         val lines = FfcsReportData.CSV_DATA.replace("\r", "").split("\n").drop(1)
+        val records = mutableListOf<CsvRecord>()
         for (line in lines) {
             if (line.isBlank()) continue
-
             var inQuotes = false
             val cols = mutableListOf<String>()
             val current = StringBuilder()
@@ -49,40 +61,19 @@ object FacultyFreeSlotsUtil {
                 }
             }
             cols.add(current.toString().trim())
-
             if (cols.size < 6) continue
-
-            val csvFacultyRaw = cols[5].trim().replace("\r", "")
-            if (!matchesFaculty(csvFacultyRaw, faculty)) continue
-
             val code = cols[0].trim().replace("\r", "")
             val title = cols[1].trim().replace("\r", "")
             val slotStr = cols[4].trim().replace("\r", "")
-
+            val facultyRaw = cols[5].trim().replace("\r", "")
             if (slotStr.isEmpty() || slotStr.equals("NIL", ignoreCase = true)) continue
-
-            val slotCodes = slotStr.split("+").map { it.trim().uppercase() }.filter { it.isNotEmpty() }
-
-            for (slotCode in slotCodes) {
-                for ((day, daySlots) in SlotMap.map) {
-                    val time = daySlots[slotCode] ?: continue
-                    occupied.add(FacultySlot(
-                        day = day,
-                        timeRange = time,
-                        courseCode = code,
-                        courseTitle = title,
-                        slotCode = slotCode
-                    ))
-                }
-            }
+            records.add(CsvRecord(code, title, slotStr.trim(), facultyRaw))
         }
-
-        val free = computeFreeSlots(occupied)
-        return FacultyFreeSlotsResult(faculty.name, occupied, free)
+        csvRecords = records
+        csvParsed = true
     }
 
     private fun matchesFaculty(csvFacultyRaw: String, faculty: FacultyProfile): Boolean {
-        val idRegex = Regex("""\(([^)]+)\)""")
         val idMatch = idRegex.find(csvFacultyRaw)
         val extractedId = idMatch?.groupValues?.getOrNull(1)?.trim()
 
@@ -96,8 +87,8 @@ object FacultyFreeSlotsUtil {
 
         fun normalize(s: String): String {
             return s.lowercase()
-                .replace(Regex("""\b(dr|prof|mr|mrs|ms)\.?\b"""), "")
-                .replace(Regex("""[.\s]+"""), " ")
+                .replace(normalizeRegex1, "")
+                .replace(normalizeRegex2, " ")
                 .trim()
         }
 
@@ -106,11 +97,9 @@ object FacultyFreeSlotsUtil {
         if (normCsv.isEmpty() || normFaculty.isEmpty()) return false
         if (normCsv == normFaculty) return true
 
-        // Containment — only when the longer string is substantially longer
         if (normCsv.contains(normFaculty) && normCsv.length >= normFaculty.length * 3) return true
         if (normFaculty.contains(normCsv) && normFaculty.length >= normCsv.length * 3) return true
 
-        // Token overlap — exclude single-char tokens (initials are too common)
         val csvTokens = normCsv.split(" ").filter { it.length > 1 }
         val facultyTokens = normFaculty.split(" ").filter { it.length > 1 }
         if (csvTokens.isEmpty() || facultyTokens.isEmpty()) return false
@@ -119,7 +108,49 @@ object FacultyFreeSlotsUtil {
         return common >= csvTokens.size / 2 && common >= facultyTokens.size / 2 && common > 0
     }
 
+    fun getFacultySchedule(faculty: FacultyProfile): FacultyFreeSlotsResult {
+        ensureCsvParsed()
+        val occupied = mutableListOf<FacultySlot>()
+
+        for (record in csvRecords) {
+            if (!matchesFaculty(record.facultyRaw, faculty)) continue
+
+            val slotCodes = record.slotStr.split("+").map { it.trim().uppercase() }.filter { it.isNotEmpty() }
+
+            for (slotCode in slotCodes) {
+                for ((day, daySlots) in SlotMap.map) {
+                    val time = daySlots[slotCode] ?: continue
+                    occupied.add(FacultySlot(
+                        day = day,
+                        timeRange = time,
+                        courseCode = record.code,
+                        courseTitle = record.title,
+                        slotCode = slotCode
+                    ))
+                }
+            }
+        }
+
+        val free = computeFreeSlots(occupied)
+        return FacultyFreeSlotsResult(faculty.name, occupied, free)
+    }
+
+    fun getAllTimePeriods(): List<String> {
+        val periods = mutableSetOf<String>()
+        for (day in workingDays) {
+            SlotMap.map[day]?.values?.let { periods.addAll(it) }
+        }
+        return periods.toList().sortedBy { time ->
+            val start = time.substringBefore("-").trim()
+            val hour = start.substringBefore(":").toIntOrNull() ?: 0
+            val minute = start.substringAfter(":").toIntOrNull() ?: 0
+            val adjustedHour = if (hour < 7) hour + 12 else hour
+            adjustedHour * 60 + minute
+        }
+    }
+
     private fun computeFreeSlots(occupied: List<FacultySlot>): Map<String, List<String>> {
+        val allPeriods = getAllTimePeriods()
         val result = mutableMapOf<String, MutableList<String>>()
 
         for (day in workingDays) {
@@ -127,13 +158,7 @@ object FacultyFreeSlotsUtil {
                 .map { it.timeRange }
                 .toSet()
 
-            // Standard college time periods (morning + afternoon sessions)
-            val standardPeriods = listOf(
-                "8:00-8:50", "8:55-9:45", "9:50-10:40", "10:45-11:35", "11:40-12:30",
-                "2:00-2:50", "2:55-3:45", "3:50-4:40", "4:45-5:35"
-            )
-
-            val free = standardPeriods.filter { it !in dayOccupied }
+            val free = allPeriods.filter { it !in dayOccupied }
             if (free.isNotEmpty()) {
                 result[day] = free.toMutableList()
             }

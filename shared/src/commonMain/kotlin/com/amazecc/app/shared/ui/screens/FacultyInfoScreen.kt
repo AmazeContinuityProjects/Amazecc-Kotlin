@@ -25,11 +25,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.model.*
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
@@ -101,25 +98,13 @@ fun FacultyInfoScreen() {
                 ) {
                     schools.forEach { school ->
                         val isSelected = selectedSchoolId == school.id
-                        val interactionSource = remember { MutableInteractionSource() }
-                        val isPressed by interactionSource.collectIsPressedAsState()
-                        val scale by animateFloatAsState(
-                            targetValue = if (isPressed) 0.94f else 1f,
-                            animationSpec = bouncySpring()
-                        )
 
                         Box(
                             modifier = Modifier
-                                .graphicsLayer {
-                                    scaleX = scale
-                                    scaleY = scale
-                                }
                                 .clip(CircleShape)
                                 .background(if (isSelected) colors.accent else colors.surface)
                                 .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
                                 .clickable(
-                                    interactionSource = interactionSource,
-                                    indication = null,
                                     onClick = {
                                         if (school.id != selectedSchoolId) {
                                             selectedSchoolId = school.id
@@ -307,25 +292,25 @@ fun FacultyDetailScreen(
 ) {
     val colors = AmazeTheme.colors
 
+    ScreenHeader(
+        title = faculty.name,
+        description = faculty.designation,
+        showBackButton = true,
+        showSyncButton = false,
+        onBackOverride = onBack
+    )
+
+    DisposableEffect(Unit) {
+        onDispose {
+            AppState.headerBackOverride.value = null
+        }
+    }
+
     val schedule = remember(faculty) {
         FacultyFreeSlotsUtil.getFacultySchedule(faculty)
     }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().background(colors.accent.copy(alpha = 0.08f)).padding(horizontal = 4.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = colors.textPrimary)
-            }
-            Spacer(Modifier.width(4.dp))
-            Column {
-                Text(faculty.name, style = AmazeTheme.typography.display.copy(fontSize = 20.sp, fontWeight = FontWeight.Black, color = colors.textPrimary))
-                Text(faculty.designation, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-            }
-        }
-
         LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
             item { HeaderSpacer() }
 
@@ -345,65 +330,74 @@ fun FacultyDetailScreen(
             }
 
             // Schedule header
-            item {
+            item(key = "schedule_header") {
                 Text("Weekly Schedule", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Text("Tap a slot to see course details", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
             }
 
             // Weekly grid
-            item {
+            item(key = "schedule_grid_${faculty.id}") {
                 val weekDays = listOf("MON", "TUE", "WED", "THU", "FRI")
-                val timePeriods = listOf("8:00-8:50", "8:55-9:45", "9:50-10:40", "10:45-11:35", "11:40-12:30", "2:00-2:50", "2:55-3:45", "3:50-4:40", "4:45-5:35")
+                val timePeriods = remember { FacultyFreeSlotsUtil.getAllTimePeriods() }
                 val dayLabels = mapOf("MON" to "Mon", "TUE" to "Tue", "WED" to "Wed", "THU" to "Thu", "FRI" to "Fri")
+                val freeColor = Color(0xFF10B981)
+                val occupiedSlotKeys = remember(schedule) {
+                    schedule.occupiedSlots.map { "${it.day}:${it.timeRange}" }.toSet()
+                }
+                val occupiedSlotByKey = remember(schedule) {
+                    schedule.occupiedSlots.associateBy { "${it.day}:${it.timeRange}" }
+                }
 
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Column {
-                        // Header row
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            Box(modifier = Modifier.width(48.dp))
+                            Box(modifier = Modifier.width(52.dp))
                             weekDays.forEach { day ->
                                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                                    Text(dayLabels[day] ?: day, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 10.sp))
+                                    Text(dayLabels[day] ?: day, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp))
                                 }
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(6.dp))
 
-                        // Time rows
                         timePeriods.forEach { time ->
-                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                                Box(modifier = Modifier.width(48.dp)) {
-                                    Text(time, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = 8.sp))
+                            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
+                                Box(modifier = Modifier.width(52.dp), contentAlignment = Alignment.CenterStart) {
+                                    Text(time, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = 9.sp))
                                 }
                                 weekDays.forEach { day ->
-                                    val slot = schedule.occupiedSlots.find { it.day == day && it.timeRange == time }
-                                    val cellColor = if (slot != null) colors.danger.copy(alpha = 0.15f) else Color(0xFF10B981).copy(alpha = 0.1f)
-                                    val cellText = if (slot != null) "●" else "○"
-                                    val cellTextColor = if (slot != null) colors.danger else Color(0xFF10B981)
+                                    val isOccupied = occupiedSlotKeys.contains("$day:$time")
+                                    val slot = if (isOccupied) occupiedSlotByKey["$day:$time"] else null
+                                    val cellColor = if (slot != null) colors.danger.copy(alpha = 0.18f) else freeColor.copy(alpha = 0.12f)
+                                    val borderColor = if (slot != null) colors.danger.copy(alpha = 0.35f) else freeColor.copy(alpha = 0.25f)
                                     Box(
                                         modifier = Modifier
                                             .weight(1f)
-                                            .padding(1.dp)
+                                            .padding(1.5.dp)
+                                            .height(18.dp)
                                             .clip(RoundedCornerShape(3.dp))
-                                            .background(cellColor),
+                                            .background(cellColor)
+                                            .border(0.5.dp, borderColor, RoundedCornerShape(3.dp)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text(cellText, style = AmazeTheme.typography.caption.copy(fontSize = 10.sp, color = cellTextColor))
+                                        if (slot != null) {
+                                            Text(slot.slotCode, style = AmazeTheme.typography.smallLabel.copy(fontSize = 7.sp, color = colors.danger, fontWeight = FontWeight.Bold))
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(10.dp))
                         // Legend
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFF10B981).copy(alpha = 0.2f)))
+                                Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(freeColor.copy(alpha = 0.2f)).border(0.5.dp, freeColor.copy(alpha = 0.25f), RoundedCornerShape(2.dp)))
                                 Spacer(Modifier.width(4.dp))
                                 Text("Free", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(colors.danger.copy(alpha = 0.2f)))
+                                Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(colors.danger.copy(alpha = 0.2f)).border(0.5.dp, colors.danger.copy(alpha = 0.35f), RoundedCornerShape(2.dp)))
                                 Spacer(Modifier.width(4.dp))
                                 Text("Occupied", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
                             }
@@ -432,7 +426,7 @@ fun FacultyDetailScreen(
                 FacultyFreeSlotsUtil.workingDays.forEach { day ->
                     val free = schedule.freeSlots[day]
                     if (free != null && free.isNotEmpty()) {
-                        item {
+                        item(key = "free_$day") {
                             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
@@ -463,8 +457,8 @@ fun FacultyDetailScreen(
                     Text("Occupied Slots (${schedule.occupiedSlots.size})", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
 
-                schedule.occupiedSlots.forEach { slot ->
-                    item {
+                schedule.occupiedSlots.forEachIndexed { index, slot ->
+                    item(key = "occ_${slot.day}_${slot.slotCode}_${index}") {
                         AmazeCard(modifier = Modifier.fillMaxWidth()) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(

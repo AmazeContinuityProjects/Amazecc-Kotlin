@@ -54,15 +54,17 @@ fun ScreenHeader(
     showSyncButton: Boolean = true,
     onRefresh: (() -> Unit)? = null,
     syncModules: Set<SyncModule> = emptySet(),
+    onBackOverride: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    LaunchedEffect(title, description, showBackButton, showSyncButton, onRefresh, syncModules) {
+    LaunchedEffect(title, description, showBackButton, showSyncButton, onRefresh, syncModules, onBackOverride) {
         AppState.headerTitle.value = title
         AppState.headerDescription.value = description
         AppState.headerShowBack.value = showBackButton
         AppState.headerShowSync.value = showSyncButton
         AppState.headerOnRefresh.value = onRefresh
         AppState.headerSyncModules.value = syncModules
+        AppState.headerBackOverride.value = onBackOverride
     }
 }
 
@@ -93,6 +95,7 @@ fun FloatingScreenHeader(
     val syncStatus by AppState.syncStatus.collectAsState()
     val moduleStates by SyncEngine.moduleStates.collectAsState()
     val appHeaderRefresh by AppState.headerOnRefresh.collectAsState()
+    val headerBackOverride by AppState.headerBackOverride.collectAsState()
 
     val headerElevation by androidx.compose.animation.core.animateDpAsState(
         targetValue = if (isScrolled) 20.dp else 10.dp,
@@ -153,7 +156,7 @@ fun FloatingScreenHeader(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 if (showBackButton) {
                     IconButton(
-                        onClick = { AppState.navigateBack() },
+                        onClick = { headerBackOverride?.invoke() ?: AppState.navigateBack() },
                         modifier = Modifier
                             .size(40.dp)
                             .background(colors.accent.copy(alpha = 0.12f), CircleShape)

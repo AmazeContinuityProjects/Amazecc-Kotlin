@@ -5,8 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,8 +26,6 @@ import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -43,6 +39,7 @@ import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.SlotInfo
 import com.amazecc.app.shared.utils.parseViewLink
@@ -180,10 +177,12 @@ fun CourseAttendanceScreen() {
     val whatIfAttended = course.attendedClasses + whatIfAttend.toInt()
     val whatIfPct = if (whatIfTotal > 0) whatIfAttended.toDouble() / whatIfTotal * 100 else 0.0
 
+    val scrollState = androidx.compose.foundation.rememberScrollState()
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
+            .verticalScroll(scrollState)
     ) {
         ScreenHeader(
             title = course.courseTitle,
@@ -191,6 +190,8 @@ fun CourseAttendanceScreen() {
             showBackButton = true,
             showSyncButton = false
         )
+
+        HeaderSpacer()
 
         // Bunk-O-Meter Hero Section
         AmazeCard(
@@ -307,40 +308,33 @@ fun CourseAttendanceScreen() {
             }
         }
 
-        AnimatedContent(
-            targetState = activeTab,
-            transitionSpec = {
-                androidx.compose.animation.fadeIn(animationSpec = tween(300)) togetherWith androidx.compose.animation.fadeOut(animationSpec = tween(300))
+        when (activeTab) {
+            "Predictor" -> {
+                PredictorTab(
+                    mode = mode,
+                    onModeChange = { mode = it },
+                    futureDates = futureClassDates,
+                    skipDates = skipDates,
+                    onToggleSkip = { key ->
+                        skipDates = if (key in skipDates) skipDates - key else skipDates + key
+                    },
+                    predictedPct = predictedPct,
+                    predictedAttended = predictedAttended,
+                    predictedTotal = predictedTotal,
+                    whatIfAttend = whatIfAttend,
+                    onWhatIfAttendChange = { whatIfAttend = it },
+                    whatIfMiss = whatIfMiss,
+                    onWhatIfMissChange = { whatIfMiss = it },
+                    whatIfPct = whatIfPct,
+                    whatIfTotal = whatIfTotal,
+                    whatIfAttended = whatIfAttended,
+                    currentAttended = course.attendedClasses,
+                    currentTotal = course.totalClasses,
+                    colors = colors
+                )
             }
-        ) { tab ->
-            when (tab) {
-                "Predictor" -> {
-                    PredictorTab(
-                        mode = mode,
-                        onModeChange = { mode = it },
-                        futureDates = futureClassDates,
-                        skipDates = skipDates,
-                        onToggleSkip = { key ->
-                            skipDates = if (key in skipDates) skipDates - key else skipDates + key
-                        },
-                        predictedPct = predictedPct,
-                        predictedAttended = predictedAttended,
-                        predictedTotal = predictedTotal,
-                        whatIfAttend = whatIfAttend,
-                        onWhatIfAttendChange = { whatIfAttend = it },
-                        whatIfMiss = whatIfMiss,
-                        onWhatIfMissChange = { whatIfMiss = it },
-                        whatIfPct = whatIfPct,
-                        whatIfTotal = whatIfTotal,
-                        whatIfAttended = whatIfAttended,
-                        currentAttended = course.attendedClasses,
-                        currentTotal = course.totalClasses,
-                        colors = colors
-                    )
-                }
-                "Log" -> LogTab(course = course, colors = colors)
-                "Notes" -> NotesTab(courseCode = courseCode ?: "", colors = colors)
-            }
+            "Log" -> LogTab(course = course, colors = colors)
+            "Notes" -> NotesTab(courseCode = courseCode ?: "", colors = colors)
         }
     }
 }
@@ -387,9 +381,8 @@ private fun PredictorTab(
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val modes = listOf("CAT1", "CAT2", "LID")
-    val scrollState = androidx.compose.foundation.rememberScrollState()
 
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp)) {
+    Column(modifier = Modifier.padding(16.dp)) {
         
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -507,7 +500,7 @@ private fun PredictorTab(
                 )
             }
         } else {
-            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 futureDates.sortedBy { it.first * 10000 + it.second * 100 + it.third }.forEach { (y, m, d) ->
                     val key = y * 10000 + m * 100 + d
                     val skipped = key in skipDates
@@ -631,7 +624,7 @@ private fun LogTab(
 
     val chronoSorted = remember(detailedDays) { detailedDays.sortedBy { it.first } }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.padding(16.dp)) {
         if (chronoSorted.isNotEmpty()) {
             AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = colors.surface) {
                 Column(modifier = Modifier.padding(16.dp)) {
@@ -675,8 +668,8 @@ private fun LogTab(
                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
             )
             Spacer(modifier = Modifier.height(8.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
-                items(detailedDays.sortedByDescending { it.first }) { (date, status) ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                detailedDays.sortedByDescending { it.first }.forEach { (date, status) ->
                     val isPresent = status.lowercase() in listOf("present", "p")
                     Row(
                         modifier = Modifier
@@ -763,11 +756,10 @@ private fun NotesTab(
 ) {
     var notesSaved by remember { mutableStateOf(false) }
     
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.padding(16.dp)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
                 .background(colors.surface, RoundedCornerShape(12.dp))
                 .border(1.dp, colors.border, RoundedCornerShape(12.dp))
                 .padding(16.dp)

@@ -62,6 +62,8 @@ import com.amazecc.app.shared.ui.screens.academics.AddTaskDialog
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.utils.SlotInfo
+import com.amazecc.app.shared.utils.parseViewLink
+import kotlinx.serialization.json.*
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.minutes
 import kotlinx.datetime.Clock
@@ -351,9 +353,25 @@ fun DashboardScreen() {
                     )
                 }
                 item {
-                    val odClasses = courses.sumOf { (it.totalClasses - it.attendedClasses).coerceAtLeast(0) }
+                    val odCount = remember(courses) {
+                        val odDates = mutableSetOf<String>()
+                        for (course in courses) {
+                            try {
+                                val arr = parseViewLink(course.viewLinkRaw)?.jsonArray
+                                arr?.forEach { elem ->
+                                    val obj = elem.jsonObject
+                                    val date = obj["date"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                                    val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                                    if (status.equals("On Duty", ignoreCase = true)) {
+                                        odDates.add(date)
+                                    }
+                                }
+                            } catch (_: Exception) { }
+                        }
+                        odDates.size
+                    }
                     GlassMetricCard(
-                        "ODs", if (courses.isNotEmpty()) "$odClasses" else "—", Icons.Rounded.CheckCircle, colors,
+                        "ODs", if (courses.isNotEmpty()) "$odCount" else "—", Icons.Rounded.CheckCircle, colors,
                         iconTint = colors.success, surfaceBg = colors.successSurface,
                         onClick = { AppState.navigateTo(Screen.OD_TRACKER) }
                     )
@@ -434,7 +452,7 @@ fun DashboardScreen() {
                             Spacer(modifier = Modifier.height(12.dp))
                             AmazeButton(
                                 text = "Predict Attendance",
-                                onClick = { AppState.navigateTo(Screen.ATTENDANCE) },
+                                onClick = { AppState.openAttendanceView("Predictor") },
                                 modifier = Modifier.height(36.dp)
                             )
                         }
