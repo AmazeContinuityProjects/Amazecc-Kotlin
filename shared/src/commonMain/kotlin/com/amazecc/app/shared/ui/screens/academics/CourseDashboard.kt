@@ -179,6 +179,36 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
                 Spacer(Modifier.height(12.dp))
             }
 
+            item {
+                val isLoading by AppState.isLoading.collectAsState()
+                val pastSynced by AppState.pastSemestersSynced.collectAsState()
+                if (!isLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(if (pastSynced) colors.surface else colors.accent.copy(alpha = 0.08f))
+                            .clickable { AppState.refreshPastSemesters() }
+                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                if (pastSynced) Icons.Rounded.CheckCircle else Icons.Rounded.HistoryToggleOff,
+                                null, tint = if (pastSynced) colors.success else colors.accent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (pastSynced) "Past semesters loaded. Tap to refresh data"
+                                else "Load past semester attendance & marks",
+                                color = if (pastSynced) colors.textSecondary else colors.accent,
+                                fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f)
+                            )
+                            Icon(Icons.Rounded.Refresh, null, tint = if (pastSynced) colors.textMuted else colors.accent, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+            }
+
             if (filteredGroups.keys.isEmpty()) {
                 item {
                     Box(modifier = Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.Center) {

@@ -94,6 +94,9 @@ object SettingsManager {
     
     // Onboarding
     const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
+
+    // Past semester sync flag
+    const val PAST_SEMESTER_SYNCED = "past_semester_synced"
     
     fun setString(key: String, value: String) {
         settings.putString(key, value)

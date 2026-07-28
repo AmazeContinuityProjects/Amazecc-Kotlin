@@ -581,6 +581,9 @@ object AppState {
     private val _allSemesterMarks = MutableStateFlow<Map<String, MarksRes>>(emptyMap())
     val allSemesterMarks: StateFlow<Map<String, MarksRes>> = _allSemesterMarks.asStateFlow()
 
+    private val _pastSemestersSynced = MutableStateFlow(SettingsManager.getBoolean(SettingsManager.PAST_SEMESTER_SYNCED, false))
+    val pastSemestersSynced: StateFlow<Boolean> = _pastSemestersSynced.asStateFlow()
+
     // Selected course for detail view
     private val _selectedCourseCode = MutableStateFlow<String?>(null)
     val selectedCourseCode: StateFlow<String?> = _selectedCourseCode.asStateFlow()
@@ -811,10 +814,10 @@ object AppState {
                 val sem = _selectedSemester.value
 
                 val results = supervisorScope {
-                    listOf(
+                    val syncResults = listOf(
                         async {
                             syncModule(
-                                name = "Attendance and CGPA",
+                                name = "Attendance",
                                 fetch = { AmazeClient.getAcademicData(sem) },
                                 isSuccess = { it.attendance.error == null && it.marks?.error == null },
                                 errorMessage = { it.attendance.error ?: it.marks?.error },
@@ -835,26 +838,35 @@ object AppState {
                             )
                         },
                         async {
-                            var failed = false
-                            for (semId in semesterIDs) {
-                                if (semId == sem) continue
-                                try {
-                                    val res = AmazeClient.getAcademicData(semId)
-                                    if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
-                                        val attCurrent = _allSemesterAttendance.value.toMutableMap()
-                                        attCurrent[semId] = res.attendance
-                                        _allSemesterAttendance.value = attCurrent
-                                    }
-                                    if (res.marks?.marks?.isNotEmpty() == true) {
-                                        val marksCurrent = _allSemesterMarks.value.toMutableMap()
-                                        marksCurrent[semId] = res.marks
-                                        _allSemesterMarks.value = marksCurrent
-                                    }
-                                } catch (_: Exception) { failed = true }
+                            if (_pastSemestersSynced.value) {
+                                SyncModuleResult("All Semesters Attendance", true)
+                            } else {
+                                var failed = false
+                                val gradeSemIds = _allGrades.value?.grades?.keys
+                                    ?.filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
+                                    ?: emptyList()
+                                val allSemIds = (gradeSemIds + semesterIDs).distinct().filter { it != sem }
+                                for (semId in allSemIds) {
+                                    try {
+                                        val res = AmazeClient.getAcademicData(semId)
+                                        if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
+                                            val attCurrent = _allSemesterAttendance.value.toMutableMap()
+                                            attCurrent[semId] = res.attendance
+                                            _allSemesterAttendance.value = attCurrent
+                                        }
+                                        if (res.marks?.marks?.isNotEmpty() == true) {
+                                            val marksCurrent = _allSemesterMarks.value.toMutableMap()
+                                            marksCurrent[semId] = res.marks
+                                            _allSemesterMarks.value = marksCurrent
+                                        }
+                                    } catch (_: Exception) { failed = true }
+                                }
+                                cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
+                                cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
+                                SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
+                                _pastSemestersSynced.value = true
+                                SyncModuleResult("All Semesters Attendance", !failed)
                             }
-                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
-                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
-                            SyncModuleResult("All Semesters Attendance", !failed)
                         },
                         async {
                             syncModule(
@@ -1154,6 +1166,35 @@ object AppState {
                         }
                     ).awaitAll()
 
+                    // ── Gap-fill: fetch attendance/marks for any semester in allGrades that we missed ──
+                    val grades = _allGrades.value
+                    if (grades?.grades != null && !_pastSemestersSynced.value) {
+                        val missingSemIds = grades.grades.keys
+                            .filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
+                            .filter { it !in _allSemesterMarks.value.keys }
+                        for (semId in missingSemIds) {
+                            try {
+                                val res = AmazeClient.getAcademicData(semId)
+                                if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
+                                    val attCurrent = _allSemesterAttendance.value.toMutableMap()
+                                    attCurrent[semId] = res.attendance
+                                    _allSemesterAttendance.value = attCurrent
+                                }
+                                if (res.marks?.marks?.isNotEmpty() == true) {
+                                    val marksCurrent = _allSemesterMarks.value.toMutableMap()
+                                    marksCurrent[semId] = res.marks
+                                    _allSemesterMarks.value = marksCurrent
+                                }
+                            } catch (_: Exception) { }
+                        }
+                        if (missingSemIds.isNotEmpty()) {
+                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
+                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
+                        }
+                        SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
+                        _pastSemestersSynced.value = true
+                    }
+                    syncResults
                 }
                 updateSyncSummary(results)
             } finally {
@@ -1262,7 +1303,7 @@ object AppState {
             try {
                 val sem = _selectedSemester.value
                 val results = supervisorScope {
-                    listOf(
+                    val syncResults = listOf(
                         async {
                             syncModule(
                                 name = "Attendance",
@@ -1280,26 +1321,35 @@ object AppState {
                             )
                         },
                         async {
-                            var failed = false
-                            for (semId in semesterIDs) {
-                                if (semId == sem) continue
-                                try {
-                                    val res = AmazeClient.getAcademicData(semId)
-                                    if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
-                                        val attCurrent = _allSemesterAttendance.value.toMutableMap()
-                                        attCurrent[semId] = res.attendance
-                                        _allSemesterAttendance.value = attCurrent
-                                    }
-                                    if (res.marks?.marks?.isNotEmpty() == true) {
-                                        val marksCurrent = _allSemesterMarks.value.toMutableMap()
-                                        marksCurrent[semId] = res.marks
-                                        _allSemesterMarks.value = marksCurrent
-                                    }
-                                } catch (_: Exception) { failed = true }
+                            if (_pastSemestersSynced.value) {
+                                SyncModuleResult("All Semesters", true)
+                            } else {
+                                var failed = false
+                                val gradeSemIds = _allGrades.value?.grades?.keys
+                                    ?.filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
+                                    ?: emptyList()
+                                val allSemIds = (gradeSemIds + semesterIDs).distinct().filter { it != sem }
+                                for (semId in allSemIds) {
+                                    try {
+                                        val res = AmazeClient.getAcademicData(semId)
+                                        if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
+                                            val attCurrent = _allSemesterAttendance.value.toMutableMap()
+                                            attCurrent[semId] = res.attendance
+                                            _allSemesterAttendance.value = attCurrent
+                                        }
+                                        if (res.marks?.marks?.isNotEmpty() == true) {
+                                            val marksCurrent = _allSemesterMarks.value.toMutableMap()
+                                            marksCurrent[semId] = res.marks
+                                            _allSemesterMarks.value = marksCurrent
+                                        }
+                                    } catch (_: Exception) { failed = true }
+                                }
+                                cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
+                                cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
+                                SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
+                                _pastSemestersSynced.value = true
+                                SyncModuleResult("All Semesters", !failed)
                             }
-                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
-                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
-                            SyncModuleResult("All Semesters", !failed)
                         },
                         async {
                             syncModule(
@@ -1326,8 +1376,74 @@ object AppState {
                             )
                         }
                     ).awaitAll()
+
+                    // ── Gap-fill for refreshAllAcademic ──
+                    val grades = _allGrades.value
+                    if (grades?.grades != null && !_pastSemestersSynced.value) {
+                        val missingSemIds = grades.grades.keys
+                            .filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
+                            .filter { it !in _allSemesterMarks.value.keys }
+                        for (semId in missingSemIds) {
+                            try {
+                                val res = AmazeClient.getAcademicData(semId)
+                                if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
+                                    val attCurrent = _allSemesterAttendance.value.toMutableMap()
+                                    attCurrent[semId] = res.attendance
+                                    _allSemesterAttendance.value = attCurrent
+                                }
+                                if (res.marks?.marks?.isNotEmpty() == true) {
+                                    val marksCurrent = _allSemesterMarks.value.toMutableMap()
+                                    marksCurrent[semId] = res.marks
+                                    _allSemesterMarks.value = marksCurrent
+                                }
+                            } catch (_: Exception) { }
+                        }
+                        if (missingSemIds.isNotEmpty()) {
+                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
+                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
+                        }
+                        SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
+                        _pastSemestersSynced.value = true
+                    }
+                    syncResults
                 }
                 updateSyncSummary(results)
+            } finally { _isLoading.value = false }
+        }
+    }
+
+    fun refreshPastSemesters() {
+        if (_isLoading.value) return
+        scope.launch {
+            _isLoading.value = true
+            _syncStatus.value = "Refreshing past semester data..."
+            try {
+                val sem = _selectedSemester.value
+                val gradeSemIds = _allGrades.value?.grades?.keys
+                    ?.filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
+                    ?: emptyList()
+                val allSemIds = (gradeSemIds + semesterIDs).distinct().filter { it != sem }
+                var failed = false
+                for (semId in allSemIds) {
+                    try {
+                        val res = AmazeClient.getAcademicData(semId)
+                        if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
+                            val attCurrent = _allSemesterAttendance.value.toMutableMap()
+                            attCurrent[semId] = res.attendance
+                            _allSemesterAttendance.value = attCurrent
+                        }
+                        if (res.marks?.marks?.isNotEmpty() == true) {
+                            val marksCurrent = _allSemesterMarks.value.toMutableMap()
+                            marksCurrent[semId] = res.marks
+                            _allSemesterMarks.value = marksCurrent
+                        }
+                    } catch (_: Exception) { failed = true }
+                }
+                cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
+                cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
+                SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
+                _pastSemestersSynced.value = true
+                updateSyncSummary(listOf(SyncModuleResult("All Semesters Attendance", !failed)))
             } finally { _isLoading.value = false }
         }
     }
@@ -1767,6 +1883,10 @@ object AppState {
         _timetable.value = null
         _marks.value = null
         _allGrades.value = null
+        _allSemesterAttendance.value = emptyMap()
+        _allSemesterMarks.value = emptyMap()
+        _allSemesterExams.value = emptyMap()
+        _pastSemestersSynced.value = false
         _hostelDetails.value = null
         _hostelLeaves.value = null
         _examSchedule.value = null
