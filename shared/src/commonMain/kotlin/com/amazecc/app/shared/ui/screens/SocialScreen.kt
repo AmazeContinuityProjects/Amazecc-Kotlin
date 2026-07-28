@@ -43,6 +43,7 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.utils.QRCodeGenerator
 import com.amazecc.app.shared.utils.SocialUtils
+import com.amazecc.app.shared.config.SlotMap
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalMaterial3Api::class)
@@ -309,6 +310,93 @@ private fun QrCodeCanvas(matrix: List<BooleanArray>, modifier: Modifier = Modifi
 }
 
 @Composable
+private fun FriendTimetableGrid(
+    friend: com.amazecc.app.shared.utils.Friend,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val weekDays = listOf("MON", "TUE", "WED", "THU", "FRI")
+    val dayLabels = mapOf("MON" to "Mon", "TUE" to "Tue", "WED" to "Wed", "THU" to "Thu", "FRI" to "Fri")
+    val fullDayToAbbr = mapOf(
+        "Monday" to "MON", "Tuesday" to "TUE", "Wednesday" to "WED",
+        "Thursday" to "THU", "Friday" to "FRI", "Saturday" to "SAT", "Sunday" to "SUN"
+    )
+    val standardSlots = listOf(
+        "MON" to listOf("A1", "F1", "D1", "TB1", "TG1", "A2", "F2", "D2", "TB2", "TG2"),
+        "TUE" to listOf("B1", "G1", "E1", "TC1", "TAA1", "B2", "G2", "E2", "TC2", "TAA2"),
+        "WED" to listOf("C1", "A1", "F1", "TD1", "TBB1", "C2", "A2", "F2", "TD2", "TBB2"),
+        "THU" to listOf("D1", "B1", "G1", "TE1", "TCC1", "D2", "B2", "G2", "TE2", "TCC2"),
+        "FRI" to listOf("E1", "C1", "TA1", "TF1", "TDD1", "E2", "C2", "TA2", "TF2", "TDD2")
+    )
+
+    val friendSlotIdsByDay = remember(friend) {
+        val map = mutableMapOf<String, Set<String>>()
+        friend.classSlots.forEach { slot ->
+            val abbr = fullDayToAbbr[slot.day] ?: return@forEach
+            map[abbr] = (map[abbr] ?: emptySet()) + slot.slotId
+        }
+        map
+    }
+
+    val freeColor = Color(0xFF10B981)
+
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Box(modifier = Modifier.width(52.dp))
+                weekDays.forEach { day ->
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        Text(dayLabels[day] ?: day, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            standardSlots.firstOrNull()?.second?.forEachIndexed { idx, _ ->
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
+                    val firstDaySlots = standardSlots.first().second
+                    val slotCode = firstDaySlots.getOrNull(idx) ?: ""
+                    val timeRange = SlotMap.map["MON"]?.get(slotCode) ?: ""
+                    Box(modifier = Modifier.width(52.dp), contentAlignment = Alignment.CenterStart) {
+                        Text(timeRange, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = 9.sp))
+                    }
+                    weekDays.forEach { day ->
+                        val daySlots = standardSlots.find { it.first == day }?.second
+                        val daySlotCode = daySlots?.getOrNull(idx) ?: ""
+                        val hasSlot = friendSlotIdsByDay[day]?.contains(daySlotCode) == true
+                        val cellColor = if (hasSlot) colors.danger.copy(alpha = 0.18f) else freeColor.copy(alpha = 0.12f)
+                        val borderColor = if (hasSlot) colors.danger.copy(alpha = 0.35f) else freeColor.copy(alpha = 0.25f)
+                        Box(
+                            modifier = Modifier
+                                .weight(1f).padding(1.5.dp).height(18.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(cellColor)
+                                .border(0.5.dp, borderColor, RoundedCornerShape(3.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (hasSlot) {
+                                Text(daySlotCode, style = AmazeTheme.typography.smallLabel.copy(fontSize = 7.sp, color = colors.danger, fontWeight = FontWeight.Bold))
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(freeColor.copy(alpha = 0.2f)).border(0.5.dp, freeColor.copy(alpha = 0.25f), RoundedCornerShape(2.dp)))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Free", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(colors.danger.copy(alpha = 0.2f)).border(0.5.dp, colors.danger.copy(alpha = 0.35f), RoundedCornerShape(2.dp)))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Class", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val friends by com.amazecc.app.shared.state.FriendsViewModel.friends.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
@@ -357,30 +445,25 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             onDismissRequest = { selectedFriend = null },
             title = { Text("${selectedFriend!!.name}'s Timetable", fontWeight = FontWeight.Bold) },
             text = {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val days = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
-                    for (day in days) {
-                        val daySlots = selectedFriend!!.classSlots.filter { it.day == day }
-                        if (daySlots.isNotEmpty()) {
-                            item {
-                                Text(day, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent), modifier = Modifier.padding(top = 8.dp, bottom = 4.dp))
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    FriendTimetableGrid(friend = selectedFriend!!, colors = colors)
+                    Spacer(Modifier.height(16.dp))
+                    Text("Course Details", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Spacer(Modifier.height(8.dp))
+                    selectedFriend!!.classSlots.sortedBy { listOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday").indexOf(it.day) }.forEach { slot ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.background).padding(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(slot.courseCode, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                Text(slot.courseTitle, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
-                            items(daySlots.sortedBy { it.timeSlot }, key = { it.slotId + it.courseCode }) { slot ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.background).padding(8.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(slot.courseCode, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                        Text(slot.courseTitle, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text(slot.slotId, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                                        Text(slot.venue, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-                                    }
-                                }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(slot.slotId, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                                Text(slot.venue, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                             }
                         }
                     }
@@ -484,13 +567,15 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val groups by FriendsViewModel.groups.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
     var newGroupName by remember { mutableStateOf("") }
+    var selectedRegNumbers by remember { mutableStateOf(friends.map { it.regNumber }) }
+    var editingGroup by remember { mutableStateOf<FriendGroup?>(null) }
 
     if (showCreateDialog) {
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
             title = { Text("Create Group", fontWeight = FontWeight.Bold) },
             text = {
-                Column {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text("Groups let you share schedules with multiple friends at once.", style = AmazeTheme.typography.caption)
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(
@@ -501,14 +586,33 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                     )
                     if (friends.isNotEmpty()) {
                         Spacer(Modifier.height(12.dp))
-                        Text("All friends will be added to the group.", style = AmazeTheme.typography.caption)
+                        Text("Select members:", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Spacer(Modifier.height(8.dp))
+                        friends.forEach { friend ->
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
+                                selectedRegNumbers = if (friend.regNumber in selectedRegNumbers)
+                                    selectedRegNumbers - friend.regNumber else selectedRegNumbers + friend.regNumber
+                            }.padding(vertical = 4.dp)) {
+                                Checkbox(
+                                    checked = friend.regNumber in selectedRegNumbers,
+                                    onCheckedChange = { checked ->
+                                        selectedRegNumbers = if (checked) selectedRegNumbers + friend.regNumber
+                                        else selectedRegNumbers - friend.regNumber
+                                    },
+                                    colors = CheckboxDefaults.colors(checkedColor = colors.accent)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(friend.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                            }
+                        }
                     }
                 }
             },
             confirmButton = {
-                TextButton(enabled = newGroupName.isNotBlank() && friends.isNotEmpty(), onClick = {
-                    FriendsViewModel.createGroup(newGroupName, friends.map { it.regNumber })
+                TextButton(enabled = newGroupName.isNotBlank() && selectedRegNumbers.isNotEmpty(), onClick = {
+                    FriendsViewModel.createGroup(newGroupName, selectedRegNumbers)
                     newGroupName = ""
+                    selectedRegNumbers = friends.map { it.regNumber }
                     showCreateDialog = false
                 }) { Text("Create", color = colors.accent) }
             },
@@ -521,11 +625,63 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         )
     }
 
+    if (editingGroup != null) {
+        val group = editingGroup!!
+        var editMembers by remember(group.id) { mutableStateOf(group.memberRegNumbers) }
+        AlertDialog(
+            onDismissRequest = { editingGroup = null },
+            title = { Text("Edit ${group.name}", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Add or remove members:", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Spacer(Modifier.height(8.dp))
+                    friends.forEach { friend ->
+                        val isMember = friend.regNumber in editMembers
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
+                            editMembers = if (isMember) editMembers - friend.regNumber else editMembers + friend.regNumber
+                        }.padding(vertical = 4.dp)) {
+                            Checkbox(
+                                checked = isMember,
+                                onCheckedChange = { checked ->
+                                    editMembers = if (checked) editMembers + friend.regNumber else editMembers - friend.regNumber
+                                },
+                                colors = CheckboxDefaults.colors(checkedColor = colors.accent)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(friend.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    // Update group: remove members not in editMembers, add new ones
+                    editMembers.forEach { reg ->
+                        if (reg !in group.memberRegNumbers) FriendsViewModel.addFriendToGroup(group.id, reg)
+                    }
+                    group.memberRegNumbers.forEach { reg ->
+                        if (reg !in editMembers) FriendsViewModel.removeFriendFromGroup(group.id, reg)
+                    }
+                    editingGroup = null
+                }) { Text("Save", color = colors.accent) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editingGroup = null }) { Text("Cancel", color = colors.textSecondary) }
+            },
+            containerColor = colors.surface,
+            titleContentColor = colors.textPrimary,
+            textContentColor = colors.textSecondary
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         AmazeButton(
             text = "Create Group",
             icon = Icons.Rounded.GroupAdd,
-            onClick = { showCreateDialog = true },
+            onClick = {
+                selectedRegNumbers = friends.map { it.regNumber }
+                showCreateDialog = true
+            },
             enabled = friends.isNotEmpty(),
             modifier = Modifier.fillMaxWidth()
         )
@@ -546,7 +702,7 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                     val memberNames = group.memberRegNumbers.mapNotNull { reg ->
                         friends.find { it.regNumber == reg }?.name
                     }
-                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { editingGroup = group }) {
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(

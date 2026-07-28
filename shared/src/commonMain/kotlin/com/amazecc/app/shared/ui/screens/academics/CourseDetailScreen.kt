@@ -103,7 +103,8 @@ data class CourseGroup(
     val theory: MarksCourseItem? = null,
     val lab: MarksCourseItem? = null,
     val theoryAtt: AttendanceItem? = null,
-    val labAtt: AttendanceItem? = null
+    val labAtt: AttendanceItem? = null,
+    val grade: GradeItem? = null
 )
 
 @Composable
@@ -119,7 +120,8 @@ fun CourseDetailScreen(onBack: () -> Unit) {
     val timetable by AppState.timetable.collectAsState()
     val calendar by AppState.calendar.collectAsState()
 
-    val mainSemesterId = semesterId ?: attendanceRes?.semesterId ?: "CH20262701"
+    val currentSemesterId = attendanceRes?.semesterId ?: "CH20262701"
+    val mainSemesterId = semesterId ?: currentSemesterId
 
     val group = remember(courseCode, mainSemesterId, allSemesterMarks, allSemesterAttendance, marksRes, attendanceRes) {
         findCourseGroup(courseCode, mainSemesterId, allSemesterMarks, allSemesterAttendance, marksRes, attendanceRes, timetable)
@@ -153,7 +155,7 @@ fun CourseDetailScreen(onBack: () -> Unit) {
         return
     }
 
-    val isPastSemester = group.semesterSubId != mainSemesterId && group.semesterSubId != attendanceRes?.semesterId
+    val isPastSemester = group.semesterSubId != currentSemesterId
 
     val qcmViewRes by AppState.qcmView.collectAsState()
     val qcmTables = extractQcmTables(qcmViewRes?.data)
@@ -546,9 +548,7 @@ private fun GradeHistoryTab(courseCode: String, allGrades: AllGradesRes?, group:
                 if (index % 2 == 0) {
                     TimelineCard(semName, grade, colors, Modifier.weight(1f))
                     Spacer(Modifier.width(12.dp))
-                    Box(Modifier.weight(0f))
                 } else {
-                    Box(Modifier.weight(0f))
                     Spacer(Modifier.width(12.dp))
                     TimelineCard(semName, grade, colors, Modifier.weight(1f))
                 }
@@ -613,6 +613,45 @@ private fun TimelineCard(semName: String, grade: GradeItem?, colors: com.amazecc
 }
 
 @Composable
+private fun GradeViewCard(grade: GradeItem, label: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val gc = GradeColors[grade.grade.uppercase()] ?: colors.textPrimary
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(48.dp).clip(CircleShape).background(gc.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(grade.grade, fontWeight = FontWeight.Black, fontSize = 22.sp, color = gc)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("Grade for $label", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
+                    Text("Total: ${grade.grandTotal}", fontSize = 12.sp, color = colors.textSecondary)
+                }
+                Spacer(Modifier.height(4.dp))
+                grade.range?.let { range ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                        listOf("S" to range.S, "A" to range.A, "B" to range.B, "C" to range.C, "D" to range.D, "E" to range.E, "F" to range.F).forEach { (g, r) ->
+                            val gColor = GradeColors[g] ?: colors.textMuted
+                            Box(
+                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(4.dp)).background(gColor.copy(alpha = 0.1f)).padding(vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(g, fontWeight = FontWeight.Black, fontSize = 10.sp, color = gColor)
+                                    Text(r, fontSize = 7.sp, color = colors.textMuted)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun MarksTab(
     group: CourseGroup,
     isEmbedded: Boolean,
@@ -632,43 +671,53 @@ private fun MarksTab(
 
     val isRelative = theoryMarks?.courseSystem == "ACE" && (theoryMarks.courseType in listOf("Theory Only", "Embedded Theory", "Embedded Lab", "Embedded"))
 
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                val allAsm = (theoryMarks?.assessments ?: emptyList()) + (labMarks?.assessments ?: emptyList())
-                val totalWeighted = allAsm.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
-                val totalWeightPct = allAsm.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
-                val projected = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
-                val maxPossible = 100 - (totalWeightPct - totalWeighted).toInt()
-                val maxScore = totalWeighted.toInt()
+    val allAsms = (theoryMarks?.assessments ?: emptyList()) + (labMarks?.assessments ?: emptyList())
 
-                StatBox("Course Type", if (isEmbedded) "Embedded" else (theoryMarks?.courseType ?: "-"), colors, Modifier.weight(1f))
-                StatBox("Score", "$maxScore/${totalWeightPct.toInt()}", colors, Modifier.weight(1f))
-                StatBox("Projected", "$projected%", colors, Modifier.weight(1f))
-                StatBox("Max", "$maxPossible%", colors, Modifier.weight(1f))
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+        if (allAsms.isNotEmpty()) {
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    val totalWeighted = allAsms.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
+                    val totalWeightPct = allAsms.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
+                    val projected = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
+                    val maxPossible = 100 - (totalWeightPct - totalWeighted).toInt()
+                    val maxScore = totalWeighted.toInt()
+
+                    StatBox("Course Type", if (isEmbedded) "Embedded" else (theoryMarks?.courseType ?: "-"), colors, Modifier.weight(1f))
+                    StatBox("Score", "$maxScore/${totalWeightPct.toInt()}", colors, Modifier.weight(1f))
+                    StatBox("Projected", "$projected%", colors, Modifier.weight(1f))
+                    StatBox("Max", "$maxPossible%", colors, Modifier.weight(1f))
+                }
             }
         }
 
         allAssessments.forEach { (label, asms) ->
-            item {
-                Text(label, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-            }
-
             if (asms.isEmpty()) {
-                item {
-                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                        Text("No assessments", color = colors.textMuted)
+                if (group.grade != null) {
+                    item {
+                        GradeViewCard(group.grade!!, label, colors)
+                    }
+                } else {
+                    item {
+                        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                            Text("No assessments", color = colors.textMuted)
+                        }
                     }
                 }
             } else {
+                item {
+                    Text(label, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                }
                 items(asms) { asm ->
                     ExpandableAssessmentCard(asm, label, isRelative, colors)
                 }
             }
         }
 
-        item {
-            TargetGradeCalculator(theoryMarks, labMarks, isRelative, colors)
+        if (allAsms.isNotEmpty()) {
+            item {
+                TargetGradeCalculator(theoryMarks, labMarks, isRelative, colors)
+            }
         }
     }
 }
@@ -905,7 +954,19 @@ private fun AttendanceTab(
 
         if (activeAtt == null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No attendance data for this scope", color = colors.textMuted)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Rounded.EventBusy, null, tint = colors.textMuted, modifier = Modifier.size(40.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        if (isPastSemester) "Attendance not available for past semesters"
+                        else "No attendance data for this scope",
+                        color = colors.textSecondary
+                    )
+                    if (group.grade != null) {
+                        Spacer(Modifier.height(4.dp))
+                        Text("Grade: ${group.grade.grade} (Total: ${group.grade.grandTotal})", color = colors.textMuted, fontSize = 12.sp)
+                    }
+                }
             }
             return
         }
@@ -1683,7 +1744,8 @@ private fun findCourseGroup(
                         courseTitle = grade.courseTitle,
                         semesterSubId = semId,
                         semesterName = semName,
-                        theory = MarksCourseItem(courseCode = grade.courseCode, courseTitle = grade.courseTitle, courseType = grade.courseType)
+                        theory = MarksCourseItem(courseCode = gCleanCode, courseTitle = grade.courseTitle, courseType = grade.courseType),
+                        grade = grade
                     )
                 }
             }

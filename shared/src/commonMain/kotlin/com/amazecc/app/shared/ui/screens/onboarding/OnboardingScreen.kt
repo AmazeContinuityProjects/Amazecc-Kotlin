@@ -74,10 +74,23 @@ fun OnboardingScreen() {
     var libUser by remember { mutableStateOf("") }
     var libPass by remember { mutableStateOf("") }
 
-    val syncSteps by AppState.onboardingSyncSteps.collectAsState()
-
+    val moduleStates by com.amazecc.app.shared.state.SyncEngine.moduleStates.collectAsState()
+    val syncSteps = remember(moduleStates) {
+        moduleStates.filterKeys { it != com.amazecc.app.shared.state.SyncModule.EVENTS }
+            .entries.map { (module, state) ->
+                AppState.SyncStep(
+                    name = module.displayName,
+                    status = when (state.status) {
+                        com.amazecc.app.shared.state.SyncStatus.SUCCESS -> "done"
+                        com.amazecc.app.shared.state.SyncStatus.ERROR -> "failed"
+                        com.amazecc.app.shared.state.SyncStatus.LOADING -> "syncing"
+                        else -> "pending"
+                    }
+                )
+            }
+    }
     LaunchedEffect(Unit) {
-        AppState.startOnboardingSync()
+        AppState.loadAllData()
     }
 
     val pages = listOf(
@@ -309,18 +322,12 @@ private fun PersonalizationPage(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(0.85f to "Small", 1.0f to "Default", 1.15f to "Large").forEach { (scale, label) ->
                 val isSelected = uiScale == scale
-                AmazeCard(
+                AmazeButton(
+                    text = label,
+                    onClick = { onUiScaleChange(scale); AppState.changeUiScale(scale) },
                     modifier = Modifier.weight(1f),
-                    variant = if (isSelected) CardVariant.ACCENT else CardVariant.DEFAULT,
-                    onClick = { onUiScaleChange(scale); AppState.changeUiScale(scale) }
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = AmazeTheme.spacing.lg, vertical = AmazeTheme.spacing.md),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(label, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
-                    }
-                }
+                    variant = if (isSelected) com.amazecc.app.shared.ui.components.ButtonVariant.PRIMARY else com.amazecc.app.shared.ui.components.ButtonVariant.SECONDARY
+                )
             }
         }
 
@@ -344,16 +351,12 @@ private fun PersonalizationPage(
                 Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("percentage" to "Percentage", "fraction" to "Fraction").forEach { (mode, label) ->
                         val isSelected = attendanceMode == mode
-                        AmazeCard(
+                        AmazeButton(
+                            text = label,
+                            onClick = { onAttendanceModeChange(mode) },
                             modifier = Modifier.weight(1f),
-                            variant = if (isSelected) CardVariant.ACCENT else CardVariant.DEFAULT,
-                            onClick = { onAttendanceModeChange(mode) }
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                                contentAlignment = Alignment.Center
-                            ) { Text(label, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)) }
-                        }
+                            variant = if (isSelected) com.amazecc.app.shared.ui.components.ButtonVariant.PRIMARY else com.amazecc.app.shared.ui.components.ButtonVariant.SECONDARY
+                        )
                     }
                 }
             }
@@ -380,20 +383,13 @@ private fun ResidentialNotifPage(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             listOf("hosteller" to Icons.Rounded.Apartment, "dayscholar" to Icons.Rounded.Home, "unknown" to Icons.AutoMirrored.Rounded.HelpOutline).forEach { (status, icon) ->
                 val isSelected = residentialStatus == status
-                AmazeCard(
+                AmazeButton(
+                    text = when (status) { "hosteller" -> "Hosteller"; "dayscholar" -> "Day Scholar"; else -> "Not Sure" },
+                    icon = icon,
+                    onClick = { onResidentialChange(status) },
                     modifier = Modifier.weight(1f),
-                    variant = if (isSelected) CardVariant.ACCENT else CardVariant.DEFAULT,
-                    onClick = { onResidentialChange(status) }
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth().padding(16.dp)
-                    ) {
-                        Icon(icon, null, tint = if (isSelected) Color.White else colors.textSecondary, modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.height(6.dp))
-                        Text(when (status) { "hosteller" -> "Hosteller"; "dayscholar" -> "Day Scholar"; else -> "Not Sure" }, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
-                    }
-                }
+                    variant = if (isSelected) com.amazecc.app.shared.ui.components.ButtonVariant.PRIMARY else com.amazecc.app.shared.ui.components.ButtonVariant.SECONDARY
+                )
             }
         }
 
@@ -416,14 +412,11 @@ private fun ResidentialNotifPage(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(5, 10, 15, 30, 60).forEach { preset ->
                 val isSelected = offsetMinutes == preset
-                AmazeCard(
-                    variant = if (isSelected) CardVariant.ACCENT else CardVariant.DEFAULT,
-                    onClick = { onOffsetChange(preset) }
-                ) {
-                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
-                        Text("$preset min", color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
-                    }
-                }
+                AmazeButton(
+                    text = "$preset min",
+                    onClick = { onOffsetChange(preset) },
+                    variant = if (isSelected) com.amazecc.app.shared.ui.components.ButtonVariant.PRIMARY else com.amazecc.app.shared.ui.components.ButtonVariant.SECONDARY
+                )
             }
         }
     }

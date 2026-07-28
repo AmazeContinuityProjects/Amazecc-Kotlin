@@ -6,36 +6,68 @@ import kotlin.math.*
 object QRCodeGenerator {
 
     fun generate(text: String): List<BooleanArray>? {
-        val data = text.encodeToByteArray()
-        val version = selectVersion(data.size)
+        val dataBytes = text.encodeToByteArray()
+        val overheadBits = 4 + 8 + 4 // byte mode (0100) + char count (8 bits for v1-9) + max terminator
+        val totalBitsNeeded = overheadBits + dataBytes.size * 8
+        val totalBytesNeeded = (totalBitsNeeded + 7) / 8
+
+        val version = selectVersion(totalBytesNeeded)
         val dataCodewords = totalDataCodewords(version)
-        if (data.size > dataCodewords) return null
+        if (totalBytesNeeded > dataCodewords) return null
+
+        val encoded = IntArray(dataCodewords)
+        var bitPos = 0
+
+        fun writeBits(value: Int, numBits: Int) {
+            for (i in numBits - 1 downTo 0) {
+                if (bitPos >= dataCodewords * 8) break
+                val bit = (value shr i) and 1
+                if (bit == 1) {
+                    val byteIdx = bitPos / 8
+                    val bitIdx = 7 - (bitPos % 8)
+                    encoded[byteIdx] = encoded[byteIdx] or (1 shl bitIdx)
+                }
+                bitPos++
+            }
+        }
+
+        writeBits(0b0100, 4)
+        writeBits(dataBytes.size, 8)
+        for (b in dataBytes) writeBits(b.toInt() and 0xFF, 8)
+
+        val remainingBits = dataCodewords * 8 - bitPos
+        if (remainingBits > 0) writeBits(0, minOf(4, remainingBits))
+
+        var padByte = 0b1110_1100
+        while (bitPos < dataCodewords * 8) {
+            writeBits(padByte, 8)
+            padByte = if (padByte == 0b1110_1100) 0b0001_0001 else 0b1110_1100
+        }
+
+        val ecBytes = ecBytesPerBlock(version)
+        val blocks = blockCount(version)
+        val ecData = rsEncode(encoded, ecBytes)
+        val interleaved = interleave(encoded, ecData, blocks)
+
         val size = version * 4 + 17
         val matrix = Array(size) { BooleanArray(size) }
 
         placeFinderPatterns(matrix, size)
         placeTimingPatterns(matrix, size)
-        matrix[size - 8][8] = true // dark module
-
-        val ecBytes = ecBytesPerBlock(version)
-        val blocks = blockCount(version)
-        val filledData = fillDataToCapacity(data, dataCodewords)
-        val ecData = rsEncode(filledData, ecBytes)
-        val interleaved = interleave(filledData, ecData, blocks)
-
+        matrix[size - 8][8] = true
         placeData(matrix, interleaved, version, size)
         applyMask(matrix, size)
-        placeFormatInfo(matrix, size, 0b010) // mask 2, M error correction
+        placeFormatInfo(matrix, size, 0b010)
 
         return matrix.map { it.clone() }
     }
 
     private fun selectVersion(dataLen: Int): Int = when {
-        dataLen <= 14 -> 1
-        dataLen <= 26 -> 2
-        dataLen <= 42 -> 3
-        dataLen <= 62 -> 4
-        dataLen <= 84 -> 5
+        dataLen <= 16 -> 1
+        dataLen <= 28 -> 2
+        dataLen <= 44 -> 3
+        dataLen <= 64 -> 4
+        dataLen <= 86 -> 5
         else -> 6
     }
 
@@ -49,18 +81,6 @@ object QRCodeGenerator {
 
     private fun totalDataCodewords(version: Int): Int = when (version) {
         1 -> 16; 2 -> 28; 3 -> 44; 4 -> 64; 5 -> 86; else -> 108
-    }
-
-    private fun fillDataToCapacity(data: ByteArray, capacity: Int): IntArray {
-        val result = IntArray(capacity)
-        data.forEachIndexed { i, b -> result[i] = b.toInt() and 0xFF }
-        var idx = data.size
-        result[idx++] = 0b0000_0000
-        while (idx < capacity) {
-            val pad = if ((idx - data.size) % 2 == 0) 0b1110_1100 else 0b0001_0001
-            result[idx++] = pad
-        }
-        return result
     }
 
     private fun rsEncode(data: IntArray, ecBytes: Int): IntArray {
@@ -100,7 +120,6 @@ object QRCodeGenerator {
                 }
             }
         }
-        // Third finder at (0, size-7)
         for (i in -1..7) for (j in -1..7) {
             val x = i; val y = size - 7 + j
             if (x < 0 || x >= size || y < 0 || y >= size) continue
@@ -110,7 +129,6 @@ object QRCodeGenerator {
                 else -> true
             }
         }
-        // Separators / horizontal timing patterns
         for (i in 0 until 8) {
             if (i < size) { matrix[7][i] = false; matrix[i][7] = false }
             if (size - 1 - i >= 0) { matrix[7][size - 1 - i] = false; matrix[size - 1 - i][7] = false }
@@ -167,18 +185,23 @@ object QRCodeGenerator {
     }
 
     private fun placeFormatInfo(matrix: Array<BooleanArray>, size: Int, maskPattern: Int) {
-        val ecLevelBits = 0b00 // M
-        val formatBits = (ecLevelBits shl 3) or maskPattern
-        // BCH code (simplified - using precomputed values for M + mask 2)
-        val finalFormat = intArrayOf(
-            1,0,1,0,0,1,1,0,1,1,1,0,0,0,1
-        )
-        // Place
-        for (i in 0..5) { matrix[8][i] = finalFormat[i] == 1; matrix[size - 1 - i][8] = finalFormat[i] == 1 }
-        matrix[8][7] = finalFormat[6] == 1; matrix[8][8] = finalFormat[7] == 1; matrix[7][8] = finalFormat[8] == 1
-        for (i in 9..14) { matrix[14 - i][8] = finalFormat[i] == 1 }
+        val ecBits = 0b00 // M
+        val dataBits = (ecBits shl 3) or (maskPattern and 0b111)
+        var codeword = dataBits shl 10
+        val generator = 0b10100110111
+        for (i in 14 downTo 10) {
+            if ((codeword shr i) and 1 == 1) {
+                codeword = codeword xor (generator shl (i - 10))
+            }
+        }
+        val formatVal = ((dataBits shl 10) or (codeword and 0x3FF)) xor 0b101010000010010
+        val bits = BooleanArray(15) { ((formatVal shr (14 - it)) and 1) == 1 }
+
+        for (i in 0..5) { matrix[8][i] = bits[i]; matrix[size - 1 - i][8] = bits[i] }
+        matrix[8][7] = bits[6]; matrix[8][8] = bits[7]; matrix[7][8] = bits[8]
+        for (i in 9..14) { matrix[14 - i][8] = bits[i] }
         matrix[8][size - 8] = true
-        for (i in 0..6) { matrix[8][size - 7 + i] = finalFormat[14 - i] == 1 }
+        for (i in 0..6) { matrix[8][size - 7 + i] = bits[14 - i] }
     }
 }
 
