@@ -25,8 +25,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.animateColorAsState
 import com.amazecc.app.shared.repository.SettingsManager
-import com.amazecc.app.shared.ui.components.AmazeTextField
+import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AccentTheme
@@ -122,11 +124,15 @@ fun OnboardingScreen() {
                 Spacer(Modifier.height(20.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     pages.indices.forEach { i ->
+                        val isSelected = i == currentPage
+                        val isPast = i <= currentPage
+                        val width by animateDpAsState(targetValue = if (isSelected) 24.dp else 8.dp)
+                        val color by animateColorAsState(targetValue = if (isPast) colors.accent else colors.border)
                         Box(
                             modifier = Modifier
-                                .size(if (i == currentPage) 24.dp else 8.dp, 8.dp)
+                                .size(width, 8.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(if (i <= currentPage) colors.accent else colors.border)
+                                .background(color)
                         )
                     }
                 }
@@ -158,27 +164,26 @@ fun OnboardingScreen() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (currentPage > 0) {
-                TextButton(onClick = { currentPage-- }) {
-                    Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Back")
-                }
+                AmazeButton(
+                    text = "Back",
+                    onClick = { currentPage-- },
+                    variant = ButtonVariant.GHOST,
+                    icon = Icons.AutoMirrored.Rounded.ArrowBack
+                )
             } else {
                 Spacer(Modifier.width(1.dp))
             }
 
             if (currentPage < pages.size - 1) {
-                Button(
+                AmazeButton(
+                    text = "Next",
                     onClick = { currentPage++ },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
-                ) {
-                    Text("Next", fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.width(4.dp))
-                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, modifier = Modifier.size(18.dp))
-                }
+                    variant = ButtonVariant.PRIMARY,
+                    icon = Icons.AutoMirrored.Rounded.ArrowForward
+                )
             } else {
-                Button(
+                AmazeButton(
+                    text = "Get Started",
                     onClick = {
                         AppState.changeTheme(selectedTheme)
                         AppState.changeAccent(selectedAccent)
@@ -193,13 +198,9 @@ fun OnboardingScreen() {
                         SettingsManager.setOnboardingComplete(true)
                         AppState.navigateTo(Screen.HOME)
                     },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.chart1)
-                ) {
-                    Icon(Icons.Rounded.RocketLaunch, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Get Started", fontWeight = FontWeight.Bold)
-                }
+                    variant = ButtonVariant.PRIMARY,
+                    icon = Icons.Rounded.RocketLaunch
+                )
             }
         }
     }
@@ -221,10 +222,8 @@ private fun WelcomePage(colors: com.amazecc.app.shared.theme.AmazeColors, syncSt
         Spacer(Modifier.height(24.dp))
         Text("We're setting up everything\nfor you in the background", style = AmazeTheme.typography.body.copy(color = colors.textSecondary), textAlign = TextAlign.Center, lineHeight = 24.sp)
         Spacer(Modifier.height(28.dp))
-        Box(
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.medium)).background(colors.surface).padding(AmazeTheme.spacing.lg)
-        ) {
-            Column {
+        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
+            Column(modifier = Modifier.padding(AmazeTheme.spacing.lg)) {
                 Text("Sync Progress", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Spacer(Modifier.height(14.dp))
                 val doneCount = syncSteps.count { it.status == "done" }
@@ -268,11 +267,15 @@ private fun PersonalizationPage(
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             listOf(AppTheme.LIGHT to Icons.Rounded.LightMode, AppTheme.DARK to Icons.Rounded.DarkMode, AppTheme.SYSTEM to Icons.Rounded.BrightnessAuto).forEach { (theme, icon) ->
                 val isSelected = selectedTheme == theme
-                Box(
-                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small)).clickable { onThemeChange(theme); AppState.changeTheme(theme) }.padding(vertical = AmazeTheme.spacing.sm),
-                    contentAlignment = Alignment.Center
+                AmazeCard(
+                    modifier = Modifier.weight(1f),
+                    variant = if (isSelected) CardVariant.ACCENT else CardVariant.DEFAULT,
+                    onClick = { onThemeChange(theme); AppState.changeTheme(theme) }
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth().padding(vertical = AmazeTheme.spacing.md)
+                    ) {
                         Icon(icon, null, tint = if (isSelected) Color.White else colors.textSecondary, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.height(4.dp))
                         Text(theme.name, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
@@ -289,13 +292,13 @@ private fun PersonalizationPage(
                 val isSelected = selectedAccent == accent
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onAccentChange(accent); AppState.changeAccent(accent) }) {
                     Box(
-                        modifier = Modifier.size(44.dp).clip(CircleShape).background(accentColor).border(if (isSelected) 3.dp else 0.dp, if (isSelected) colors.accent else Color.Transparent, CircleShape).padding(if (isSelected) 0.dp else 0.dp),
+                        modifier = Modifier.size(44.dp).clip(CircleShape).background(accentColor).border(if (isSelected) 3.dp else 0.dp, if (isSelected) colors.textPrimary else Color.Transparent, CircleShape).padding(if (isSelected) 0.dp else 0.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (isSelected) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
                     }
                     Spacer(Modifier.height(4.dp))
-                    Text(accent.name, style = AmazeTheme.typography.smallLabel.copy(color = if (isSelected) colors.accent else colors.textSecondary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal))
+                    Text(accent.name, style = AmazeTheme.typography.smallLabel.copy(color = if (isSelected) colors.textPrimary else colors.textSecondary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal))
                 }
             }
         }
@@ -306,10 +309,17 @@ private fun PersonalizationPage(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(0.85f to "Small", 1.0f to "Default", 1.15f to "Large").forEach { (scale, label) ->
                 val isSelected = uiScale == scale
-                Box(
-                    modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.xs)).clickable { onUiScaleChange(scale); AppState.changeUiScale(scale) }.padding(horizontal = AmazeTheme.spacing.lg, vertical = AmazeTheme.spacing.sm)
+                AmazeCard(
+                    modifier = Modifier.weight(1f),
+                    variant = if (isSelected) CardVariant.ACCENT else CardVariant.DEFAULT,
+                    onClick = { onUiScaleChange(scale); AppState.changeUiScale(scale) }
                 ) {
-                    Text(label, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = AmazeTheme.spacing.lg, vertical = AmazeTheme.spacing.md),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(label, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
+                    }
                 }
             }
         }
@@ -317,27 +327,33 @@ private fun PersonalizationPage(
         Spacer(Modifier.height(24.dp))
         Text("Display", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         Spacer(Modifier.height(10.dp))
-        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface)) {
+        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
             Column {
-                Row(modifier = Modifier.fillMaxWidth().clickable { onCgpaHiddenChange(!cgpaHidden) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(if (cgpaHidden) colors.chart5.copy(alpha = 0.12f) else colors.accent.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) { Icon(if (cgpaHidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, null, tint = if (cgpaHidden) colors.chart5 else colors.accent, modifier = Modifier.size(18.dp)) }
-                    Spacer(Modifier.width(12.dp))
+                Row(modifier = Modifier.fillMaxWidth().clickable { onCgpaHiddenChange(!cgpaHidden) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(if (cgpaHidden) colors.chart5.copy(alpha = 0.12f) else colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) { Icon(if (cgpaHidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, null, tint = if (cgpaHidden) colors.chart5 else colors.accent, modifier = Modifier.size(18.dp)) }
+                    Spacer(Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) { Text("Hide CGPA", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary)); Text("Keep your CGPA private on dashboard", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)) }
                     Switch(checked = cgpaHidden, onCheckedChange = onCgpaHiddenChange, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = Color.White))
                 }
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = colors.border)
-                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Percent, null, tint = colors.accent, modifier = Modifier.size(18.dp)) }
-                    Spacer(Modifier.width(12.dp))
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = colors.border)
+                Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Percent, null, tint = colors.accent, modifier = Modifier.size(18.dp)) }
+                    Spacer(Modifier.width(16.dp))
                     Text("Attendance Display", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary), modifier = Modifier.weight(1f))
                 }
-                Row(modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("percentage" to "Percentage", "fraction" to "Fraction").forEach { (mode, label) ->
                         val isSelected = attendanceMode == mode
-                        Box(
-                            modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(8.dp)).clickable { onAttendanceModeChange(mode) }.padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) { Text(label, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)) }
+                        AmazeCard(
+                            modifier = Modifier.weight(1f),
+                            variant = if (isSelected) CardVariant.ACCENT else CardVariant.DEFAULT,
+                            onClick = { onAttendanceModeChange(mode) }
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) { Text(label, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)) }
+                        }
                     }
                 }
             }
@@ -364,11 +380,15 @@ private fun ResidentialNotifPage(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             listOf("hosteller" to Icons.Rounded.Apartment, "dayscholar" to Icons.Rounded.Home, "unknown" to Icons.AutoMirrored.Rounded.HelpOutline).forEach { (status, icon) ->
                 val isSelected = residentialStatus == status
-                Box(
-                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(14.dp)).clickable { onResidentialChange(status) }.padding(16.dp),
-                    contentAlignment = Alignment.Center
+                AmazeCard(
+                    modifier = Modifier.weight(1f),
+                    variant = if (isSelected) CardVariant.ACCENT else CardVariant.DEFAULT,
+                    onClick = { onResidentialChange(status) }
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth().padding(16.dp)
+                    ) {
                         Icon(icon, null, tint = if (isSelected) Color.White else colors.textSecondary, modifier = Modifier.size(24.dp))
                         Spacer(Modifier.height(6.dp))
                         Text(when (status) { "hosteller" -> "Hosteller"; "dayscholar" -> "Day Scholar"; else -> "Not Sure" }, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
@@ -382,8 +402,8 @@ private fun ResidentialNotifPage(
         Spacer(Modifier.height(4.dp))
         Text("We'll remind you so you never miss out", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
         Spacer(Modifier.height(12.dp))
-        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface).padding(4.dp)) {
-            Column {
+        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
+            Column(modifier = Modifier.padding(4.dp)) {
                 ToggleRow("Class Reminders", "Notify before each class starts", Icons.Rounded.Schedule, classNotif, onClassNotifChange, colors)
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = colors.border)
                 ToggleRow("Assignment Reminders", "Remind before deadlines", Icons.AutoMirrored.Rounded.Assignment, assignNotif, onAssignNotifChange, colors)
@@ -396,9 +416,14 @@ private fun ResidentialNotifPage(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(5, 10, 15, 30, 60).forEach { preset ->
                 val isSelected = offsetMinutes == preset
-                Box(
-                    modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(if (isSelected) colors.accent else colors.surface).border(if (isSelected) 0.dp else 1.dp, colors.border, RoundedCornerShape(10.dp)).clickable { onOffsetChange(preset) }.padding(horizontal = 16.dp, vertical = 10.dp)
-                ) { Text("$preset min", color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)) }
+                AmazeCard(
+                    variant = if (isSelected) CardVariant.ACCENT else CardVariant.DEFAULT,
+                    onClick = { onOffsetChange(preset) }
+                ) {
+                    Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)) {
+                        Text("$preset min", color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
+                    }
+                }
             }
         }
     }
@@ -435,14 +460,19 @@ private fun ModulesPage(
                 row.forEach { module ->
                     val isSelected = selectedModules.contains(module)
                     val icon = moduleIcons[module] ?: Icons.Rounded.Widgets
-                    Box(
-                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (isSelected) colors.accent.copy(alpha = 0.1f) else colors.surface).border(1.dp, if (isSelected) colors.accent.copy(alpha = 0.3f) else colors.border, RoundedCornerShape(14.dp)).clickable { if (isSelected) onSelectionChange(selectedModules - module) else if (selectedModules.size < 4) onSelectionChange(selectedModules + module) }.padding(16.dp)
+                    AmazeCard(
+                        modifier = Modifier.weight(1f),
+                        variant = if (isSelected) CardVariant.ACCENT else CardVariant.DEFAULT,
+                        onClick = { if (isSelected) onSelectionChange(selectedModules - module) else if (selectedModules.size < 4) onSelectionChange(selectedModules + module) }
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(icon, null, tint = if (isSelected) colors.accent else colors.textSecondary, modifier = Modifier.size(28.dp))
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth().padding(16.dp)
+                        ) {
+                            Icon(icon, null, tint = if (isSelected) Color.White else colors.textSecondary, modifier = Modifier.size(28.dp))
                             Spacer(Modifier.height(8.dp))
-                            Text(module.name.lowercase().replaceFirstChar { it.uppercase() }, color = if (isSelected) colors.accent else colors.textSecondary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
-                            if (isSelected) { Spacer(Modifier.height(4.dp)); Icon(Icons.Rounded.CheckCircle, null, tint = colors.accent, modifier = Modifier.size(14.dp)) }
+                            Text(module.name.lowercase().replaceFirstChar { it.uppercase() }, color = if (isSelected) Color.White else colors.textSecondary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
+                            if (isSelected) { Spacer(Modifier.height(4.dp)); Icon(Icons.Rounded.CheckCircle, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
                         }
                     }
                 }
@@ -479,34 +509,34 @@ private fun AccountsPage(
         Spacer(Modifier.height(20.dp))
 
         // Moodle
-        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface).padding(16.dp)) {
-            Column {
+        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.chart2.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.chart2, modifier = Modifier.size(20.dp)) }
+                    Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.chart2.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.chart2, modifier = Modifier.size(20.dp)) }
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) { Text("Moodle", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)); Text("Course materials & assignments", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)) }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 if (!moodleLinked) {
                     AmazeTextField(value = moodleUser, onValueChange = onMoodleUserChange, label = "Username", placeholder = "", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    AmazeTextField(value = moodlePass, onValueChange = onMoodlePassChange, label = "Password", placeholder = "", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(12.dp))
+                    AmazeTextField(value = moodlePass, onValueChange = onMoodlePassChange, label = "Password", placeholder = "", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(16.dp))
                     val me = moodleError; if (me != null) { Spacer(Modifier.height(4.dp)); Text(me, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(onClick = { onMoodleUserChange(""); onMoodlePassChange("") }, shape = RoundedCornerShape(10.dp), enabled = !moodleLoading) { Text("Skip", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)) }
+                        AmazeButton(text = "Skip", onClick = { onMoodleUserChange(""); onMoodlePassChange("") }, enabled = !moodleLoading, variant = ButtonVariant.GHOST)
                         if (moodleLoading) {
                             Box(modifier = Modifier.height(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(20.dp), color = colors.accent, strokeWidth = 2.dp) }
                         } else {
-                            Button(onClick = {
-                                if (moodleUser.isBlank() || moodlePass.isBlank()) { moodleError = "Please fill in both fields"; return@Button }
+                            AmazeButton(text = "Link Account", onClick = {
+                                if (moodleUser.isBlank() || moodlePass.isBlank()) { moodleError = "Please fill in both fields"; return@AmazeButton }
                                 moodleLoading = true; moodleError = null
                                 scope.launch {
                                     AppState.saveMoodleCredentials(moodleUser, moodlePass)
                                     moodleLoading = false
                                     moodleLinked = true
                                 }
-                            }, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = colors.chart2)) { Text("Link Account", fontWeight = FontWeight.Bold, color = Color.White) }
+                            })
                         }
                     }
                 } else {
@@ -524,34 +554,34 @@ private fun AccountsPage(
         Spacer(Modifier.height(16.dp))
 
         // Library
-        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(colors.surface).padding(16.dp)) {
-            Column {
+        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
+            Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.chart4.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.LocalLibrary, null, tint = colors.chart4, modifier = Modifier.size(20.dp)) }
+                    Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.chart4.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.LocalLibrary, null, tint = colors.chart4, modifier = Modifier.size(20.dp)) }
                     Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) { Text("Library", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)); Text("Borrowed books & due dates", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)) }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(16.dp))
                 if (!libLinked) {
                     AmazeTextField(value = libUser, onValueChange = onLibUserChange, label = "Library ID", placeholder = "", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    AmazeTextField(value = libPass, onValueChange = onLibPassChange, label = "Password", placeholder = "", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(12.dp))
+                    AmazeTextField(value = libPass, onValueChange = onLibPassChange, label = "Password", placeholder = "", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(16.dp))
                     val le = libError; if (le != null) { Spacer(Modifier.height(4.dp)); Text(le, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(onClick = { onLibUserChange(""); onLibPassChange("") }, shape = RoundedCornerShape(10.dp), enabled = !libLoading) { Text("Skip", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)) }
+                        AmazeButton(text = "Skip", onClick = { onLibUserChange(""); onLibPassChange("") }, enabled = !libLoading, variant = ButtonVariant.GHOST)
                         if (libLoading) {
                             Box(modifier = Modifier.height(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(20.dp), color = colors.accent, strokeWidth = 2.dp) }
                         } else {
-                            Button(onClick = {
-                                if (libUser.isBlank() || libPass.isBlank()) { libError = "Please fill in both fields"; return@Button }
+                            AmazeButton(text = "Link Account", onClick = {
+                                if (libUser.isBlank() || libPass.isBlank()) { libError = "Please fill in both fields"; return@AmazeButton }
                                 libLoading = true; libError = null
                                 scope.launch {
                                     AppState.saveLibraryCredentials(libUser, libPass)
                                     libLoading = false
                                     libLinked = true
                                 }
-                            }, shape = RoundedCornerShape(10.dp), colors = ButtonDefaults.buttonColors(containerColor = colors.chart4)) { Text("Link Account", fontWeight = FontWeight.Bold, color = Color.White) }
+                            })
                         }
                     }
                 } else {
@@ -583,8 +613,8 @@ private fun CompletionPage(colors: com.amazecc.app.shared.theme.AmazeColors, syn
         Spacer(Modifier.height(8.dp))
         Text("Your preferences have been saved.\nTap Get Started to dive in!", style = AmazeTheme.typography.body.copy(color = colors.textSecondary), textAlign = TextAlign.Center, lineHeight = 24.sp)
         Spacer(Modifier.height(28.dp))
-        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(colors.surface).padding(20.dp)) {
-            Column {
+        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
+            Column(modifier = Modifier.padding(20.dp)) {
                 Text("Sync Summary", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Spacer(Modifier.height(12.dp))
                 val doneCount = syncSteps.count { it.status == "done" }
