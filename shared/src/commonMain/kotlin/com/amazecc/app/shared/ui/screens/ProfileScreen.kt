@@ -243,39 +243,122 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
             }
             
             // Faculty details from profileImages
-            val proc = profileImages?.proctor
-            if (proc != null && proc.details.isNotEmpty()) {
-                val items = proc.details.map { (k, v) ->
-                    val icon = when (k.lowercase()) {
-                        "name" -> Icons.Rounded.Person
-                        "designation" -> Icons.Rounded.Badge
-                        "school" -> Icons.Rounded.AccountBalance
-                        "mobile" -> Icons.Rounded.Phone
-                        "intercom" -> Icons.Rounded.Call
-                        "email" -> Icons.Rounded.Email
-                        else -> Icons.Rounded.Info
+            profileImages?.proctor?.let { proc ->
+                val proctorBitmap = remember(proc.photoBase64) {
+                    proc.photoBase64?.let { src ->
+                        val base64 = src.substringAfter("base64,")
+                        val bytes = try { base64.decodeBase64Bytes() } catch (_: Exception) { null }
+                        bytes?.toImageBitmap()
                     }
-                    ProfileItem(icon, k, v)
                 }
-                ProfileGroupCard("PROCTOR DETAILS", items, colors)
+                AmazeCard(modifier = Modifier.fillMaxWidth(), accentStrip = true) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier.size(48.dp).clip(CircleShape)
+                                    .background(colors.accent.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (proctorBitmap != null) {
+                                    androidx.compose.foundation.Image(
+                                        bitmap = proctorBitmap,
+                                        contentDescription = "Proctor",
+                                        modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(Icons.Rounded.Person, null, tint = colors.accent, modifier = Modifier.size(24.dp))
+                                }
+                            }
+                            Spacer(Modifier.width(AmazeTheme.spacing.md))
+                            Column {
+                                Text("PROCTOR DETAILS", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                                proc.details["name"]?.let { Text(it, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)) }
+                            }
+                        }
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                        proc.details.forEach { (k, v) ->
+                            if (k.lowercase() != "name") {
+                                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    val icon = when (k.lowercase()) {
+                                        "designation" -> Icons.Rounded.Badge
+                                        "school" -> Icons.Rounded.AccountBalance
+                                        "mobile" -> Icons.Rounded.Phone
+                                        "intercom" -> Icons.Rounded.Call
+                                        "email" -> Icons.Rounded.Email
+                                        else -> Icons.Rounded.Info
+                                    }
+                                    Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) {
+                                        Icon(icon, null, tint = colors.accent, modifier = Modifier.size(14.dp))
+                                    }
+                                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(k, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp))
+                                        Text(v, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium, fontSize = 13.sp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(AmazeTheme.spacing.md))
             }
 
-            val dean = profileImages?.hodDean
-            if (dean != null && dean.people.isNotEmpty()) {
-                val items = dean.people.flatMap { person ->
-                    val roleLabel = person.role
-                    person.details.map { (k, v) ->
-                        val icon = when (k.lowercase()) {
-                            "name" -> Icons.Rounded.Person
-                            "designation" -> Icons.Rounded.Badge
-                            "intercom" -> Icons.Rounded.Call
-                            "email" -> Icons.Rounded.Email
-                            else -> Icons.Rounded.Info
+            profileImages?.hodDean?.let { dean ->
+                dean.people.forEach { person ->
+                    val personBitmap = remember(person.photoBase64) {
+                        person.photoBase64?.let { src ->
+                            val base64 = src.substringAfter("base64,")
+                            val bytes = try { base64.decodeBase64Bytes() } catch (_: Exception) { null }
+                            bytes?.toImageBitmap()
                         }
-                        ProfileItem(icon, "$roleLabel $k", v)
                     }
+                    AmazeCard(modifier = Modifier.fillMaxWidth(), accentStrip = true) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier.size(48.dp).clip(CircleShape)
+                                        .background(colors.accent.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (personBitmap != null) {
+                                        androidx.compose.foundation.Image(
+                                            bitmap = personBitmap,
+                                            contentDescription = person.role,
+                                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(Icons.Rounded.Person, null, tint = colors.accent, modifier = Modifier.size(24.dp))
+                                    }
+                                }
+                                Spacer(Modifier.width(AmazeTheme.spacing.md))
+                                Text(person.role, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                            }
+                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                            person.details.forEach { (k, v) ->
+                                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    val icon = when (k.lowercase()) {
+                                        "designation" -> Icons.Rounded.Badge
+                                        "mobile" -> Icons.Rounded.Phone
+                                        "intercom" -> Icons.Rounded.Call
+                                        "email" -> Icons.Rounded.Email
+                                        else -> Icons.Rounded.Info
+                                    }
+                                    Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) {
+                                        Icon(icon, null, tint = colors.accent, modifier = Modifier.size(14.dp))
+                                    }
+                                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(k, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp))
+                                        Text(v, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium, fontSize = 13.sp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(AmazeTheme.spacing.md))
                 }
-                ProfileGroupCard("DEAN & HOD DETAILS", items, colors)
             }
         } else {
             AmazeCard(modifier = Modifier.fillMaxWidth()) {

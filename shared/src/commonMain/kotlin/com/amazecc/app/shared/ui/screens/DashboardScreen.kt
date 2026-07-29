@@ -71,8 +71,6 @@ import kotlin.time.Duration.Companion.minutes
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import io.kamel.image.KamelImage
-import io.kamel.image.asyncPainterResource
 import io.ktor.util.decodeBase64Bytes
 import com.amazecc.app.shared.utils.toImageBitmap
 

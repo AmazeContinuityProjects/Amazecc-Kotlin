@@ -2,6 +2,7 @@ package com.amazecc.app.shared.ui.screens.events
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.border
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,10 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.ClubItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
@@ -27,8 +30,7 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
-import io.kamel.image.KamelImage
-import io.kamel.image.asyncPainterResource
+import com.amazecc.app.shared.utils.toImageBitmap
 
 @Composable
 fun ClubDetailScreen() {
@@ -71,14 +73,22 @@ fun ClubDetailScreen() {
                         contentAlignment = Alignment.Center
                     ) {
                         if (!club.logoUrl.isNullOrEmpty()) {
-                            KamelImage(
-                                resource = asyncPainterResource(data = club.logoUrl),
-                                contentDescription = "Club Logo",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop,
-                                onLoading = { CircularProgressIndicator(modifier = Modifier.size(24.dp), color = colors.accent) },
-                                onFailure = { Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent)) }
-                            )
+                            var logoBitmap by remember(club.logoUrl) { mutableStateOf<ImageBitmap?>(null) }
+                            LaunchedEffect(club.logoUrl) {
+                                val bytes = AmazeClient.getImageBytes(club.logoUrl)
+                                logoBitmap = bytes?.toImageBitmap()
+                            }
+                            val bm = logoBitmap
+                            if (bm != null) {
+                                Image(
+                                    bitmap = bm,
+                                    contentDescription = "Club Logo",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent))
+                            }
                         } else {
                             Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent))
                         }

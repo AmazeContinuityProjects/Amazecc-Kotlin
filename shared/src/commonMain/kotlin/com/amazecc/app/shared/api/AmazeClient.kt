@@ -1214,6 +1214,29 @@ object AmazeClient {
         }
     }
 
+    suspend fun eventLogin(): String? {
+        val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials() ?: return null
+        return try {
+            val response = httpClient.post("$baseUrl/api/events/login") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("username", creds.first)
+                    put("password", creds.second)
+                })
+            }
+            if (response.status == HttpStatusCode.OK) {
+                val json = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText()).jsonObject
+                val jsessionid = json["jsessionid"]?.jsonPrimitive?.content
+                if (jsessionid != null) {
+                    SessionManager.saveEventHubSession(jsessionid)
+                }
+                jsessionid
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     suspend fun getEventsProfile(): EventHubRegisteredEventsRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return EventHubRegisteredEventsRes(

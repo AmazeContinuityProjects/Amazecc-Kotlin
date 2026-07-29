@@ -420,7 +420,7 @@ data class StudentProfile(
     val section: String? = null,
     val advisorName: String? = null,
     val bloodGroup: String? = null,
-    val photoBase64: String? = null,
+    @SerialName("image") val photoBase64: String? = null,
     val nativeLanguage: String? = null,
     val nationality: String? = null,
     val community: String? = null,

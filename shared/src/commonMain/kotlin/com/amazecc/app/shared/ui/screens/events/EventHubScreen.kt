@@ -1,5 +1,7 @@
 package com.amazecc.app.shared.ui.screens.events
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,6 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -17,120 +21,51 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import kotlinx.coroutines.launch
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
-import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
-import io.kamel.image.KamelImage
-import io.kamel.image.asyncPainterResource
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.utils.toImageBitmap
 import io.ktor.util.decodeBase64Bytes
-
-@Composable
-internal fun AuthKamelImage(
-    url: String,
-    contentDescription: String?,
-    modifier: Modifier = Modifier,
-    contentScale: ContentScale = ContentScale.Crop,
-    onLoading: @Composable () -> Unit = {},
-    onFailure: @Composable () -> Unit = {}
-) {
-    var bytes by remember(url) { mutableStateOf<ByteArray?>(null) }
-    var loadState by remember(url) { mutableStateOf<AuthImageState>(AuthImageState.Loading) }
-
-    LaunchedEffect(url) {
-        loadState = AuthImageState.Loading
-        bytes = null
-        val result = AmazeClient.getImageBytes(url)
-        if (result != null) {
-            bytes = result
-            loadState = AuthImageState.Success
-        } else {
-            loadState = AuthImageState.Error
-        }
-    }
-
-    when (loadState) {
-        AuthImageState.Loading -> onLoading()
-        AuthImageState.Error -> onFailure()
-        AuthImageState.Success -> KamelImage(
-            resource = asyncPainterResource(data = bytes ?: return@AuthKamelImage),
-            contentDescription = contentDescription,
-            modifier = modifier,
-            contentScale = contentScale,
-            onFailure = { onFailure() }
-        )
-    }
-}
-
-@Composable
-internal fun Base64Image(
-    imageSrc: String,
-    contentDescription: String?,
-    modifier: Modifier = Modifier,
-    contentScale: ContentScale = ContentScale.Crop,
-    onLoading: @Composable () -> Unit = {},
-    onFailure: @Composable () -> Unit = {}
-) {
-    val bytes = remember(imageSrc) {
-        val base64 = imageSrc.substringAfter("base64,")
-        try { base64.decodeBase64Bytes() } catch (e: Exception) { null }
-    }
-
-    if (bytes != null) {
-        KamelImage(
-            resource = asyncPainterResource(data = bytes),
-            contentDescription = contentDescription,
-            modifier = modifier,
-            contentScale = contentScale,
-            onLoading = { onLoading() },
-            onFailure = { onFailure() }
-        )
-    } else {
-        onFailure()
-    }
-}
-
-private enum class AuthImageState { Loading, Success, Error }
+import kotlinx.coroutines.launch
 
 @Composable
 fun EventHubScreen() {
     val colors = AmazeTheme.colors
+    val scope = rememberCoroutineScope()
+    var loggedIn by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         AppState.syncEventsAndClubs()
+        if (AmazeClient.eventLogin() != null) loggedIn = true
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
+    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(
             title = "Events",
             description = "Discover tech fests and meetups",
             showBackButton = false,
             showSyncButton = true,
-            onRefresh = AppState::syncEventsAndClubs
+            onRefresh = {
+                scope.launch { AppState.syncEventsAndClubs(); AmazeClient.eventLogin() }
+            }
         )
-
         Column(modifier = Modifier.fillMaxSize()) {
-            com.amazecc.app.shared.ui.components.HeaderSpacer()
-
-            Box(
-                modifier = Modifier.weight(1f).padding(horizontal = 16.dp)
-            ) {
+            HeaderSpacer()
+            Box(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {
                 EventsTab()
             }
         }
@@ -163,32 +98,9 @@ private fun EventsTab() {
             contentPadding = PaddingValues(bottom = 88.dp)
         ) {
             if (eventRes == null) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(color = colors.accent, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
-                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-                            Text("Loading events...", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
-                        }
-                    }
-                }
+                item { LoadingState() }
             } else if (events.isEmpty()) {
-                item {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Rounded.EventBusy, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-                            Text("No events available", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
-                            Text("Check back later or sync from the header", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                        }
-                    }
-                }
+                item { EmptyState() }
             } else {
                 item {
                     val featured = filteredEvents.firstOrNull()
@@ -199,37 +111,10 @@ private fun EventsTab() {
                         )
                     }
                 }
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        categories.forEach { cat ->
-                            val sel = selectedCategory == cat
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                                    .background(if (sel) colors.accent else colors.surface)
-                                    .border(1.dp, if (sel) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
-                                    .clickable { selectedCategory = cat }
-                                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                            ) {
-                                Text(
-                                    cat,
-                                    color = if (sel) Color.White else colors.textSecondary,
-                                    style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)
-                                )
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                }
+                item { CategoryFilter(categories, selectedCategory) { selectedCategory = it } }
                 if (filteredEvents.isEmpty()) {
                     item {
-                        Box(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
                             Text("No events in this category", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                         }
                     }
@@ -247,21 +132,135 @@ private fun EventsTab() {
         }
     }
 
-    // Event detail bottom sheet
     selectedEvent?.let { event ->
         EventDetailSheet(
             event = event,
             isRegistered = event.eid in registeredEvents,
             onDismiss = { selectedEvent = null },
-            onRegister = {
-                registeredEvents = registeredEvents + event.eid
-            }
+            onRegister = { registeredEvents = registeredEvents + event.eid }
         )
     }
 }
 
+@Composable
+private fun LoadingState() {
+    val colors = AmazeTheme.colors
+    Box(modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            CircularProgressIndicator(color = colors.accent, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+            Text("Loading events...", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
+        }
+    }
+}
+
+@Composable
+private fun EmptyState() {
+    val colors = AmazeTheme.colors
+    Box(modifier = Modifier.fillMaxWidth().heightIn(min = 300.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Rounded.EventBusy, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+            Text("No events available", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
+            Text("Check back later or sync from the header", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+        }
+    }
+}
+
+@Composable
+private fun CategoryFilter(categories: List<String>, selectedCategory: String, onSelect: (String) -> Unit) {
+    val colors = AmazeTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        categories.forEach { cat ->
+            val sel = selectedCategory == cat
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                    .background(if (sel) colors.accent else colors.surface)
+                    .border(1.dp, if (sel) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
+                    .clickable { onSelect(cat) }
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                Text(cat, color = if (sel) Color.White else colors.textSecondary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
+            }
+        }
+    }
+    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
+}
+
 // ═══════════════════════════════════════════
-//  Event Cards
+//  Event Image Loader
+// ═══════════════════════════════════════════
+
+@Composable
+private fun EventImage(
+    url: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+    onLoading: @Composable () -> Unit = {},
+    onFailure: @Composable () -> Unit = {}
+) {
+    var bitmap by remember(url) { mutableStateOf<ImageBitmap?>(null) }
+    var isLoading by remember(url) { mutableStateOf(true) }
+
+    LaunchedEffect(url) {
+        isLoading = true
+        bitmap = null
+        val bytes = AmazeClient.getImageBytes(url)
+        bitmap = bytes?.toImageBitmap()
+        isLoading = false
+    }
+
+    if (isLoading) {
+        onLoading()
+    } else {
+        val bm = bitmap
+        if (bm != null) {
+            Image(
+                bitmap = bm,
+                contentDescription = contentDescription,
+                modifier = modifier,
+                contentScale = contentScale
+            )
+        } else {
+            onFailure()
+        }
+    }
+}
+
+@Composable
+private fun Base64EventImage(
+    imageSrc: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+    onLoading: @Composable () -> Unit = {},
+    onFailure: @Composable () -> Unit = {}
+) {
+    val bitmap = remember(imageSrc) {
+        val base64 = imageSrc.substringAfter("base64,")
+        val bytes = try { base64.decodeBase64Bytes() } catch (e: Exception) { null }
+        bytes?.toImageBitmap()
+    }
+
+    if (bitmap != null) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = contentScale
+        )
+    } else {
+        onFailure()
+    }
+}
+
+// ═══════════════════════════════════════════
+//  Featured Event Card
 // ═══════════════════════════════════════════
 
 @Composable
@@ -270,67 +269,54 @@ private fun FeaturedEventCard(
     onViewDetails: () -> Unit
 ) {
     val colors = AmazeTheme.colors
-    AmazeCard(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onViewDetails),
-        backgroundColor = colors.surface
-    ) {
-        Column {
-            val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() }
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(180.dp)
-            ) {
-                val onLoading: @Composable () -> Unit = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
-                val onFailure: @Composable () -> Unit = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
-                AuthKamelImage(
-                    url = imgUrl ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
-                    contentDescription = "Featured Event Image",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                    onLoading = onLoading,
-                    onFailure = onFailure
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(12.dp)
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(Color.Black.copy(alpha = 0.6f))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(event.type, color = Color.White, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
+    Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onViewDetails)) {
+        val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() } ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
+        EventImage(
+            url = imgUrl,
+            contentDescription = "Featured Event Image",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxWidth().height(200.dp),
+            onLoading = { Box(modifier = Modifier.fillMaxWidth().height(200.dp).background(colors.accent.copy(alpha = 0.1f))) },
+            onFailure = { Box(modifier = Modifier.fillMaxWidth().height(200.dp).background(colors.accent.copy(alpha = 0.1f))) }
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth().height(200.dp)
+                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))))
+        )
+        Column(modifier = Modifier.align(Alignment.BottomStart).padding(16.dp)) {
+            Text(event.type, color = colors.accent.copy(alpha = 0.9f), style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(event.title, color = Color.White, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black))
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.CalendarToday, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(event.date, color = Color.White.copy(alpha = 0.7f), style = AmazeTheme.typography.caption.copy())
                 }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(80.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))))
-                )
-            }
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    event.title,
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = colors.textPrimary)
-                )
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
-                        Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.LocationOn, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
-                        Text(event.location, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.LocationOn, null, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(event.location, color = Color.White.copy(alpha = 0.7f), style = AmazeTheme.typography.caption.copy())
                 }
             }
         }
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd).padding(12.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(if (event.price == "Free") Color(0xFF4CAF50).copy(alpha = 0.85f) else colors.accent.copy(alpha = 0.85f))
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+            Text(event.price, color = Color.White, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp))
+        }
     }
 }
+
+// ═══════════════════════════════════════════
+//  Event Card
+// ═══════════════════════════════════════════
 
 @Composable
 private fun EventCard(
@@ -340,56 +326,157 @@ private fun EventCard(
     onRegister: () -> Unit
 ) {
     val colors = AmazeTheme.colors
-    AmazeCard(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        backgroundColor = colors.surface
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(colors.surface)
+            .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() }
+            val imgUrl = event.posterUrl?.takeIf { it.isNotEmpty() } ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
             Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                    .background(colors.accent.copy(alpha = 0.1f)),
+                modifier = Modifier.size(80.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.08f)),
                 contentAlignment = Alignment.Center
             ) {
-                val onLoading: @Composable () -> Unit = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) }
-                val onFailure: @Composable () -> Unit = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) }
-                AuthKamelImage(
-                    url = imgUrl ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
+                EventImage(
+                    url = imgUrl,
                     contentDescription = "Event Image",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
-                    onLoading = onLoading,
-                    onFailure = onFailure
+                    onLoading = { Icon(Icons.Rounded.Event, null, tint = colors.accent.copy(alpha = 0.5f), modifier = Modifier.size(28.dp)) },
+                    onFailure = { Icon(Icons.Rounded.Event, null, tint = colors.accent.copy(alpha = 0.5f), modifier = Modifier.size(28.dp)) }
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
-                Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(colors.accent.copy(alpha = 0.1f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 10.sp))
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = 11.sp))
+                }
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     event.title,
                     style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
-                    Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    Icon(Icons.Rounded.LocationOn, null, tint = colors.textMuted, modifier = Modifier.size(13.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(event.location, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            if (isRegistered) {
-                Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText, modifier = Modifier.size(28.dp))
-            } else if (false) {
-                Text("Closed", style = AmazeTheme.typography.smallLabel.copy(color = colors.dangerText, fontWeight = FontWeight.Bold))
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                if (isRegistered) {
+                    Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText, modifier = Modifier.size(28.dp))
+                    Text("Registered", style = AmazeTheme.typography.smallLabel.copy(color = colors.successText, fontWeight = FontWeight.Bold, fontSize = 9.sp))
+                } else {
+                    Text(event.price, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent, fontSize = 15.sp))
+                    if (event.eligibility.isNotEmpty()) {
+                        Text(event.eligibility, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ═══════════════════════════════════════════
+//  Zoomable Poster Viewer
+// ═══════════════════════════════════════════
+
+@Composable
+private fun ZoomablePosterViewer(
+    url: String?,
+    base64Src: String?,
+    onDismiss: () -> Unit
+) {
+    var bitmap by remember(url, base64Src) { mutableStateOf<ImageBitmap?>(null) }
+    var isLoading by remember(url, base64Src) { mutableStateOf(true) }
+
+    LaunchedEffect(url, base64Src) {
+        isLoading = true
+        bitmap = null
+        if (base64Src != null) {
+            val base64 = base64Src.substringAfter("base64,")
+            val bytes = try { base64.decodeBase64Bytes() } catch (_: Exception) { null }
+            bitmap = bytes?.toImageBitmap()
+        } else if (url != null) {
+            val bytes = AmazeClient.getImageBytes(url)
+            bitmap = bytes?.toImageBitmap()
+        }
+        isLoading = false
+    }
+
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offsetX by remember { mutableFloatStateOf(0f) }
+    var offsetY by remember { mutableFloatStateOf(0f) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.95f))
+            .clipToBounds()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = { onDismiss() },
+                    onDoubleTap = {
+                        if (scale > 1.5f) {
+                            scale = 1f
+                            offsetX = 0f
+                            offsetY = 0f
+                        } else {
+                            scale = 3f
+                        }
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    scale = (scale * zoom).coerceIn(1f, 5f)
+                    offsetX += pan.x
+                    offsetY += pan.y
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(36.dp))
+        } else {
+            val bm = bitmap
+            if (bm != null) {
+                Image(
+                    bitmap = bm,
+                    contentDescription = "Event Poster",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = offsetX
+                            translationY = offsetY
+                        },
+                    contentScale = ContentScale.Fit
+                )
             } else {
-                Text(event.price, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Rounded.ImageNotSupported, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Poster unavailable", color = Color.White.copy(alpha = 0.5f))
+                }
             }
         }
     }
@@ -409,16 +496,16 @@ private fun EventDetailSheet(
 ) {
     val colors = AmazeTheme.colors
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    var previewData by remember { mutableStateOf<com.amazecc.app.shared.model.EventHubPreview?>(null) }
+    var previewData by remember { mutableStateOf<EventHubPreview?>(null) }
     var isLoadingPreview by remember { mutableStateOf(true) }
-    var registrationRes by remember { mutableStateOf<com.amazecc.app.shared.model.EventHubRegisterRes?>(null) }
+    var registrationRes by remember { mutableStateOf<EventHubRegisterRes?>(null) }
     var isRegistering by remember { mutableStateOf(false) }
+    var showPosterViewer by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(event.eid) {
         isLoadingPreview = true
-        previewData = com.amazecc.app.shared.api.AmazeClient.getEventPreview(event.eid)
+        previewData = AmazeClient.getEventPreview(event.eid)
         isLoadingPreview = false
     }
 
@@ -428,222 +515,311 @@ private fun EventDetailSheet(
         containerColor = colors.surface,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 88.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Handle bar
-            Box(
+        // Extract poster sources once for use in both the column and viewer overlay
+        val posterBase64Src = previewData?.imageSrc?.takeIf { it.isNotEmpty() }
+        val posterImgUrl = event.posterUrl?.takeIf { it.isNotEmpty() }
+        val fallbackImgUrl = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                    .background(colors.border)
-                    .align(Alignment.CenterHorizontally)
-            )
-
-            // Poster image
-            val base64Src = previewData?.imageSrc?.takeIf { it.isNotEmpty() }
-            val posterUrl = event.posterUrl?.takeIf { it.isNotEmpty() }
-            val eventHubImageUrl = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
-
-            val imageModifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp)
-                .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                .background(colors.border.copy(alpha = 0.5f))
-            val loadingContent: @Composable () -> Unit = {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(24.dp))
-                }
-            }
-            val failureContent: @Composable () -> Unit = {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.ImageNotSupported, null, tint = colors.textMuted)
-                }
-            }
-
-            if (base64Src != null) {
-                Base64Image(
-                    imageSrc = base64Src,
-                    contentDescription = "Event Poster",
-                    modifier = imageModifier,
-                    contentScale = ContentScale.Crop,
-                    onLoading = loadingContent,
-                    onFailure = failureContent
-                )
-            } else if (posterUrl != null) {
-                AuthKamelImage(
-                    url = posterUrl,
-                    contentDescription = "Event Poster",
-                    modifier = imageModifier,
-                    contentScale = ContentScale.Crop,
-                    onLoading = loadingContent,
-                    onFailure = failureContent
-                )
-            } else {
-                AuthKamelImage(
-                    url = eventHubImageUrl,
-                    contentDescription = "Event Poster",
-                    modifier = imageModifier,
-                    contentScale = ContentScale.Crop,
-                    onLoading = loadingContent,
-                    onFailure = failureContent
-                )
-            }
-
-            // Title & type
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 88.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        event.title,
-                        style = AmazeTheme.typography.subheading.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = colors.textPrimary,
-                            fontSize = 22.sp
-                        )
-                    )
-                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
-                    Badge(
-                        containerColor = colors.accent.copy(alpha = 0.12f),
-                        contentColor = colors.accent
-                    ) {
-                        Text(event.type, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-                if (event.price != "Free") {
-                    Text(
-                        event.price,
-                        style = AmazeTheme.typography.subheading.copy(
-                            fontWeight = FontWeight.Black,
-                            color = colors.accent,
-                            fontSize = 20.sp
-                        )
-                    )
-                }
-            }
+                // ── Poster Image ──
 
-            HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
-
-            // Details
-            DetailRow(Icons.Rounded.CalendarToday, "Date", event.date)
-            if (event.time != null) DetailRow(Icons.Rounded.Schedule, "Time", event.time)
-            DetailRow(Icons.Rounded.LocationOn, "Location", event.location)
-            DetailRow(Icons.Rounded.People, "Eligibility", event.eligibility)
-
-            if (false) {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                        .background(colors.warning.copy(alpha = 0.1f))
-                        .padding(12.dp)
+                        .fillMaxWidth().height(240.dp)
+                        .background(colors.accent.copy(alpha = 0.06f))
+                        .clickable { showPosterViewer = true }
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Info, null, tint = colors.warning, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                        Text(
-                            "This event has already passed.",
-                            style = AmazeTheme.typography.caption.copy(color = colors.warning, fontWeight = FontWeight.Medium)
-                        )
+                val loadingContent: @Composable () -> Unit = {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(28.dp))
                     }
                 }
-            }
-
-            // Register button
-            if (registrationRes != null) {
-                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-                    Text(
-                        text = registrationRes?.message ?: "Event Registration Initiated (Status: ${registrationRes?.status})",
-                        color = colors.accent,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                    )
-                    val regUrl = registrationRes?.url
-                    if (regUrl != null) {
-                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                        Button(
-                            onClick = { uriHandler.openUri(regUrl) },
-                            modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(AmazeTheme.radius.small),
-                            colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
-                        ) {
-                            Text("Open Payment Gateway", fontWeight = FontWeight.Bold)
+                val failureContent: @Composable () -> Unit = {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.ImageNotSupported, null, tint = colors.textMuted.copy(alpha = 0.4f), modifier = Modifier.size(48.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Poster unavailable", style = AmazeTheme.typography.caption.copy(color = colors.textMuted.copy(alpha = 0.5f)))
                         }
                     }
                 }
+
+                if (posterBase64Src != null) {
+                    Base64EventImage(
+                        imageSrc = posterBase64Src,
+                        contentDescription = "Event Poster",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
+                        onLoading = loadingContent,
+                        onFailure = failureContent
+                    )
+                } else if (posterImgUrl != null) {
+                    EventImage(
+                        url = posterImgUrl,
+                        contentDescription = "Event Poster",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
+                        onLoading = loadingContent,
+                        onFailure = failureContent
+                    )
+                } else {
+                    EventImage(
+                        url = fallbackImgUrl,
+                        contentDescription = "Event Poster",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Fit,
+                        onLoading = loadingContent,
+                        onFailure = failureContent
+                    )
+                }
+
+                // Gradient overlay at bottom for readability
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth().height(80.dp).align(Alignment.BottomCenter)
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, colors.surface)))
+                )
+            }
+
+            // ── Event Info Section ──
+            Column(modifier = Modifier.padding(horizontal = 24.dp).padding(top = 16.dp)) {
+                // Title row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            event.title,
+                            style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 22.sp)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(colors.accent.copy(alpha = 0.1f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(event.type, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = colors.accent)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(
+                                        if (event.price == "Free") Color(0xFF4CAF50).copy(alpha = 0.1f)
+                                        else colors.accent.copy(alpha = 0.1f)
+                                    )
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    event.price,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = if (event.price == "Free") Color(0xFF4CAF50) else colors.accent
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ── Meta Details ──
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    MetaRow(Icons.Rounded.CalendarToday, "Date", event.date)
+                    if (event.time != null) MetaRow(Icons.Rounded.Schedule, "Time", event.time)
+                    MetaRow(Icons.Rounded.LocationOn, "Venue", event.location)
+                    MetaRow(Icons.Rounded.People, "Eligibility", event.eligibility)
+                }
+
+                // ── Preview description ──
+                if (previewData?.description?.isNotEmpty() == true) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("About", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        previewData?.description ?: "",
+                        style = AmazeTheme.typography.body.copy(color = colors.textSecondary, lineHeight = 22.sp)
+                    )
+                }
+
+                // ── Preview extra details ──
+                previewData?.metaDetails?.let { details ->
+                    if (details.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(12.dp))
+                        details.filterKeys { it != "Event Description" }.forEach { (label, value) ->
+                            DetailRow(label, value)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            // ── Register Button ──
+            if (registrationRes != null) {
+                RegistrationResult(registrationRes!!, colors)
+            } else if (isRegistered) {
+                RegisteredButton(colors)
             } else {
-                Button(
+                RegisterButton(
+                    isLoading = isRegistering,
+                    colors = colors,
                     onClick = {
                         isRegistering = true
                         scope.launch {
-                            val res = com.amazecc.app.shared.api.AmazeClient.registerForEvent(event.eid)
+                            val res = AmazeClient.registerForEvent(event.eid)
                             if (res != null) {
                                 registrationRes = res
                                 onRegister()
                             }
                             isRegistering = false
                         }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp),
-                    shape = RoundedCornerShape(AmazeTheme.radius.medium),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isRegistered) colors.success else colors.accent,
-                        disabledContainerColor = colors.border
-                    ),
-                    enabled = !isRegistered && !isRegistering
-                ) {
-                    if (isRegistering) {
-                        CircularProgressIndicator(color = colors.background, modifier = Modifier.size(20.dp))
-                    } else {
-                        Icon(
-                            if (isRegistered) Icons.Rounded.CheckCircle else Icons.Rounded.HowToReg,
-                            null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                        Text(
-                            if (isRegistered) "Registered" else "Register Now",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
                     }
-                }
+                )
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        if (showPosterViewer) {
+            ZoomablePosterViewer(
+                url = posterImgUrl ?: fallbackImgUrl,
+                base64Src = posterBase64Src,
+                onDismiss = { showPosterViewer = false }
+            )
+        }
+    }
+    }
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    val colors = AmazeTheme.colors
+    Row(verticalAlignment = Alignment.Top, modifier = Modifier.fillMaxWidth()) {
+        Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontWeight = FontWeight.Medium), modifier = Modifier.width(120.dp))
+        Text(value, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium))
+    }
+}
+
+@Composable
+private fun MetaRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+    val colors = AmazeTheme.colors
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.08f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 11.sp))
+            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary, fontSize = 14.sp))
         }
     }
 }
 
 @Composable
-private fun DetailRow(icon: ImageVector, label: String, value: String) {
-    val colors = AmazeTheme.colors
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
+private fun RegisterButton(isLoading: Boolean, colors: com.amazecc.app.shared.theme.AmazeColors, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(52.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
     ) {
+        if (isLoading) {
+            CircularProgressIndicator(color = colors.background, modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+        } else {
+            Icon(Icons.Rounded.HowToReg, null, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Register Now", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        }
+    }
+}
+
+@Composable
+private fun RegisteredButton(colors: com.amazecc.app.shared.theme.AmazeColors) {
+    Button(
+        onClick = {},
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).height(52.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = colors.successText, disabledContainerColor = colors.successText),
+        enabled = false
+    ) {
+        Icon(Icons.Rounded.CheckCircle, null, modifier = Modifier.size(20.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("Registered", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+    }
+}
+
+@Composable
+private fun RegistrationResult(res: EventHubRegisterRes, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp)) {
         Box(
             modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                .background(colors.accent.copy(alpha = 0.08f)),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    when (res.status) {
+                        "success", "already_registered" -> Color(0xFF4CAF50).copy(alpha = 0.1f)
+                        "payment_required", "payment_form" -> colors.warning.copy(alpha = 0.1f)
+                        else -> colors.danger.copy(alpha = 0.1f)
+                    }
+                )
+                .padding(14.dp)
         ) {
-            Icon(icon, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = when (res.status) {
+                        "success", "already_registered" -> Icons.Rounded.CheckCircle
+                        "payment_required", "payment_form" -> Icons.Rounded.Payment
+                        else -> Icons.Rounded.Error
+                    },
+                    contentDescription = null,
+                    tint = when (res.status) {
+                        "success", "already_registered" -> Color(0xFF4CAF50)
+                        "payment_required", "payment_form" -> colors.warning
+                        else -> colors.danger
+                    },
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    res.message ?: "Status: ${res.status}",
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary)
+                )
+            }
         }
-        Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
-        Column {
-            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary))
+
+        val regUrl = res.url
+        if (regUrl != null) {
+            Spacer(modifier = Modifier.height(12.dp))
+            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+            Button(
+                onClick = { uriHandler.openUri(regUrl) },
+                modifier = Modifier.fillMaxWidth().height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
+            ) {
+                Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Open Payment Gateway", fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
