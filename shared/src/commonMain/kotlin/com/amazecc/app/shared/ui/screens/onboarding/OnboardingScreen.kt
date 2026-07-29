@@ -29,7 +29,9 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.animateColorAsState
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.AttendanceDisplayMode
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -121,20 +123,20 @@ fun OnboardingScreen() {
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.small))
                                 .background(colors.accent.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(pages[page].icon, null, tint = colors.accent, modifier = Modifier.size(24.dp))
                         }
-                        Spacer(Modifier.width(14.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.md))
                         Column {
                             Text(pages[page].title, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text(pages[page].subtitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                         }
                     }
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     pages.indices.forEach { i ->
                         val isSelected = i == currentPage
@@ -144,7 +146,7 @@ fun OnboardingScreen() {
                         Box(
                             modifier = Modifier
                                 .size(width, 8.dp)
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(color)
                         )
                     }
@@ -227,31 +229,31 @@ private fun WelcomePage(colors: com.amazecc.app.shared.theme.AmazeColors, syncSt
         modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.md))
         Box(
             modifier = Modifier.size(100.dp).clip(RoundedCornerShape(AmazeTheme.radius.extraLarge)).background(colors.accent.copy(alpha = 0.1f)),
             contentAlignment = Alignment.Center
         ) { Icon(Icons.Rounded.AutoAwesome, null, tint = colors.accent, modifier = Modifier.size(52.dp)) }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
         Text("We're setting up everything\nfor you in the background", style = AmazeTheme.typography.body.copy(color = colors.textSecondary), textAlign = TextAlign.Center, lineHeight = 24.sp)
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
         AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
             Column(modifier = Modifier.padding(AmazeTheme.spacing.lg)) {
                 Text("Sync Progress", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.md))
                 val doneCount = syncSteps.count { it.status == "done" }
                 val total = syncSteps.size
                 val progress = if (total > 0) doneCount.toFloat() / total else 0f
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)), color = colors.accent, trackColor = colors.border)
-                Spacer(Modifier.height(4.dp))
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)), color = colors.accent, trackColor = colors.border)
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
                 Text("$doneCount of $total modules synced", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.md))
                 syncSteps.forEach { step ->
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                         val icon = when (step.status) { "done" -> Icons.Rounded.CheckCircle; "failed" -> Icons.Rounded.Error; "syncing" -> Icons.Rounded.Sync; else -> Icons.Rounded.RadioButtonUnchecked }
                         val iconColor = when (step.status) { "done" -> colors.chart1; "failed" -> colors.chart5; "syncing" -> colors.accent; else -> colors.border }
                         Icon(icon, null, tint = iconColor, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Text(step.name, style = AmazeTheme.typography.smallLabel.copy(color = if (step.status == "pending") colors.textMuted else colors.textPrimary))
                         if (step.status == "syncing") { Spacer(Modifier.weight(1f)); Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(colors.accent)) }
                     }
@@ -269,14 +271,14 @@ private fun PersonalizationPage(
     selectedAccent: AccentTheme, onAccentChange: (AccentTheme) -> Unit,
     uiScale: Float, onUiScaleChange: (Float) -> Unit,
     cgpaHidden: Boolean, onCgpaHiddenChange: (Boolean) -> Unit,
-    attendanceMode: String, onAttendanceModeChange: (String) -> Unit
+    attendanceMode: AttendanceDisplayMode, onAttendanceModeChange: (AttendanceDisplayMode) -> Unit
 ) {
     val scrollState = rememberScrollState()
     Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
         Text("Theme", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             listOf(AppTheme.LIGHT to Icons.Rounded.LightMode, AppTheme.DARK to Icons.Rounded.DarkMode, AppTheme.SYSTEM to Icons.Rounded.BrightnessAuto).forEach { (theme, icon) ->
                 val isSelected = selectedTheme == theme
@@ -290,18 +292,18 @@ private fun PersonalizationPage(
                         modifier = Modifier.fillMaxWidth().padding(vertical = AmazeTheme.spacing.md)
                     ) {
                         Icon(icon, null, tint = if (isSelected) Color.White else colors.textSecondary, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
                         Text(theme.name, color = if (isSelected) Color.White else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
         Text("Accent Color", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOf(AccentTheme.OCEAN to Color(0xFF0EA5E9), AccentTheme.FOREST to Color(0xFF10B981), AccentTheme.LAVENDER to Color(0xFF8B5CF6), AccentTheme.SUNSET to Color(0xFFF97316)).forEach { (accent, accentColor) ->
+            listOf(AccentTheme.OCEAN to colors.accent, AccentTheme.FOREST to colors.success, AccentTheme.LAVENDER to colors.info, AccentTheme.SUNSET to colors.chart1).forEach { (accent, accentColor) ->
                 val isSelected = selectedAccent == accent
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onAccentChange(accent); AppState.changeAccent(accent) }) {
                     Box(
@@ -310,15 +312,15 @@ private fun PersonalizationPage(
                     ) {
                         if (isSelected) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
                     }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
                     Text(accent.name, style = AmazeTheme.typography.smallLabel.copy(color = if (isSelected) colors.textPrimary else colors.textSecondary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal))
                 }
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
         Text("UI Scale", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(0.85f to "Small", 1.0f to "Default", 1.15f to "Large").forEach { (scale, label) ->
                 val isSelected = uiScale == scale
@@ -331,25 +333,25 @@ private fun PersonalizationPage(
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
         Text("Display", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
             Column {
                 Row(modifier = Modifier.fillMaxWidth().clickable { onCgpaHiddenChange(!cgpaHidden) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(if (cgpaHidden) colors.chart5.copy(alpha = 0.12f) else colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) { Icon(if (cgpaHidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, null, tint = if (cgpaHidden) colors.chart5 else colors.accent, modifier = Modifier.size(18.dp)) }
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.md))
                     Column(modifier = Modifier.weight(1f)) { Text("Hide CGPA", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary)); Text("Keep your CGPA private on dashboard", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)) }
                     Switch(checked = cgpaHidden, onCheckedChange = onCgpaHiddenChange, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = Color.White))
                 }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = colors.border)
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.Percent, null, tint = colors.accent, modifier = Modifier.size(18.dp)) }
-                    Spacer(Modifier.width(16.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.md))
                     Text("Attendance Display", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary), modifier = Modifier.weight(1f))
                 }
                 Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("percentage" to "Percentage", "fraction" to "Fraction").forEach { (mode, label) ->
+                    listOf(AttendanceDisplayMode.PERCENTAGE to "Percentage", AttendanceDisplayMode.FRACTION to "Fraction").forEach { (mode, label) ->
                         val isSelected = attendanceMode == mode
                         AmazeButton(
                             text = label,
@@ -375,11 +377,11 @@ private fun ResidentialNotifPage(
 ) {
     val scrollState = rememberScrollState()
     Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         Text("Residential Status", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.xs))
         Text("Helps us show relevant campus info", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             listOf("hosteller" to Icons.Rounded.Apartment, "dayscholar" to Icons.Rounded.Home, "unknown" to Icons.AutoMirrored.Rounded.HelpOutline).forEach { (status, icon) ->
                 val isSelected = residentialStatus == status
@@ -393,11 +395,11 @@ private fun ResidentialNotifPage(
             }
         }
 
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
         Text("Notification Preferences", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.xs))
         Text("We'll remind you so you never miss out", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
             Column(modifier = Modifier.padding(4.dp)) {
                 ToggleRow("Class Reminders", "Notify before each class starts", Icons.Rounded.Schedule, classNotif, onClassNotifChange, colors)
@@ -406,9 +408,9 @@ private fun ResidentialNotifPage(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.md))
         Text("Remind me before class", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(5, 10, 15, 30, 60).forEach { preset ->
                 val isSelected = offsetMinutes == preset
@@ -432,11 +434,11 @@ private fun ModulesPage(
 ) {
     val scrollState = rememberScrollState()
     Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         Text("Pin your favorite modules", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.xs))
         Text("These appear in your bottom nav bar (max 4)", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.md))
 
         val moduleIcons = mapOf(
             Screen.ATTENDANCE to Icons.Rounded.TaskAlt, Screen.ACADEMICS to Icons.AutoMirrored.Rounded.MenuBook,
@@ -463,15 +465,15 @@ private fun ModulesPage(
                             modifier = Modifier.fillMaxWidth().padding(16.dp)
                         ) {
                             Icon(icon, null, tint = if (isSelected) Color.White else colors.textSecondary, modifier = Modifier.size(28.dp))
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
                             Text(module.name.lowercase().replaceFirstChar { it.uppercase() }, color = if (isSelected) Color.White else colors.textSecondary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
-                            if (isSelected) { Spacer(Modifier.height(4.dp)); Icon(Icons.Rounded.CheckCircle, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
+                            if (isSelected) { Spacer(Modifier.height(AmazeTheme.spacing.xs)); Icon(Icons.Rounded.CheckCircle, null, tint = Color.White, modifier = Modifier.size(14.dp)) }
                         }
                     }
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
         }
     }
 }
@@ -495,27 +497,27 @@ private fun AccountsPage(
     var libError by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         Text("Link Your Accounts", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.xs))
         Text("Optional — you can always set these up later in Settings", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
 
         // Moodle
         AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.chart2.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.chart2, modifier = Modifier.size(20.dp)) }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                     Column(modifier = Modifier.weight(1f)) { Text("Moodle", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)); Text("Course materials & assignments", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)) }
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.md))
                 if (!moodleLinked) {
                     AmazeTextField(value = moodleUser, onValueChange = onMoodleUserChange, label = "Username", placeholder = "", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     AmazeTextField(value = moodlePass, onValueChange = onMoodlePassChange, label = "Password", placeholder = "", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(16.dp))
-                    val me = moodleError; if (me != null) { Spacer(Modifier.height(4.dp)); Text(me, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
+                    Spacer(Modifier.height(AmazeTheme.spacing.md))
+                    val me = moodleError; if (me != null) { Spacer(Modifier.height(AmazeTheme.spacing.xs)); Text(me, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         AmazeButton(text = "Skip", onClick = { onMoodleUserChange(""); onMoodlePassChange("") }, enabled = !moodleLoading, variant = ButtonVariant.GHOST)
                         if (moodleLoading) {
@@ -535,7 +537,7 @@ private fun AccountsPage(
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.CheckCircle, null, tint = colors.chart1, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Text("Moodle linked", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart1, fontWeight = FontWeight.SemiBold))
                         Spacer(Modifier.weight(1f))
                         TextButton(onClick = { moodleLinked = false; moodleError = null }) { Text("Unlink", style = AmazeTheme.typography.smallLabel.copy(color = colors.dangerText)) }
@@ -544,23 +546,23 @@ private fun AccountsPage(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.md))
 
         // Library
         AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.chart4.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.LocalLibrary, null, tint = colors.chart4, modifier = Modifier.size(20.dp)) }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                     Column(modifier = Modifier.weight(1f)) { Text("Library", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)); Text("Borrowed books & due dates", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)) }
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.md))
                 if (!libLinked) {
                     AmazeTextField(value = libUser, onValueChange = onLibUserChange, label = "Library ID", placeholder = "", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     AmazeTextField(value = libPass, onValueChange = onLibPassChange, label = "Password", placeholder = "", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(16.dp))
-                    val le = libError; if (le != null) { Spacer(Modifier.height(4.dp)); Text(le, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
+                    Spacer(Modifier.height(AmazeTheme.spacing.md))
+                    val le = libError; if (le != null) { Spacer(Modifier.height(AmazeTheme.spacing.xs)); Text(le, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         AmazeButton(text = "Skip", onClick = { onLibUserChange(""); onLibPassChange("") }, enabled = !libLoading, variant = ButtonVariant.GHOST)
                         if (libLoading) {
@@ -580,7 +582,7 @@ private fun AccountsPage(
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.CheckCircle, null, tint = colors.chart1, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Text("Library linked", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart1, fontWeight = FontWeight.SemiBold))
                         Spacer(Modifier.weight(1f))
                         TextButton(onClick = { libLinked = false; libError = null }) { Text("Unlink", style = AmazeTheme.typography.smallLabel.copy(color = colors.dangerText)) }
@@ -599,17 +601,17 @@ private fun CompletionPage(colors: com.amazecc.app.shared.theme.AmazeColors, syn
         modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
         Box(modifier = Modifier.size(96.dp).clip(RoundedCornerShape(AmazeTheme.radius.large)).background(colors.chart1.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.CheckCircle, null, tint = colors.chart1, modifier = Modifier.size(52.dp)) }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
         Text("You're all set!", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Black, color = colors.textPrimary))
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         Text("Your preferences have been saved.\nTap Get Started to dive in!", style = AmazeTheme.typography.body.copy(color = colors.textSecondary), textAlign = TextAlign.Center, lineHeight = 24.sp)
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
         AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text("Sync Summary", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 val doneCount = syncSteps.count { it.status == "done" }
                 val failedCount = syncSteps.count { it.status == "failed" }
                 val activeCount = syncSteps.count { it.status == "syncing" }
@@ -619,15 +621,16 @@ private fun CompletionPage(colors: com.amazecc.app.shared.theme.AmazeColors, syn
                     SyncStat("In Progress", "$activeCount", colors.accent, colors)
                 }
                 if (syncSteps.isNotEmpty()) {
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.md))
                     syncSteps.forEach { step ->
                         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                             val dotColor = when (step.status) { "done" -> colors.chart1; "failed" -> colors.chart5; "syncing" -> colors.accent; else -> colors.border }
                             Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(dotColor))
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
                             Text(step.name, style = AmazeTheme.typography.smallLabel.copy(color = colors.textPrimary))
                             Spacer(Modifier.weight(1f))
-                            val (label, labelColor) = when (step.status) { "done" -> "Synced" to colors.chart1; "failed" -> "Failed" to colors.chart5; "syncing" -> "Loading..." to colors.accent; else -> "Pending" to colors.textMuted }
+                            val label = when (step.status) { "done" -> "Synced"; "failed" -> "Failed"; "syncing" -> Strings.loading; else -> "Pending" }
+                            val labelColor = when (step.status) { "done" -> colors.chart1; "failed" -> colors.chart5; "syncing" -> colors.accent; else -> colors.textMuted }
                             Text(label, style = AmazeTheme.typography.smallLabel.copy(color = labelColor, fontWeight = FontWeight.SemiBold))
                         }
                     }
@@ -648,8 +651,8 @@ private fun ToggleRow(title: String, subtitle: String, icon: ImageVector, checke
         onCheckedChange(newChecked)
     }
     Row(modifier = Modifier.fillMaxWidth().clickable { handleToggle(!checked) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(if (checked) colors.chart5.copy(alpha = 0.12f) else colors.accent.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = if (checked) colors.chart5 else colors.accent, modifier = Modifier.size(18.dp)) }
-        Spacer(Modifier.width(12.dp))
+        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(if (checked) colors.chart5.copy(alpha = 0.12f) else colors.accent.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) { Icon(icon, null, tint = if (checked) colors.chart5 else colors.accent, modifier = Modifier.size(18.dp)) }
+        Spacer(Modifier.width(AmazeTheme.spacing.sm))
         Column(modifier = Modifier.weight(1f)) { Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary)); Text(subtitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)) }
         Switch(checked = checked, onCheckedChange = handleToggle, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = Color.White))
     }
@@ -658,7 +661,7 @@ private fun ToggleRow(title: String, subtitle: String, icon: ImageVector, checke
 @Composable
 private fun SyncStat(label: String, value: String, valueColor: Color, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = valueColor, fontSize = 24.sp))
+        Text(value, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = valueColor))
         Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
     }
 }

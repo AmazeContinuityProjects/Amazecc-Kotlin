@@ -10,7 +10,7 @@ import kotlinx.coroutines.launch
 
 object FfcsViewModel {
 
-    private val scope = CoroutineScope(Dispatchers.Main)
+    private val scope = CoroutineScope(Dispatchers.Default)
 
     private val _allCourses = MutableStateFlow<List<ParsedCourse>>(emptyList())
     val allCourses: StateFlow<List<ParsedCourse>> = _allCourses

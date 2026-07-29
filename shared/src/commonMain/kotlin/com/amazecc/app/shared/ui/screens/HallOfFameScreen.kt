@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
 
@@ -44,7 +45,7 @@ fun HallOfFameScreen() {
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(16.dp),
-            contentPadding = PaddingValues(bottom = 88.dp),
+            contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(contributors.size) { index ->
@@ -63,13 +64,13 @@ fun HallOfFameScreen() {
                                 style = AmazeTheme.typography.heading.copy(color = colors.accent, fontWeight = FontWeight.Bold)
                             )
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                         Column {
                             Text(
                                 text = contributor.first,
                                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                             Text(
                                 text = contributor.second,
                                 style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)

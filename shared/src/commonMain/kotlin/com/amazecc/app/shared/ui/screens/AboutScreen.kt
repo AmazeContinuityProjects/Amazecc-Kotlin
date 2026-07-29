@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.strings.Strings
 
 @Composable
 fun AboutScreen() {
@@ -32,19 +33,19 @@ fun AboutScreen() {
     )
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(title = "About", description = "AmazeCC v2.0.0", showBackButton = true)
+        ScreenHeader(title = Strings.about, description = "AmazeCC v2.0.0", showBackButton = true)
 
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
             item {
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                         Box(modifier = Modifier.size(64.dp).clip(CircleShape).background(colors.accent), contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.Insights, null, tint = androidx.compose.ui.graphics.Color.White, modifier = Modifier.size(32.dp))
                         }
-                        Spacer(Modifier.height(12.dp))
-                        Text("AmazeCC", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 24.sp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                        Text("AmazeCC", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                         Text("Version 2.0.0", style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Your all-in-one student companion for VIT. Track attendance, manage academics, explore campus life, and stay connected.", style = AmazeTheme.typography.body.copy(color = colors.textSecondary, textAlign = TextAlign.Center, lineHeight = 20.sp))
                     }
                 }
@@ -58,7 +59,7 @@ fun AboutScreen() {
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Column {
                         Text("Credits", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Developed by the AmazeCC Team", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
                         Text("Built with Kotlin Multiplatform & Compose", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
                         Text("Powered by VTOP API", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))

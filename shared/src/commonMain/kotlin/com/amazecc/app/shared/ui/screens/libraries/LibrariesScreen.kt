@@ -32,6 +32,7 @@ import com.amazecc.app.shared.model.BookItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.ui.components.AmazeCard
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -146,7 +147,7 @@ private fun LibraryLoginDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
+                .clip(RoundedCornerShape(AmazeTheme.radius.large))
                 .background(colors.surface)
                 .padding(24.dp)
         ) {
@@ -155,20 +156,20 @@ private fun LibraryLoginDialog(
                     modifier = Modifier.size(64.dp).clip(CircleShape).background(colors.chart2.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null, tint = colors.chart2, modifier = Modifier.size(32.dp)) }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 Text("Library Login", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Text("Enter your library credentials to access issued books and search the catalog.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, textAlign = TextAlign.Center))
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
 
                 OutlinedTextField(
                     value = username, onValueChange = { username = it },
                     label = { Text("Library ID") }, placeholder = { Text("Enter your library ID") },
                     leadingIcon = { Icon(Icons.Rounded.Person, null, tint = colors.textMuted) },
-                    singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, shape = RoundedCornerShape(AmazeTheme.radius.small), modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
                 OutlinedTextField(
                     value = password, onValueChange = { password = it },
@@ -178,26 +179,26 @@ private fun LibraryLoginDialog(
                         IconButton(onClick = { showPassword = !showPassword }) { Icon(if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, null, tint = colors.textMuted) }
                     },
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                    singleLine = true, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, shape = RoundedCornerShape(AmazeTheme.radius.small), modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent)
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Text("Your credentials are stored locally and only used to access your library account.", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, textAlign = TextAlign.Center))
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
 
                 Button(
                     onClick = { isLoggingIn = true; onLogin(username, password) },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(AmazeTheme.radius.small),
                     colors = ButtonDefaults.buttonColors(containerColor = colors.accent, disabledContainerColor = colors.border),
                     enabled = username.isNotBlank() && password.isNotBlank() && !isLoggingIn
                 ) {
                     if (isLoggingIn) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        Text("Login", fontWeight = FontWeight.Bold)
+                        Text(Strings.login, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -221,15 +222,15 @@ private fun IssuedBooksContent(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 Text("Library Login Required", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Text("Sign in with your library credentials to view issued books.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, textAlign = TextAlign.Center), modifier = Modifier.padding(horizontal = 40.dp))
-                Spacer(modifier = Modifier.height(20.dp))
-                Button(onClick = onRequestLogin, shape = RoundedCornerShape(14.dp), colors = ButtonDefaults.buttonColors(containerColor = colors.accent)) {
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
+                Button(onClick = onRequestLogin, shape = RoundedCornerShape(AmazeTheme.radius.small), colors = ButtonDefaults.buttonColors(containerColor = colors.accent)) {
                     Icon(Icons.AutoMirrored.Rounded.Login, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Sign In", fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
+                    Text(Strings.signIn, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -240,7 +241,7 @@ private fun IssuedBooksContent(
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Rounded.Book, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 Text("No books issued", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
                 Text("You have no books currently checked out.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
             }
@@ -276,10 +277,10 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.Top) {
                 Box(
-                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(cardColor.copy(alpha = 0.12f)),
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(cardColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) { Icon(Icons.Rounded.Book, null, tint = cardColor, modifier = Modifier.size(24.dp)) }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(book.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 2)
                     if (book.author != null) {
@@ -288,24 +289,24 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
                 }
             }
             Box(
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(if (isOverdue) colors.chart5.copy(alpha = 0.12f) else colors.successSurface).padding(horizontal = 10.dp, vertical = 4.dp)
+                modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isOverdue) colors.chart5.copy(alpha = 0.12f) else colors.successSurface).padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
                 Text(if (isOverdue) "Overdue" else "Issued", color = if (isOverdue) colors.chart5 else colors.successText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.CalendarToday, null, tint = dueColor, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                     Text("Due: ${book.dueDate ?: "—"}", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold, color = dueColor))
                 }
                 if (book.fineAmount != null) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                     Text(book.fineAmount, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = if (isOverdue) colors.chart5 else colors.textSecondary))
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Text("ID: ${book.bookId}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
             }
             
@@ -322,7 +323,7 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
                     }
                 },
                 modifier = Modifier.height(36.dp),
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(AmazeTheme.radius.xs),
                 colors = ButtonDefaults.buttonColors(containerColor = cardColor),
                 contentPadding = PaddingValues(horizontal = 12.dp)
             ) {
@@ -365,7 +366,7 @@ private fun CatalogSearchContent() {
                         IconButton(onClick = { searchQuery = ""; searchResults = emptyList(); hasSearched = false; errorMessage = null }) { Icon(Icons.Rounded.Clear, null, tint = colors.textMuted) }
                     }
                 },
-                singleLine = true, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth(),
+                singleLine = true, shape = RoundedCornerShape(AmazeTheme.radius.medium), modifier = Modifier.fillMaxWidth(),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent)
             )
         }
@@ -386,17 +387,17 @@ private fun CatalogSearchContent() {
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(AmazeTheme.radius.medium),
                 colors = ButtonDefaults.buttonColors(containerColor = colors.accent, disabledContainerColor = colors.border),
                 enabled = searchQuery.isNotBlank() && !isSearching
             ) {
                 if (isSearching) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Text("Searching...", fontWeight = FontWeight.Bold)
                 } else {
                     Icon(Icons.Rounded.Search, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Text("Search Catalog", fontWeight = FontWeight.Bold)
                 }
             }
@@ -409,12 +410,12 @@ private fun CatalogSearchContent() {
         } else if (errorMessage != null) {
             item {
                 Box(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                        .background(colors.chart5.copy(alpha = 0.06f)).border(1.dp, colors.chart5.copy(alpha = 0.2f), RoundedCornerShape(16.dp)).padding(16.dp)
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                        .background(colors.chart5.copy(alpha = 0.06f)).border(1.dp, colors.chart5.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium)).padding(16.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Error, null, tint = colors.chart5, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                         Text(errorMessage ?: "An error occurred", color = colors.chart5, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
                     }
                 }
@@ -424,7 +425,7 @@ private fun CatalogSearchContent() {
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 60.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         Text("No results found", style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
                         Text("Try a different search term", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                     }
@@ -435,7 +436,7 @@ private fun CatalogSearchContent() {
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 60.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         Text("Search the library catalog", style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
                         Text("Find books by title, author, or ISBN", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                     }
@@ -460,17 +461,17 @@ private fun SearchResultCard(book: BookItem, colors: com.amazecc.app.shared.them
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.Top) {
             Box(
-                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(cardColor.copy(alpha = 0.12f)),
+                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(cardColor.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) { Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = cardColor, modifier = Modifier.size(24.dp)) }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
             Column(modifier = Modifier.weight(1f)) {
                 Text(book.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 2)
                 if (book.author != null) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(book.author, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Text("ID: ${book.bookId}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
             }
         }

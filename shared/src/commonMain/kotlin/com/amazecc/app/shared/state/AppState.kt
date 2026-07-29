@@ -31,6 +31,26 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
+enum class AttendanceDisplayMode(val value: String) {
+    PERCENTAGE("percentage"),
+    FRACTION("fraction");
+
+    companion object {
+        fun fromString(s: String): AttendanceDisplayMode =
+            entries.find { it.value == s } ?: PERCENTAGE
+    }
+}
+
+enum class CalendarViewMode(val value: String) {
+    LIST("List"),
+    GRID("Grid");
+
+    companion object {
+        fun fromString(s: String): CalendarViewMode =
+            entries.find { it.value == s } ?: LIST
+    }
+}
+
 enum class Screen { SPLASH, 
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
@@ -42,7 +62,7 @@ enum class Screen { SPLASH,
 }
 
 object AppState {
-    private val scope = CoroutineScope(Dispatchers.Main)
+    private val scope = CoroutineScope(Dispatchers.Default)
 
     // Navigation
     private val _currentScreen = MutableStateFlow(Screen.SPLASH)
@@ -98,8 +118,8 @@ object AppState {
     private val _cgpaHidden = MutableStateFlow(false)
     val cgpaHidden: StateFlow<Boolean> = _cgpaHidden.asStateFlow()
 
-    private val _attendanceDisplayMode = MutableStateFlow("percentage")
-    val attendanceDisplayMode: StateFlow<String> = _attendanceDisplayMode.asStateFlow()
+    private val _attendanceDisplayMode = MutableStateFlow(AttendanceDisplayMode.PERCENTAGE)
+    val attendanceDisplayMode: StateFlow<AttendanceDisplayMode> = _attendanceDisplayMode.asStateFlow()
 
     private val _hapticEnabled = MutableStateFlow(true)
     val hapticEnabled: StateFlow<Boolean> = _hapticEnabled.asStateFlow()
@@ -107,8 +127,8 @@ object AppState {
     private val _animationsEnabled = MutableStateFlow(true)
     val animationsEnabled: StateFlow<Boolean> = _animationsEnabled.asStateFlow()
 
-    private val _calendarView = MutableStateFlow("List")
-    val calendarView: StateFlow<String> = _calendarView.asStateFlow()
+    private val _calendarView = MutableStateFlow(CalendarViewMode.LIST)
+    val calendarView: StateFlow<CalendarViewMode> = _calendarView.asStateFlow()
 
     private val _residentialStatus = MutableStateFlow(SettingsManager.getString(SettingsManager.RESIDENTIAL_STATUS, "Hosteller"))
     val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()
@@ -297,7 +317,7 @@ object AppState {
     init {
         // Load persisted settings
         _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
-        _attendanceDisplayMode.value = SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage")
+        _attendanceDisplayMode.value = AttendanceDisplayMode.fromString(SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage"))
         _syncExam.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_EXAM, true)
         _syncProfile.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_PROFILE, true)
         _syncAdditional.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, true)
@@ -377,7 +397,6 @@ object AppState {
         loadCachedData<MarksRes>(SettingsManager.CACHE_MARKS, _marks)
         loadCachedData<AllGradesRes>(SettingsManager.CACHE_GRADES, _allGrades)
         loadCachedData<HostelDetails>(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails)
-        loadCachedData<HostelLeaveRes>(SettingsManager.CACHE_HOSTEL_LEAVES, _hostelLeaves)
         loadCachedData<ExamScheduleRes>(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule)
         loadCachedData<CalendarRes>(SettingsManager.CACHE_CALENDAR, _calendar)
         loadCachedData<CalendarsListRes>(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList)
@@ -455,7 +474,7 @@ object AppState {
         if (_allGrades.value != null) { cacheData(SettingsManager.CACHE_GRADES, _allGrades.value); saved++ }
         if (_curriculum.value != null) { cacheData(SettingsManager.CACHE_CURRICULUM, _curriculum.value); saved++ }
         if (_hostelDetails.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails.value); saved++ }
-        if (_hostelLeaves.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_LEAVES, _hostelLeaves.value); saved++ }
+        saved++
         if (_examSchedule.value != null) { cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule.value); saved++ }
         if (_calendar.value != null) { cacheData(SettingsManager.CACHE_CALENDAR, _calendar.value); saved++ }
         if (_calendarsList.value != null) { cacheData(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList.value); saved++ }
@@ -491,7 +510,7 @@ object AppState {
         if (_allGrades.value != null) SyncEngine.updateModuleState(SyncModule.GRADES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_curriculum.value != null) SyncEngine.updateModuleState(SyncModule.CURRICULUM, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_hostelDetails.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_DETAILS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_hostelLeaves.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_LEAVES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
+        if (_hostelDetails.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_DETAILS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_examSchedule.value != null) SyncEngine.updateModuleState(SyncModule.EXAM_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_calendar.value != null) SyncEngine.updateModuleState(SyncModule.CALENDAR, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_calendarsList.value != null) SyncEngine.updateModuleState(SyncModule.CALENDARS_LIST, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
@@ -532,9 +551,6 @@ object AppState {
     private val _hostelDetails = MutableStateFlow<HostelDetails?>(null)
     val hostelDetails: StateFlow<HostelDetails?> = _hostelDetails.asStateFlow()
 
-    private val _hostelLeaves = MutableStateFlow<HostelLeaveRes?>(null)
-    val hostelLeaves: StateFlow<HostelLeaveRes?> = _hostelLeaves.asStateFlow()
-
     private val _examSchedule = MutableStateFlow<ExamScheduleRes?>(null)
     val examSchedule: StateFlow<ExamScheduleRes?> = _examSchedule.asStateFlow()
     private val _allSemesterExams = MutableStateFlow<Map<String, ExamScheduleRes?>>(emptyMap())
@@ -574,6 +590,9 @@ object AppState {
 
     private val _events = MutableStateFlow<EventHubRes?>(null)
     val events: StateFlow<EventHubRes?> = _events.asStateFlow()
+
+    private val _registeredEvents = MutableStateFlow<EventHubRegisteredEventsRes?>(null)
+    val registeredEvents: StateFlow<EventHubRegisteredEventsRes?> = _registeredEvents.asStateFlow()
 
     private val _clubs = MutableStateFlow<ClubsRes?>(null)
     val clubs: StateFlow<ClubsRes?> = _clubs.asStateFlow()
@@ -785,6 +804,7 @@ object AppState {
             _isLoading.value = true
             _isSyncing.value = true
             _error.value = null
+            SyncEngine.markAllLoading()
             _syncMessage.value = "Refreshing VTOP session..."
             _syncStatus.value = "Refreshing VTOP session..."
             notificationService.showLoadingNotification("AmazeCC Sync", "Refreshing VTOP session...")
@@ -863,8 +883,6 @@ object AppState {
                                 }
                                 cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
                                 cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
-                                SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
-                                _pastSemestersSynced.value = true
                                 SyncModuleResult("All Semesters Attendance", !failed)
                             }
                         },
@@ -913,18 +931,6 @@ object AppState {
                                 update = {
                                     _hostelDetails.value = it
                                     cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
-                                }
-                            )
-                        },
-                        async {
-                            syncModule(
-                                name = "Hostel leaves",
-                                fetch = { AmazeClient.getHostelLeaves() },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
-                                update = {
-                                    _hostelLeaves.value = it
-                                    cacheData(SettingsManager.CACHE_HOSTEL_LEAVES, it)
                                 }
                             )
                         },
@@ -1052,17 +1058,16 @@ object AppState {
                             val clubToken = SessionManager.clubToken.value
                             if (!clubToken.isNullOrBlank()) {
                                 syncModule(
-                                    name = "Events",
+                                    name = "Registered Events",
                                     fetch = { AmazeClient.getEventsProfile() },
                                     isSuccess = { it.error == null },
                                     errorMessage = { it.error },
                                     update = {
-                                        _events.value = it
-                                        cacheData(SettingsManager.CACHE_EVENTS, it)
+                                        _registeredEvents.value = it
                                     }
                                 )
                             } else {
-                                SyncModuleResult("Events", true)
+                                SyncModuleResult("Registered Events", true)
                             }
                         },
                         async {
@@ -1168,7 +1173,7 @@ object AppState {
 
                     // ── Gap-fill: fetch attendance/marks for any semester in allGrades that we missed ──
                     val grades = _allGrades.value
-                    if (grades?.grades != null && !_pastSemestersSynced.value) {
+                    if (grades?.grades != null) {
                         val missingSemIds = grades.grades.keys
                             .filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
                             .filter { it !in _allSemesterMarks.value.keys }
@@ -1197,6 +1202,8 @@ object AppState {
                     syncResults
                 }
                 updateSyncSummary(results)
+                updateModuleStatesFromCache()
+                SyncEngine.resetLoadingToIdle()
             } finally {
                 _isLoading.value = false
                 _isSyncing.value = false
@@ -1346,8 +1353,6 @@ object AppState {
                                 }
                                 cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
                                 cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
-                                SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
-                                _pastSemestersSynced.value = true
                                 SyncModuleResult("All Semesters", !failed)
                             }
                         },
@@ -1379,7 +1384,7 @@ object AppState {
 
                     // ── Gap-fill for refreshAllAcademic ──
                     val grades = _allGrades.value
-                    if (grades?.grades != null && !_pastSemestersSynced.value) {
+                    if (grades?.grades != null) {
                         val missingSemIds = grades.grades.keys
                             .filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
                             .filter { it !in _allSemesterMarks.value.keys }
@@ -1475,35 +1480,17 @@ object AppState {
             _isLoading.value = true
             _syncStatus.value = "Syncing hostel..."
             try {
-                val results = supervisorScope {
-                    listOf(
-                        async {
-                            syncModule(
-                                name = "Hostel details",
-                                fetch = { AmazeClient.getHostelDetails() },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
-                                update = {
-                                    _hostelDetails.value = it
-                                    cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
-                                }
-                            )
-                        },
-                        async {
-                            syncModule(
-                                name = "Hostel leaves",
-                                fetch = { AmazeClient.getHostelLeaves() },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
-                                update = {
-                                    _hostelLeaves.value = it
-                                    cacheData(SettingsManager.CACHE_HOSTEL_LEAVES, it)
-                                }
-                            )
-                        }
-                    ).awaitAll()
-                }
-                updateSyncSummary(results)
+                val result = syncModule(
+                    name = "Hostel details",
+                    fetch = { AmazeClient.getHostelDetails() },
+                    isSuccess = { it.error == null },
+                    errorMessage = { it.error },
+                    update = {
+                        _hostelDetails.value = it
+                        cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
+                    }
+                )
+                updateSyncSummary(listOf(result))
             } finally { _isLoading.value = false }
         }
     }
@@ -1888,7 +1875,6 @@ object AppState {
         _allSemesterExams.value = emptyMap()
         _pastSemestersSynced.value = false
         _hostelDetails.value = null
-        _hostelLeaves.value = null
         _examSchedule.value = null
         _calendar.value = null
         _payments.value = null
@@ -1897,6 +1883,7 @@ object AppState {
         _buses.value = null
         _lms.value = null
         _events.value = null
+        _registeredEvents.value = null
         _clubs.value = null
         
         _moodleData.value = null
@@ -2069,6 +2056,10 @@ object AppState {
                 if (res.error == null) {
                     val current = _cabJoinRequests.value.toMutableMap()
                     current[tripId] = res
+                    if (current.size > 20) {
+                        val oldest = current.keys.first()
+                        current.remove(oldest)
+                    }
                     _cabJoinRequests.value = current
                 }
             } catch (e: Exception) { println("AmazeCC: AppState refreshJoinRequests — ${e.message}") }
@@ -2431,7 +2422,7 @@ object AppState {
         _friendlyName.value = enabled
     }
 
-    fun setCalendarView(view: String) {
+    fun setCalendarView(view: CalendarViewMode) {
         _calendarView.value = view
     }
 
@@ -2452,9 +2443,9 @@ object AppState {
         SettingsManager.setBoolean(SettingsManager.KEY_CGPA_HIDDEN, hidden)
     }
 
-    fun setAttendanceDisplayMode(mode: String) {
+    fun setAttendanceDisplayMode(mode: AttendanceDisplayMode) {
         _attendanceDisplayMode.value = mode
-        SettingsManager.setString(SettingsManager.KEY_ATTENDANCE_MODE, mode)
+        SettingsManager.setString(SettingsManager.KEY_ATTENDANCE_MODE, mode.value)
     }
 
     fun setHapticEnabled(enabled: Boolean) {

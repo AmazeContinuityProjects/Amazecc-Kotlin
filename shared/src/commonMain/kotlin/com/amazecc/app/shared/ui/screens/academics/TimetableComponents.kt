@@ -37,7 +37,7 @@ fun TimetableCard(code: String, title: String, faculty: String, venue: String, s
             ) {
                 Text(slotCode, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
             }
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
             Column(modifier = Modifier.weight(1f)) {
                 Text(code, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                 Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
@@ -74,7 +74,7 @@ fun TimetableDialog(
                 .fillMaxWidth(0.92f)
                 .heightIn(max = 600.dp)
                 .clickable(enabled = false) {},
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(AmazeTheme.radius.large),
             color = colors.background,
             tonalElevation = 4.dp
         ) {
@@ -90,14 +90,14 @@ fun TimetableDialog(
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(days) { day ->
                         val isSelected = selectedDay == day
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.small))
                                 .background(if (isSelected) colors.accent else colors.surface)
                                 .clickable { selectedDay = day }
                                 .padding(horizontal = 14.dp, vertical = 8.dp)
@@ -112,7 +112,7 @@ fun TimetableDialog(
                     }
                 }
 
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                 if (dayCourses.isEmpty()) {
                     Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
@@ -128,12 +128,12 @@ fun TimetableDialog(
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
-                                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.15f)),
+                                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.15f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(course.slotName.take(3), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = colors.accent)
                                     }
-                                    Spacer(Modifier.width(12.dp))
+                                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                                         Text(course.courseTitle, fontWeight = FontWeight.Bold, color = colors.textPrimary, maxLines = 1)

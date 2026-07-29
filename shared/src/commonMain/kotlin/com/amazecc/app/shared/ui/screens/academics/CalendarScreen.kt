@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,6 +26,7 @@ import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.MoodleLoginModal
 import com.amazecc.app.shared.ui.components.ScreenHeader
@@ -73,7 +75,7 @@ private fun monthDisplayName(monthStr: String): String {
 }
 
 @Composable
-fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Boolean = true) {
+fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Boolean = true) {
     val colors = AmazeTheme.colors
     val radius = AmazeTheme.radius
     val spacing = AmazeTheme.spacing
@@ -221,7 +223,8 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                 description = "Schedule, exams & assignments",
                 showBackButton = true,
                 showSyncButton = true,
-                onRefresh = { AppState.refreshCalendarsList() }
+                onRefresh = { AppState.refreshCalendarsList() },
+                onBackOverride = onBack
             )
         }
 
@@ -230,7 +233,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = colors.accent, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         Text("Loading calendars…", color = colors.textMuted)
                     }
                 }
@@ -239,9 +242,9 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(24.dp)) {
                         Icon(Icons.Rounded.ErrorOutline, null, tint = colors.danger, modifier = Modifier.size(40.dp))
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         Text(errorMsg, color = colors.danger, textAlign = TextAlign.Center)
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         Text("Pull to refresh or tap sync", color = colors.textMuted, fontSize = 13.sp)
                     }
                 }
@@ -251,7 +254,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 88.dp)
+                    contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
                 ) {
                     item {
                         com.amazecc.app.shared.ui.components.HeaderSpacer()
@@ -561,9 +564,9 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 24.dp)
-                                    .clip(RoundedCornerShape(18.dp))
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
                                     .background(colors.surface)
-                                    .border(1.dp, colors.border, RoundedCornerShape(18.dp))
+                                    .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
                                     .padding(24.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -577,7 +580,7 @@ fun CalendarScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit, showHeader:
                                     ) {
                                         Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(24.dp))
                                     }
-                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                                     Text(
                                         "No events scheduled${if (selectedDay != null) " for this date" else " for this month"}",
                                         color = colors.textSecondary,
@@ -632,7 +635,7 @@ private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.share
     )
 
     val icon = when (ev.type.lowercase()) {
-        "exam" -> Icons.Rounded.MenuBook
+        "exam" -> Icons.AutoMirrored.Rounded.MenuBook
         "moodle" -> Icons.Rounded.Assignment
         "holiday" -> Icons.Rounded.Celebration
         else -> Icons.Rounded.EventNote
@@ -658,10 +661,10 @@ private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.share
                     modifier = Modifier
                         .width(4.dp)
                         .height(38.dp)
-                        .clip(RoundedCornerShape(2.dp))
+                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                         .background(ev.color)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                 Box(
                     modifier = Modifier
                         .size(38.dp)
@@ -671,11 +674,11 @@ private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.share
                 ) {
                     Icon(icon, contentDescription = null, tint = ev.color, modifier = Modifier.size(18.dp))
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         ev.title,
-                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp),
+                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -688,17 +691,17 @@ private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.share
                                 tint = colors.textMuted,
                                 modifier = Modifier.size(12.dp)
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                             Text(
                                 ev.timeOrLocation,
-                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp),
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                 CalendarBadge(ev.type, ev.color.copy(alpha = 0.16f), ev.color)
             }
         }
@@ -716,7 +719,7 @@ private fun CalendarBadge(text: String, backgroundColor: Color, textColor: Color
     ) {
         Text(
             text = text.uppercase(),
-            style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = textColor, fontSize = 9.sp)
+            style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = textColor)
         )
     }
 }

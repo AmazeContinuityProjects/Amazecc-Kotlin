@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.model.HostelInfo
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
@@ -29,8 +30,9 @@ import kotlinx.datetime.toLocalDateTime
 @Composable
 fun HostelScreen() {
     val colors = AmazeTheme.colors
-    val hostelDetails by AppState.hostelDetails.collectAsState()
-    val hostelLeaves by AppState.hostelLeaves.collectAsState()
+    val hostelRes by AppState.hostelDetails.collectAsState()
+    val hostelInfo = hostelRes?.hostelInfo
+    val leaves = hostelRes?.leaveHistory ?: emptyList()
 
     Box(
         modifier = Modifier
@@ -55,14 +57,14 @@ fun HostelScreen() {
                     .verticalScroll(rememberScrollState())
                     .padding(bottom = 88.dp)
             ) {
-                HostelDetailsSection(hostelDetails, hostelLeaves?.leaves ?: emptyList())
-                Spacer(modifier = Modifier.height(16.dp))
+                HostelDetailsSection(hostelInfo, leaves)
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 HostelMessSection()
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 HostelLaundrySection()
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 HostelCounsellingSection()
-                Spacer(modifier = Modifier.height(30.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
             }
         }
     }
@@ -86,13 +88,13 @@ fun ExpandableSection(title: String, icon: androidx.compose.ui.graphics.vector.I
                     Box(
                         modifier = Modifier
                             .size(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(colors.accent.copy(alpha = 0.1f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(icon, null, tint = colors.accent, modifier = Modifier.size(20.dp))
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Text(title, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
                 Icon(
@@ -103,7 +105,7 @@ fun ExpandableSection(title: String, icon: androidx.compose.ui.graphics.vector.I
             }
             AnimatedVisibility(visible = expanded) {
                 Column {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                     content()
                 }
             }
@@ -112,9 +114,19 @@ fun ExpandableSection(title: String, icon: androidx.compose.ui.graphics.vector.I
 }
 
 @Composable
-fun HostelDetailsSection(hostelDetails: com.amazecc.app.shared.model.HostelDetails?, leaves: List<com.amazecc.app.shared.model.LeaveItem>) {
+fun HostelDetailsSection(hostelInfo: HostelInfo?, leaves: List<com.amazecc.app.shared.model.LeaveItem>) {
     val colors = AmazeTheme.colors
     
+    if (hostelInfo == null) {
+        Box(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.large)).background(colors.chart3.copy(alpha = 0.15f)).padding(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Hostel information not available. Pull down to sync.", color = colors.textSecondary)
+        }
+        return
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -132,10 +144,10 @@ fun HostelDetailsSection(hostelDetails: com.amazecc.app.shared.model.HostelDetai
                 ) {
                     Icon(Icons.Rounded.Apartment, null, tint = Color.White, modifier = Modifier.size(20.dp))
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
                 Text("Hostel Allocation", color = Color.White.copy(alpha = 0.9f), style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
             }
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -143,25 +155,25 @@ fun HostelDetailsSection(hostelDetails: com.amazecc.app.shared.model.HostelDetai
                 Column {
                     Text("Block / Room", style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.8f)))
                     Text(
-                        if (hostelDetails?.blockName.isNullOrEmpty()) "N/A" 
-                        else "${hostelDetails.blockName} / ${hostelDetails.roomNo}", 
+                        if (hostelInfo.blockName.isNullOrEmpty()) "N/A" 
+                        else "${hostelInfo.blockName} / ${hostelInfo.roomNo}", 
                         style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = Color.White)
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("Gender", style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.8f)))
-                    val gender = hostelDetails?.gender
+                    val gender = hostelInfo.gender
                     Text(if (gender.isNullOrEmpty()) "N/A" else gender, style = AmazeTheme.typography.body.copy(color = Color.White, fontWeight = FontWeight.SemiBold))
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
             Text("Mess Facility", style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.8f)))
-            val messInfo = hostelDetails?.messInfo
+            val messInfo = hostelInfo.messInfo
             Text(if (messInfo.isNullOrEmpty()) "Not Enrolled" else messInfo, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = Color.White))
         }
     }
 
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
     
     ExpandableSection("Outing & Leave History", Icons.Rounded.DirectionsWalk) {
         if (leaves.isEmpty()) {
@@ -180,12 +192,12 @@ fun HostelDetailsSection(hostelDetails: com.amazecc.app.shared.model.HostelDetai
                             variant = if (leave.status == "APPROVED" || leave.status == "COMPLETED") BadgeVariant.SUCCESS else BadgeVariant.WARNING
                         )
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                     Text("Destination: ${leave.visitPlace ?: "—"}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     Text("Reason: ${leave.reason ?: "—"}", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                     Text("Period: ${leave.from} to ${leave.to}", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                     HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
                 }
             }
@@ -193,6 +205,7 @@ fun HostelDetailsSection(hostelDetails: com.amazecc.app.shared.model.HostelDetai
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HostelMessSection() {
     val colors = AmazeTheme.colors
@@ -217,11 +230,11 @@ fun HostelMessSection() {
             Text("Weekly Menu", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { isVeg = !isVeg }) {
                 Icon(Icons.Rounded.Eco, null, tint = if (isVeg) colors.successText else colors.textMuted, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                 Text(if (isVeg) "Veg" else "Non-Veg", style = AmazeTheme.typography.smallLabel.copy(color = if (isVeg) colors.successText else colors.textMuted, fontWeight = FontWeight.Bold))
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -243,7 +256,7 @@ fun HostelMessSection() {
                 )
             }
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
         Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -265,7 +278,7 @@ fun HostelMessSection() {
                 )
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
         val currentMeal = meals[selectedMeal]
         val items = menuData[currentMeal] ?: emptyList()
@@ -277,7 +290,7 @@ fun HostelMessSection() {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(colors.surface)
                                 .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
@@ -294,7 +307,7 @@ fun HostelMessSection() {
                         Spacer(modifier = Modifier.weight(1f))
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             }
         }
     }
@@ -340,7 +353,7 @@ fun HostelLaundrySection() {
                 )
             }
         }
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
         val currentBlock = blocks[selectedBlock]
         val slots = slotData[currentBlock] ?: slotData["A-Block"] ?: emptyList()
@@ -354,7 +367,7 @@ fun HostelLaundrySection() {
                 ) {
                     Column {
                         Text(slot.time, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                         Text(
                             "Capacity: ${slot.capacity}/${slot.total}",
                             style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
@@ -365,7 +378,7 @@ fun HostelLaundrySection() {
                         variant = if (slot.status == "Available") BadgeVariant.SUCCESS else BadgeVariant.DANGER
                     )
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
             }
         }
@@ -386,19 +399,19 @@ fun HostelCounsellingSection() {
             ) {
                 Icon(Icons.Rounded.Person, contentDescription = null, tint = colors.accent, modifier = Modifier.size(24.dp))
             }
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
             Column(modifier = Modifier.weight(1f)) {
                 Text("Dr. Rajesh Kumar", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Text("Professor, CSE Department", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Email, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                     Text("rajesh.kumar@vit.ac.in", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                 }
             }
         }
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
         AmazeButton(
             text = "Request Counselling",
             onClick = { /* Handle Click */ },

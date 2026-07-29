@@ -33,6 +33,7 @@ import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
+import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.ui.components.AmazeTextField
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
@@ -158,7 +159,7 @@ fun CurriculumScreen() {
                 Box(modifier = Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.School, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("No curriculum data", color = colors.textPrimary, fontWeight = FontWeight.Medium)
                         Text("Tap sync to load", color = colors.textSecondary, fontSize = 12.sp)
                     }
@@ -175,45 +176,45 @@ fun CurriculumScreen() {
                                     val r = (size.minDimension - stroke) / 2
                                     val topLeft = Offset((size.width - r * 2 - stroke) / 2, (size.height - r * 2 - stroke) / 2)
                                     val arcSize = Size(r * 2 + stroke, r * 2 + stroke)
-                                    drawArc(Color(0xFFE5E7EB), -90f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
-                                    drawArc(Color(0xFF6366F1), -90f, earnedPct * 360f, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+                                    drawArc(colors.border, -90f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
+                                    drawArc(colors.chart3, -90f, earnedPct * 360f, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
                                     if (ongoingPct > 0f)
-                                        drawArc(Color(0xFFFACC15), -90f + earnedPct * 360f, ongoingPct * 360f, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+                                        drawArc(colors.chart4, -90f + earnedPct * 360f, ongoingPct * 360f, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
                                 }
                                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Text("${(earnedPct * 100).toInt()}%", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 18.sp)
-                                        Text("Done", color = colors.textMuted, fontSize = 9.sp)
+                                        Text(Strings.done, color = colors.textMuted, fontSize = 9.sp)
                                     }
                                 }
                             }
-                            Spacer(Modifier.width(16.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.md))
                             Column(Modifier.weight(1f)) {
                                 Text("Degree Progress", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
                                 Text("Credit plan overview", color = colors.textSecondary, fontSize = 11.sp)
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    MetricBox("Earned", "${totalEarned.toFloat().let { if (it == it.toInt().toFloat()) it.toInt().toString() else String.format("%.1f", it) }}", Color(0xFF6366F1), colors)
-                                    MetricBox("In Prog.", "${ongoingCredits.let { if (it == it.toInt().toFloat()) it.toInt().toString() else "%.1f".format(it) }}", Color(0xFFFACC15), colors)
-                                    MetricBox("Remain.", "${remainingCredits}", Color(0xFF9CA3AF), colors)
+                                    MetricBox("Earned", "${totalEarned.toFloat().let { if (it == it.toInt().toFloat()) it.toInt().toString() else String.format("%.1f", it) }}", colors.chart3, colors)
+                                    MetricBox("In Prog.", "${ongoingCredits.let { if (it == it.toInt().toFloat()) it.toInt().toString() else "%.1f".format(it) }}", colors.chart4, colors)
+                                    MetricBox("Remain.", "${remainingCredits}", colors.textMuted, colors)
                                     MetricBox("Req.", "$totalRequired", colors.textPrimary, colors)
-                                    MetricBox("Grad.", expectedGrad, Color(0xFF10B981), colors)
+                                    MetricBox("Grad.", expectedGrad, colors.success, colors)
                                 }
                             }
                         }
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         LinearProgressIndicator(
                             progress = { earnedPct },
-                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
-                            color = Color(0xFF6366F1), trackColor = colors.border,
+                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                            color = colors.chart3, trackColor = colors.border,
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            LegendDot(Color(0xFF6366F1), "Earned", colors)
-                            LegendDot(Color(0xFFFACC15), "In Progress", colors)
-                            LegendDot(Color(0xFF9CA3AF), "Remaining", colors)
+                            LegendDot(colors.chart3, "Earned", colors)
+                            LegendDot(colors.chart4, "In Progress", colors)
+                            LegendDot(colors.textMuted, "Remaining", colors)
                         }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
                     }
                 }
 
@@ -238,34 +239,34 @@ fun CurriculumScreen() {
                                     if (baskets.isNotEmpty())
                                         Text("${baskets.size} basket(s)", color = colors.textMuted, fontSize = 10.sp)
                                 }
-                                Text("${(pct * 100).toInt()}%", fontWeight = FontWeight.Bold, color = if (isComplete) Color(0xFF10B981) else colors.accent, fontSize = 12.sp)
+                                Text("${(pct * 100).toInt()}%", fontWeight = FontWeight.Bold, color = if (isComplete) colors.success else colors.accent, fontSize = 12.sp)
                             }
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(AmazeTheme.spacing.xs))
                             LinearProgressIndicator(
                                 progress = { pct },
-                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                                color = if (isComplete) Color(0xFF10B981) else colors.accent, trackColor = colors.border,
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                                color = if (isComplete) colors.success else colors.accent, trackColor = colors.border,
                             )
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("$earned earned", color = colors.textSecondary, fontSize = 10.sp)
                                 Text("$required req.", color = colors.textSecondary, fontSize = 10.sp)
                             }
                             if (isOpen && baskets.isNotEmpty()) {
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                 HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                 baskets.forEach { basket ->
                                     val basketKey = "${cat.code}|${basket.title}"
                                     val basketOpen = expandedBaskets.contains(basketKey)
                                     Column {
                                         Row(
-                                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.surface).clickable {
+                                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.surface).clickable {
                                                 expandedBaskets = if (basketOpen) expandedBaskets - basketKey else expandedBaskets + basketKey
                                             }.padding(horizontal = 12.dp, vertical = 8.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(if (basketOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-                                            Spacer(Modifier.width(4.dp))
+                                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
                                             Text(basket.title, color = colors.textPrimary, fontSize = 12.sp, modifier = Modifier.weight(1f), maxLines = 1)
                                             Text("${basket.credits} cr", color = colors.textMuted, fontSize = 11.sp)
                                         }
@@ -281,9 +282,9 @@ fun CurriculumScreen() {
                                                     }
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         if (item.type != null) {
-                                                            Text(normalizeType(item.type), color = Color(0xFF8B5CF6), fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
-                                                                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFF8B5CF6).copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp))
-                                                            Spacer(Modifier.width(4.dp))
+                                                            Text(normalizeType(item.type), color = colors.info, fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
+                                                                modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.info.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp))
+                                                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
                                                         }
                                                         Text("${item.credits} cr", color = colors.textMuted, fontSize = 11.sp)
                                                     }
@@ -311,7 +312,7 @@ fun CurriculumScreen() {
                                 Icon(Icons.Rounded.Close, null, tint = colors.textMuted)
                             }
                         }) else null,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent)
                     )
@@ -336,22 +337,22 @@ fun CurriculumScreen() {
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(cat.code, fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 11.sp,
-                                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp))
-                                    Spacer(Modifier.width(8.dp))
+                                        modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp))
+                                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                                     Text(cat.name, color = colors.textPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 1)
                                     Text("$earnedCredits/${cat.maxCredits}", color = colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                    Spacer(Modifier.width(4.dp))
+                                    Spacer(Modifier.width(AmazeTheme.spacing.xs))
                                     Icon(if (isOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
                                 }
-                                Spacer(Modifier.height(4.dp))
+                                Spacer(Modifier.height(AmazeTheme.spacing.xs))
                                 LinearProgressIndicator(
                                     progress = { pct },
-                                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
-                                    color = Color(0xFF3B82F6), trackColor = colors.border,
+                                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                                    color = colors.accent, trackColor = colors.border,
                                 )
 
                                 if (isOpen && baskets.isNotEmpty()) {
-                                    Spacer(Modifier.height(8.dp))
+                                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                     HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
                                     baskets.forEach { basket ->
                                         Column {
@@ -363,16 +364,16 @@ fun CurriculumScreen() {
                                                 val isCompleted = item.code in completedCourseCodes
                                                 Row(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 3.dp, bottom = 3.dp), verticalAlignment = Alignment.CenterVertically) {
                                                     Column(Modifier.weight(1f)) {
-                                                        Text(item.code, color = if (isCompleted) Color(0xFF10B981) else colors.textMuted, fontSize = 10.sp)
+                                                        Text(item.code, color = if (isCompleted) colors.success else colors.textMuted, fontSize = 10.sp)
                                                         Text(item.name, color = colors.textPrimary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                     }
                                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                                         if (isCompleted) {
-                                                            Icon(Icons.Rounded.CheckCircle, null, tint = Color(0xFF10B981), modifier = Modifier.size(14.dp))
-                                                            Spacer(Modifier.width(4.dp))
+                                                            Icon(Icons.Rounded.CheckCircle, null, tint = colors.success, modifier = Modifier.size(14.dp))
+                                                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
                                                         }
-                                                        Text("${item.credits} cr", color = if (isCompleted) Color(0xFF10B981) else colors.textMuted, fontSize = 11.sp)
-                                                        Spacer(Modifier.width(4.dp))
+                                                        Text("${item.credits} cr", color = if (isCompleted) colors.success else colors.textMuted, fontSize = 11.sp)
+                                                        Spacer(Modifier.width(AmazeTheme.spacing.xs))
                                                     IconButton(
                                                         onClick = {
                                                             downloadingSyllabus = item.code
@@ -412,21 +413,21 @@ fun CurriculumScreen() {
                 }
             }
             downloadMessage?.let { msg ->
-                Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(
-                    if (msg.startsWith("Downloaded")) Color(0xFF10B981).copy(alpha = 0.15f) else Color(0xFFEF4444).copy(alpha = 0.15f)
+                Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(
+                    if (msg.startsWith("Downloaded")) colors.success.copy(alpha = 0.15f) else colors.danger.copy(alpha = 0.15f)
                 ).padding(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             if (msg.startsWith("Downloaded")) Icons.Rounded.CheckCircle else Icons.Rounded.Error,
-                            null, tint = if (msg.startsWith("Downloaded")) Color(0xFF10B981) else Color(0xFFEF4444),
+                            null, tint = if (msg.startsWith("Downloaded")) colors.success else colors.danger,
                             modifier = Modifier.size(16.dp)
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.xs))
                         Text(msg, color = colors.textPrimary, fontSize = 13.sp)
                     }
                 }
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.md))
         }
     }
 }
@@ -442,8 +443,8 @@ private fun MetricBox(label: String, value: String, color: Color, colors: com.am
 @Composable
 private fun LegendDot(color: Color, label: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(color))
-        Spacer(Modifier.width(4.dp))
+        Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(color))
+        Spacer(Modifier.width(AmazeTheme.spacing.xs))
         Text(label, color = colors.textMuted, fontSize = 10.sp)
     }
 }

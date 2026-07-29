@@ -24,8 +24,10 @@ import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QBankScreen() {
     val colors = AmazeTheme.colors
@@ -83,9 +85,9 @@ fun QBankScreen() {
                 }) {
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, tint = colors.textPrimary)
                 }
-                Spacer(Modifier.width(4.dp))
+                Spacer(Modifier.width(AmazeTheme.spacing.xs))
                 Column {
-                    Text("QBank: ${sc.courseCode}", style = AmazeTheme.typography.display.copy(fontSize = 20.sp, fontWeight = FontWeight.Black, color = colors.textPrimary))
+                    Text("QBank: ${sc.courseCode}", style = AmazeTheme.typography.display.copy(fontWeight = FontWeight.Black, color = colors.textPrimary))
                     Text(sc.courseTitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
             }
@@ -99,43 +101,43 @@ fun QBankScreen() {
             }
         } else if (error != null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(error ?: "Error", color = colors.danger)
+                Text(error ?: Strings.error, color = colors.danger)
             }
         } else if (selectedCourse == null) {
             Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                 // ── Exam Prep Countdown Banner ──
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
                                 .size(44.dp)
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.small))
                                 .background(colors.warning.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(Icons.Rounded.Timer, null, tint = colors.warning, modifier = Modifier.size(24.dp))
                         }
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Exam Preparation Hub", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text("Select a course below to launch interactive question practice", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                         }
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                 Text("Select Course for Practice", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
-                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
                 items(courses, key = { it.courseCode }) { course ->
                     AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { loadQuestions(course) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                            Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
                                 Icon(Icons.AutoMirrored.Rounded.Article, null, tint = colors.accent, modifier = Modifier.size(20.dp))
                             }
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
                             Column(Modifier.weight(1f)) {
                                 Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                                 Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
@@ -144,7 +146,7 @@ fun QBankScreen() {
                         }
                     }
                 }
-                item { Spacer(Modifier.height(16.dp)) }
+                item { Spacer(Modifier.height(AmazeTheme.spacing.md)) }
             }
         }
         } else {
@@ -170,13 +172,13 @@ fun QBankScreen() {
                 }
             }
             if (activeTab == "Practice Mode") {
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+                LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
                     if (questions.isEmpty()) {
                     item {
                         AmazeCard(modifier = Modifier.fillMaxWidth()) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                                 Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                 Text("No questions found for this course.", color = colors.textSecondary)
                             }
                         }
@@ -201,30 +203,30 @@ fun QBankScreen() {
                         AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { activeQuestionIndex = index }) {
                             Column {
                                 LatexViewer(latex = q.question_text, modifier = Modifier.fillMaxWidth().heightIn(min = 60.dp, max = 200.dp))
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (q.question_type.isNotBlank()) AmazeBadge(text = q.question_type, variant = BadgeVariant.INFO)
                                     if (q.marks != null) AmazeBadge(text = "${q.marks} marks", variant = BadgeVariant.SUCCESS)
                                     if (q.topic_name != null) AmazeBadge(text = q.topic_name, variant = BadgeVariant.WARNING)
                                 }
                                 if (q.exam_semester != null) {
-                                    Spacer(Modifier.height(4.dp))
+                                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
                                     Text(q.exam_semester, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                                 }
                             }
                         }
                     }
                 }
-                item { Spacer(Modifier.height(16.dp)) }
+                item { Spacer(Modifier.height(AmazeTheme.spacing.md)) }
             }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+                LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
                     if (papers.isEmpty()) {
                         item {
                             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                                     Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                                    Spacer(Modifier.height(8.dp))
+                                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                     Text("No papers found in the archive.", color = colors.textSecondary)
                                 }
                             }
@@ -233,10 +235,10 @@ fun QBankScreen() {
                         items(papers, key = { it.link }) { paper ->
                             AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { uriHandler.openUri(paper.link) }) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.chart1.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                                    Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.chart1.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
                                         Icon(Icons.AutoMirrored.Rounded.Article, null, tint = colors.chart1, modifier = Modifier.size(20.dp))
                                     }
-                                    Spacer(Modifier.width(12.dp))
+                                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                                     Column(Modifier.weight(1f)) {
                                         Text(paper.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                                         Text(paper.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
@@ -246,7 +248,7 @@ fun QBankScreen() {
                             }
                         }
                     }
-                    item { Spacer(Modifier.height(16.dp)) }
+                    item { Spacer(Modifier.height(AmazeTheme.spacing.md)) }
                 }
             }
         }
@@ -269,14 +271,14 @@ private fun QuestionDetailView(
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Text("Question ${index + 1} of $total", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
             LatexViewer(latex = question.question_text, modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 300.dp))
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.md))
             
             if (!question.options.isNullOrEmpty()) {
                 question.options.forEach { (key, value) ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(8.dp)).background(colors.surface).clickable { onAnswerChange(key) }.padding(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.surface).clickable { onAnswerChange(key) }.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
@@ -284,7 +286,7 @@ private fun QuestionDetailView(
                             onClick = null,
                             colors = RadioButtonDefaults.colors(selectedColor = colors.accent, unselectedColor = colors.textMuted)
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Text(value, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                     }
                 }
@@ -303,13 +305,13 @@ private fun QuestionDetailView(
                 )
             }
             
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.lg))
             
             if (showCorrect) {
                 val isCorrect = userAnswer.trim().equals(question.correct_answer?.trim() ?: "", ignoreCase = true)
-                Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (isCorrect) colors.success.copy(alpha=0.1f) else colors.danger.copy(alpha=0.1f)).padding(12.dp)) {
+                Column(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isCorrect) colors.success.copy(alpha=0.1f) else colors.danger.copy(alpha=0.1f)).padding(12.dp)) {
                     Text(if (isCorrect) "Correct!" else "Incorrect", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = if (isCorrect) colors.success else colors.danger))
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     Text("Correct Answer: ${question.correct_answer ?: "Not provided"}", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                 }
             } else {
@@ -322,7 +324,7 @@ private fun QuestionDetailView(
                 }
             }
             
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.lg))
             
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Button(

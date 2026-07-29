@@ -111,8 +111,8 @@ fun GPAPredictorScreen() {
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    StatItem("Current CGPA", fmt2(currentCgpa), Icons.Rounded.EmojiEvents, Color(0xFF10B981))
-                    StatItem("Credits Earned", fmt0(creditsEarned), Icons.Rounded.School, Color(0xFF3B82F6))
+                    StatItem("Current CGPA", fmt2(currentCgpa), Icons.Rounded.EmojiEvents, colors.success)
+                    StatItem("Credits Earned", fmt0(creditsEarned), Icons.Rounded.School, colors.accent)
                     StatItem("Projected", fmt2(projectedCgpa), Icons.AutoMirrored.Rounded.TrendingUp, colors.accent)
                 }
             }
@@ -213,7 +213,7 @@ fun GPAPredictorScreen() {
                 )
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xl))
         }
     }
 }
@@ -222,19 +222,19 @@ fun GPAPredictorScreen() {
 private fun StatItem(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(color.copy(alpha = 0.12f)),
+            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(color.copy(alpha = 0.12f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
         Text(
             text = value,
-            style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = color, fontSize = 20.sp)
+            style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = color)
         )
         Text(
             text = label,
-            style = AmazeTheme.typography.smallLabel.copy(color = AmazeTheme.colors.textSecondary, fontSize = 10.sp)
+            style = AmazeTheme.typography.smallLabel.copy(color = AmazeTheme.colors.textSecondary)
         )
     }
 }
@@ -263,10 +263,10 @@ private fun InteractiveGradeCanvas(
             val gradeIndex = gradeList.indexOf(course.grade).coerceAtLeast(0)
             
             val gradeColor = when (course.grade) {
-                "S" -> Color(0xFF10B981)
-                "A" -> Color(0xFF3B82F6)
-                "B" -> Color(0xFFF59E0B)
-                else -> Color(0xFFEF4444)
+                "S" -> colors.success
+                "A" -> colors.accent
+                "B" -> colors.warning
+                else -> colors.danger
             }
 
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -275,19 +275,19 @@ private fun InteractiveGradeCanvas(
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(gradeColor.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 course.grade,
-                                style = AmazeTheme.typography.body.copy(color = gradeColor, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                                style = AmazeTheme.typography.body.copy(color = gradeColor, fontWeight = FontWeight.Black)
                             )
                         }
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(course.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(modifier = Modifier.clickable { if (course.credits > 1.0) onCourseChange(index, course.copy(credits = course.credits - 1.0)) }.background(colors.surface, CircleShape).padding(4.dp)) {
                                     Icon(Icons.Rounded.Remove, null, modifier = Modifier.size(14.dp), tint = colors.textSecondary)
@@ -302,7 +302,7 @@ private fun InteractiveGradeCanvas(
                             Icon(Icons.Rounded.Close, null, tint = colors.danger)
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                     Slider(
                         value = gradeIndex.toFloat(),
                         onValueChange = { newIdx ->
@@ -364,7 +364,7 @@ private fun WhatIfMode(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(AmazeTheme.radius.small),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = colors.surface,
                 unfocusedContainerColor = colors.surface,
@@ -382,7 +382,7 @@ private fun WhatIfMode(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(AmazeTheme.radius.small),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedContainerColor = colors.surface,
                 unfocusedContainerColor = colors.surface,
@@ -423,7 +423,7 @@ private fun WhatIfMode(
                         text = "(${points} grade points per credit)",
                         style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                     AmazeButton("Clear", onClick = onClear, variant = ButtonVariant.GHOST)
                 }
             }
@@ -641,9 +641,9 @@ private fun CourseTargetMode(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(AmazeTheme.radius.small))
                 .background(if (isPossible) colors.surface else colors.dangerSurface)
-                .border(1.dp, if (isPossible) colors.border else colors.danger, RoundedCornerShape(12.dp))
+                .border(1.dp, if (isPossible) colors.border else colors.danger, RoundedCornerShape(AmazeTheme.radius.small))
                 .padding(16.dp)
         ) {
             Column {
@@ -651,7 +651,7 @@ private fun CourseTargetMode(
                     text = "Prediction",
                     style = AmazeTheme.typography.smallLabel.copy(color = if (isPossible) colors.textSecondary else colors.dangerText)
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Text(
                     text = message,
                     style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = if (isPossible) colors.textPrimary else colors.dangerText)

@@ -34,6 +34,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.api.AmazeClient
 import kotlinx.coroutines.launch
 
@@ -64,7 +65,7 @@ fun ClubHubScreen() {
                     selected = activeTab == tab,
                     onClick = { activeTab = tab },
                     text = {
-                        Text(tab, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp))
+                        Text(tab, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold))
                     },
                     selectedContentColor = colors.accent,
                     unselectedContentColor = colors.textSecondary
@@ -106,7 +107,7 @@ private fun DirectoryTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             onValueChange = { searchQuery = it },
             placeholder = { Text("Search clubs...", color = colors.textMuted) },
             leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)),
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)),
             singleLine = true,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = colors.accent,
@@ -114,7 +115,7 @@ private fun DirectoryTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 cursorColor = colors.accent
             )
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -126,7 +127,7 @@ private fun DirectoryTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                     Box(modifier = Modifier.fillMaxWidth().heightIn(min = 200.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Rounded.Groups, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
                             Text("No clubs available", color = colors.textPrimary, fontWeight = FontWeight.Medium)
                             Text("Sync from Events page to load data", color = colors.textSecondary, fontSize = 12.sp)
                         }
@@ -156,9 +157,9 @@ private fun ClubCard(club: ClubItem, colors: com.amazecc.app.shared.theme.AmazeC
     Box(
         modifier = Modifier.fillMaxWidth()
             .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
             .background(colors.surface.copy(alpha = 0.65f)) // Glassmorphism
-            .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+            .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(AmazeTheme.radius.medium))
             .clickable(interactionSource = interactionSource, indication = null) { AppState.openClubDetail(club.id ?: "") }
             .padding(16.dp)
     ) {
@@ -220,11 +221,11 @@ private fun FeedTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.CloudOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Could not load feed", color = colors.textPrimary, fontWeight = FontWeight.Medium)
                         Text(error ?: "", color = colors.textSecondary, fontSize = 12.sp)
-                        Spacer(Modifier.height(12.dp))
-                        AmazeButton("Retry", onClick = {
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                        AmazeButton(Strings.retry, onClick = {
                             error = null; isLoading = true
                             scope.launch {
                                 val res = AmazeClient.getClubFeed()
@@ -240,7 +241,7 @@ private fun FeedTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.AutoMirrored.Rounded.Feed, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("No community posts yet", color = colors.textPrimary, fontWeight = FontWeight.Medium)
                         Text("Check back later for updates", color = colors.textSecondary, fontSize = 12.sp)
                     }
@@ -257,9 +258,9 @@ private fun FeedTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
 @Composable
 private fun FeedPostCard(post: FeedPost, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Box(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.medium))
             .background(colors.surface.copy(alpha = 0.65f)) // Glassmorphism
-            .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+            .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(AmazeTheme.radius.medium))
             .padding(16.dp)
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -274,7 +275,7 @@ private fun FeedPostCard(post: FeedPost, colors: com.amazecc.app.shared.theme.Am
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     post.imageUrls.take(3).forEach { _ ->
                         Box(
-                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)),
+                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.1f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(Icons.Rounded.Image, null, tint = colors.textMuted, modifier = Modifier.size(24.dp))
@@ -285,13 +286,13 @@ private fun FeedPostCard(post: FeedPost, colors: com.amazecc.app.shared.theme.Am
 
             if (post.eventId != null) {
                 Box(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF8B5CF6).copy(alpha = 0.1f)).padding(12.dp)
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small))
+                        .background(colors.info.copy(alpha = 0.1f)).padding(12.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Event, null, tint = Color(0xFF8B5CF6), modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Event: ${post.eventId}", color = Color(0xFF8B5CF6), fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Icon(Icons.Rounded.Event, null, tint = colors.info, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                        Text("Event: ${post.eventId}", color = colors.info, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                     }
                 }
             }

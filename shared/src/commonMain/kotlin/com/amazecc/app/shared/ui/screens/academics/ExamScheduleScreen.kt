@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -71,9 +72,9 @@ fun ExamScheduleScreen() {
                     val isActive = id == selectedSemId
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(if (isActive) colors.accent else colors.surface)
-                            .border(if (isActive) 0.dp else 1.dp, colors.border, RoundedCornerShape(12.dp))
+                            .border(if (isActive) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small))
                             .clickable { AppState.selectExamSemester(id) }
                             .padding(horizontal = 16.dp, vertical = 10.dp)
                     ) {
@@ -100,7 +101,7 @@ fun ExamScheduleScreen() {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Rounded.EventBusy, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     Text("No exams scheduled", color = colors.textSecondary)
                 }
             }
@@ -134,13 +135,13 @@ fun ExamScheduleScreen() {
                                 Box(
                                     modifier = Modifier
                                         .size(42.dp)
-                                        .clip(RoundedCornerShape(12.dp))
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
                                         .background(colors.accent.copy(alpha = 0.12f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Rounded.MenuBook, contentDescription = null, tint = colors.accent)
+                                    Icon(Icons.AutoMirrored.Rounded.MenuBook, contentDescription = null, tint = colors.accent)
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         text = exam.courseCode,
@@ -153,9 +154,9 @@ fun ExamScheduleScreen() {
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -164,7 +165,7 @@ fun ExamScheduleScreen() {
                                 ExamDetailItem(icon = Icons.Rounded.CalendarToday, label = "Date", value = exam.examDate, color = colors.textPrimary)
                                 ExamDetailItem(icon = Icons.Rounded.AccessTime, label = "Time", value = exam.examTime, color = colors.textPrimary)
                             }
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween
@@ -186,10 +187,10 @@ private fun ExamDetailItem(icon: androidx.compose.ui.graphics.vector.ImageVector
     val colors = AmazeTheme.colors
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
         Column {
-            Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = 10.sp))
-            Text(value.ifBlank { "TBD" }, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = color, fontSize = 13.sp))
+            Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+            Text(value.ifBlank { "TBD" }, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = color))
         }
     }
 }

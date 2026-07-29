@@ -40,6 +40,7 @@ import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.datetime.toLocalDateTime
 
 @Composable
@@ -76,18 +77,18 @@ fun CabShareAuthGate() {
                 modifier = Modifier.fillMaxSize().padding(18.dp).verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
                 Box(
-                    modifier = Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).background(colors.accent.copy(alpha = 0.12f)),
+                    modifier = Modifier.size(64.dp).clip(RoundedCornerShape(AmazeTheme.radius.large)).background(colors.accent.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Rounded.DirectionsCar, contentDescription = null, tint = colors.accent, modifier = Modifier.size(32.dp))
                 }
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
                 Text("Start using Cab Share", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Text("Verify your VTOP account and add a reachable phone number.", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
 
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -164,14 +165,14 @@ fun CabShareContent() {
                             .padding(horizontal = 16.dp, vertical = 10.dp)
                     ) {
                         Text(
-                            text = tab, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                            text = tab, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold),
                             color = if (isSelected) colors.background else colors.textPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             Box(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState()).padding(bottom = 88.dp)) {
                 when (activeSubTab) {
                     "Find Ride" -> FindRideTab()
@@ -251,7 +252,7 @@ fun FindRideTab() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
         message?.let { (msg, isSuccess) ->
             Text(msg, style = AmazeTheme.typography.body.copy(color = if (isSuccess) colors.success else colors.danger, fontWeight = FontWeight.Bold), modifier = Modifier.padding(bottom = 8.dp))
@@ -293,7 +294,7 @@ fun CabShareTripCard(trip: CabShareTrip) {
                     Box(modifier = Modifier.size(40.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {
                         Icon(Icons.Rounded.Person, contentDescription = null, tint = colors.accent, modifier = Modifier.size(22.dp))
                     }
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Column {
                         Text(trip.name.ifBlank { trip.reg_number }, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                         Text("Hosted by ${trip.owner_name.ifBlank { trip.reg_number }}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
@@ -301,7 +302,7 @@ fun CabShareTripCard(trip: CabShareTrip) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             val fromHub = trip.from_hub_name
             Text(buildString {
@@ -309,26 +310,26 @@ fun CabShareTripCard(trip: CabShareTrip) {
                 append(trip.hub_name.ifBlank { "Hub #${trip.hub_id}" })
             }, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.AccessTime, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(3.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                     Text("${trip.preferred_time} (±${trip.tolerance_hours}h)", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(3.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                     Text(trip.travel_date, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                 }
             }
 
             if (trip.notes.isNotBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Text(trip.notes, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             val jr = joinResult
             if (jr != null) {
@@ -359,7 +360,7 @@ fun CabShareTripCard(trip: CabShareTrip) {
                 })
             },
             dismissButton = {
-                Text("Cancel", style = AmazeTheme.typography.body.copy(color = colors.textSecondary), modifier = Modifier.clickable { showJoinDialog = false })
+                Text(Strings.cancel, style = AmazeTheme.typography.body.copy(color = colors.textSecondary), modifier = Modifier.clickable { showJoinDialog = false })
             },
             containerColor = colors.surface
         )
@@ -392,7 +393,7 @@ fun CreateTripTab() {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text("Publish a Ride", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         Text("Add your route so others can request to share the cab.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -439,9 +440,9 @@ fun CreateTripTab() {
                         listOf("mixed" to "Mixed", "boys" to "Boys", "girls" to "Girls").forEach { (value, label) ->
                             val selected = gender == value
                             Box(
-                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.small))
                                     .background(if (selected) colors.accent.copy(alpha = 0.12f) else colors.surface)
-                                    .border(1.dp, if (selected) colors.accent else colors.border, RoundedCornerShape(12.dp))
+                                    .border(1.dp, if (selected) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.small))
                                     .clickable { gender = value }
                                     .padding(vertical = 10.dp),
                                 contentAlignment = Alignment.Center
@@ -457,11 +458,11 @@ fun CreateTripTab() {
         }
 
         message?.let { (msg, isSuccess) ->
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             Text(msg, style = AmazeTheme.typography.body.copy(color = if (isSuccess) colors.success else colors.danger, fontWeight = FontWeight.Bold))
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
         AmazeButton(text = if (cabLoading) "Publishing..." else "Post Ride", onClick = {
             message = null
             if (fromHubId.isBlank() || toHubId.isBlank() || tripDate.isBlank() || tripTime.isBlank()) {
@@ -507,7 +508,7 @@ fun MyTripsTab() {
 
     if (loading) {
         Box(modifier = Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
-            Text("Loading...", style = AmazeTheme.typography.body.copy(color = colors.textMuted))
+            Text(Strings.loading, style = AmazeTheme.typography.body.copy(color = colors.textMuted))
         }
         return
     }
@@ -518,7 +519,7 @@ fun MyTripsTab() {
         }
 
         Text("Rides I Posted", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
         if (myTrips.isEmpty()) {
             Text("No posted rides.", style = AmazeTheme.typography.body.copy(color = colors.textSecondary), modifier = Modifier.padding(vertical = 8.dp))
@@ -526,9 +527,9 @@ fun MyTripsTab() {
             myTrips.forEach { trip -> MyPostedTripCard(trip = trip, onRefresh = { refreshTick++ }, onMessage = { msg, success -> message = Pair(msg, success) }) }
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
         Text("Rides I Requested", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
         if (joinedTrips.isEmpty()) {
             Text("No ride requests.", style = AmazeTheme.typography.body.copy(color = colors.textSecondary), modifier = Modifier.padding(vertical = 8.dp))
@@ -555,7 +556,7 @@ fun MyPostedTripCard(trip: CabShareTrip, onRefresh: () -> Unit, onMessage: (Stri
                 AmazeBadge(text = trip.status.uppercase(), variant = if (trip.status == "active") BadgeVariant.INFO else BadgeVariant.DANGER)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             Text("Join Requests", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textSecondary))
 
             if (trip.requests.isEmpty()) {
@@ -568,7 +569,7 @@ fun MyPostedTripCard(trip: CabShareTrip, onRefresh: () -> Unit, onMessage: (Stri
                             if (req.status == "accepted") {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Rounded.Phone, contentDescription = null, tint = colors.success, modifier = Modifier.size(12.dp))
-                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                                     Text(req.phone_number, style = AmazeTheme.typography.smallLabel.copy(color = colors.success))
                                 }
                             }
@@ -612,12 +613,12 @@ fun MyJoinedTripCard(trip: CabShareTrip) {
                     append(trip.hub_name.ifBlank { "Hub #${trip.hub_id}" })
                 }, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Text("${trip.travel_date} · ${trip.preferred_time}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Text("Host: ${trip.owner_name.ifBlank { trip.reg_number }}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                 if (trip.match_status == "accepted" && trip.owner_phone.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Phone, contentDescription = null, tint = colors.success, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                         Text(trip.owner_phone, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.success))
                     }
                 }
@@ -639,7 +640,7 @@ fun SelectHubField(value: String, onValueChange: (String) -> Unit, hubs: List<Ca
     val colors = AmazeTheme.colors
     var expanded by remember { mutableStateOf(false) }
     Box(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 12.dp).clickable { if (hubs.isNotEmpty()) expanded = true }
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small)).padding(horizontal = 12.dp, vertical = 12.dp).clickable { if (hubs.isNotEmpty()) expanded = true }
     ) {
         if (hubs.isEmpty()) {
             Text("Loading hubs...", style = AmazeTheme.typography.body.copy(color = colors.textMuted))
@@ -662,7 +663,7 @@ fun SelectHubField(value: String, onValueChange: (String) -> Unit, hubs: List<Ca
 fun SelectField(value: String, onValueChange: (String) -> Unit, options: List<String>, displayMap: Map<String, String> = emptyMap(), placeholder: String) {
     val colors = AmazeTheme.colors
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 12.dp).clickable { expanded = true }) {
+    Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small)).padding(horizontal = 12.dp, vertical = 12.dp).clickable { expanded = true }) {
         Text(displayMap[value] ?: value.ifBlank { placeholder }, style = AmazeTheme.typography.body.copy(fontWeight = if (value.isNotBlank()) FontWeight.Bold else FontWeight.Normal, color = if (value.isNotBlank()) colors.textPrimary else colors.textMuted))
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { opt ->

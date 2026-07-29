@@ -32,6 +32,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
@@ -163,7 +164,7 @@ fun ODTrackerScreen() {
                 Box(
                     modifier = Modifier
                         .size(72.dp)
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(AmazeTheme.radius.medium))
                         .background(
                             when {
                                 usagePercent >= 0.9f -> colors.danger.copy(alpha = 0.1f)
@@ -188,7 +189,7 @@ fun ODTrackerScreen() {
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
             val progressColor = when {
                 usagePercent >= 0.9f -> colors.danger
@@ -200,7 +201,7 @@ fun ODTrackerScreen() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(8.dp)
-                    .clip(RoundedCornerShape(4.dp)),
+                    .clip(RoundedCornerShape(AmazeTheme.radius.xs)),
                 color = progressColor,
                 trackColor = colors.border.copy(alpha = 0.5f),
             )
@@ -270,7 +271,7 @@ private fun OverviewTab(
             .fillMaxSize()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(bottom = 88.dp)
+        contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
     ) {
         item {
             Row(
@@ -346,7 +347,7 @@ private fun OverviewTab(
         }
 
         item {
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.xs))
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -368,7 +369,7 @@ private fun OverviewTab(
                     SummaryRow("Net Impact", "${metrics.netHours}h", colors, isHighlight = true)
                     SummaryRow("Remaining", "${(OD_TOTAL - usedHours).coerceAtLeast(0)}h", colors, isHighlight = true)
 
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
 
                     val remainingPercent = ((OD_TOTAL - usedHours).toFloat() / OD_TOTAL).coerceIn(0f, 1f)
                     LinearProgressIndicator(
@@ -376,7 +377,7 @@ private fun OverviewTab(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
-                            .clip(RoundedCornerShape(3.dp)),
+                            .clip(RoundedCornerShape(AmazeTheme.radius.xs)),
                         color = colors.success,
                         trackColor = colors.border.copy(alpha = 0.5f),
                     )
@@ -384,7 +385,7 @@ private fun OverviewTab(
             }
         }
 
-        item { Spacer(Modifier.height(16.dp)) }
+        item { Spacer(Modifier.height(AmazeTheme.spacing.md)) }
     }
 }
 
@@ -407,7 +408,7 @@ private fun KPICard(
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
                         .background(iconColor.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
                 ) {
@@ -489,12 +490,12 @@ private fun EntriesTab(
                     tint = colors.textMuted,
                     modifier = Modifier.size(48.dp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Text(
                     "No OD entries found",
                     style = AmazeTheme.typography.body.copy(color = colors.textSecondary)
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Text(
                     "Sync attendance data to check for On Duty days",
                     style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
@@ -507,12 +508,12 @@ private fun EntriesTab(
                 .fillMaxSize()
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(bottom = 88.dp)
+            contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
         ) {
             items(entries) { day ->
                 ODDateGroup(group = day, colors = colors)
             }
-            item { Spacer(Modifier.height(16.dp)) }
+            item { Spacer(Modifier.height(AmazeTheme.spacing.md)) }
         }
     }
 }
@@ -550,7 +551,7 @@ private fun ODDateGroup(
                 }
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                         .background(colors.accent.copy(alpha = 0.1f))
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
@@ -606,7 +607,7 @@ private fun ODDateGroup(
                     }
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                             .background(
                                 when (entry.type) {
                                     "LAB" -> colors.info.copy(alpha = 0.1f)

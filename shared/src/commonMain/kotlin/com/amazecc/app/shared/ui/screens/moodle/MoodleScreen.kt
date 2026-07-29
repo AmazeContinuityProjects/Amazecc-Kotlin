@@ -21,6 +21,7 @@ import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
@@ -66,7 +67,7 @@ fun MoodleScreen() {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText, modifier = Modifier.size(64.dp))
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                         Text("No pending assignments", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                         Text("You're all caught up!", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
                     }
@@ -75,7 +76,7 @@ fun MoodleScreen() {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(horizontal = AmazeTheme.spacing.pageHorizontal),
                     verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm),
-                    contentPadding = PaddingValues(bottom = 88.dp)
+                    contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
                 ) {
                     item {
                         com.amazecc.app.shared.ui.components.HeaderSpacer()
@@ -222,7 +223,7 @@ fun MoodleAssignmentCard(assignment: MoodleAssignment) {
                                     fontWeight = FontWeight.Bold
                                 )
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
                         }
                         Text(
                             text = courseTitle,
@@ -249,7 +250,7 @@ fun MoodleAssignmentCard(assignment: MoodleAssignment) {
                     }
                     
                     if (assignment.teachers.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                         Text(
                             text = assignment.teachers.joinToString(", "),
                             style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
@@ -258,20 +259,20 @@ fun MoodleAssignmentCard(assignment: MoodleAssignment) {
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                 if (assignment.done) {
                     Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText)
                 } else {
                     Icon(Icons.Rounded.Warning, null, tint = colors.warningText)
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Schedule, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                     Text(assignment.due, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium, color = colors.textSecondary))
                 }
                 if (!assignment.url.isNullOrEmpty()) {

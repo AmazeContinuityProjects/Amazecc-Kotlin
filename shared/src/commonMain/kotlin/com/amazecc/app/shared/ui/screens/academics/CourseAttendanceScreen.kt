@@ -57,7 +57,7 @@ fun CourseAttendanceScreen() {
         Box(modifier = Modifier.fillMaxSize().background(colors.background), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Text("Course not found", color = colors.textSecondary)
             }
         }
@@ -211,7 +211,7 @@ fun CourseAttendanceScreen() {
                     )
                     val sweepAngle = (animatedPct / 100f) * 240f
                     val baseColor = colors.border
-                    val progressColor = projectedColor(currentPct)
+                    val progressColor = projectedColor(currentPct, colors)
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawArc(
                             color = baseColor,
@@ -241,21 +241,21 @@ fun CourseAttendanceScreen() {
                             if (currentPct >= 75) "SAFE" else "DANGER",
                             style = AmazeTheme.typography.caption.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = if (currentPct >= 75) Color(0xFF10B981) else colors.danger
+                                color = if (currentPct >= 75) colors.success else colors.danger
                             )
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    PctStat("Attended", "${course.attendedClasses}", Color(0xFF3B82F6))
+                    PctStat("Attended", "${course.attendedClasses}", colors.accent)
                     PctStat("Total", "${course.totalClasses}", colors.textPrimary)
-                    PctStat("Target (75%)", "${kotlin.math.ceil(course.totalClasses * 0.75).toInt()}", Color(0xFFF59E0B))
+                    PctStat("Target (75%)", "${kotlin.math.ceil(course.totalClasses * 0.75).toInt()}", colors.warning)
                 }
             }
         }
@@ -299,7 +299,7 @@ fun CourseAttendanceScreen() {
                 ) {
                     Text(
                         text = tab,
-                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold),
                         color = if (isSelected) colors.background else colors.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -344,19 +344,19 @@ private fun PctStat(label: String, value: String, color: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             value,
-            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = color, fontSize = 18.sp)
+            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = color)
         )
         Text(
             label,
-            style = AmazeTheme.typography.caption.copy(color = AmazeTheme.colors.textSecondary, fontSize = 10.sp)
+            style = AmazeTheme.typography.caption.copy(color = AmazeTheme.colors.textSecondary)
         )
     }
 }
 
-private fun projectedColor(pct: Double): Color = when {
-    pct >= 85 -> Color(0xFF10B981)
-    pct >= 75 -> Color(0xFFF59E0B)
-    else -> Color(0xFFEF4444)
+private fun projectedColor(pct: Double, colors: com.amazecc.app.shared.theme.AmazeColors): Color = when {
+    pct >= 85 -> colors.success
+    pct >= 75 -> colors.warning
+    else -> colors.danger
 }
 
 @Composable
@@ -388,20 +388,20 @@ private fun PredictorTab(
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Calculate, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Interactive What-If", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                    Text("Interactive What-If", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                     Column {
                         Text("If I attend", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                        Text("${whatIfAttend.toInt()} classes", style = AmazeTheme.typography.body.copy(color = Color(0xFF10B981), fontWeight = FontWeight.Bold))
+                        Text("${whatIfAttend.toInt()} classes", style = AmazeTheme.typography.body.copy(color = colors.success, fontWeight = FontWeight.Bold))
                     }
                     Text(
                         pctFormatted(whatIfPct),
                         style = AmazeTheme.typography.heading.copy(
-                            color = projectedColor(whatIfPct),
+                            color = projectedColor(whatIfPct, colors),
                             fontWeight = FontWeight.Black,
                             fontSize = 32.sp
                         )
@@ -409,7 +409,7 @@ private fun PredictorTab(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     IconButton(onClick = { if (whatIfAttend >= 1f) onWhatIfAttendChange(whatIfAttend - 1f) }) {
-                        Icon(Icons.Rounded.RemoveCircleOutline, contentDescription = "Decrease", tint = Color(0xFF10B981))
+                        Icon(Icons.Rounded.RemoveCircleOutline, contentDescription = "Decrease", tint = colors.success)
                     }
                     Slider(
                         value = whatIfAttend,
@@ -417,17 +417,17 @@ private fun PredictorTab(
                         valueRange = 0f..50f,
                         modifier = Modifier.weight(1f),
                         colors = SliderDefaults.colors(
-                            thumbColor = Color(0xFF10B981), 
-                            activeTrackColor = Color(0xFF10B981),
-                            inactiveTrackColor = Color(0xFF10B981).copy(alpha = 0.2f)
+                            thumbColor = colors.success, 
+                            activeTrackColor = colors.success,
+                            inactiveTrackColor = colors.success.copy(alpha = 0.2f)
                         )
                     )
                     IconButton(onClick = { if (whatIfAttend < 50f) onWhatIfAttendChange(whatIfAttend + 1f) }) {
-                        Icon(Icons.Rounded.AddCircleOutline, contentDescription = "Increase", tint = Color(0xFF10B981))
+                        Icon(Icons.Rounded.AddCircleOutline, contentDescription = "Increase", tint = colors.success)
                     }
                 }
                 
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
                 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                     Column {
@@ -458,10 +458,10 @@ private fun PredictorTab(
             }
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
         Text("Date-based Predictor", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             modes.forEach { m ->
                 val sel = mode == m
@@ -470,8 +470,8 @@ private fun PredictorTab(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .background(bg, RoundedCornerShape(12.dp))
-                        .border(1.dp, if (sel) colors.accent else colors.border, RoundedCornerShape(12.dp))
+                        .background(bg, RoundedCornerShape(AmazeTheme.radius.small))
+                        .border(1.dp, if (sel) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.small))
                         .clickable { onModeChange(m) }
                         .padding(vertical = 10.dp),
                     contentAlignment = Alignment.Center
@@ -481,16 +481,16 @@ private fun PredictorTab(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
             Text(
                 "Timeline (${futureDates.size} upcoming)",
-                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
+                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
             )
             Text("Tap to toggle skip", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
         if (futureDates.isEmpty()) {
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
@@ -521,12 +521,12 @@ private fun PredictorTab(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(if (skipped) colors.danger.copy(alpha = 0.12f) else colors.surface)
                             .border(
                                 1.dp,
                                 if (skipped) colors.danger.copy(alpha = 0.3f) else colors.border,
-                                RoundedCornerShape(10.dp)
+                                RoundedCornerShape(AmazeTheme.radius.small)
                             )
                             .clickable { onToggleSkip(key) }
                             .padding(12.dp)
@@ -538,7 +538,7 @@ private fun PredictorTab(
                             Box(
                                 modifier = Modifier
                                     .size(36.dp)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                     .background(if (skipped) colors.danger.copy(alpha = 0.2f) else colors.accent.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -550,7 +550,7 @@ private fun PredictorTab(
                                     )
                                 )
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(weekday, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary))
                                 Text(dateStr, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
@@ -558,7 +558,7 @@ private fun PredictorTab(
                             if (skipped) {
                                 Box(
                                     modifier = Modifier
-                                        .background(colors.danger.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                                        .background(colors.danger.copy(alpha = 0.12f), RoundedCornerShape(AmazeTheme.radius.xs))
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
                                     Text("SKIP", color = colors.danger, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -566,10 +566,10 @@ private fun PredictorTab(
                             } else {
                                 Box(
                                     modifier = Modifier
-                                        .background(Color(0xFF10B981).copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                                        .background(colors.success.copy(alpha = 0.12f), RoundedCornerShape(AmazeTheme.radius.xs))
                                         .padding(horizontal = 8.dp, vertical = 4.dp)
                                 ) {
-                                    Text("ATTEND", color = Color(0xFF10B981), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    Text("ATTEND", color = colors.success, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -578,7 +578,7 @@ private fun PredictorTab(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
         AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = colors.surface) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -592,7 +592,7 @@ private fun PredictorTab(
                 Text(
                     pctFormatted(predictedPct),
                     style = AmazeTheme.typography.subheading.copy(
-                        color = projectedColor(predictedPct),
+                        color = projectedColor(predictedPct, colors),
                         fontWeight = FontWeight.Black,
                         fontSize = 28.sp
                     )
@@ -628,8 +628,8 @@ private fun LogTab(
         if (chronoSorted.isNotEmpty()) {
             AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = colors.surface) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Attendance Heatmap", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp))
-                    Spacer(Modifier.height(12.dp))
+                    Text("Attendance Heatmap", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -640,42 +640,42 @@ private fun LogTab(
                             Box(
                                 modifier = Modifier
                                     .size(24.dp)
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .background(if (isPresent) Color(0xFF10B981) else colors.danger)
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                    .background(if (isPresent) colors.success else colors.danger)
                             )
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(Color(0xFF10B981)))
-                            Spacer(Modifier.width(6.dp))
+                            Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(colors.success))
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
                             Text("Present", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(colors.danger))
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
                             Text("Absent", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                         }
                     }
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
             Text(
                 "Timeline (${detailedDays.size} entries)",
                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 detailedDays.sortedByDescending { it.first }.forEach { (date, status) ->
                     val isPresent = status.lowercase() in listOf("present", "p")
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(colors.surface, RoundedCornerShape(12.dp))
-                            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                            .background(colors.surface, RoundedCornerShape(AmazeTheme.radius.small))
+                            .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small))
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -685,19 +685,19 @@ private fun LogTab(
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
-                                    .background(if (isPresent) Color(0xFF10B981).copy(alpha = 0.12f) else colors.danger.copy(alpha = 0.12f)),
+                                    .background(if (isPresent) colors.success.copy(alpha = 0.12f) else colors.danger.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     if (isPresent) Icons.Rounded.Check else Icons.Rounded.Close,
                                     contentDescription = null,
-                                    tint = if (isPresent) Color(0xFF10B981) else colors.danger,
+                                    tint = if (isPresent) colors.success else colors.danger,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
                             Column {
-                                Text(date, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp))
+                                Text(date, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                 Text("Class Attended", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                             }
                         }
@@ -705,9 +705,9 @@ private fun LogTab(
                         Box(
                             modifier = Modifier
                                 .background(
-                                    if (isPresent) Color(0xFF10B981)
+                                    if (isPresent) colors.success
                                     else colors.danger,
-                                    RoundedCornerShape(6.dp)
+                                    RoundedCornerShape(AmazeTheme.radius.xs)
                                 )
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
@@ -729,7 +729,7 @@ private fun LogTab(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Rounded.CalendarMonth, null, tint = colors.textMuted, modifier = Modifier.size(32.dp))
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                     Text(
                         "Detailed log unavailable.\nCheck your sync settings.",
                         style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
@@ -745,7 +745,7 @@ private fun LogTab(
 private fun StatChip(label: String, value: String, color: Color, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, style = AmazeTheme.typography.subheading.copy(color = color, fontWeight = FontWeight.Bold))
-        Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
+        Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
     }
 }
 
@@ -760,15 +760,15 @@ private fun NotesTab(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(colors.surface, RoundedCornerShape(12.dp))
-                .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                .background(colors.surface, RoundedCornerShape(AmazeTheme.radius.small))
+                .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small))
                 .padding(16.dp)
         ) {
             Text("Notes for $courseCode\n\n(Local storage not yet implemented)", color = colors.textSecondary)
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
         if (notesSaved) {
-            Text("Notes saved in memory!", color = Color(0xFF10B981), fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+            Text("Notes saved in memory!", color = colors.success, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
         }
         AmazeButton(
             text = "Save Notes",

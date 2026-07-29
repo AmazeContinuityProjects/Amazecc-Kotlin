@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.AmazeBadge
@@ -53,7 +54,7 @@ fun ArrearTabScreen() {
                     val isSelected = activeSubTab == tab
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(if (isSelected) colors.accent else colors.surface)
                             .clickable { activeSubTab = tab }
                             .padding(horizontal = 16.dp, vertical = 10.dp)
@@ -68,14 +69,14 @@ fun ArrearTabScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
                     .verticalScroll(rememberScrollState())
-                    .padding(bottom = 88.dp)
+                    .padding(bottom = BOTTOM_NAV_PADDING)
             ) {
                 when (activeSubTab) {
                     "Schedule" -> ArrearScheduleTab()

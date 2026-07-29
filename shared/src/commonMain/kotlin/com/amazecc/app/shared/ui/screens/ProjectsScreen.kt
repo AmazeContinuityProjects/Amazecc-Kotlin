@@ -19,6 +19,7 @@ import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.ApiTable
 import com.amazecc.app.shared.model.ArrearResponse
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import kotlinx.coroutines.launch
@@ -54,7 +55,7 @@ fun ProjectsScreen() {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(32.dp))
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                     Text("Loading projects...", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
                 }
             }
@@ -64,7 +65,7 @@ fun ProjectsScreen() {
                     .fillMaxSize()
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 88.dp)
+                contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
             ) {
                 val res = response
                 if (res == null || res.success == false) {
@@ -72,7 +73,7 @@ fun ProjectsScreen() {
                         AmazeCard(modifier = Modifier.fillMaxWidth()) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                                 Icon(Icons.Rounded.Info, null, tint = colors.textMuted, modifier = Modifier.size(32.dp))
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                                 Text(res?.message ?: "No data available", color = colors.textSecondary)
                             }
                         }
@@ -92,7 +93,7 @@ fun ProjectsScreen() {
                         }
                     }
                 }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
+                item { Spacer(modifier = Modifier.height(AmazeTheme.spacing.md)) }
             }
         }
     }
@@ -133,7 +134,7 @@ private fun DataTableCard(
             }
             Row(modifier = Modifier
                 .fillMaxWidth()
-                .background(colors.accent.copy(alpha = 0.08f), RoundedCornerShape(6.dp))
+                .background(colors.accent.copy(alpha = 0.08f), RoundedCornerShape(AmazeTheme.radius.xs))
                 .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
                 table.headers.forEachIndexed { idx, header ->

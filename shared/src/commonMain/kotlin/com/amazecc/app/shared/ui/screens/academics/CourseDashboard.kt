@@ -33,7 +33,7 @@ import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 
 @Composable
-fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
+fun CourseDashboardScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
     val allSemesterMarks by AppState.allSemesterMarks.collectAsState()
     val allSemesterAttendance by AppState.allSemesterAttendance.collectAsState()
@@ -61,9 +61,7 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
         }.groupBy { it.semesterSubId }
     }
 
-    val semesterIds = listOf("All") + AppState.semesterIDs.filter { id ->
-        semesterGroups.any { it.semesterSubId == id }
-    }
+    val semesterIds = listOf("All") + semesterGroups.map { it.semesterSubId }.distinct()
 
     Box(
         modifier = Modifier
@@ -75,7 +73,8 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
             description = "All courses across semesters",
             showBackButton = true,
             showSyncButton = true,
-            onRefresh = AppState::refreshAllAcademic
+            onRefresh = AppState::refreshAllAcademic,
+            onBackOverride = onBack
         )
 
         LazyColumn(
@@ -94,14 +93,14 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(AmazeTheme.radius.medium))
                         .background(colors.surface)
-                        .border(1.dp, colors.border.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+                        .border(1.dp, colors.border.copy(alpha = 0.6f), RoundedCornerShape(AmazeTheme.radius.medium))
                         .padding(horizontal = 14.dp, vertical = 4.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Search, null, tint = colors.accent, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         TextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
@@ -124,7 +123,7 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
                         }
                     }
                 }
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
             }
 
             // Semester filter chips item
@@ -176,7 +175,7 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
                         }
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
             }
 
             item {
@@ -184,7 +183,7 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
                 val pastSynced by AppState.pastSemestersSynced.collectAsState()
                 if (!isLoading) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(if (pastSynced) colors.surface else colors.accent.copy(alpha = 0.08f))
                             .clickable { AppState.refreshPastSemesters() }
                             .padding(horizontal = 14.dp, vertical = 10.dp)
@@ -195,7 +194,7 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
                                 null, tint = if (pastSynced) colors.success else colors.accent,
                                 modifier = Modifier.size(18.dp)
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
                             Text(
                                 if (pastSynced) "Past semesters loaded. Tap to refresh data"
                                 else "Load past semester attendance & marks",
@@ -205,7 +204,7 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
                             Icon(Icons.Rounded.Refresh, null, tint = if (pastSynced) colors.textMuted else colors.accent, modifier = Modifier.size(18.dp))
                         }
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 }
             }
 
@@ -214,7 +213,7 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
                     Box(modifier = Modifier.fillMaxWidth().height(260.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(54.dp))
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
                             Text("No courses found", color = colors.textMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         }
                     }
@@ -233,7 +232,7 @@ fun CourseDashboardScreen(@Suppress("UNUSED_PARAMETER") onBack: () -> Unit) {
                             )
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                     .background(colors.accent.copy(alpha = 0.1f))
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
@@ -262,9 +261,9 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
     val isEmbedded = (course.theory != null && course.lab != null) || (course.theoryAtt != null && course.labAtt != null)
 
     fun attColor(pct: Double) = when {
-        pct >= 85.0 -> Color(0xFF10B981)
-        pct >= 75.0 -> Color(0xFFF59E0B)
-        else -> Color(0xFFEF4444)
+        pct >= 85.0 -> colors.success
+        pct >= 75.0 -> colors.warning
+        else -> colors.danger
     }
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -281,9 +280,9 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(AmazeTheme.radius.large))
             .background(colors.surface)
-            .border(1.dp, colors.border.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
+            .border(1.dp, colors.border.copy(alpha = 0.6f), RoundedCornerShape(AmazeTheme.radius.large))
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -297,39 +296,39 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                     val attPct = (theoryAtt?.attendancePercentage ?: labAtt?.attendancePercentage ?: "0").toDoubleOrNull() ?: 0.0
                     val label = if (course.theory?.courseType == "Lab Only" || course.lab?.courseType == "Lab Only") "LO" else "TH"
                     val iconColor = if (label == "TH") colors.chart2 else colors.chart4
-                    Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(iconColor.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                        Text(label, style = AmazeTheme.typography.subheading.copy(color = iconColor, fontWeight = FontWeight.Black, fontSize = 16.sp))
+                    Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(iconColor.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                        Text(label, style = AmazeTheme.typography.subheading.copy(color = iconColor, fontWeight = FontWeight.Black))
                     }
-                    Spacer(Modifier.width(14.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.md))
                     Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                         Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                         Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     }
                     if (attPct > 0) {
                         val c = attColor(attPct)
-                        Box(modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
-                            Text("${attPct.toInt()}%", style = AmazeTheme.typography.body.copy(color = c, fontWeight = FontWeight.Black, fontSize = 15.sp))
+                        Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.small)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.small)).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
+                            Text("${attPct.toInt()}%", style = AmazeTheme.typography.body.copy(color = c, fontWeight = FontWeight.Black))
                         }
                     }
                 } else {
-                    Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(colors.accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                        Text("EMB", style = AmazeTheme.typography.subheading.copy(color = colors.accent, fontWeight = FontWeight.Black, fontSize = 14.sp))
+                    Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                        Text("EMB", style = AmazeTheme.typography.subheading.copy(color = colors.accent, fontWeight = FontWeight.Black))
                     }
-                    Spacer(Modifier.width(14.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.md))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                         Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     }
                 }
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(AmazeTheme.spacing.xs))
                 Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(22.dp))
             }
             if (isEmbedded) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.4f)))
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 embeddedRow(course.theory, theoryAtt, "TH", colors.chart2, colors)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 embeddedRow(course.lab, labAtt, "LO", colors.chart4, colors)
             }
         }
@@ -345,20 +344,20 @@ private fun embeddedRow(item: MarksCourseItem?, att: AttendanceItem?, label: Str
         else -> colors.chart5
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = accent, fontWeight = FontWeight.Black, fontSize = 13.sp))
+        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = accent, fontWeight = FontWeight.Black))
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AmazeTheme.spacing.sm))
         Column(modifier = Modifier.weight(1f)) {
-            Text(item?.courseTitle ?: att?.courseTitle ?: "", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary, fontSize = 13.sp))
+            Text(item?.courseTitle ?: att?.courseTitle ?: "", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
             if (item?.faculty?.isNotBlank() == true) {
-                Text(item.faculty, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontSize = 10.sp))
+                Text(item.faculty, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
             }
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(AmazeTheme.spacing.sm))
         if (pct > 0) {
-            Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
-                Text("${pct.toInt()}%", style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black, fontSize = 13.sp))
+            Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs)).padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+                Text("${pct.toInt()}%", style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black))
             }
         }
     }
@@ -401,25 +400,40 @@ private fun buildSemesterGroups(
         }
     }
 
-    // Add grades-only semesters
+    // Add grades-only semesters (with any available attendance/marks)
     allGrades?.grades?.forEach { (semId, semResult) ->
         if (semId == "curriculum" || semId == "effectiveGrades" || semId == currentSemId) return@forEach
         if (allGroups.any { it.semesterSubId == semId }) return@forEach
-        semResult?.grades?.forEach { grade ->
-            if (grade.courseCode.isBlank()) return@forEach
-            val cleanCode = grade.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
-            val key = cleanCode + "_" + semId
-            if (key !in seenCodes) {
-                seenCodes.add(key)
-                allGroups.add(
-                    CourseGroup(
-                        courseCode = cleanCode,
-                        courseTitle = grade.courseTitle,
-                        semesterSubId = semId,
-                        semesterName = AppState.semesterMap[semId] ?: semId,
-                        theory = MarksCourseItem(courseCode = grade.courseCode, courseTitle = grade.courseTitle, courseType = grade.courseType)
+        // Check if this semester has attendance/marks data that wasn't caught by the marks loop
+        val attList = allSemesterAttendance[semId]?.attendance ?: emptyList()
+        val semMarks = allSemesterMarks[semId]?.marks ?: emptyList()
+        if (semMarks.isNotEmpty() || attList.isNotEmpty()) {
+            val groups = buildSemesterMap(semMarks, attList, semId)
+            groups.values.forEach { group ->
+                val key = group.courseCode + "_" + semId
+                if (key !in seenCodes) {
+                    seenCodes.add(key)
+                    allGroups.add(group)
+                }
+            }
+        } else {
+            semResult?.grades?.forEach { grade ->
+                if (grade.courseCode.isBlank()) return@forEach
+                val cleanCode = grade.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
+                val key = cleanCode + "_" + semId
+                if (key !in seenCodes) {
+                    seenCodes.add(key)
+                    allGroups.add(
+                        CourseGroup(
+                            courseCode = cleanCode,
+                            courseTitle = grade.courseTitle,
+                            semesterSubId = semId,
+                            semesterName = AppState.semesterMap[semId] ?: semId,
+                            theory = MarksCourseItem(courseCode = grade.courseCode, courseTitle = grade.courseTitle, courseType = grade.courseType),
+                            grade = grade
+                        )
                     )
-                )
+                }
             }
         }
     }
@@ -447,8 +461,7 @@ private fun buildSemesterMap(marks: List<MarksCourseItem>, attendance: List<Atte
     attendance.forEach { a ->
         if (a.courseCode.isBlank()) return@forEach
         val isLab = a.courseType.lowercase().contains("lab") || a.slotName.lowercase().startsWith("l")
-        val rawCode = a.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
-        val key = if (rawCode.contains(" ")) rawCode.split(" ")[0] else rawCode
+        val key = a.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
         val existing = map[key]
         if (existing == null) {
             map[key] = CourseGroup(key, a.courseTitle, semId, semName, theoryAtt = if (!isLab) a else null, labAtt = if (isLab) a else null)

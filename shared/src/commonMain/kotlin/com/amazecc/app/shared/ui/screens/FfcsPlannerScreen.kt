@@ -26,6 +26,7 @@ import com.amazecc.app.shared.ffcs.*
 import com.amazecc.app.shared.state.FfcsViewModel
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.coroutines.launch
 
 @Composable
@@ -69,7 +70,7 @@ fun FfcsPlannerScreen() {
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                             .background(if (selected) colors.accent else colors.surface)
                             .clickable { activeTab = index }
                             .padding(vertical = 8.dp),
@@ -171,11 +172,11 @@ private fun CourseSelectionTab(
                 modifier = Modifier.weight(1f),
                 placeholder = {
                     Text("Search by code or title...",
-                        style = AmazeTheme.typography.body.copy(fontSize = 13.sp, color = colors.textMuted))
+                        style = AmazeTheme.typography.body.copy(color = colors.textMuted))
                 },
                 leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
                 singleLine = true,
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(AmazeTheme.radius.small),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = colors.accent.copy(alpha = 0.5f),
                     unfocusedBorderColor = colors.border,
@@ -191,11 +192,11 @@ private fun CourseSelectionTab(
             }
         }
 
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.xs))
 
         if (selectedCodes.isNotEmpty()) {
             Row(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.xs))
                     .background(colors.accent.copy(alpha = 0.08f)).padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -206,10 +207,10 @@ private fun CourseSelectionTab(
                 )
                 Text(
                     "Scroll to see all",
-                    style = AmazeTheme.typography.smallLabel.copy(fontSize = 9.sp, color = colors.textMuted)
+                    style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
                 )
             }
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.xs))
         }
 
         LazyColumn(
@@ -226,12 +227,12 @@ private fun CourseSelectionTab(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
                         .background(if (isSelected) colors.accent.copy(alpha = 0.06f) else colors.surface)
                         .border(
                             1.dp,
                             if (hasLock) colors.warning else if (isSelected) colors.accent.copy(alpha = 0.3f) else colors.border,
-                            RoundedCornerShape(10.dp)
+                            RoundedCornerShape(AmazeTheme.radius.small)
                         )
                 ) {
                     Row(
@@ -247,20 +248,20 @@ private fun CourseSelectionTab(
                             ),
                             modifier = Modifier.size(20.dp)
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(code, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 11.sp))
+                            Text(code, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text(
                                 offerings.firstOrNull()?.title ?: "",
-                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp),
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
                         if (hasLock) {
                             Icon(Icons.Rounded.Lock, null, tint = colors.danger, modifier = Modifier.size(14.dp))
-                            Spacer(Modifier.width(4.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
                         }
-                        Text("${offerings.size}", style = AmazeTheme.typography.smallLabel.copy(fontSize = 9.sp, color = colors.textMuted))
+                        Text("${offerings.size}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                         Spacer(Modifier.width(2.dp))
                         Icon(if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
                     }
@@ -281,25 +282,25 @@ private fun CourseSelectionTab(
                                 Box(
                                     modifier = Modifier
                                         .size(18.dp)
-                                        .clip(RoundedCornerShape(4.dp))
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                         .background(if (isLocked) colors.accent.copy(alpha = 0.15f) else Color.Transparent)
-                                        .border(1.5.dp, if (isLocked) colors.accent else colors.border, RoundedCornerShape(4.dp)),
+                                        .border(1.5.dp, if (isLocked) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.xs)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (isLocked) {
                                         Icon(Icons.Rounded.Check, null, tint = colors.accent, modifier = Modifier.size(12.dp))
                                     }
                                 }
-                                Spacer(Modifier.width(8.dp))
-                                Text(offering.faculty, style = AmazeTheme.typography.caption.copy(fontSize = 11.sp, fontWeight = FontWeight.Medium, color = colors.textPrimary),
+                                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                                Text(offering.faculty, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary),
                                     modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(offering.slot, style = AmazeTheme.typography.smallLabel.copy(fontSize = 10.sp, color = colors.accent, fontWeight = FontWeight.Bold),
+                                Text(offering.slot, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold),
                                     modifier = Modifier.width(60.dp))
-                                Text(offering.room, style = AmazeTheme.typography.smallLabel.copy(fontSize = 9.sp, color = colors.textMuted),
+                                Text(offering.room, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted),
                                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(60.dp))
                             }
                         }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
                     }
                 }
             }
@@ -367,7 +368,7 @@ private fun TimetableTab(
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Rounded.ViewTimeline, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     Text("Select courses in the Courses tab to see your timetable", color = colors.textSecondary, textAlign = TextAlign.Center)
                 }
             }
@@ -379,7 +380,7 @@ private fun TimetableTab(
                 modifier = Modifier.weight(1f)
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -394,11 +395,11 @@ private fun TimetableTab(
                 )
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
             Text(
                 "Tap any cell to block that slot. Blocked slots are excluded from generation.",
-                style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp),
+                style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -422,8 +423,8 @@ private fun ResultsTab(
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = colors.accent)
-                    Spacer(Modifier.height(8.dp))
-                    Text("Generating timetables...", color = colors.textSecondary, style = AmazeTheme.typography.body.copy(fontSize = 13.sp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                    Text("Generating timetables...", color = colors.textSecondary, style = AmazeTheme.typography.body.copy())
                 }
             }
         } else if (generated.isEmpty()) {
@@ -431,11 +432,11 @@ private fun ResultsTab(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     if (error != null) {
                         Icon(Icons.Rounded.Warning, null, tint = colors.danger, modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text(error, color = colors.danger, textAlign = TextAlign.Center)
                     } else {
                         Icon(Icons.Rounded.AutoAwesome, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Go to Timetable tab and tap Generate", color = colors.textSecondary, textAlign = TextAlign.Center)
                     }
                 }
@@ -461,12 +462,12 @@ private fun ResultsTab(
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                 if (currentTt != null) {
                     MetricsRow(currentTt.metrics, colors)
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                     FfcsTimetableGrid(
                         courses = currentTt.courses,
@@ -475,7 +476,7 @@ private fun ResultsTab(
                         modifier = Modifier.weight(1f)
                     )
 
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                     AmazeButton(
                         text = "Save This Timetable",
@@ -536,7 +537,7 @@ private fun MetricsRow(metrics: TimetableMetrics, colors: com.amazecc.app.shared
             MetricBadge("Social", "${metrics.socialScore}%", colors.successText, colors)
         }
         if (metrics.isLongWeekend) {
-            MetricBadge("Long Wknd", "Yes", Color(0xFF10B981), colors)
+            MetricBadge("Long Wknd", "Yes", colors.success, colors)
         }
     }
 }
@@ -544,11 +545,11 @@ private fun MetricsRow(metrics: TimetableMetrics, colors: com.amazecc.app.shared
 @Composable
 private fun MetricBadge(label: String, value: String, color: Color, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Column(
-        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(color.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 6.dp),
+        modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(color.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(value, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = color, fontSize = 14.sp))
-        Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontSize = 8.sp))
+        Text(value, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = color))
+        Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
     }
 }
 
@@ -586,7 +587,7 @@ private fun GeneratorModal(
                         val lock = locks.find { it.code.equals(code, ignoreCase = true) }
                         val hasLock = lock != null && (lock.allowedFaculty.isNotEmpty() || lock.allowedSlots.isNotEmpty())
                         Box(
-                            modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                            modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(if (hasLock) colors.warning.copy(alpha = 0.15f) else colors.accent.copy(alpha = 0.1f))
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
@@ -595,7 +596,7 @@ private fun GeneratorModal(
                                     Icon(Icons.Rounded.Lock, null, tint = colors.warning, modifier = Modifier.size(10.dp))
                                     Spacer(Modifier.width(2.dp))
                                 }
-                                Text(code, style = AmazeTheme.typography.smallLabel.copy(fontSize = 9.sp, color = if (hasLock) colors.warning else colors.accent))
+                                Text(code, style = AmazeTheme.typography.smallLabel.copy(color = if (hasLock) colors.warning else colors.accent))
                             }
                         }
                     }
@@ -608,7 +609,7 @@ private fun GeneratorModal(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Unique Faculty", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 13.sp))
+                    Text("Unique Faculty", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                     Switch(
                         checked = uniqueFaculty,
                         onCheckedChange = { uniqueFaculty = it },
@@ -621,7 +622,7 @@ private fun GeneratorModal(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Morning Only (before 2 PM)", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 13.sp))
+                    Text("Morning Only (before 2 PM)", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                     Switch(
                         checked = morningPref,
                         onCheckedChange = { morningPref = it },
@@ -634,7 +635,7 @@ private fun GeneratorModal(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Max Results", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 13.sp))
+                    Text("Max Results", style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { maxResults = (maxResults - 10).coerceAtLeast(10) }) {
                             Icon(Icons.Rounded.Remove, null, tint = colors.textPrimary)
@@ -661,7 +662,7 @@ private fun GeneratorModal(
             )
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = colors.textSecondary) }
+            TextButton(onClick = onDismiss) { Text(Strings.cancel, color = colors.textSecondary) }
         }
     )
 }

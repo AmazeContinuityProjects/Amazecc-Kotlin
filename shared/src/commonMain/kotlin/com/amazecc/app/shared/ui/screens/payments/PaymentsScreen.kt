@@ -77,24 +77,24 @@ fun PaymentsScreen() {
                         ) {
                             Icon(Icons.Rounded.AccountBalanceWallet, null, tint = Color.White, modifier = Modifier.size(22.dp))
                         }
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Text("VIT Wallet Balance", color = Color.White.copy(alpha = 0.9f), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium))
                     }
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.md))
                     Text(
                         paymentsRes?.walletBalance?.replace("Rs.", "\u20B9")?.replace("INR", "\u20B9") ?: "\u20B9 0.00",
                         fontWeight = FontWeight.Black, fontSize = 36.sp, color = Color.White
                     )
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(
                             onClick = { /* TODO */ },
                             modifier = Modifier.weight(1f).height(42.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(AmazeTheme.radius.small)
                         ) {
                             Icon(Icons.Rounded.Add, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
                             Text("Top Up", color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                         Button(
@@ -102,17 +102,17 @@ fun PaymentsScreen() {
                             modifier = Modifier.weight(1f).height(42.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f)),
                             elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
-                            shape = RoundedCornerShape(12.dp)
+                            shape = RoundedCornerShape(AmazeTheme.radius.small)
                         ) {
                             Icon(Icons.Rounded.History, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
                             Text("History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                         }
                     }
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
             // Sub-tabs (Bouncy Chips)
             Row(
@@ -160,10 +160,10 @@ fun PaymentsScreen() {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText, modifier = Modifier.size(56.dp))
-                                Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                 Text("All clear — no pending dues", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
                                 if (receipts.isNotEmpty()) {
-                                    Spacer(Modifier.height(6.dp))
+                                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
                                     Text("${receipts.size} past receipts", color = colors.textSecondary, style = AmazeTheme.typography.caption)
                                 }
                             }
@@ -182,7 +182,7 @@ private fun EmptyStateView(icon: androidx.compose.ui.graphics.vector.ImageVector
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(icon, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.md))
             Text(text, style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
         }
     }
@@ -210,12 +210,12 @@ private fun PaymentReceiptCard(payment: PaymentItem, colors: com.amazecc.app.sha
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
-                        modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp)).background(colors.accent.copy(alpha = 0.1f)),
+                        modifier = Modifier.size(32.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.accent.copy(alpha = 0.1f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Rounded.Receipt, null, tint = colors.accent, modifier = Modifier.size(16.dp))
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                     Column {
                         Text("Ref: ${payment.receiptNo ?: payment.billingId}", color = colors.textSecondary, style = AmazeTheme.typography.smallLabel)
                         Text(payment.paymentDate ?: payment.dueDate ?: "", color = colors.textMuted, style = AmazeTheme.typography.caption)
@@ -223,9 +223,9 @@ private fun PaymentReceiptCard(payment: PaymentItem, colors: com.amazecc.app.sha
                 }
                 AmazeBadge(if (isPaid) "PAID" else "PENDING", variant = if (isPaid) BadgeVariant.SUCCESS else BadgeVariant.WARNING)
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.md))
             Text(payment.description, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.md))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
                 Text(payment.amount.replace("Rs.", "\u20B9").replace("INR", "\u20B9"), style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = colors.textPrimary))
                 if (isPaid) {

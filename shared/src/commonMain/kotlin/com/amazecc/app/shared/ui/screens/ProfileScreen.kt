@@ -26,6 +26,7 @@ import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.strings.Strings
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -44,7 +45,7 @@ fun ProfileScreen() {
         modifier = Modifier.fillMaxSize().background(colors.background)
     ) {
         ScreenHeader(
-            title = "Profile",
+            title = Strings.profile,
             description = "Your personal information",
             showBackButton = false,
             showSyncButton = true,
@@ -71,7 +72,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val scrollState = rememberScrollState()
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 18.dp).padding(bottom = 88.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(horizontal = 18.dp).padding(bottom = BOTTOM_NAV_PADDING),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
         com.amazecc.app.shared.ui.components.HeaderSpacer()
@@ -123,7 +124,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         )
                     }
                 }
-                Spacer(Modifier.width(16.dp))
+                Spacer(Modifier.width(AmazeTheme.spacing.md))
                 Column(Modifier.weight(1f)) {
                     Text(
                         text = profile?.name ?: authorizedID ?: "Student",
@@ -140,7 +141,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         AmazeBadge(text = "ACTIVE ENROLLED", variant = BadgeVariant.SUCCESS)
                         if (profile?.batch?.isNotBlank() == true) {
@@ -164,7 +165,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 AmazeCard(variant = CardVariant.DEFAULT) {
                     Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.Event, null, tint = if (hasEpt) colors.accent else colors.textMuted)
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("EPT Schedule", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                         Text(if (hasEpt) "Scheduled" else "No EPT", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
                     }
@@ -172,7 +173,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 AmazeCard(variant = CardVariant.DEFAULT) {
                     Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.AccountBalance, null, tint = if (hasBank) colors.accent else colors.textMuted)
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Bank Info", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                         Text(if (hasBank) "Available" else "Not available", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
                     }
@@ -180,7 +181,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 AmazeCard(variant = CardVariant.DEFAULT) {
                     Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.EmojiEvents, null, tint = if (viteeeRank != null) colors.accent else colors.textMuted)
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("VITEEE Rank", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                         Text(viteeeRank ?: "N/A", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
                     }
@@ -190,7 +191,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 AmazeCard(variant = CardVariant.DEFAULT) {
                     Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.HowToReg, null, tint = if (hasReg) colors.accent else colors.textMuted)
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Registration", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                         Text(if (hasReg) "Available" else "No Schedule", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
                     }
@@ -198,7 +199,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 AmazeCard(variant = CardVariant.DEFAULT) {
                     Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.Commute, null, tint = if (hasDay) colors.accent else colors.textMuted)
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Dayboarder", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                         Text(if (hasDay) "Active" else "Not active", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
                     }
@@ -206,7 +207,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 AmazeCard(variant = CardVariant.DEFAULT) {
                     Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.Badge, null, tint = if (hasApaar) colors.accent else colors.textMuted)
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("APAAR ID", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                         Text(if (hasApaar) "Generated" else "Pending", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
                     }
@@ -280,9 +281,9 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(24.dp)) {
                     Icon(Icons.Rounded.PersonSearch, null, tint = colors.textMuted, modifier = Modifier.size(40.dp))
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     Text("Profile not loaded", color = colors.textSecondary)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     AmazeButton("Load Profile", onClick = { AppState.loadAllData() }, variant = ButtonVariant.SECONDARY)
                 }
             }
@@ -297,7 +298,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 ) {
                     Icon(Icons.Rounded.Settings, null, tint = colors.accent, modifier = Modifier.size(20.dp))
                 }
-                Spacer(Modifier.width(14.dp))
+                Spacer(Modifier.width(AmazeTheme.spacing.md))
                 Column(Modifier.weight(1f)) {
                     Text("App Settings", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("Theme, sync, credentials & preferences", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -327,7 +328,7 @@ private fun ProfileGroupCard(title: String, items: List<ProfileItem>, colors: co
                     style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold)
                 )
             }
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             items.forEach { item ->
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -339,7 +340,7 @@ private fun ProfileGroupCard(title: String, items: List<ProfileItem>, colors: co
                     ) {
                         Icon(item.icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                     Column(Modifier.weight(1f)) {
                         Text(item.label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(item.value, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)

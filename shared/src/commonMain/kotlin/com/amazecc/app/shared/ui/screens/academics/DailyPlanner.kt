@@ -31,6 +31,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.utils.AttendanceDay
@@ -302,21 +303,21 @@ fun DailyPlannerScreen() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
         if (selectedWeekDay.dayOrderOverride != null) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
                     .background(colors.accent.copy(alpha = 0.12f))
-                    .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                    .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.small))
                     .padding(horizontal = 12.dp, vertical = 10.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = colors.accent, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Text(
                         "⚡ ${selectedWeekDay.dayOrderOverride.name} Day Order active for ${selectedWeekDay.abbrev}",
                         style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent)
@@ -332,7 +333,7 @@ fun DailyPlannerScreen() {
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("🎉", fontSize = 48.sp)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                     Text("No Classes Scheduled", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     Text("Enjoy your day off!", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
@@ -341,7 +342,7 @@ fun DailyPlannerScreen() {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(start = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 88.dp)
+                contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
             ) {
                 items(scheduleData) { item ->
                     TimelineRow(item)
@@ -349,11 +350,11 @@ fun DailyPlannerScreen() {
 
                 val todayTasks = AppState.todayTasks
                 if (todayTasks.isNotEmpty()) {
-                    item { Spacer(Modifier.height(8.dp)) }
+                    item { Spacer(Modifier.height(AmazeTheme.spacing.sm)) }
                     item {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Rounded.CheckCircle, null, tint = colors.accent, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
                             Text("Today's Tasks (${todayTasks.size})", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                         }
                     }
@@ -383,17 +384,17 @@ fun TimelineRow(item: TimelineEvent) {
             Box(modifier = Modifier.padding(top = 24.dp).size(7.dp).clip(CircleShape).background(if (item.type == "class") colors.accent else colors.border))
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
 
         Box(
             modifier = Modifier
                 .weight(1f)
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(AmazeTheme.radius.medium))
                 .background(
                     if (item.type == "class") colors.surface else colors.surface.copy(alpha = 0.5f),
-                    RoundedCornerShape(16.dp)
+                    RoundedCornerShape(AmazeTheme.radius.medium)
                 )
-                .border(1.dp, colors.border, RoundedCornerShape(16.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
                 .clickable {
                     if (item.type == "class") item.course?.courseCode?.let { AppState.openCourseDetail(it) }
                 }
@@ -407,7 +408,7 @@ fun TimelineRow(item: TimelineEvent) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Rounded.Coffee, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                         Column {
                             Text("Free Period", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text(
@@ -425,7 +426,7 @@ fun TimelineRow(item: TimelineEvent) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(Icons.Rounded.Restaurant, contentDescription = null, tint = colors.chart3, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                         Column {
                             Text("Lunch Break", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text(
@@ -459,7 +460,7 @@ fun TimelineRow(item: TimelineEvent) {
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(4.dp))
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                         .background(typeColor.copy(alpha = 0.12f))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
@@ -473,14 +474,14 @@ fun TimelineRow(item: TimelineEvent) {
                                     style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                             Text(
                                 c.courseTitle,
                                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -495,7 +496,7 @@ fun TimelineRow(item: TimelineEvent) {
                                 )
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                         .background(
                                             when {
                                                 attPct >= 85 -> colors.chart1.copy(alpha = 0.12f)

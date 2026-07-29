@@ -399,34 +399,23 @@ object AmazeClient {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return HostelDetails(
                 success = true,
-                gender = "MALE",
-                isHosteller = true,
-                blockName = "Q-Block",
-                roomNo = "612",
-                messInfo = "Special Veg Mess (Caterer: CRCL)"
-            )
-        }
-        return try {
-            postAuthorized<HostelDetails>("hostel") ?: HostelDetails(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            HostelDetails(success = false, message = e.message, error = e.toString())
-        }
-    }
-
-    suspend fun getHostelLeaves(): HostelLeaveRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return HostelLeaveRes(
-                success = true,
-                leaves = listOf(
+                hostelInfo = HostelInfo(
+                    gender = "MALE",
+                    isHosteller = true,
+                    blockName = "Q-Block",
+                    roomNo = "612",
+                    messInfo = "Special Veg Mess (Caterer: CRCL)"
+                ),
+                leaveHistory = listOf(
                     LeaveItem("LV-9810", "Home (Delhi)", "Family function", "Home Leave", "2026-07-15", "2026-07-20", "APPROVED", "Ensure return by due time"),
                     LeaveItem("LV-9541", "Local (Vellore)", "Shopping", "Outing", "2026-06-28 10:00 AM", "2026-06-28 06:00 PM", "COMPLETED", "Returned on time")
                 )
             )
         }
         return try {
-            postAuthorized<HostelLeaveRes>("hostel-leave") ?: HostelLeaveRes(success = false, message = "Empty response")
+            postAuthorized<HostelDetails>("hostel") ?: HostelDetails(success = false, message = "Empty response")
         } catch (e: Exception) {
-            HostelLeaveRes(success = false, message = e.message, error = e.toString())
+            HostelDetails(success = false, message = e.message, error = e.toString())
         }
     }
 
@@ -1182,11 +1171,16 @@ object AmazeClient {
     suspend fun getEventPreview(eid: String): EventHubPreview? {
         return try {
             val jsessionid = SessionManager.clubToken.value
+            val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
             val response = httpClient.post("$baseUrl/api/events/preview") {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject {
                     put("eid", eid)
                     if (jsessionid != null) put("jsessionid", jsessionid)
+                    if (creds != null) {
+                        put("username", creds.first)
+                        put("password", creds.second)
+                    }
                 })
             }
             if (response.status == HttpStatusCode.OK) {
@@ -1200,12 +1194,16 @@ object AmazeClient {
     suspend fun registerForEvent(eid: String): EventHubRegisterRes? {
         return try {
             val jsessionid = SessionManager.clubToken.value
-            if (jsessionid == null) return null
+            val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
             val response = httpClient.post("$baseUrl/api/events/register") {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject {
                     put("eid", eid)
-                    put("jsessionid", jsessionid)
+                    if (jsessionid != null) put("jsessionid", jsessionid)
+                    if (creds != null) {
+                        put("username", creds.first)
+                        put("password", creds.second)
+                    }
                 })
             }
             if (response.status == HttpStatusCode.OK) {
@@ -1216,39 +1214,35 @@ object AmazeClient {
         }
     }
 
-    suspend fun getEventsProfile(): EventHubRes {
+    suspend fun getEventsProfile(): EventHubRegisteredEventsRes {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return EventHubRes(
+            return EventHubRegisteredEventsRes(
                 success = true,
                 events = listOf(
-                    EventHubEvent(
+                    EventHubRegisteredEvent(
                         eid = "EV-901",
                         title = "Hackathon 2026",
-                        type = "Technical",
-                        date = "2026-08-15",
                         location = "Anna Auditorium",
-                        price = "Free",
-                        eligibility = "All"
+                        date = "2026-08-15",
+                        time = "10:00 AM",
+                        paymentStatus = "Registered"
                     )
                 )
             )
         }
         return try {
-            val element = postAuthorized<JsonElement>("events/profile", mapOf("jsessionid" to (SessionManager.clubToken.value ?: "")))
-            if (element != null) {
-                val eventsList = if (element is JsonArray) {
-                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
-                } else if (element.jsonObject["events"] is JsonArray) {
-                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element.jsonObject["events"] as JsonArray)
-                } else {
-                    emptyList()
-                }
-                EventHubRes(success = true, events = eventsList)
-            } else {
-                EventHubRes(success = false, message = "Server error", error = "Empty response from server")
+            val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
+            val extraParams = mutableMapOf<String, String>()
+            val jsessionid = SessionManager.clubToken.value
+            if (jsessionid != null) extraParams["jsessionid"] = jsessionid
+            if (creds != null) {
+                extraParams["username"] = creds.first
+                extraParams["password"] = creds.second
             }
+            postAuthorized<EventHubRegisteredEventsRes>("events/profile", extraParams)
+                ?: EventHubRegisteredEventsRes(success = false, message = "Empty response")
         } catch (e: Exception) {
-            EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
+            EventHubRegisteredEventsRes(success = false, message = "Network error: ${e.message}", error = e.toString())
         }
     }
 
@@ -1289,7 +1283,7 @@ object AmazeClient {
         return try {
             val response: HttpResponse = httpClient.get(url) {
                 val token = SessionManager.clubToken.value
-                if (!token.isNullOrEmpty()) {
+                if (!token.isNullOrEmpty() && url.contains("eventhubcc.vit.ac.in")) {
                     header(HttpHeaders.Cookie, "JSESSIONID=$token")
                 }
             }

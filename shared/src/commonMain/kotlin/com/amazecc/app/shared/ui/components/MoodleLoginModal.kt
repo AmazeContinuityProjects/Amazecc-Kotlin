@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.coroutines.launch
 
 @Composable
@@ -96,13 +97,13 @@ fun MoodleLoginModal(
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     AmazeButton(
-                        text = "Cancel",
+                        text = Strings.cancel,
                         onClick = onDismiss,
                         variant = ButtonVariant.SECONDARY,
                         modifier = Modifier.weight(1f)
                     )
                     AmazeButton(
-                        text = if (loading) "Loading..." else "Login",
+                        text = if (loading) Strings.loading else Strings.login,
                         onClick = {
                             if (username.isNotBlank() && password.isNotBlank()) {
                                 scope.launch {

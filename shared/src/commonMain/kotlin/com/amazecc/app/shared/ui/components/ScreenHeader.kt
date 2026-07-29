@@ -366,5 +366,3 @@ fun DynamicIslandLiveClass(
     }
 }
 
-// ── 1. UNIFIED ACADEMICS SCREEN (TABS: ATTENDANCE, MARKS, SCHEDULE) ──
-

@@ -32,6 +32,7 @@ import com.amazecc.app.shared.data.FfcsReportData
 import com.amazecc.app.shared.model.CampusSchema
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
@@ -333,7 +334,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 }
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             // ── Day & Time Selectors ──
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -363,7 +364,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             // ── Building Block Pills with Free Counts ──
             Text(
@@ -425,7 +426,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             if (loading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -435,12 +436,12 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.MeetingRoom, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Unable to load classroom data.", color = colors.textSecondary, fontWeight = FontWeight.Bold)
                         Text("No course timetable data available.", color = colors.textMuted, fontSize = 12.sp)
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.md))
                         OutlinedButton(onClick = { refreshTrigger++ }) {
-                            Text("Retry")
+                            Text(Strings.retry)
                         }
                     }
                 }
@@ -459,23 +460,23 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                         onClick = { refreshTrigger++ },
                         modifier = Modifier.size(32.dp).background(colors.accent.copy(alpha = 0.1f), CircleShape)
                     ) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = colors.accent, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Rounded.Refresh, contentDescription = Strings.refresh, tint = colors.accent, modifier = Modifier.size(16.dp))
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
                 if (filteredRooms.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Rounded.MeetingRoom, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
                             Text("No free classrooms found.", color = colors.textSecondary, fontWeight = FontWeight.Bold)
                             Text("Try selecting a different time slot or block.", color = colors.textMuted, fontSize = 12.sp)
                         }
                     }
                 } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
                         items(filteredRooms) { (room, type) ->
                             FreeClassroomCard(room, type, colors)
                         }
@@ -521,7 +522,7 @@ private fun FreeClassroomCard(room: String, type: String, colors: com.amazecc.ap
                     ) {
                         Icon(Icons.Rounded.MeetingRoom, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
                     }
-                    Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                     Text(
                         text = room,
                         fontSize = 18.sp,

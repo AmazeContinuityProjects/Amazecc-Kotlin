@@ -49,8 +49,8 @@ fun SplashScreen() {
                 modifier = Modifier
                     .size(120.dp)
                     .scale(logoScale)
-                    .shadow(20.dp, RoundedCornerShape(28.dp))
-                    .clip(RoundedCornerShape(28.dp))
+                    .shadow(20.dp, RoundedCornerShape(AmazeTheme.radius.large))
+                    .clip(RoundedCornerShape(AmazeTheme.radius.large))
                     .background(
                         Brush.linearGradient(
                             colors = listOf(
@@ -59,7 +59,7 @@ fun SplashScreen() {
                             )
                         )
                     )
-                    .border(2.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(28.dp)),
+                    .border(2.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(AmazeTheme.radius.large)),
                 contentAlignment = Alignment.Center
             ) {
                 androidx.compose.material3.Icon(
@@ -70,7 +70,7 @@ fun SplashScreen() {
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
 
             Text(
                 text = "AmazeCC",
@@ -81,7 +81,7 @@ fun SplashScreen() {
                 )
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
 
             Text(
                 text = "Unified Student Operating System",
@@ -91,7 +91,7 @@ fun SplashScreen() {
                 )
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
 
             Text(
                 text = "An unofficial community initiative",

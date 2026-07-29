@@ -1,13 +1,11 @@
 package com.amazecc.app.shared.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Icon
@@ -21,8 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.AttendanceRes
-import com.amazecc.app.shared.state.AppState
-import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import kotlin.math.floor
 
@@ -33,8 +29,6 @@ fun BunkOMeterCard(
     isInnerCard: Boolean = false
 ) {
     val colors = AmazeTheme.colors
-    val radius = AmazeTheme.radius
-    val spacing = AmazeTheme.spacing
 
     val stats = remember(attendance) {
         val courseList = attendance?.attendance ?: emptyList()
@@ -73,97 +67,128 @@ fun BunkOMeterCard(
         )
     }
 
-    val (badgeBg, badgeText, badgeIcon, statusTitle, statusSubtitle) = when {
-        !stats.hasData -> Tuple5(
+    val (badgeBg, badgeText, badgeIcon, accentColor, statusTitle, statusSubtitle) = when {
+        !stats.hasData -> Tuple6(
             colors.accent.copy(alpha = 0.12f),
             colors.accent,
             Icons.Rounded.Shield,
+            colors.accent,
             "Bunk-O-Meter Ready",
             "Sync attendance to calculate safe bunk limits."
         )
-        stats.criticalCount > 0 -> Tuple5(
+        stats.criticalCount > 0 -> Tuple6(
             colors.danger.copy(alpha = 0.12f),
             colors.danger,
             Icons.Rounded.Warning,
+            colors.danger,
             "⚠️ ${stats.criticalCount} Critical Course${if (stats.criticalCount > 1) "s" else ""}",
             "Attendance is below 75%! Do NOT skip any more classes."
         )
-        stats.warningCount > 0 -> Tuple5(
+        stats.warningCount > 0 -> Tuple6(
             colors.warning.copy(alpha = 0.12f),
             colors.warning,
             Icons.Rounded.Warning,
+            colors.warning,
             "Careful! ${stats.warningCount} course${if (stats.warningCount > 1) "s" else ""} near 75%",
             "You can bunk ~${stats.totalBunkable} total class${if (stats.totalBunkable != 1) "es" else ""} safely overall."
         )
-        else -> Tuple5(
+        else -> Tuple6(
             colors.success.copy(alpha = 0.12f),
             colors.success,
             Icons.Rounded.CheckCircle,
+            colors.success,
             "Safe to Bunk ~${stats.totalBunkable} Class${if (stats.totalBunkable != 1) "es" else ""}",
             "All courses are safely above 75%. Keep up the margin!"
         )
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(
-                if (isInnerCard) {
-                    Modifier.clickable { AppState.navigateTo(Screen.COURSE_ATTENDANCE) }
-                        .padding(horizontal = 20.dp, vertical = 16.dp)
-                } else {
-                    Modifier.clip(RoundedCornerShape(radius.large))
-                        .background(colors.surface)
-                        .border(1.dp, colors.border, RoundedCornerShape(radius.large))
-                        .clickable { AppState.navigateTo(Screen.COURSE_ATTENDANCE) }
-                        .padding(spacing.cardPadding)
-                }
-            )
-    ) {
+    val cardContent = @Composable {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
             Box(
                 modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
                     .background(badgeBg),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(badgeIcon, contentDescription = null, tint = badgeText, modifier = Modifier.size(24.dp))
+                Icon(badgeIcon, contentDescription = null, tint = badgeText, modifier = Modifier.size(22.dp))
             }
-
-            Spacer(modifier = Modifier.width(14.dp))
-
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "BUNK-O-METER",
-                    style = AmazeTheme.typography.categoryLabel.copy(color = colors.textMuted)
-                )
-                Spacer(modifier = Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "BUNK-O-METER",
+                        style = AmazeTheme.typography.categoryLabel.copy(color = colors.textMuted)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(
+                        Icons.Rounded.Info,
+                        contentDescription = null,
+                        tint = colors.textMuted.copy(alpha = 0.5f),
+                        modifier = Modifier.size(12.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = statusTitle,
                     style = AmazeTheme.typography.body.copy(
                         fontWeight = FontWeight.Bold,
                         color = colors.textPrimary,
-                        fontSize = 15.sp
+                        fontSize = 14.sp
                     )
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = statusSubtitle,
                     style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                    maxLines = 2
+                    maxLines = 2,
+                    lineHeight = 16.sp
                 )
             }
+        }
+    }
 
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
-                contentDescription = null,
-                tint = colors.textMuted,
-                modifier = Modifier.size(24.dp)
+    if (isInnerCard) {
+        Column(modifier = modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(accentColor)
             )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(accentColor.copy(alpha = 0.04f))
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                cardContent()
+            }
+        }
+    } else {
+        Column(
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(colors.surface)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .background(accentColor)
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(accentColor.copy(alpha = 0.04f))
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+            ) {
+                cardContent()
+            }
         }
     }
 }
@@ -175,6 +200,6 @@ private data class BunkStats(
     val hasData: Boolean
 )
 
-private data class Tuple5<A, B, C, D, E>(
-    val a: A, val b: B, val c: C, val d: D, val e: E
+private data class Tuple6<A, B, C, D, E, F>(
+    val a: A, val b: B, val c: C, val d: D, val e: E, val f: F
 )

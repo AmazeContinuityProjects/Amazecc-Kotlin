@@ -35,6 +35,7 @@ import com.amazecc.app.shared.ui.components.*
 import io.kamel.image.KamelImage
 import io.kamel.image.asyncPainterResource
 import com.amazecc.app.shared.api.AmazeClient
+import io.ktor.util.decodeBase64Bytes
 
 @Composable
 internal fun AuthKamelImage(
@@ -70,6 +71,34 @@ internal fun AuthKamelImage(
             contentScale = contentScale,
             onFailure = { onFailure() }
         )
+    }
+}
+
+@Composable
+internal fun Base64Image(
+    imageSrc: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+    onLoading: @Composable () -> Unit = {},
+    onFailure: @Composable () -> Unit = {}
+) {
+    val bytes = remember(imageSrc) {
+        val base64 = imageSrc.substringAfter("base64,")
+        try { base64.decodeBase64Bytes() } catch (e: Exception) { null }
+    }
+
+    if (bytes != null) {
+        KamelImage(
+            resource = asyncPainterResource(data = bytes),
+            contentDescription = contentDescription,
+            modifier = modifier,
+            contentScale = contentScale,
+            onLoading = { onLoading() },
+            onFailure = { onFailure() }
+        )
+    } else {
+        onFailure()
     }
 }
 
@@ -141,7 +170,7 @@ private fun EventsTab() {
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator(color = colors.accent, strokeWidth = 3.dp, modifier = Modifier.size(40.dp))
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                             Text("Loading events...", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
                         }
                     }
@@ -154,7 +183,7 @@ private fun EventsTab() {
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Rounded.EventBusy, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                             Text("No events available", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
                             Text("Check back later or sync from the header", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                         }
@@ -193,7 +222,7 @@ private fun EventsTab() {
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 }
                 if (filteredEvents.isEmpty()) {
                     item {
@@ -252,30 +281,21 @@ private fun FeaturedEventCard(
                     .fillMaxWidth()
                     .height(180.dp)
             ) {
-                if (imgUrl != null) {
-                    KamelImage(
-                        resource = asyncPainterResource(data = imgUrl),
-                        contentDescription = "Featured Event Image",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        onLoading = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) },
-                        onFailure = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
-                    )
-                } else {
-                    AuthKamelImage(
-                        url = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
-                        contentDescription = "Featured Event Image",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        onLoading = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) },
-                        onFailure = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
-                    )
-                }
+                val onLoading: @Composable () -> Unit = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
+                val onFailure: @Composable () -> Unit = { Box(modifier = Modifier.fillMaxSize().background(colors.accent.copy(alpha = 0.1f))) }
+                AuthKamelImage(
+                    url = imgUrl ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
+                    contentDescription = "Featured Event Image",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    onLoading = onLoading,
+                    onFailure = onFailure
+                )
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
                         .padding(12.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                         .background(Color.Black.copy(alpha = 0.6f))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
@@ -294,16 +314,16 @@ private fun FeaturedEventCard(
                     event.title,
                     style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = colors.textPrimary)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                         Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.LocationOn, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                         Text(event.location, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     }
                 }
@@ -333,49 +353,40 @@ private fun EventCard(
             Box(
                 modifier = Modifier
                     .size(80.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
                     .background(colors.accent.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
-                if (imgUrl != null) {
-                    KamelImage(
-                        resource = asyncPainterResource(data = imgUrl),
-                        contentDescription = "Event Image",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        onLoading = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) },
-                        onFailure = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) }
-                    )
-                } else {
-                    AuthKamelImage(
-                        url = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
-                        contentDescription = "Event Image",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                        onLoading = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) },
-                        onFailure = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) }
-                    )
-                }
+                val onLoading: @Composable () -> Unit = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) }
+                val onFailure: @Composable () -> Unit = { Icon(Icons.Rounded.Event, null, tint = colors.accent, modifier = Modifier.size(26.dp)) }
+                AuthKamelImage(
+                    url = imgUrl ?: "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
+                    contentDescription = "Event Image",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    onLoading = onLoading,
+                    onFailure = onFailure
+                )
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Text(
                     event.title,
                     style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.CalendarToday, null, tint = colors.textMuted, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                     Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
             }
             if (isRegistered) {
                 Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText, modifier = Modifier.size(28.dp))
-            } else if (event.isPastEvent == true) {
+            } else if (false) {
                 Text("Closed", style = AmazeTheme.typography.smallLabel.copy(color = colors.dangerText, fontWeight = FontWeight.Bold))
             } else {
                 Text(event.price, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent))
@@ -430,54 +441,58 @@ private fun EventDetailSheet(
                 modifier = Modifier
                     .width(40.dp)
                     .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
+                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                     .background(colors.border)
                     .align(Alignment.CenterHorizontally)
             )
 
             // Poster image
-            val apiPosterUrl = previewData?.posterUrl?.takeIf { it.isNotEmpty() } ?: event.posterUrl?.takeIf { it.isNotEmpty() }
-            if (apiPosterUrl != null) {
-                KamelImage(
-                    resource = asyncPainterResource(data = apiPosterUrl),
+            val base64Src = previewData?.imageSrc?.takeIf { it.isNotEmpty() }
+            val posterUrl = event.posterUrl?.takeIf { it.isNotEmpty() }
+            val eventHubImageUrl = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}"
+
+            val imageModifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                .background(colors.border.copy(alpha = 0.5f))
+            val loadingContent: @Composable () -> Unit = {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(24.dp))
+                }
+            }
+            val failureContent: @Composable () -> Unit = {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Rounded.ImageNotSupported, null, tint = colors.textMuted)
+                }
+            }
+
+            if (base64Src != null) {
+                Base64Image(
+                    imageSrc = base64Src,
                     contentDescription = "Event Poster",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(colors.border.copy(alpha = 0.5f)),
+                    modifier = imageModifier,
                     contentScale = ContentScale.Crop,
-                    onLoading = {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(24.dp))
-                        }
-                    },
-                    onFailure = {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.ImageNotSupported, null, tint = colors.textMuted)
-                        }
-                    }
+                    onLoading = loadingContent,
+                    onFailure = failureContent
+                )
+            } else if (posterUrl != null) {
+                AuthKamelImage(
+                    url = posterUrl,
+                    contentDescription = "Event Poster",
+                    modifier = imageModifier,
+                    contentScale = ContentScale.Crop,
+                    onLoading = loadingContent,
+                    onFailure = failureContent
                 )
             } else {
                 AuthKamelImage(
-                    url = "https://eventhubcc.vit.ac.in/EventHub/image/?id=${event.eid}",
+                    url = eventHubImageUrl,
                     contentDescription = "Event Poster",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(200.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(colors.border.copy(alpha = 0.5f)),
+                    modifier = imageModifier,
                     contentScale = ContentScale.Crop,
-                    onLoading = {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(24.dp))
-                        }
-                    },
-                    onFailure = {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.ImageNotSupported, null, tint = colors.textMuted)
-                        }
-                    }
+                    onLoading = loadingContent,
+                    onFailure = failureContent
                 )
             }
 
@@ -496,7 +511,7 @@ private fun EventDetailSheet(
                             fontSize = 22.sp
                         )
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                     Badge(
                         containerColor = colors.accent.copy(alpha = 0.12f),
                         contentColor = colors.accent
@@ -524,20 +539,20 @@ private fun EventDetailSheet(
             DetailRow(Icons.Rounded.LocationOn, "Location", event.location)
             DetailRow(Icons.Rounded.People, "Eligibility", event.eligibility)
 
-            if (event.isPastEvent == true) {
+            if (false) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFFF59E0B).copy(alpha = 0.1f))
+                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                        .background(colors.warning.copy(alpha = 0.1f))
                         .padding(12.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Info, null, tint = Color(0xFFF59E0B), modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Icon(Icons.Rounded.Info, null, tint = colors.warning, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                         Text(
                             "This event has already passed.",
-                            style = AmazeTheme.typography.caption.copy(color = Color(0xFFF59E0B), fontWeight = FontWeight.Medium)
+                            style = AmazeTheme.typography.caption.copy(color = colors.warning, fontWeight = FontWeight.Medium)
                         )
                     }
                 }
@@ -558,7 +573,7 @@ private fun EventDetailSheet(
                         Button(
                             onClick = { uriHandler.openUri(regUrl) },
                             modifier = Modifier.fillMaxWidth().height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(AmazeTheme.radius.small),
                             colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
                         ) {
                             Text("Open Payment Gateway", fontWeight = FontWeight.Bold)
@@ -581,12 +596,12 @@ private fun EventDetailSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(AmazeTheme.radius.medium),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isRegistered) Color(0xFF10B981) else colors.accent,
+                        containerColor = if (isRegistered) colors.success else colors.accent,
                         disabledContainerColor = colors.border
                     ),
-                    enabled = !isRegistered && event.isPastEvent != true && !isRegistering
+                    enabled = !isRegistered && !isRegistering
                 ) {
                     if (isRegistering) {
                         CircularProgressIndicator(color = colors.background, modifier = Modifier.size(20.dp))
@@ -596,7 +611,7 @@ private fun EventDetailSheet(
                             null,
                             modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                         Text(
                             if (isRegistered) "Registered" else "Register Now",
                             fontWeight = FontWeight.Bold,
@@ -619,13 +634,13 @@ private fun DetailRow(icon: ImageVector, label: String, value: String) {
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(AmazeTheme.radius.small))
                 .background(colors.accent.copy(alpha = 0.08f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, null, tint = colors.accent, modifier = Modifier.size(20.dp))
         }
-        Spacer(modifier = Modifier.width(14.dp))
+        Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
         Column {
             Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
             Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary))

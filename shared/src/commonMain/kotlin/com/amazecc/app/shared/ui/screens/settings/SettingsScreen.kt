@@ -26,6 +26,7 @@ import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.NamedCalendar
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.AttendanceDisplayMode
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.state.SyncModule
@@ -123,7 +124,7 @@ fun SettingsScreen() {
                     }
                 }
 
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
 
                 SettingsRow("Accent Color", colors) {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -175,8 +176,8 @@ fun SettingsScreen() {
 
                 SettingsRow("Attendance Display Format", colors) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AmazeButton("Percentage (%)", { AppState.setAttendanceDisplayMode("percentage") }, modifier = Modifier.weight(1f), variant = if (attendanceMode == "percentage") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
-                        AmazeButton("Fraction (x/y)", { AppState.setAttendanceDisplayMode("fraction") }, modifier = Modifier.weight(1f), variant = if (attendanceMode == "fraction") ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
+                        AmazeButton("Percentage (%)", { AppState.setAttendanceDisplayMode(AttendanceDisplayMode.PERCENTAGE) }, modifier = Modifier.weight(1f), variant = if (attendanceMode == AttendanceDisplayMode.PERCENTAGE) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
+                        AmazeButton("Fraction (x/y)", { AppState.setAttendanceDisplayMode(AttendanceDisplayMode.FRACTION) }, modifier = Modifier.weight(1f), variant = if (attendanceMode == AttendanceDisplayMode.FRACTION) ButtonVariant.PRIMARY else ButtonVariant.SECONDARY)
                     }
                 }
 
@@ -221,24 +222,24 @@ fun SettingsScreen() {
             SettingsSection("Bottom Navigation Tabs", Icons.Rounded.Navigation, colors) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Info, null, tint = colors.accent, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                     Text("Pin up to 4 modules to your bottom bar. Home is always pinned.", color = colors.textSecondary, fontSize = 12.sp)
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text("Pinned Tabs", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp)
                     Text("${selectedTabs.size}/4 selected", fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 12.sp)
                 }
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
                 availableTabs.forEach { tab ->
                     val (icon, label) = getScreenIconAndLabel(tab)
                     val isSelected = selectedTabs.contains(tab)
                     val isEnabled = isSelected || selectedTabs.size < 4
 
                     Row(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(if (isSelected) colors.accent.copy(alpha = 0.1f) else colors.surface)
-                            .border(1.dp, if (isSelected) colors.accent.copy(alpha = 0.3f) else colors.border.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                            .border(1.dp, if (isSelected) colors.accent.copy(alpha = 0.3f) else colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
                             .clickable(enabled = isEnabled || isSelected) {
                                 val newSet = if (isSelected) selectedTabs - tab
                                 else if (selectedTabs.size < 4) selectedTabs + tab else selectedTabs
@@ -249,11 +250,11 @@ fun SettingsScreen() {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(icon, label, tint = if (isSelected) colors.accent else if (!isEnabled) colors.textMuted else colors.textPrimary, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Text(label, color = if (isSelected) colors.textPrimary else if (!isEnabled) colors.textMuted else colors.textSecondary, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
                         Checkbox(checked = isSelected, onCheckedChange = null, enabled = isEnabled, colors = CheckboxDefaults.colors(checkedColor = colors.accent, uncheckedColor = colors.textMuted, checkmarkColor = colors.background))
                     }
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
                 }
             }
 
@@ -262,7 +263,7 @@ fun SettingsScreen() {
             // ═══════════════════════════════════════════
             SettingsSection("Academic Calendar", Icons.Rounded.CalendarMonth, colors) {
                 Text("Choose which calendar to display by default", color = colors.textSecondary, fontSize = 12.sp)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 if (availableCalendars.isEmpty()) {
                     Text("Loading calendars…", color = colors.textMuted, fontSize = 12.sp)
                 } else {
@@ -270,9 +271,9 @@ fun SettingsScreen() {
                         val isSelected = preferredCalendarName == cal.name ||
                             (preferredCalendarName.isEmpty() && availableCalendars.firstOrNull() == cal)
                         Row(
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small))
                                 .background(if (isSelected) colors.accent.copy(alpha = 0.12f) else colors.surface)
-                                .border(1.dp, if (isSelected) colors.accent else colors.border.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                                .border(1.dp, if (isSelected) colors.accent else colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
                                 .clickable {
                                     preferredCalendarName = cal.name
                                     SettingsManager.savePreferredCalendar(cal.name)
@@ -280,12 +281,12 @@ fun SettingsScreen() {
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(3.dp)).background(if (isSelected) colors.accent else colors.border))
-                            Spacer(Modifier.width(12.dp))
+                            Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isSelected) colors.accent else colors.border))
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
                             Text(cal.name, color = if (isSelected) colors.accent else colors.textPrimary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp, modifier = Modifier.weight(1f))
                             if (isSelected) Icon(Icons.Rounded.Check, null, tint = colors.accent, modifier = Modifier.size(18.dp))
                         }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
                     }
                 }
             }
@@ -308,9 +309,9 @@ fun SettingsScreen() {
                     var username by remember { mutableStateOf(savedUsername) }
                     var password by remember { mutableStateOf("") }
                     AmazeTextField(value = username, onValueChange = { username = it }, label = "Registration Number", placeholder = "", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     AmazeTextField(value = password, onValueChange = { password = it }, label = "Password", placeholder = "", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     AmazeButton("Save & Overwrite VTOP", onClick = { SettingsManager.saveCredentials(username, password); showCredEditor = false }, modifier = Modifier.fillMaxWidth())
                 } else {
                     AmazeButton("Edit VTOP Credentials", onClick = { showCredEditor = true }, variant = ButtonVariant.SECONDARY, modifier = Modifier.fillMaxWidth())
@@ -368,7 +369,7 @@ fun SettingsScreen() {
 
                 // Sync Status Summary
                 Row(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small))
                         .background(colors.accent.copy(alpha = 0.08f)).padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -379,7 +380,7 @@ fun SettingsScreen() {
                     Text("${syncProgress.percentage.toInt()}%", fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 16.sp)
                 }
 
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
 
                 // Action buttons row
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
@@ -393,32 +394,32 @@ fun SettingsScreen() {
                     }, modifier = Modifier.weight(1f), variant = ButtonVariant.SECONDARY)
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                 // Per-module status list
                 val modulesToShow = SyncModule.entries.filter { it.cacheKey != null || it == SyncModule.CAB_TRIPS }
                 modulesToShow.forEach { module ->
                     val state = moduleStates[module] ?: ModuleState()
                     val dotColor = when (state.status) {
-                        SyncStatus.SUCCESS -> Color(0xFF4CAF50)
-                        SyncStatus.ERROR -> Color(0xFFEF5350)
+                        SyncStatus.SUCCESS -> colors.success
+                        SyncStatus.ERROR -> colors.danger
                         SyncStatus.LOADING -> colors.accent
                         SyncStatus.IDLE -> colors.textMuted
                     }
                     val isLoading = state.status == SyncStatus.LOADING
 
                     Row(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(if (isLoading) colors.accent.copy(alpha = 0.06f) else colors.surface)
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dotColor))
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Text(module.displayName, color = colors.textPrimary, fontSize = 12.sp, modifier = Modifier.weight(1f))
                         if (state.lastSynced != null) {
                             Text(formatModuleTime(state.lastSynced), color = colors.textSecondary, fontSize = 10.sp)
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
                         }
                         if (isLoading) {
                             CircularProgressIndicator(modifier = Modifier.size(14.dp), color = colors.accent, strokeWidth = 2.dp)
@@ -436,7 +437,7 @@ fun SettingsScreen() {
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                 // Toggle switches for optional modules
                 SettingsToggle("Include Exam Schedule", syncExam, { AppState.setSyncExam(it) }, colors)
@@ -450,11 +451,11 @@ fun SettingsScreen() {
             // ═══════════════════════════════════════════
             SettingsSection("Danger Zone", Icons.Rounded.Warning, colors) {
                 AmazeButton("Clear All Local Caches", onClick = { SettingsManager.clearAll() }, variant = ButtonVariant.DANGER, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 AmazeButton("Log Out Student Session", onClick = { AppState.logout() }, variant = ButtonVariant.DANGER, modifier = Modifier.fillMaxWidth())
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.lg))
         }
     }
 }
@@ -464,10 +465,10 @@ private fun SettingsSection(title: String, icon: ImageVector, colors: com.amazec
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(AmazeTheme.spacing.sm))
             Text(title, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
         }
@@ -478,7 +479,7 @@ private fun SettingsSection(title: String, icon: ImageVector, colors: com.amazec
 private fun SettingsRow(label: String, colors: com.amazecc.app.shared.theme.AmazeColors, content: @Composable RowScope.() -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(label, color = colors.textPrimary, fontWeight = FontWeight.Medium, fontSize = 12.sp)
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.xs))
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, content = content)
     }
 }
@@ -538,10 +539,10 @@ private fun SettingsToggle(label: String, checked: Boolean, onCheckedChange: (Bo
 private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
     val selected = accent == current
     val swatchColor = when (accent) {
-        AccentTheme.OCEAN -> Color(0xFF3B82F6)
-        AccentTheme.FOREST -> Color(0xFF10B981)
-        AccentTheme.LAVENDER -> Color(0xFF8B5CF6)
-        AccentTheme.SUNSET -> Color(0xFFF59E0B)
+        AccentTheme.OCEAN -> colors.accent
+        AccentTheme.FOREST -> colors.success
+        AccentTheme.LAVENDER -> colors.info
+        AccentTheme.SUNSET -> colors.warning
     }
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -580,7 +581,7 @@ private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme
                     .background(swatchColor)
                     .border(1.dp, Color.White.copy(alpha = 0.4f), CircleShape)
             )
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.xs))
             Text(
                 text = name,
                 color = if (selected) swatchColor else colors.textSecondary,

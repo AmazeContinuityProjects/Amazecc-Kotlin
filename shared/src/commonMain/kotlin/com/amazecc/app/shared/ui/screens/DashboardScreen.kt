@@ -48,7 +48,9 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeBadge
+import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.BadgeVariant
@@ -217,7 +219,7 @@ fun DashboardScreen() {
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = spacing.pageHorizontal)
-                .padding(bottom = 88.dp)
+                .padding(bottom = BOTTOM_NAV_PADDING)
         ) {
             Spacer(modifier = Modifier.windowInsetsPadding(WindowInsets.statusBars))
             Spacer(modifier = Modifier.height(spacing.lg))
@@ -268,7 +270,7 @@ fun DashboardScreen() {
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(14.dp))
+                Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Good ${getGreeting()}",
@@ -312,7 +314,7 @@ fun DashboardScreen() {
                         )
                     }
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                 IconButton(
                     onClick = { showCommandPalette = true },
                     modifier = Modifier
@@ -323,7 +325,7 @@ fun DashboardScreen() {
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Search,
-                        contentDescription = "Search",
+                        contentDescription = Strings.search,
                         tint = colors.textSecondary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -378,7 +380,7 @@ fun DashboardScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
 
             val animatedAttendance by animateFloatAsState(
                 targetValue = overallAttendance / 100f,
@@ -435,7 +437,7 @@ fun DashboardScreen() {
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                             Text(
                                 text = if (overallAttendance >= 75f) "You're on track!"
                                 else if (overallAttendance >= 50f) "Needs improvement!"
@@ -449,7 +451,7 @@ fun DashboardScreen() {
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                             AmazeButton(
                                 text = "Predict Attendance",
                                 onClick = { AppState.openAttendanceView("Predictor") },
@@ -525,7 +527,7 @@ fun DashboardScreen() {
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             if (todayClasses.isEmpty()) {
                 Box(
@@ -669,7 +671,7 @@ fun DashboardScreen() {
                                         maxLines = 1,
                                         modifier = Modifier.weight(1f)
                                     )
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                                      Box(
                                         modifier = Modifier
                                             .background(
@@ -691,16 +693,16 @@ fun DashboardScreen() {
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(6.dp))
+                                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Box(
                                         modifier = Modifier
                                             .width(4.dp)
                                             .height(if (isCurrent) 36.dp else 32.dp)
-                                            .clip(RoundedCornerShape(2.dp))
+                                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                             .background(colors.accent)
                                     )
-                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                                     Column {
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text(
@@ -805,13 +807,13 @@ fun DashboardScreen() {
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             // ── Course Stats Row ──
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(spacing.xs)) {
                 val statCards = listOf(
                     Triple("$safeCount", "Safe", colors.chart1),
-                    Triple("$warnCount", "Warning", colors.chart3),
+                    Triple("$warnCount", Strings.warning, colors.chart3),
                     Triple("$critCount", "Critical", colors.chart5),
                     Triple("$avgCourseAtt", "Avg %", colors.chart2)
                 )
@@ -824,7 +826,7 @@ fun DashboardScreen() {
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             if (allCourses.isEmpty()) {
                 Box(
@@ -935,7 +937,7 @@ fun DashboardScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xl))
         }
     }
 
@@ -1030,7 +1032,7 @@ private fun ModernCourseCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -1112,7 +1114,7 @@ private fun GlassActionCard(
             ) {
                 Icon(icon, null, tint = colors.accent, modifier = Modifier.size(20.dp))
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             Text(
                 text = title,
                 style = AmazeTheme.typography.caption.copy(

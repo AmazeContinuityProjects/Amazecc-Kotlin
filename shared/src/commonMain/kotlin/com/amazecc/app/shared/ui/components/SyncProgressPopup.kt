@@ -30,6 +30,7 @@ import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -133,7 +134,7 @@ fun SyncProgressPopup(
             .fillMaxSize()
             .zIndex(100f)
             .background(Color.Black.copy(alpha = 0.4f))
-            .clickable(enabled = false) { /* consume clicks */ },
+            .clickable { /* consume clicks */ },
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -335,9 +336,9 @@ fun SyncProgressPopup(
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF5350))
                     ) {
-                        Icon(Icons.Rounded.Cancel, "Cancel", modifier = Modifier.size(16.dp))
+                        Icon(Icons.Rounded.Cancel, Strings.cancel, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Cancel", fontSize = 12.sp)
+                        Text(Strings.cancel, fontSize = 12.sp)
                     }
                 }
             }
@@ -434,7 +435,6 @@ private fun moduleShortName(module: SyncModule): String = when (module) {
     SyncModule.GRADES -> "Grades"
     SyncModule.CURRICULUM -> "Curr"
     SyncModule.HOSTEL_DETAILS -> "Hostel"
-    SyncModule.HOSTEL_LEAVES -> "Leaves"
     SyncModule.EXAM_SCHEDULE -> "Exam"
     SyncModule.CALENDAR -> "Cal"
     SyncModule.CALENDARS_LIST -> "CalList"
@@ -446,7 +446,7 @@ private fun moduleShortName(module: SyncModule): String = when (module) {
     SyncModule.EVENTS -> "Events"
     SyncModule.CLUBS -> "Clubs"
     SyncModule.QCM_VIEW -> "QCM"
-    SyncModule.STUDENT_PROFILE -> "Profile"
+    SyncModule.STUDENT_PROFILE -> Strings.profile
     SyncModule.CAB_TRIPS -> "Cab Share"
     SyncModule.CIRCULARS -> "Circ"
     SyncModule.PROFILE_IMAGES -> "Imgs"

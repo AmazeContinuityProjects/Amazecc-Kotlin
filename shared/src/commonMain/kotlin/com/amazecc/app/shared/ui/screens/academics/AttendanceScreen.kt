@@ -34,6 +34,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
@@ -115,7 +116,7 @@ fun AttendanceScreen() {
                 ) {
                     Text(
                         text = view,
-                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp),
+                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold),
                         color = if (isSelected) colors.background else colors.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -140,14 +141,14 @@ fun FreePeriodBlock(title: String, time: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(colors.surface, RoundedCornerShape(12.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+            .background(colors.surface, RoundedCornerShape(AmazeTheme.radius.small))
+            .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small))
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
         Icon(Icons.Rounded.Info, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
         Text(
             text = "$title ($time)",
             style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium, color = colors.textMuted)
@@ -255,7 +256,7 @@ fun OverallPredictorScreen() {
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Text("Predicted Overall Attendance ($selectedMode)", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Text(
                     text = pctFormatted(overallPct),
                     style = AmazeTheme.typography.heading.copy(
@@ -275,10 +276,10 @@ fun OverallPredictorScreen() {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
         Text("Cutoff Target", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             modes.forEach { mode ->
                 val isSelected = selectedMode == mode
@@ -325,7 +326,7 @@ fun OverallPredictorScreen() {
         }
 
         if (cutoffDate != null) {
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
             val examLabel = when (selectedMode) {
                 "CAT1" -> "CAT I"
                 "CAT2" -> "CAT II"
@@ -345,13 +346,13 @@ fun OverallPredictorScreen() {
             val dateVal = y * 10000 + m * 100 + d
             dateVal >= todayVal && (cutoffDate == null || dateVal <= cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day)
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(AmazeTheme.radius.small))
                 .background(colors.accent.copy(alpha = 0.06f))
-                .border(1.dp, colors.accent.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
+                .border(1.dp, colors.accent.copy(alpha = 0.15f), RoundedCornerShape(AmazeTheme.radius.small))
                 .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
@@ -371,7 +372,7 @@ fun OverallPredictorScreen() {
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
         // ── Multi-Day Batch Simulator Card ──
         var batchBunkDays by remember { mutableStateOf(1f) }
@@ -379,12 +380,12 @@ fun OverallPredictorScreen() {
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.TaskAlt, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Multi-Day Bunk Simulator", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                    Text("Multi-Day Bunk Simulator", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
                 Text("Simulate skipping upcoming working days across all courses at once.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Text("Skip Next ${batchBunkDays.toInt()} Working Day${if (batchBunkDays.toInt() > 1) "s" else ""}", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                     Slider(
@@ -423,14 +424,14 @@ fun OverallPredictorScreen() {
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(AmazeTheme.radius.small))
                 .background(colors.surface)
-                .border(1.dp, colors.border, RoundedCornerShape(10.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small))
                 .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
             Row(
@@ -447,13 +448,13 @@ fun OverallPredictorScreen() {
                     resetTrigger++
                 }) {
                     Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                     Text("Reset", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -531,10 +532,10 @@ private fun ExpandedCoursePredictorCard(
                     )
                     Text(
                         text = "${pctFormatted(currentPct)} now",
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp)
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                     )
                 }
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                 Icon(
                     if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                     null,
@@ -544,20 +545,20 @@ private fun ExpandedCoursePredictorCard(
             }
 
             if (isExpanded && prediction.futureDates.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Text(
                     "Future classes — tap to mark skip",
                     style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 prediction.futureDates.forEach { fd ->
                     val isSkipped = fd.display in skipDates
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                             .clickable { onToggleSkipDate(fd.display) }
                             .background(if (isSkipped) colors.chart5.copy(alpha = 0.08f) else Color.Transparent)
                             .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -571,15 +572,15 @@ private fun ExpandedCoursePredictorCard(
                                     .clip(CircleShape)
                                     .background(if (isSkipped) colors.chart5 else colors.chart1)
                             )
-                            Spacer(modifier = Modifier.width(10.dp))
+                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                             Column {
                                 Text(fd.display, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
-                                Text(fd.dayAbbr, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp))
+                                Text(fd.dayAbbr, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                             }
                         }
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(if (isSkipped) colors.chart5.copy(alpha = 0.15f) else colors.chart1.copy(alpha = 0.12f))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
@@ -603,9 +604,9 @@ private fun SkipButton(text: String, onClick: () -> Unit, colors: com.amazecc.ap
     Box(
         modifier = Modifier
             .size(32.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
             .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(8.dp))
+            .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.xs))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -890,9 +891,9 @@ fun TimetableGridScreen() {
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                         .background(if (isSelected) colors.accent else colors.surface)
-                        .border(if (isSelected) 0.dp else 1.dp, if (overrideForDay != null) colors.accent.copy(alpha = 0.5f) else colors.border, RoundedCornerShape(8.dp))
+                        .border(if (isSelected) 0.dp else 1.dp, if (overrideForDay != null) colors.accent.copy(alpha = 0.5f) else colors.border, RoundedCornerShape(AmazeTheme.radius.xs))
                         .clickable { selectedDay = if (isSelected) null else day }
                         .padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center
@@ -909,7 +910,7 @@ fun TimetableGridScreen() {
 
         if (selectedDay == null) {
             // Overview: show all days summary
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
                 items(days) { day ->
                     val dayCourses = daySlotMap[day]?.values?.distinct() ?: emptyList()
                     val daySlots = dayTimeSlots[day] ?: emptyList()
@@ -917,9 +918,9 @@ fun TimetableGridScreen() {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
                             .background(colors.surface)
-                            .border(1.dp, if (overrideForDay != null) colors.accent.copy(alpha = 0.4f) else colors.border, RoundedCornerShape(16.dp))
+                            .border(1.dp, if (overrideForDay != null) colors.accent.copy(alpha = 0.4f) else colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
                             .padding(12.dp)
                     ) {
                         Column {
@@ -929,21 +930,21 @@ fun TimetableGridScreen() {
                                     style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                                 )
                                 if (overrideForDay != null) {
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                                     Box(
                                         modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
+                                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                             .background(colors.accent.copy(alpha = 0.12f))
                                             .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
                                             "⚡ ${overrideForDay.name} Order",
-                                            style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                            style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold)
                                         )
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                             if (dayCourses.isEmpty()) {
                                 Text("No classes", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                             } else {
@@ -968,13 +969,13 @@ fun TimetableGridScreen() {
                                                 .clip(CircleShape)
                                                 .background(colors.accent)
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                                         Column(modifier = Modifier.weight(1f)) {
                                             val venueStr = course.slotVenue?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""
                                             Text("${course.courseCode}$venueStr", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                             Text(course.courseTitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1)
                                         }
-                                        Text(timeStr, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontSize = 10.sp))
+                                        Text(timeStr, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent))
                                     }
                                 }
                             }
@@ -987,13 +988,13 @@ fun TimetableGridScreen() {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(2.dp),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 88.dp)
+                contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
             ) {
                 item {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(colors.accent.copy(alpha = 0.08f))
                             .padding(12.dp)
                     ) {
@@ -1002,7 +1003,7 @@ fun TimetableGridScreen() {
                             style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent)
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 }
                 val slots = dayTimeSlots[selectedDay] ?: emptyList()
                 items(slots) { (slotCode, timeRange) ->
@@ -1011,9 +1012,9 @@ fun TimetableGridScreen() {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(if (hasClass) colors.accent.copy(alpha = 0.06f) else colors.surface)
-                            .border(1.dp, if (hasClass) colors.accent.copy(alpha = 0.2f) else colors.border, RoundedCornerShape(10.dp))
+                            .border(1.dp, if (hasClass) colors.accent.copy(alpha = 0.2f) else colors.border, RoundedCornerShape(AmazeTheme.radius.small))
                             .clickable { if (course != null) AppState.openCourseDetail(course.courseCode) }
                             .padding(10.dp)
                     ) {
@@ -1023,9 +1024,9 @@ fun TimetableGridScreen() {
                         ) {
                             Column(modifier = Modifier.width(64.dp)) {
                                 Text(slotCode, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = if (hasClass) colors.accent else colors.textMuted))
-                                Text(timeRange, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
+                                Text(timeRange, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                             if (hasClass) {
                                 Box(
                                     modifier = Modifier
@@ -1033,7 +1034,7 @@ fun TimetableGridScreen() {
                                         .clip(CircleShape)
                                         .background(colors.accent)
                                 )
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary), maxLines = 1)
                                     val venueStr = course.slotVenue?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""
@@ -1041,7 +1042,7 @@ fun TimetableGridScreen() {
                                 }
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                         .background(
                                             when {
                                                 (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 85 -> colors.chart1.copy(alpha = 0.12f)

@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,11 +33,13 @@ import androidx.compose.ui.window.DialogProperties
 import com.amazecc.app.shared.model.HomeworkTask
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.bouncySpring
+import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.datetime.*
 
 @Composable
@@ -88,7 +91,7 @@ fun TasksScreen() {
         if (h > 0) "${h}h ${m}m" else "${m}m"
     } else ""
 
-    val tabs = listOf("all" to "All", "pending" to "Pending", "today" to "Today", "done" to "Done")
+    val tabs = listOf("all" to "All", "pending" to "Pending", "today" to "Today", "done" to Strings.done)
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(title = "Tasks & Reminders", description = "Workload, reminders and to-dos", showBackButton = true)
@@ -104,7 +107,7 @@ fun TasksScreen() {
                     if (pendingCount > 0) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(colors.info.copy(alpha = 0.1f))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
@@ -114,7 +117,7 @@ fun TasksScreen() {
                     if (overdueCount > 0) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(colors.danger.copy(alpha = 0.1f))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
@@ -124,7 +127,7 @@ fun TasksScreen() {
                     if (workloadText.isNotBlank()) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(colors.chart3.copy(alpha = 0.1f))
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
@@ -179,13 +182,13 @@ fun TasksScreen() {
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
             if (filteredTasks.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.CheckCircle, null, tint = colors.textMuted.copy(alpha = 0.4f), modifier = Modifier.size(64.dp))
-                        Spacer(Modifier.height(16.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.md))
                         Text("No tasks here", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textSecondary))
                         Text("Stay organized by adding assignments and reminders", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                     }
@@ -194,7 +197,7 @@ fun TasksScreen() {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
-                    contentPadding = PaddingValues(bottom = 88.dp)
+                    contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
                 ) {
                     items(filteredTasks, key = { it.id }) { task ->
                         TaskCard(
@@ -250,7 +253,7 @@ fun TaskCard(
         "homework" -> Icons.Rounded.AssignmentTurnedIn
         "assignment" -> Icons.Rounded.Assignment
         "test" -> Icons.Rounded.Quiz
-        "self_study" -> Icons.Rounded.MenuBook
+        "self_study" -> Icons.AutoMirrored.Rounded.MenuBook
         else -> Icons.Rounded.Task
     }
     
@@ -284,11 +287,11 @@ fun TaskCard(
             text = { Text("Delete \"${task.title}\"?") },
             confirmButton = {
                 TextButton(onClick = { onDelete(); showDeleteConfirm = false }) {
-                    Text("Delete", color = colors.danger)
+                    Text(Strings.delete, color = colors.danger)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel", color = colors.textMuted) }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(Strings.cancel, color = colors.textMuted) }
             }
         )
     }
@@ -315,7 +318,7 @@ fun TaskCard(
                 }
             }
 
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AmazeTheme.spacing.sm))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -326,13 +329,13 @@ fun TaskCard(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(typeColor.copy(alpha = 0.12f))
                                 .padding(horizontal = 6.dp, vertical = 2.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Icon(typeIcon, null, tint = typeColor, modifier = Modifier.size(10.dp))
-                                Text(typeLabel, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = typeColor, fontSize = 9.sp))
+                                Text(typeLabel, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = typeColor))
                             }
                         }
                         
@@ -342,13 +345,13 @@ fun TaskCard(
                             val estStr = if (h > 0) "${h}h ${m}m" else "${m}m"
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(4.dp))
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                     .background(colors.accent.copy(alpha = 0.1f))
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Icon(Icons.Rounded.Timer, null, tint = colors.accent, modifier = Modifier.size(10.dp))
-                                    Text(estStr, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 9.sp))
+                                    Text(estStr, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
                                 }
                             }
                         }
@@ -358,7 +361,7 @@ fun TaskCard(
                     }
                 }
 
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
 
                 Text(
                     task.title,
@@ -380,7 +383,7 @@ fun TaskCard(
                     )
                 }
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val dueLabel = try {
@@ -413,11 +416,11 @@ fun TaskCard(
                     if (showCourse && task.courseTitle.isNotBlank()) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(colors.border)
                                 .padding(horizontal = 6.dp, vertical = 1.dp)
                         ) {
-                            Text(task.courseCode, style = AmazeTheme.typography.smallLabel.copy(fontSize = 9.sp, color = colors.textMuted))
+                            Text(task.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                         }
                     }
                 }
@@ -448,13 +451,13 @@ fun AddTaskDialog(onDismiss: () -> Unit) {
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(AmazeTheme.radius.large))
                 .background(colors.surface)
-                .border(1.dp, colors.border, RoundedCornerShape(24.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.large))
                 .padding(24.dp)
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("New Task", style = AmazeTheme.typography.heading.copy(fontSize = 24.sp, fontWeight = FontWeight.Black, color = colors.textPrimary))
+                Text("New Task", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Black, color = colors.textPrimary))
 
                 // Type Chips
                 val types = listOf("homework" to "Homework", "assignment" to "Assignment", "test" to "Test", "self_study" to "Learn")
@@ -464,9 +467,9 @@ fun AddTaskDialog(onDismiss: () -> Unit) {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(if (sel) colors.accent else colors.background)
-                                .border(1.dp, if (sel) colors.accent else colors.border, RoundedCornerShape(8.dp))
+                                .border(1.dp, if (sel) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.xs))
                                 .clickable { taskType = key }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
@@ -483,7 +486,7 @@ fun AddTaskDialog(onDismiss: () -> Unit) {
                     label = { Text("Title") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(AmazeTheme.radius.small),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border,
                         focusedLabelColor = colors.accent, unfocusedLabelColor = colors.textMuted,
@@ -496,7 +499,7 @@ fun AddTaskDialog(onDismiss: () -> Unit) {
                     onValueChange = { description = it },
                     label = { Text("Description (optional)") },
                     modifier = Modifier.fillMaxWidth().height(80.dp),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(AmazeTheme.radius.small),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border,
                         focusedLabelColor = colors.accent, unfocusedLabelColor = colors.textMuted,
@@ -513,7 +516,7 @@ fun AddTaskDialog(onDismiss: () -> Unit) {
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(AmazeTheme.radius.small),
                         placeholder = { Text("60", color = colors.textMuted) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border,
@@ -529,7 +532,7 @@ fun AddTaskDialog(onDismiss: () -> Unit) {
                         label = { Text("Due (YYYY-MM-DD)") },
                         singleLine = true,
                         modifier = Modifier.weight(2f),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(AmazeTheme.radius.small),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border,
                             focusedLabelColor = colors.accent, unfocusedLabelColor = colors.textMuted,
@@ -548,9 +551,9 @@ fun AddTaskDialog(onDismiss: () -> Unit) {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(if (sel) pColor else colors.background)
-                                .border(1.dp, if (sel) pColor else colors.border, RoundedCornerShape(8.dp))
+                                .border(1.dp, if (sel) pColor else colors.border, RoundedCornerShape(AmazeTheme.radius.xs))
                                 .clickable { priority = key }
                                 .padding(vertical = 8.dp),
                             contentAlignment = Alignment.Center
@@ -570,7 +573,7 @@ fun AddTaskDialog(onDismiss: () -> Unit) {
                         onValueChange = {},
                         readOnly = true,
                         modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(AmazeTheme.radius.small),
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = courseExpanded) },
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border,
@@ -595,13 +598,13 @@ fun AddTaskDialog(onDismiss: () -> Unit) {
                     }
                 }
 
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = onDismiss) {
-                        Text("Cancel", color = colors.textSecondary)
+                        Text(Strings.cancel, color = colors.textSecondary)
                     }
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                     Button(
                         onClick = {
                             if (title.isNotBlank()) {
@@ -624,7 +627,7 @@ fun AddTaskDialog(onDismiss: () -> Unit) {
                         },
                         enabled = title.isNotBlank(),
                         colors = ButtonDefaults.buttonColors(containerColor = colors.accent, disabledContainerColor = colors.border),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(AmazeTheme.radius.small)
                     ) {
                         Text("Create Task", color = if (title.isNotBlank()) colors.background else colors.textMuted, fontWeight = FontWeight.Bold)
                     }
@@ -669,7 +672,7 @@ fun CourseTasksTab(courseCodes: List<String>, courseTitle: String, colors: com.a
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Rounded.CheckCircle, null, tint = colors.textMuted.copy(alpha = 0.4f), modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     Text("No tasks for this course", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
             }
@@ -677,7 +680,7 @@ fun CourseTasksTab(courseCodes: List<String>, courseTitle: String, colors: com.a
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 88.dp)
+                contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
             ) {
                 items(courseTasks, key = { it.id }) { task ->
                     TaskCard(

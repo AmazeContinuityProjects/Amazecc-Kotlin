@@ -29,6 +29,7 @@ import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import androidx.compose.ui.platform.LocalUriHandler
 import kotlinx.coroutines.launch
@@ -66,7 +67,7 @@ fun TransportScreen() {
                 .fillMaxSize()
                 .padding(padding),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 88.dp)
+            contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
         ) {
             item {
                 ScreenHeader(
@@ -103,7 +104,7 @@ fun TransportScreen() {
                         leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(AmazeTheme.radius.medium),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = colors.accent,
                             unfocusedBorderColor = colors.border,
@@ -123,7 +124,7 @@ fun TransportScreen() {
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Rounded.DirectionsBus, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                             Text("No routes found", style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
                             Text("Try a different search term", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                         }
@@ -165,7 +166,7 @@ private fun TransportRegistrationCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(AmazeTheme.radius.large))
             .background(
                 Brush.linearGradient(
                     if (isActive) listOf(colors.accent.copy(alpha = 0.15f), colors.accent.copy(alpha = 0.05f))
@@ -175,7 +176,7 @@ private fun TransportRegistrationCard(
             .border(
                 1.dp,
                 if (isActive) colors.accent.copy(alpha = 0.3f) else colors.border,
-                RoundedCornerShape(24.dp)
+                RoundedCornerShape(AmazeTheme.radius.large)
             )
     ) {
         // Background blob for glassmorphism effect
@@ -211,7 +212,7 @@ private fun TransportRegistrationCard(
                         ) {
                             Icon(Icons.Rounded.BusAlert, null, tint = colors.chart3, modifier = Modifier.size(24.dp))
                         }
-                        Spacer(modifier = Modifier.width(14.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                         Column {
                             Text(
                                 "No Bus Registration",
@@ -223,10 +224,10 @@ private fun TransportRegistrationCard(
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Button(
                         onClick = onApplyClick,
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(AmazeTheme.radius.small),
                         colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
                     ) {
                         Text("Apply", fontWeight = FontWeight.Bold)
@@ -254,16 +255,16 @@ private fun TransportRegistrationCard(
                                     modifier = Modifier.size(28.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.width(14.dp))
+                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                             Column {
                                 Text(
                                     "Dayscholar Transport",
-                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 20.sp)
+                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                                 )
                                 Box(
                                     modifier = Modifier
                                         .padding(top = 4.dp)
-                                        .clip(RoundedCornerShape(8.dp))
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                         .background(colors.accent)
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
@@ -278,7 +279,7 @@ private fun TransportRegistrationCard(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
 
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
@@ -304,16 +305,16 @@ private fun TransportRegistrationCard(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                     
                     Button(
                         onClick = { /* TODO: Implement tracking or open VTOP */ },
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(AmazeTheme.radius.small),
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
                     ) {
                         Icon(Icons.Rounded.LocationOn, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                         Text("Track Bus", fontWeight = FontWeight.Bold)
                     }
                 }
@@ -359,7 +360,7 @@ private fun RegistrationDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth(0.9f)
-                .clip(RoundedCornerShape(24.dp))
+                .clip(RoundedCornerShape(AmazeTheme.radius.large))
                 .background(colors.surface)
                 .padding(24.dp)
         ) {
@@ -377,14 +378,14 @@ private fun RegistrationDialog(
                         Icon(Icons.Rounded.Close, null, tint = colors.textMuted)
                     }
                 }
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 
                 val rm = resultMessage
                 if (rm != null) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(if (isError) colors.chart5.copy(alpha = 0.1f) else colors.chart1.copy(alpha = 0.1f))
                             .padding(12.dp)
                     ) {
@@ -394,7 +395,7 @@ private fun RegistrationDialog(
                             style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium)
                         )
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 }
 
                 OutlinedTextField(
@@ -402,28 +403,28 @@ private fun RegistrationDialog(
                     onValueChange = { studentName = it },
                     label = { Text("Full Name") },
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(AmazeTheme.radius.small),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = colors.accent,
                         unfocusedBorderColor = colors.border
                     )
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
                 OutlinedTextField(
                     value = studentPhone,
                     onValueChange = { studentPhone = it },
                     label = { Text("Phone Number") },
                     singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(AmazeTheme.radius.small),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = colors.accent,
                         unfocusedBorderColor = colors.border
                     )
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
                 Box {
                     OutlinedTextField(
@@ -433,7 +434,7 @@ private fun RegistrationDialog(
                         label = { Text("Select Route") },
                         trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, null, tint = colors.textMuted) },
                         modifier = Modifier.fillMaxWidth().clickable { routeExpanded = true },
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(AmazeTheme.radius.small),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = colors.accent,
                             unfocusedBorderColor = colors.border
@@ -456,7 +457,7 @@ private fun RegistrationDialog(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
                 Box {
                     OutlinedTextField(
@@ -466,7 +467,7 @@ private fun RegistrationDialog(
                         label = { Text("Select Semester") },
                         trailingIcon = { Icon(Icons.Rounded.ArrowDropDown, null, tint = colors.textMuted) },
                         modifier = Modifier.fillMaxWidth().clickable { semesterExpanded = true },
-                        shape = RoundedCornerShape(14.dp),
+                        shape = RoundedCornerShape(AmazeTheme.radius.small),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = colors.accent,
                             unfocusedBorderColor = colors.border
@@ -489,7 +490,7 @@ private fun RegistrationDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
 
                 Button(
                     onClick = {
@@ -516,7 +517,7 @@ private fun RegistrationDialog(
                         }
                     },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(AmazeTheme.radius.small),
                     colors = ButtonDefaults.buttonColors(containerColor = colors.accent),
                     enabled = studentName.isNotBlank() && studentPhone.isNotBlank() &&
                             selectedRouteNo.isNotBlank() && selectedSemester.isNotBlank() && !submitting
@@ -525,7 +526,7 @@ private fun RegistrationDialog(
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
                         Icon(Icons.AutoMirrored.Rounded.Send, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                         Text("Submit Application", fontWeight = FontWeight.Bold)
                     }
                 }
@@ -553,10 +554,10 @@ private fun BusRouteCard(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(AmazeTheme.radius.large))
             .background(Brush.linearGradient(gradientColors))
             .background(colors.surface.copy(alpha = 0.85f))
-            .border(1.dp, themeColor.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+            .border(1.dp, themeColor.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.large))
             .clickable(onClick = onClick)
     ) {
         // Blob effect
@@ -579,7 +580,7 @@ private fun BusRouteCard(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(themeColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -588,7 +589,7 @@ private fun BusRouteCard(
                             style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = themeColor)
                         )
                     }
-                    Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                     Column {
                         Text(
                             route.route,
@@ -599,7 +600,7 @@ private fun BusRouteCard(
                             if (route.type.isNotBlank()) {
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                         .background(themeColor.copy(alpha = 0.1f))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
@@ -610,10 +611,10 @@ private fun BusRouteCard(
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(8.dp))
+                                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                             }
                             Icon(Icons.Rounded.Map, null, tint = colors.textMuted, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                             Text(
                                 "${route.stops?.size ?: 0} stops",
                                 style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
@@ -628,9 +629,9 @@ private fun BusRouteCard(
                     )
                     Text(
                         "Location",
-                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp)
+                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                     Icon(
                         if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                         null,
@@ -641,21 +642,21 @@ private fun BusRouteCard(
             }
 
             if (isExpanded) {
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(1.dp)
                         .background(colors.border)
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
                 if (route.stops.isNotEmpty()) {
                     Text(
                         "Route Stops",
                         style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
                     val sortedStops = route.stops.sortedBy { it.stopOrder }
                     sortedStops.forEachIndexed { index, stop ->
@@ -690,7 +691,7 @@ private fun BusRouteCard(
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.width(12.dp))
+                                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                                 Column {
                                     Text(
                                         stop.stopName,
@@ -712,20 +713,20 @@ private fun BusRouteCard(
                 }
 
                 if (route.driverName.isNotBlank() || route.driverInchargeName?.isNotBlank() == true || route.supervisorName?.isNotBlank() == true) {
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
                             .background(colors.border)
                     )
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
                     Text(
                         "Crew Details",
                         style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
                     var hasPreviousCrew = false
 
@@ -741,7 +742,7 @@ private fun BusRouteCard(
                     }
 
                     if (route.driverInchargeName?.isNotBlank() == true) {
-                        if (hasPreviousCrew) Spacer(modifier = Modifier.height(8.dp))
+                        if (hasPreviousCrew) Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         CrewRow(
                             icon = Icons.Rounded.AssignmentInd,
                             label = "Driver Incharge",
@@ -753,7 +754,7 @@ private fun BusRouteCard(
                     }
 
                     if (route.supervisorName?.isNotBlank() == true) {
-                        if (hasPreviousCrew) Spacer(modifier = Modifier.height(8.dp))
+                        if (hasPreviousCrew) Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         CrewRow(
                             icon = Icons.Rounded.SupervisorAccount,
                             label = "Supervisor",
@@ -791,11 +792,11 @@ private fun CrewRow(
         ) {
             Icon(icon, null, tint = colors.accent, modifier = Modifier.size(18.dp))
         }
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 label,
-                style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp)
+                style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
             )
             Text(
                 name,

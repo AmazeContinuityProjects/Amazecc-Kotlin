@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.strings.Strings
 
 @Composable
 fun ErrorDiagnosticCard(
@@ -62,7 +63,7 @@ fun ErrorDiagnosticCard(
                 if (onRetry != null) {
                     Spacer(modifier = Modifier.height(16.dp))
                     AmazeButton(
-                        text = "Retry",
+                        text = Strings.retry,
                         onClick = onRetry,
                         variant = ButtonVariant.SECONDARY
                     )

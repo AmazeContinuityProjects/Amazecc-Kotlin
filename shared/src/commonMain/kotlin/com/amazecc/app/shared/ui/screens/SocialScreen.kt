@@ -41,6 +41,7 @@ import com.amazecc.app.shared.state.FriendGroup
 import com.amazecc.app.shared.state.FriendsViewModel
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.utils.QRCodeGenerator
 import com.amazecc.app.shared.utils.SocialUtils
 import com.amazecc.app.shared.config.SlotMap
@@ -157,20 +158,20 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = 88.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = BOTTOM_NAV_PADDING),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.md))
         Text("Share Your Schedule", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.xs))
         Text("Friends can scan this code to see your free slots", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, textAlign = TextAlign.Center))
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
 
         // QR Code display
         if (qrMatrix != null) {
             Box(
-                modifier = Modifier.size(220.dp).clip(RoundedCornerShape(16.dp))
+                modifier = Modifier.size(220.dp).clip(RoundedCornerShape(AmazeTheme.radius.medium))
                     .background(Color.White).padding(12.dp)
             ) {
                 QrCodeCanvas(
@@ -180,26 +181,26 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             }
         } else {
             Box(
-                modifier = Modifier.size(220.dp).clip(RoundedCornerShape(16.dp))
+                modifier = Modifier.size(220.dp).clip(RoundedCornerShape(AmazeTheme.radius.medium))
                     .background(colors.surface).padding(12.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Rounded.QrCode, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     Text("No timetable data", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                     Text("Sync your data first", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                 }
             }
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
 
         // Code preview
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
             Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.Code, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
                 Column(Modifier.weight(1f)) {
                     Text(
                         scheduleCode.let { if (it.length > 60) it.take(60) + "..." else it },
@@ -207,7 +208,7 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
                 AmazeButton(
                     text = if (copied) "Copied!" else "Copy",
                     onClick = {
@@ -220,11 +221,11 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
 
         // Share options
         Text("Share Options", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.fillMaxWidth())
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
         AmazeCard(
             modifier = Modifier.fillMaxWidth(),
@@ -234,10 +235,10 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             }
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
                     Icon(if (codeCopied) Icons.Rounded.Check else Icons.Rounded.Share, null, tint = colors.accent, modifier = Modifier.size(20.dp))
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
                 Column(Modifier.weight(1f)) {
                     Text(if (codeCopied) "Copied!" else "Share Code", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     Text("Copy schedule code to share with a friend", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
@@ -246,7 +247,7 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
         var showScanDialog by remember { mutableStateOf(false) }
         if (showScanDialog) {
@@ -259,7 +260,7 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 confirmButton = {
                     TextButton(onClick = {
                         showScanDialog = false
-                    }) { Text("OK", color = colors.accent) }
+                    }) { Text(Strings.ok, color = colors.accent) }
                 },
                 containerColor = colors.surface,
                 titleContentColor = colors.textPrimary,
@@ -272,10 +273,10 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             onClick = { showScanDialog = true }
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
+                Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.QrCodeScanner, null, tint = colors.accent, modifier = Modifier.size(20.dp))
                 }
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
                 Column(Modifier.weight(1f)) {
                     Text("Scan Friend's Code", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     Text("Enter a friend's schedule code manually", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
@@ -284,7 +285,7 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             }
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
     }
 }
 
@@ -337,7 +338,7 @@ private fun FriendTimetableGrid(
         map
     }
 
-    val freeColor = Color(0xFF10B981)
+    val freeColor = colors.success
 
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column {
@@ -345,18 +346,18 @@ private fun FriendTimetableGrid(
                 Box(modifier = Modifier.width(52.dp))
                 weekDays.forEach { day ->
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        Text(dayLabels[day] ?: day, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 11.sp))
+                        Text(dayLabels[day] ?: day, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                     }
                 }
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.xs))
             standardSlots.firstOrNull()?.second?.forEachIndexed { idx, _ ->
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
                     val firstDaySlots = standardSlots.first().second
                     val slotCode = firstDaySlots.getOrNull(idx) ?: ""
                     val timeRange = SlotMap.map["MON"]?.get(slotCode) ?: ""
                     Box(modifier = Modifier.width(52.dp), contentAlignment = Alignment.CenterStart) {
-                        Text(timeRange, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = 9.sp))
+                        Text(timeRange, style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                     }
                     weekDays.forEach { day ->
                         val daySlots = standardSlots.find { it.first == day }?.second
@@ -367,29 +368,29 @@ private fun FriendTimetableGrid(
                         Box(
                             modifier = Modifier
                                 .weight(1f).padding(1.5.dp).height(18.dp)
-                                .clip(RoundedCornerShape(3.dp))
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(cellColor)
-                                .border(0.5.dp, borderColor, RoundedCornerShape(3.dp)),
+                                .border(0.5.dp, borderColor, RoundedCornerShape(AmazeTheme.radius.xs)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (hasSlot) {
-                                Text(daySlotCode, style = AmazeTheme.typography.smallLabel.copy(fontSize = 7.sp, color = colors.danger, fontWeight = FontWeight.Bold))
+                                Text(daySlotCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.danger, fontWeight = FontWeight.Bold))
                             }
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(freeColor.copy(alpha = 0.2f)).border(0.5.dp, freeColor.copy(alpha = 0.25f), RoundedCornerShape(2.dp)))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Free", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
+                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(freeColor.copy(alpha = 0.2f)).border(0.5.dp, freeColor.copy(alpha = 0.25f), RoundedCornerShape(AmazeTheme.radius.xs)))
+                    Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                    Text("Free", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(2.dp)).background(colors.danger.copy(alpha = 0.2f)).border(0.5.dp, colors.danger.copy(alpha = 0.35f), RoundedCornerShape(2.dp)))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Class", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
+                    Box(Modifier.size(10.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.danger.copy(alpha = 0.2f)).border(0.5.dp, colors.danger.copy(alpha = 0.35f), RoundedCornerShape(AmazeTheme.radius.xs)))
+                    Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                    Text("Class", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
             }
         }
@@ -411,7 +412,7 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             text = {
                 Column {
                     Text("Paste your friend's schedule code here to add them to your timetable matches.", style = AmazeTheme.typography.caption)
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     OutlinedTextField(
                         value = codeInput,
                         onValueChange = { codeInput = it },
@@ -432,7 +433,7 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text("Cancel", color = colors.textSecondary) }
+                TextButton(onClick = { showAddDialog = false }) { Text(Strings.cancel, color = colors.textSecondary) }
             },
             containerColor = colors.surface,
             titleContentColor = colors.textPrimary,
@@ -447,12 +448,12 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     FriendTimetableGrid(friend = selectedFriend!!, colors = colors)
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.md))
                     Text("Course Details", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     selectedFriend!!.classSlots.sortedBy { listOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday").indexOf(it.day) }.forEach { slot ->
                         Row(
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(colors.background).padding(8.dp),
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.background).padding(8.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -460,7 +461,7 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                                 Text(slot.courseCode, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                 Text(slot.courseTitle, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(slot.slotId, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
                                 Text(slot.venue, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
@@ -470,7 +471,7 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { selectedFriend = null }) { Text("Close", color = colors.accent) }
+                TextButton(onClick = { selectedFriend = null }) { Text(Strings.close, color = colors.accent) }
             },
             containerColor = colors.surface,
             titleContentColor = colors.textPrimary,
@@ -486,14 +487,14 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             modifier = Modifier.fillMaxWidth()
         )
         
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.md))
         
         if (friends.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No friends added yet.", color = colors.textMuted)
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
                 items(friends, key = { it.regNumber }) { friend ->
                     AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { selectedFriend = friend }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -503,7 +504,7 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                             ) {
                                 Text(friend.name.firstOrNull()?.uppercase() ?: "F", color = Color.White, fontWeight = FontWeight.Bold)
                             }
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(friend.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                 Text(friend.regNumber, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
@@ -538,10 +539,10 @@ private fun CommonSlotsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         commonSlots = SocialUtils.getCommonFreeSlots(attList, friends)
     }
     
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
         item {
             Text("Common Free Slots", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.xs))
             Text("Times when you and ALL added friends are free", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
         }
         
@@ -553,7 +554,7 @@ private fun CommonSlotsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                     } else {
                         Icon(Icons.Rounded.EventAvailable, null, tint = colors.successText)
                     }
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
                     Text(slot, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
             }
@@ -577,7 +578,7 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text("Groups let you share schedules with multiple friends at once.", style = AmazeTheme.typography.caption)
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     OutlinedTextField(
                         value = newGroupName,
                         onValueChange = { newGroupName = it },
@@ -585,9 +586,9 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     if (friends.isNotEmpty()) {
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Select members:", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         friends.forEach { friend ->
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
                                 selectedRegNumbers = if (friend.regNumber in selectedRegNumbers)
@@ -601,7 +602,7 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                                     },
                                     colors = CheckboxDefaults.colors(checkedColor = colors.accent)
                                 )
-                                Spacer(Modifier.width(8.dp))
+                                Spacer(Modifier.width(AmazeTheme.spacing.sm))
                                 Text(friend.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                             }
                         }
@@ -617,7 +618,7 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 }) { Text("Create", color = colors.accent) }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateDialog = false }) { Text("Cancel", color = colors.textSecondary) }
+                TextButton(onClick = { showCreateDialog = false }) { Text(Strings.cancel, color = colors.textSecondary) }
             },
             containerColor = colors.surface,
             titleContentColor = colors.textPrimary,
@@ -634,7 +635,7 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             text = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text("Add or remove members:", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     friends.forEach { friend ->
                         val isMember = friend.regNumber in editMembers
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
@@ -647,7 +648,7 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                                 },
                                 colors = CheckboxDefaults.colors(checkedColor = colors.accent)
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
                             Text(friend.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                         }
                     }
@@ -663,10 +664,10 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         if (reg !in editMembers) FriendsViewModel.removeFriendFromGroup(group.id, reg)
                     }
                     editingGroup = null
-                }) { Text("Save", color = colors.accent) }
+                }) { Text(Strings.save, color = colors.accent) }
             },
             dismissButton = {
-                TextButton(onClick = { editingGroup = null }) { Text("Cancel", color = colors.textSecondary) }
+                TextButton(onClick = { editingGroup = null }) { Text(Strings.cancel, color = colors.textSecondary) }
             },
             containerColor = colors.surface,
             titleContentColor = colors.textPrimary,
@@ -686,18 +687,18 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AmazeTheme.spacing.md))
 
         if (groups.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Rounded.Groups, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     Text(if (friends.isEmpty()) "Add friends first to create groups" else "No groups yet", color = colors.textMuted)
                 }
             }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = 88.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
                 items(groups, key = { it.id }) { group ->
                     val memberNames = group.memberRegNumbers.mapNotNull { reg ->
                         friends.find { it.regNumber == reg }?.name
@@ -706,12 +707,12 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
-                                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.1f)),
+                                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.1f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(Icons.Rounded.Groups, null, tint = colors.accent, modifier = Modifier.size(20.dp))
                                 }
-                                Spacer(Modifier.width(12.dp))
+                                Spacer(Modifier.width(AmazeTheme.spacing.sm))
                                 Column(Modifier.weight(1f)) {
                                     Text(group.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                     Text("${memberNames.size} members", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
@@ -721,7 +722,7 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                                 }
                             }
                             if (memberNames.isNotEmpty()) {
-                                Spacer(Modifier.height(8.dp))
+                                Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                 Text(
                                     memberNames.joinToString(", "),
                                     style = AmazeTheme.typography.caption.copy(color = colors.textMuted),

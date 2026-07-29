@@ -57,13 +57,19 @@ data class MarksRes(
 )
 
 @Serializable
-data class HostelDetails(
-    val success: Boolean = true,
+data class HostelInfo(
     val gender: String? = null,
     val isHosteller: Boolean = false,
     val blockName: String? = null,
     val roomNo: String? = null,
-    val messInfo: String? = null,
+    val messInfo: String? = null
+)
+
+@Serializable
+data class HostelDetails(
+    val success: Boolean = true,
+    val hostelInfo: HostelInfo? = null,
+    val leaveHistory: List<LeaveItem> = emptyList(),
     val error: String? = null,
     val message: String? = null
 )

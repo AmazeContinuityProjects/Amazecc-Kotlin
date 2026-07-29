@@ -50,6 +50,7 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeTextField
+import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.launch
@@ -134,16 +135,16 @@ fun LoginScreen() {
             ) {
                 androidx.compose.material3.Icon(
                     imageVector = androidx.compose.material.icons.Icons.Rounded.Person,
-                    contentDescription = "AmazeCC Logo",
+                    contentDescription = Strings.appName,
                     tint = colors.accent,
                     modifier = Modifier.size(48.dp)
                 )
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
 
             Text(
-                text = "AmazeCC",
+                text = Strings.appName,
                 style = AmazeTheme.typography.display.copy(
                     color = colors.textPrimary,
                     fontSize = 32.sp,
@@ -171,9 +172,9 @@ fun LoginScreen() {
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 16.dp)
-                        .clip(RoundedCornerShape(14.dp))
+                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
                         .background(colors.dangerSurface)
-                        .border(1.dp, colors.danger.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+                        .border(1.dp, colors.danger.copy(alpha = 0.4f), RoundedCornerShape(AmazeTheme.radius.small))
                         .padding(14.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -183,7 +184,7 @@ fun LoginScreen() {
                             tint = colors.dangerText,
                             modifier = Modifier.size(20.dp)
                         )
-                        Spacer(Modifier.width(10.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Text(
                             text = errorMessage ?: "",
                             style = AmazeTheme.typography.caption.copy(
@@ -199,10 +200,10 @@ fun LoginScreen() {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(20.dp))
-                    .clip(RoundedCornerShape(20.dp))
+                    .shadow(8.dp, RoundedCornerShape(AmazeTheme.radius.large))
+                    .clip(RoundedCornerShape(AmazeTheme.radius.large))
                     .background(colors.surface)
-                    .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                    .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.large))
                     .padding(22.dp)
             ) {
                 Column {
@@ -228,7 +229,7 @@ fun LoginScreen() {
                             username = it
                             errorMessage = null
                         },
-                        label = "VTOP Login ID",
+                        label = Strings.login,
                         placeholder = "e.g. FUNNYBABY",
                         leadingIcon = {
                             Icon(Icons.Rounded.Person, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
@@ -242,7 +243,7 @@ fun LoginScreen() {
                         )
                     )
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.md))
 
                     AmazeTextField(
                         value = password,
@@ -250,8 +251,8 @@ fun LoginScreen() {
                             password = it
                             errorMessage = null
                         },
-                        label = "Password",
-                        placeholder = "Enter your password",
+                        label = Strings.password,
+                        placeholder = Strings.password,
                         leadingIcon = {
                             Icon(Icons.Rounded.Lock, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
                         },
@@ -259,7 +260,7 @@ fun LoginScreen() {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
                                 Icon(
                                     imageVector = if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                    contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                                    contentDescription = if (passwordVisible) Strings.ok else "Show password",
                                     tint = colors.textMuted,
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -276,7 +277,7 @@ fun LoginScreen() {
                         )
                     )
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.md))
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -288,7 +289,7 @@ fun LoginScreen() {
                             tint = colors.success,
                             modifier = Modifier.size(16.dp)
                         )
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.xs))
                         Text(
                             text = "Captcha is solved automatically",
                             style = AmazeTheme.typography.smallLabel.copy(
@@ -297,10 +298,10 @@ fun LoginScreen() {
                         )
                     }
 
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.lg))
 
                     AmazeButton(
-                        text = if (isSubmitting) "Logging in..." else "Secure Login",
+                        text = if (isSubmitting) Strings.loggingIn else Strings.signIn,
                         onClick = {
                             if (username.isBlank() || password.isBlank()) {
                                 errorMessage = "Registration number and password are required"
@@ -351,7 +352,7 @@ fun LoginScreen() {
                 }
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.lg))
 
             TextButton(
                 onClick = {
@@ -389,7 +390,7 @@ fun LoginScreen() {
                 )
             }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.lg))
 
             Text(
                 text = "AmazeCC • An unofficial community initiative",
@@ -400,7 +401,7 @@ fun LoginScreen() {
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AmazeTheme.spacing.lg))
         }
     }
 }

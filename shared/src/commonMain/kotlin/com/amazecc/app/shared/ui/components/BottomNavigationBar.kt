@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.strings.Strings
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -99,7 +100,7 @@ fun getScreenIconAndLabel(screen: Screen): Pair<ImageVector, String> {
         Screen.CABSHARE -> Icons.Rounded.DirectionsCar to "Cabshare"
         Screen.TRANSPORT -> Icons.Rounded.DirectionsBus to "Transport"
         Screen.MORE -> Icons.Rounded.Apps to "More"
-        Screen.PROFILE -> Icons.Rounded.Person to "Profile"
+        Screen.PROFILE -> Icons.Rounded.Person to Strings.profile
         Screen.EVENTS -> Icons.Rounded.Event to "Events"
         Screen.QBANK -> Icons.Rounded.Topic to "QBank"
         Screen.SOCIAL -> Icons.Rounded.People to "Social"

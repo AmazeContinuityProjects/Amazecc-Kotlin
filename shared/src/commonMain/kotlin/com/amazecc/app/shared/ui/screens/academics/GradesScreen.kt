@@ -83,7 +83,7 @@ fun GradesScreen() {
                 Box(modifier = Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.History, null, modifier = Modifier.size(64.dp), tint = colors.textMuted)
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         Text("No grade history available.", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textSecondary))
                     }
                 }
@@ -112,12 +112,12 @@ fun GradesScreen() {
 private fun PerformanceHeader(gpa: String, courseCount: Int, assessmentCount: Int, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Box(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(24.dp)).background(colors.accent).padding(20.dp)
+            .clip(RoundedCornerShape(AmazeTheme.radius.large)).background(colors.accent).padding(20.dp)
     ) {
         Column {
             Text("Performance Analysis", style = AmazeTheme.typography.smallLabel.copy(color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Bold))
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("$gpa GPA", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Black, color = Color.White, fontSize = 28.sp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
+            Text("$gpa GPA", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Black, color = Color.White))
             Text("$courseCount Courses · $assessmentCount Assessments", style = AmazeTheme.typography.smallLabel.copy(color = Color.White.copy(alpha = 0.7f)))
         }
     }
@@ -137,9 +137,9 @@ private fun SemesterSwitcher(
             val isActive = id == selected
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
                     .background(if (isActive) colors.accent else colors.surface)
-                    .border(if (isActive) 0.dp else 1.dp, colors.border, RoundedCornerShape(12.dp))
+                    .border(if (isActive) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small))
                     .clickable { onSelect(id) }
                     .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
@@ -175,25 +175,25 @@ private fun ChartsGroup(
 
     Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(modifier = Modifier.weight(1f).height(200.dp).clip(RoundedCornerShape(18.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(18.dp)).padding(12.dp)) {
+            Box(modifier = Modifier.weight(1f).height(200.dp).clip(RoundedCornerShape(AmazeTheme.radius.medium)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium)).padding(12.dp)) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text("Subject Performance", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textSecondary))
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { if (radarData.isNotEmpty()) RadarChartCanvas(radarData, colors) else ChartEmpty(colors) }
                 }
             }
-            Box(modifier = Modifier.weight(1f).height(200.dp).clip(RoundedCornerShape(18.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(18.dp)).padding(12.dp)) {
+            Box(modifier = Modifier.weight(1f).height(200.dp).clip(RoundedCornerShape(AmazeTheme.radius.medium)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium)).padding(12.dp)) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Text("GPA Trend", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textSecondary))
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { if (trendData.size >= 2) LineChartCanvas(trendData, { it.gpa }, colors.chart1, colors) else ChartEmpty(colors) }
                 }
             }
         }
-        Box(modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(18.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(18.dp)).padding(12.dp)) {
+        Box(modifier = Modifier.fillMaxWidth().height(200.dp).clip(RoundedCornerShape(AmazeTheme.radius.medium)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium)).padding(12.dp)) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Text("Marks % Trend", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textSecondary))
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { if (trendData.isNotEmpty()) BarChartCanvas(trendData, { it.marksPct }, colors.chart2, colors) else ChartEmpty(colors) }
             }
         }
@@ -311,11 +311,11 @@ private fun StatsGrid(gradeList: List<GradeItem>, colors: com.amazecc.app.shared
 
 @Composable
 private fun StatCard(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, iconColor: Color, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.clip(RoundedCornerShape(16.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(16.dp)).padding(12.dp)) {
+    Box(modifier = modifier.clip(RoundedCornerShape(AmazeTheme.radius.medium)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium)).padding(12.dp)) {
         Column {
             Icon(icon, null, tint = iconColor, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.textPrimary, fontSize = 13.sp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
+            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.textPrimary))
             Text(label, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
         }
     }
@@ -344,26 +344,26 @@ private fun GradesList(gradeList: List<GradeItem>, expandedCourseId: String?, on
 private fun GradeCourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> Unit, gradeColor: Color, isPass: Boolean, colors: com.amazecc.app.shared.theme.AmazeColors) {
     val gColor = if (isPass) colors.chart1 else colors.chart5
 
-    Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(18.dp)).clickable { onToggle() }) {
+    Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.medium)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium)).clickable { onToggle() }) {
         Column {
             Box(modifier = Modifier.fillMaxWidth().drawBehind {
                 val sw = 4.dp.toPx()
                 drawRoundRect(gradeColor, Offset(0f, 0f), Size(sw, size.height))
             }.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = if (isOpen) 0.dp else 14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(gradeColor.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                        Text(course.grade, style = AmazeTheme.typography.subheading.copy(color = gradeColor, fontWeight = FontWeight.Black, fontSize = 22.sp))
+                    Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(gradeColor.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                        Text(course.grade, style = AmazeTheme.typography.subheading.copy(color = gradeColor, fontWeight = FontWeight.Black))
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("${course.courseCode} · ${course.courseTitle}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                                Text(course.courseType, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Medium, fontSize = 10.sp))
+                            Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                                Text(course.courseType, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Medium))
                             }
-                            Box(modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(gColor.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                                Text("Overall ${course.grandTotal}%", style = AmazeTheme.typography.smallLabel.copy(color = gColor, fontWeight = FontWeight.Bold, fontSize = 10.sp))
+                            Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(gColor.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+                                Text("Overall ${course.grandTotal}%", style = AmazeTheme.typography.smallLabel.copy(color = gColor, fontWeight = FontWeight.Bold))
                             }
                         }
                     }
@@ -377,17 +377,17 @@ private fun GradeCourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> 
                         val details = course.details
                         if (!details.isNullOrEmpty()) {
                             Text("Assessments", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 details.chunked(2).forEach { chunk ->
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         chunk.forEach { detail ->
-                                            Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.05f)).border(1.dp, colors.border, RoundedCornerShape(10.dp)).padding(6.dp), contentAlignment = Alignment.Center) {
+                                            Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.05f)).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small)).padding(6.dp), contentAlignment = Alignment.Center) {
                                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                    Text(com.amazecc.app.shared.ui.components.shortenAssessmentName(detail.component), style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.SemiBold, fontSize = 9.sp), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                                    Spacer(modifier = Modifier.height(4.dp))
-                                                    Text("${detail.scoredMark}", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 11.sp))
-                                                    Text("/${detail.maxMark}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp))
+                                                    Text(com.amazecc.app.shared.ui.components.shortenAssessmentName(detail.component), style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.SemiBold), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
+                                                    Text("${detail.scoredMark}", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                                    Text("/${detail.maxMark}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                                                 }
                                             }
                                         }
@@ -400,15 +400,15 @@ private fun GradeCourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> 
                             Box(modifier = Modifier.fillMaxWidth().drawBehind { drawRect(colors.border.copy(alpha = 0.5f), Offset(0f, 0f), Size(size.width, 1.dp.toPx())) }.padding(top = 8.dp)) {
                                 Column {
                                     Text("Grade Ranges", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
-                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                         listOf("S" to range.S, "A" to range.A, "B" to range.B, "C" to range.C, "D" to range.D, "E" to range.E, "F" to range.F).chunked(3).forEach { chunk ->
                                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                                 chunk.forEach { (g, r) ->
                                                     val c = gradeChartColor(gradeColorIndex[g] ?: 4, colors)
-                                                    Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(c.copy(alpha = 0.08f)).border(1.dp, c.copy(alpha = 0.2f), RoundedCornerShape(8.dp)).padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
+                                                    Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(c.copy(alpha = 0.08f)).border(1.dp, c.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.xs)).padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
                                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                            Text(g, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Black, color = c, fontSize = 14.sp))
+                                                            Text(g, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Black, color = c))
                                                             Text(r, style = AmazeTheme.typography.smallLabel.copy(color = c.copy(alpha = 0.7f), fontSize = 8.sp))
                                                         }
                                                     }

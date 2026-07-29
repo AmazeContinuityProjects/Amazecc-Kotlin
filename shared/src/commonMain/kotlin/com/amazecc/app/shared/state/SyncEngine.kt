@@ -23,7 +23,6 @@ enum class SyncModule(
     GRADES("Grade History", SettingsManager.CACHE_GRADES),
     CURRICULUM("Curriculum", SettingsManager.CACHE_CURRICULUM),
     HOSTEL_DETAILS("Hostel Details", SettingsManager.CACHE_HOSTEL_DETAILS),
-    HOSTEL_LEAVES("Hostel Leaves", SettingsManager.CACHE_HOSTEL_LEAVES),
     EXAM_SCHEDULE("Exam Schedule", SettingsManager.CACHE_EXAM_SCHEDULE),
     CALENDAR("Academic Calendar", SettingsManager.CACHE_CALENDAR),
     CALENDARS_LIST("Calendars List", SettingsManager.CACHE_CALENDARS_LIST),
@@ -73,7 +72,7 @@ data class SyncProgress(
 }
 
 object SyncEngine {
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val activeJobs = mutableMapOf<SyncModule, Job>()
     private val syncSessionModules = mutableSetOf<SyncModule>()
 
@@ -120,7 +119,19 @@ object SyncEngine {
 
     fun resetAllStates() {
         _moduleStates.value = SyncModule.entries.associateWith { ModuleState(status = SyncStatus.IDLE) }
+        syncSessionModules.clear()
         _logLines.value = emptyList()
+    }
+
+    fun markAllLoading() {
+        _moduleStates.value = SyncModule.entries.associateWith { ModuleState(status = SyncStatus.LOADING) }
+    }
+
+    fun resetLoadingToIdle() {
+        val updated = _moduleStates.value.mapValues { (_, state) ->
+            if (state.status == SyncStatus.LOADING) ModuleState() else state
+        }
+        _moduleStates.value = updated
     }
 
     fun resetLogs() {
@@ -130,7 +141,7 @@ object SyncEngine {
     // ── Logging ──
 
     fun addLog(module: SyncModule, message: String, status: SyncStatus) {
-        _logLines.value = _logLines.value + LogLine(module, message, status, Clock.System.now())
+        _logLines.value = (_logLines.value + LogLine(module, message, status, Clock.System.now())).takeLast(500)
     }
 
     // ── Sync execution ──
@@ -192,12 +203,13 @@ object SyncEngine {
 
     private fun recalculateProgress() {
         val states = _moduleStates.value
-        val completed = states.count { (m, s) ->
-            syncSessionModules.contains(m) && (s.status == SyncStatus.SUCCESS || s.status == SyncStatus.ERROR)
+        val completed = states.count { (_, s) ->
+            s.status == SyncStatus.SUCCESS || s.status == SyncStatus.ERROR
         }
+        val total = if (syncSessionModules.isNotEmpty()) syncSessionModules.size else states.size
         val active = states.filter { (_, s) -> s.status == SyncStatus.LOADING }.keys
         _syncProgress.value = SyncProgress(
-            totalModules = syncSessionModules.size,
+            totalModules = total,
             completedModules = completed,
             activeModules = active,
         )

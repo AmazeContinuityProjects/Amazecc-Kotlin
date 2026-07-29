@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
 
@@ -45,7 +46,7 @@ fun ChangelogScreen() {
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(16.dp),
-            contentPadding = PaddingValues(bottom = 88.dp),
+            contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(changes.size) { index ->
@@ -60,13 +61,13 @@ fun ChangelogScreen() {
                         ) {
                             Icon(Icons.Rounded.Star, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                         Column {
                             Text(
                                 text = "Update ${changes.size - index}",
                                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                             Text(
                                 text = changes[index],
                                 style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, lineHeight = 18.sp)

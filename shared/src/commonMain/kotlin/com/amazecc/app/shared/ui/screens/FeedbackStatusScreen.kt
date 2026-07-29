@@ -78,7 +78,7 @@ fun FeedbackStatusScreen() {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(32.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                     Text("Loading feedback status...", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
                 }
             }
@@ -87,7 +87,7 @@ fun FeedbackStatusScreen() {
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Rounded.ErrorOutline, null, tint = colors.danger, modifier = Modifier.size(32.dp))
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         Text(error ?: "Unknown error", color = colors.danger)
                     }
                 }
@@ -96,7 +96,7 @@ fun FeedbackStatusScreen() {
             Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Rounded.Info, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                     Text("No feedback data available", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
                 }
             }
@@ -104,7 +104,7 @@ fun FeedbackStatusScreen() {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 88.dp)
+                contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
             ) {
                 items(semestersData, key = { it.semester.value }) { semData ->
                     FeedbackSemesterCard(
@@ -197,13 +197,13 @@ private fun FeedbackSemesterCard(
                         imageVector = if (state.isExpanded) Icons.Rounded.KeyboardArrowDown else Icons.Rounded.KeyboardArrowRight,
                         contentDescription = "Expand", tint = colors.textSecondary, modifier = Modifier.size(20.dp)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Text(state.semester.text, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
                 Box(
                     modifier = Modifier.background(
                         if (isComplete) colors.success.copy(alpha = 0.15f) else colors.danger.copy(alpha = 0.15f),
-                        RoundedCornerShape(8.dp)
+                        RoundedCornerShape(AmazeTheme.radius.xs)
                     ).padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text("$doneCount/$totalCount done", style = AmazeTheme.typography.caption.copy(
@@ -239,16 +239,16 @@ private fun FeedbackRowItem(row: FeedbackTableRow, colors: com.amazecc.app.share
     val teeGiven = row.teeSemester?.lowercase()?.contains("given") == true
 
     Row(
-        modifier = Modifier.fillMaxWidth().background(colors.background, RoundedCornerShape(12.dp)).padding(12.dp),
+        modifier = Modifier.fillMaxWidth().background(colors.background, RoundedCornerShape(AmazeTheme.radius.small)).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
             Icon(Icons.Rounded.Book, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(row.feedbackType ?: "N/A", style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = 14.sp), maxLines = 1)
+            Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
+            Text(row.feedbackType ?: "N/A", style = AmazeTheme.typography.body.copy(color = colors.textPrimary), maxLines = 1)
         }
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             FeedbackBadge(text = "Mid Sem", isGiven = midGiven, colors = colors)
             FeedbackBadge(text = "TEE", isGiven = teeGiven, colors = colors)
@@ -261,7 +261,7 @@ private fun FeedbackBadge(text: String, isGiven: Boolean, colors: com.amazecc.ap
     Row(
         modifier = Modifier.background(
             if (isGiven) colors.success.copy(alpha = 0.15f) else colors.danger.copy(alpha = 0.15f),
-            RoundedCornerShape(6.dp)
+            RoundedCornerShape(AmazeTheme.radius.xs)
         ).padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -269,7 +269,7 @@ private fun FeedbackBadge(text: String, isGiven: Boolean, colors: com.amazecc.ap
             imageVector = if (isGiven) Icons.Rounded.CheckCircle else Icons.Rounded.Cancel,
             contentDescription = null, tint = if (isGiven) colors.success else colors.danger, modifier = Modifier.size(12.dp)
         )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(text, style = AmazeTheme.typography.caption.copy(fontSize = 10.sp, color = if (isGiven) colors.success else colors.danger, fontWeight = FontWeight.Bold))
+        Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
+        Text(text, style = AmazeTheme.typography.caption.copy(color = if (isGiven) colors.success else colors.danger, fontWeight = FontWeight.Bold))
     }
 }

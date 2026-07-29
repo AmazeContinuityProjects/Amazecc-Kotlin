@@ -34,9 +34,12 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.theme.AmazeTheme
+
+val BOTTOM_NAV_PADDING = 88.dp
 
 // ── BUTTONS ──
 
@@ -47,7 +50,8 @@ fun AmazeButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     variant: ButtonVariant = ButtonVariant.PRIMARY,
-    icon: ImageVector? = null
+    icon: ImageVector? = null,
+    height: Dp = 48.dp
 ) {
     val colors = AmazeTheme.colors
     val radius = AmazeTheme.radius
@@ -88,7 +92,7 @@ fun AmazeButton(
             if (hapticEnabled) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             onClick()
         },
-        modifier = modifier.height(48.dp).graphicsLayer {
+        modifier = modifier.height(height).graphicsLayer {
             scaleX = scale
             scaleY = scale
         },

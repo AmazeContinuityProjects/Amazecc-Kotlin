@@ -24,6 +24,7 @@ import com.amazecc.app.shared.model.ClubItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import io.kamel.image.KamelImage
@@ -53,11 +54,11 @@ fun ClubDetailScreen() {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 88.dp)
+            contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
         ) {
             item { HeaderSpacer() }
             item {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -65,7 +66,7 @@ fun ClubDetailScreen() {
                     Box(
                         modifier = Modifier
                             .size(100.dp)
-                            .clip(RoundedCornerShape(24.dp))
+                            .clip(RoundedCornerShape(AmazeTheme.radius.large))
                             .background(colors.accent.copy(alpha = 0.1f)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -76,18 +77,18 @@ fun ClubDetailScreen() {
                                 modifier = Modifier.fillMaxSize(),
                                 contentScale = ContentScale.Crop,
                                 onLoading = { CircularProgressIndicator(modifier = Modifier.size(24.dp), color = colors.accent) },
-                                onFailure = { Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent, fontSize = 40.sp)) }
+                                onFailure = { Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent)) }
                             )
                         } else {
-                            Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent, fontSize = 40.sp))
+                            Text(club.name?.firstOrNull()?.uppercase() ?: "C", style = AmazeTheme.typography.heading.copy(color = colors.accent))
                         }
                     }
-                    Spacer(modifier = Modifier.width(20.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sectionGap))
                     Column {
-                        Text(club.name ?: "Unnamed Club", style = AmazeTheme.typography.heading.copy(color = colors.textPrimary, fontSize = 24.sp))
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(club.name ?: "Unnamed Club", style = AmazeTheme.typography.heading.copy(color = colors.textPrimary))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                         Text("VIT Chennai Chapter", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             if (!club.website.isNullOrBlank()) {
@@ -111,7 +112,7 @@ fun ClubDetailScreen() {
             
             item {
                 Text("About Us", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Text(
                     text = club.description ?: "No description provided.",
                     style = AmazeTheme.typography.body.copy(color = colors.textSecondary, lineHeight = 24.sp)
@@ -119,20 +120,20 @@ fun ClubDetailScreen() {
             }
             
             item {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Box(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.medium))
                         .background(colors.surface.copy(alpha = 0.65f))
-                        .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                        .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(AmazeTheme.radius.medium))
                         .padding(16.dp)
                 ) {
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Rounded.WorkOutline, null, tint = colors.accent, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
                             Text("Hiring Information", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                         }
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Currently recruiting for technical and management roles. Check out our feed for application links!", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     }
                 }
@@ -140,11 +141,11 @@ fun ClubDetailScreen() {
 
             item {
                 Text("Club Feed", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Box(
-                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(16.dp))
+                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(AmazeTheme.radius.medium))
                         .background(colors.surface.copy(alpha = 0.65f))
-                        .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
+                        .border(1.dp, colors.border.copy(alpha = 0.4f), RoundedCornerShape(AmazeTheme.radius.medium)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("Feed Integration Coming Soon", color = colors.textMuted)
@@ -152,21 +153,21 @@ fun ClubDetailScreen() {
             }
 
             item {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
                 Button(
                     onClick = { isEnrolled = !isEnrolled },
                     modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(AmazeTheme.radius.medium),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = if (isEnrolled) colors.border else colors.accent,
                         contentColor = if (isEnrolled) colors.textSecondary else Color.White
                     )
                 ) {
                     Icon(if (isEnrolled) Icons.Rounded.CheckCircle else Icons.Rounded.Add, null)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Text(if (isEnrolled) "Enrolled" else "Enroll in Club", style = AmazeTheme.typography.subheading)
                 }
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xl))
             }
         }
         

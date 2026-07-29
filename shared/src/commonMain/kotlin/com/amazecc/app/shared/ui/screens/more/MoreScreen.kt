@@ -87,7 +87,7 @@ fun MoreScreen() {
             com.amazecc.app.shared.ui.components.HeaderSpacer()
 
             Text("App Library", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart1))
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             val modules = listOf(
                 Pair(Screen.CALENDAR, Icons.Rounded.CalendarMonth to "Calendar"),
@@ -126,37 +126,37 @@ fun MoreScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
             Text("Services & Tools", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart2))
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ActionCard(title = "Faculty Info", description = "Faculty directory by school", icon = Icons.Rounded.People, onClick = { AppState.navigateTo(Screen.FACULTY_INFO) })
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
                     ActionCard(title = "Feedback", description = "Course feedback status", icon = Icons.Rounded.RateReview, onClick = { AppState.navigateTo(Screen.FEEDBACK_STATUS) })
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
             Text("Communities", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart3))
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { AppState.openClubHub("Directory") }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Icon(Icons.Rounded.Groups, contentDescription = null, tint = colors.chart2, modifier = Modifier.size(28.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                     Column {
                         Text("Club Hub", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.chart2))
                         Text("Explore student clubs and chapters", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { AppState.openClubHub("Feed") }) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                     Icon(Icons.Rounded.Explore, contentDescription = null, tint = colors.chart4, modifier = Modifier.size(28.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                     Column {
                         Text("Community Feed", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.chart4))
                         Text("Latest posts from AmazeCC members", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
@@ -164,9 +164,9 @@ fun MoreScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
             Text("Notifications", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart4))
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -230,7 +230,7 @@ fun MoreScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     var offsetMinutes by remember { mutableStateOf(SettingsManager.getNotifOffsetMinutes()) }
@@ -238,10 +238,10 @@ fun MoreScreen() {
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                     ) {
-                        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.chart2.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.chart2.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.Timer, null, tint = colors.chart2, modifier = Modifier.size(20.dp))
                         }
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Remind Before Class", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text("How many minutes early", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
@@ -257,9 +257,9 @@ fun MoreScreen() {
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                     .background(if (selected) colors.accent else colors.surface)
-                                    .border(if (selected) 0.dp else 1.dp, colors.border, RoundedCornerShape(8.dp))
+                                    .border(if (selected) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.xs))
                                     .clickable {
                                         offsetMinutes = preset
                                         SettingsManager.setNotifOffsetMinutes(preset)
@@ -281,17 +281,17 @@ fun MoreScreen() {
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                     ) {
-                        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.chart1.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+                        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.chart1.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.BugReport, null, tint = colors.chart1, modifier = Modifier.size(20.dp))
                         }
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Diagnostic Test", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text("Send a mock notification to verify permissions are active and working.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
@@ -303,9 +303,9 @@ fun MoreScreen() {
 
 
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
             Text("Settings & Info", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.chart5))
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -315,11 +315,11 @@ fun MoreScreen() {
                     HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
                     ClickableRow(title = "Fresher's Welcome", icon = Icons.Rounded.Star, onClick = { AppState.navigateTo(Screen.FRESHER_WELCOME) }, colors = colors)
                     
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                     AmazeButton("Log Out", onClick = { AppState.logout() }, variant = ButtonVariant.DANGER, modifier = Modifier.fillMaxWidth())
                 }
             }
-            Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(AmazeTheme.spacing.lg))
         }
     }
     }
@@ -363,7 +363,7 @@ fun ModuleIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Str
         ) {
             Icon(icon, contentDescription = label, tint = neonColor, modifier = Modifier.size(26.dp))
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
         Text(
             text = label,
             style = AmazeTheme.typography.smallLabel.copy(color = neonColor, fontWeight = FontWeight.Bold),
@@ -389,10 +389,10 @@ private fun ToggleRow(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-            Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+            Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
                 Icon(icon, null, tint = colors.accent, modifier = Modifier.size(20.dp))
             }
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AmazeTheme.spacing.sm))
             Column {
                 Text(title, color = colors.textPrimary, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold))
                 Text(subtitle, color = colors.textSecondary, style = AmazeTheme.typography.caption)
@@ -416,15 +416,15 @@ fun ClickableRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(AmazeTheme.radius.small))
             .clickable { onClick() }
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(colors.chart5.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.chart5.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
             Icon(icon, null, tint = colors.chart5, modifier = Modifier.size(20.dp))
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AmazeTheme.spacing.sm))
         Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
         Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
     }
