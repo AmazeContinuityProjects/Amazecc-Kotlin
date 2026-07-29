@@ -88,6 +88,9 @@ object AppState {
     private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
 
+    val tabScreens: List<Screen>
+        get() = listOf(Screen.HOME) + _pinnedNavTabs.value + Screen.MORE
+
     // Sync Notifications
     private val notificationService = com.amazecc.app.shared.services.NotificationService()
 

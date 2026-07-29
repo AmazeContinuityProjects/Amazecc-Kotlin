@@ -1,6 +1,7 @@
 package com.amazecc.app.shared
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -43,6 +44,7 @@ import com.amazecc.app.shared.ui.screens.transport.TransportScreen
 import com.amazecc.app.shared.ui.screens.academics.FreeClassroomsScreen
 import com.amazecc.app.shared.ui.screens.academics.*
 import com.amazecc.app.shared.ui.screens.cabshare.CabShareScreen
+import com.amazecc.app.shared.ui.components.MainTabPager
 import com.amazecc.app.shared.ui.screens.events.EventHubScreen
 import com.amazecc.app.shared.ui.screens.hostel.HostelScreen
 import com.amazecc.app.shared.ui.screens.moodle.MoodleScreen
@@ -140,58 +142,70 @@ fun App() {
 
                     // Crossfade screen transitions
                     Box(modifier = Modifier.fillMaxSize()) {
+                        val tabList = AppState.tabScreens
                         AnimatedContent(
                             targetState = currentScreen,
                             transitionSpec = {
-                                fadeIn() togetherWith fadeOut()
+                                if (targetState in tabList && initialState in tabList) {
+                                    fadeIn(animationSpec = tween(0)) togetherWith fadeOut(animationSpec = tween(0))
+                                } else {
+                                    fadeIn() togetherWith fadeOut()
+                                }
                             }
                         ) { targetScreen ->
-                        when (targetScreen) {
-                            Screen.SPLASH -> SplashScreen()
-                            Screen.LOGIN -> LoginScreen()
-                            Screen.ONBOARDING -> OnboardingScreen()
-                            Screen.HOME -> DashboardScreen()
-                            Screen.ATTENDANCE -> AttendanceScreen()
-                            Screen.ACADEMICS -> AcademicsScreen()
-                            Screen.PAYMENTS -> PaymentsScreen()
-                            Screen.LIBRARIES -> LibrariesScreen()
-                            Screen.HOSTEL -> HostelScreen()
-                            Screen.CABSHARE -> CabShareScreen()
-                            Screen.TRANSPORT -> TransportScreen()
-                            Screen.MORE -> MoreScreen()
-                            Screen.PROFILE -> ProfileScreen()
-                            Screen.EVENTS -> EventHubScreen()
-                            Screen.SETTINGS -> com.amazecc.app.shared.ui.screens.settings.SettingsScreen()
-                            Screen.QBANK -> QBankScreen()
-                            Screen.SOCIAL -> SocialScreen()
-                            Screen.FFCS_PLANNER -> FfcsPlannerScreen()
-                            Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateTo(Screen.ACADEMICS) }
-                            Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateTo(Screen.ACADEMICS) })
-                            Screen.GRADES -> GradesScreen()
-                            Screen.GPA_PREDICTOR -> GPAPredictorScreen()
-                            Screen.COURSE_DETAIL -> CourseDetailScreen { AppState.navigateTo(Screen.ACADEMICS) }
-                            Screen.COURSE_ATTENDANCE -> CourseAttendanceScreen()
-                            Screen.CIRCULARS -> CircularsScreen()
-                            Screen.CURRICULUM -> CurriculumScreen()
-                            Screen.OD_TRACKER -> ODTrackerScreen()
-                            Screen.COURSE_DASHBOARD -> CourseDashboardScreen { AppState.navigateTo(Screen.ACADEMICS) }
-                            Screen.FACULTY_INFO -> FacultyInfoScreen()
-                            Screen.COURSE_MANAGEMENT -> CourseManagementScreen()
-                            Screen.PROJECTS -> ProjectsScreen()
-                            Screen.WISHLIST -> WishlistScreen()
-                            Screen.FEEDBACK_STATUS -> FeedbackStatusScreen()
-                            Screen.FRESHER_WELCOME -> FresherWelcomeScreen()
-                            Screen.DOCUMENTS -> DocumentsScreen()
-                            Screen.ABOUT -> AboutScreen()
-                            Screen.CLUB_HUB -> com.amazecc.app.shared.ui.screens.more.ClubHubScreen()
-                            Screen.CLUB_DETAIL -> com.amazecc.app.shared.ui.screens.events.ClubDetailScreen()
-                            Screen.MOODLE -> MoodleScreen()
-                            Screen.TASKS -> TasksScreen()
-                            Screen.EXAM_SCHEDULE -> ExamScheduleScreen()
-                            Screen.CHANGELOG -> ChangelogScreen()
-                            Screen.HALL_OF_FAME -> HallOfFameScreen()
-                            Screen.ARREAR -> ArrearTabScreen()
-                            else -> {}
+                        if (targetScreen in tabList) {
+                            MainTabPager(
+                                tabScreens = tabList,
+                                currentScreen = targetScreen,
+                                onScreenChange = { AppState.navigateTo(it) }
+                            )
+                        } else {
+                            when (targetScreen) {
+                                Screen.SPLASH -> SplashScreen()
+                                Screen.LOGIN -> LoginScreen()
+                                Screen.ONBOARDING -> OnboardingScreen()
+                                Screen.PAYMENTS -> PaymentsScreen()
+                                Screen.HOSTEL -> HostelScreen()
+                                Screen.CABSHARE -> CabShareScreen()
+                                Screen.TRANSPORT -> TransportScreen()
+                                Screen.EVENTS -> EventHubScreen()
+                                Screen.SETTINGS -> com.amazecc.app.shared.ui.screens.settings.SettingsScreen()
+                                Screen.QBANK -> QBankScreen()
+                                Screen.SOCIAL -> SocialScreen()
+                                Screen.FFCS_PLANNER -> FfcsPlannerScreen()
+                                Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateTo(Screen.ACADEMICS) }
+                                Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateTo(Screen.ACADEMICS) })
+                                Screen.GRADES -> GradesScreen()
+                                Screen.GPA_PREDICTOR -> GPAPredictorScreen()
+                                Screen.COURSE_DETAIL -> CourseDetailScreen { AppState.navigateTo(Screen.ACADEMICS) }
+                                Screen.COURSE_ATTENDANCE -> CourseAttendanceScreen()
+                                Screen.CIRCULARS -> CircularsScreen()
+                                Screen.CURRICULUM -> CurriculumScreen()
+                                Screen.OD_TRACKER -> ODTrackerScreen()
+                                Screen.COURSE_DASHBOARD -> CourseDashboardScreen { AppState.navigateTo(Screen.ACADEMICS) }
+                                Screen.FACULTY_INFO -> FacultyInfoScreen()
+                                Screen.COURSE_MANAGEMENT -> CourseManagementScreen()
+                                Screen.PROJECTS -> ProjectsScreen()
+                                Screen.WISHLIST -> WishlistScreen()
+                                Screen.FEEDBACK_STATUS -> FeedbackStatusScreen()
+                                Screen.FRESHER_WELCOME -> FresherWelcomeScreen()
+                                Screen.DOCUMENTS -> DocumentsScreen()
+                                Screen.ABOUT -> AboutScreen()
+                                Screen.CLUB_HUB -> com.amazecc.app.shared.ui.screens.more.ClubHubScreen()
+                                Screen.CLUB_DETAIL -> com.amazecc.app.shared.ui.screens.events.ClubDetailScreen()
+                                Screen.MOODLE -> MoodleScreen()
+                                Screen.TASKS -> TasksScreen()
+                                Screen.EXAM_SCHEDULE -> ExamScheduleScreen()
+                                Screen.CHANGELOG -> ChangelogScreen()
+                                Screen.HALL_OF_FAME -> HallOfFameScreen()
+                                Screen.ARREAR -> ArrearTabScreen()
+                                Screen.HOME -> DashboardScreen()
+                                Screen.ATTENDANCE -> AttendanceScreen()
+                                Screen.ACADEMICS -> AcademicsScreen()
+                                Screen.LIBRARIES -> LibrariesScreen()
+                                Screen.PROFILE -> ProfileScreen()
+                                Screen.MORE -> MoreScreen()
+                            }
                         }
                     }
                     }
