@@ -385,12 +385,12 @@ fun SettingsScreen() {
                 // Action buttons row
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     AmazeButton("Sync All Data", onClick = {
-                        SyncEngine.setShowSyncDialog(true)
+                        SyncEngine.setShowSyncDialog(true, minimized = true)
                         SyncEngine.resetAllStates()
                         AppState.loadAllData()
                     }, modifier = Modifier.weight(1f), variant = ButtonVariant.PRIMARY)
-                    AmazeButton("Save Offline", onClick = {
-                        AppState.saveOffline()
+                    AmazeButton("Configure", onClick = {
+                        SyncEngine.setShowSyncDialog(true, minimized = false)
                     }, modifier = Modifier.weight(1f), variant = ButtonVariant.SECONDARY)
                 }
 
@@ -426,7 +426,7 @@ fun SettingsScreen() {
                         } else {
                             IconButton(
                                 onClick = {
-                                    SyncEngine.setShowSyncDialog(true)
+                                    SyncEngine.setShowSyncDialog(true, minimized = true)
                                     AppState.loadAllData()
                                 },
                                 modifier = Modifier.size(28.dp)

@@ -10,7 +10,7 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.NewReleases
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +30,10 @@ fun UpdateDialog(
 ) {
     val colors = AmazeTheme.colors
 
+    val updateIconGradient = remember(colors) {
+        Brush.linearGradient(listOf(colors.chart2, colors.chart1))
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = colors.surface,
@@ -40,9 +44,7 @@ fun UpdateDialog(
                     modifier = Modifier
                         .size(64.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(
-                            Brush.linearGradient(listOf(colors.chart2, colors.chart1))
-                        ),
+                        .background(updateIconGradient),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(Icons.Rounded.NewReleases, null, tint = colors.background, modifier = Modifier.size(32.dp))

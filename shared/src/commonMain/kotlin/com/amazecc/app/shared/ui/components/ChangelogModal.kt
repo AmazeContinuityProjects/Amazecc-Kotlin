@@ -86,7 +86,7 @@ fun ChangelogModal(
                     .heightIn(max = 300.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(changes) { change ->
+                items(changes, key = { it }) { change ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

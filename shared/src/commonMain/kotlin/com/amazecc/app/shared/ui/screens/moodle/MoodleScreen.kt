@@ -81,7 +81,7 @@ fun MoodleScreen() {
                     item {
                         com.amazecc.app.shared.ui.components.HeaderSpacer()
                     }
-                    items(assignments) { assignment ->
+                    items(assignments, key = { it.name }) { assignment ->
                         MoodleAssignmentCard(assignment)
                     }
                 }

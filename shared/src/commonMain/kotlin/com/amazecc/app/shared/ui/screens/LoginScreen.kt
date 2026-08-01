@@ -102,16 +102,17 @@ fun LoginScreen() {
         logoScale = 1f
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
+    val radialGradient = remember {
                 Brush.radialGradient(
                     colors = listOf(colors.accent.copy(alpha = 0.12f), Color.Transparent),
                     center = Offset(500f, 200f),
                     radius = 800f
                 )
-            )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(radialGradient)
             .background(colors.background)
     ) {
         Column(

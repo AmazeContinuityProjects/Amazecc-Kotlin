@@ -510,7 +510,7 @@ private fun EntriesTab(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
         ) {
-            items(entries) { day ->
+            items(entries, key = { it.date }) { day ->
                 ODDateGroup(group = day, colors = colors)
             }
             item { Spacer(Modifier.height(AmazeTheme.spacing.md)) }

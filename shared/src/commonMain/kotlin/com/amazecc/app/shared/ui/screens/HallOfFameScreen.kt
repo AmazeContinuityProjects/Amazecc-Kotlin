@@ -48,7 +48,7 @@ fun HallOfFameScreen() {
             contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(contributors.size) { index ->
+            items(contributors.size, key = { it }) { index ->
                 val contributor = contributors[index]
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

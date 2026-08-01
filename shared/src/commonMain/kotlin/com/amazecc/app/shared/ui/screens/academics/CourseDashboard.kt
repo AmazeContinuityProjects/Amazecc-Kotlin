@@ -240,7 +240,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
                             }
                         }
                     }
-                    items(courses) { course ->
+                    items(courses, key = { it.courseCode }) { course ->
                         CourseDetailCard(
                             course = course,
                             onClick = { AppState.openCourseDetail(course.courseCode, course.semesterSubId) }

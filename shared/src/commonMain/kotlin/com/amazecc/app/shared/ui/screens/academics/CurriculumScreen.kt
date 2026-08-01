@@ -203,11 +203,6 @@ fun CurriculumScreen() {
                             }
                         }
                         Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                        LinearProgressIndicator(
-                            progress = { earnedPct },
-                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                            color = colors.chart3, trackColor = colors.border,
-                        )
                         Spacer(Modifier.height(AmazeTheme.spacing.xs))
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             LegendDot(colors.chart3, "Earned", colors)

@@ -5,6 +5,8 @@ import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
 import com.russhwolf.settings.set
 import kotlinx.datetime.Clock
+import kotlinx.coroutines.coroutineScope
+
 import io.ktor.client.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
@@ -82,8 +84,6 @@ object AmazeClient {
     private val jsonConfig = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
-        prettyPrint = true
-        isLenient = true
     }
 
     private val httpClient = HttpClient {
@@ -606,41 +606,46 @@ object AmazeClient {
 
             val paymentsList = mutableListOf<PaymentItem>()
 
-            if (duesResp?.get("hasDues")?.jsonPrimitive?.content?.toBooleanStrictOrNull() == true || duesResp?.get("hasDues")?.jsonPrimitive?.booleanOrNull == true) {
+            val hasDues = duesResp?.get("hasDues")?.let {
+                try { it.jsonPrimitive.booleanOrNull ?: it.jsonPrimitive.content.toBooleanStrictOrNull() } catch (_: Exception) { null }
+            }
+
+            if (hasDues == true) {
                 paymentsList.add(PaymentItem(
                     billingId = "due-pending",
-                    description = duesResp?.get("message")?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: "Pending Dues",
+                    description = duesResp.get("message")?.let { try { it.jsonPrimitive.content.takeIf { s -> s.isNotBlank() } } catch(_: Exception) { null } } ?: "Pending Dues",
                     amount = "Check VTOP",
                     dueDate = "-",
                     status = "UNPAID"
                 ))
             }
 
-            val receiptsArray = receiptsResp?.get("receipts")?.jsonArray
+            val receiptsArray = receiptsResp?.get("receipts")?.let { try { it.jsonArray } catch(_: Exception) { null } }
             receiptsArray?.forEach { r ->
-                val obj = r.jsonObject
-                paymentsList.add(PaymentItem(
-                    billingId = obj["receiptNumber"]?.jsonPrimitive?.content ?: "rec",
-                    description = "Fee Payment",
-                    amount = obj["amount"]?.jsonPrimitive?.content ?: "-",
-                    dueDate = "-",
-                    status = "PAID",
-                    paymentDate = obj["date"]?.jsonPrimitive?.content,
-                    receiptNo = obj["receiptNumber"]?.jsonPrimitive?.content
-                ))
+                val obj = try { r.jsonObject } catch(_: Exception) { null }
+                if (obj != null) {
+                    paymentsList.add(PaymentItem(
+                        billingId = obj["receiptNumber"]?.let { try { it.jsonPrimitive.content } catch(_: Exception) { null } } ?: "rec",
+                        description = "Fee Payment",
+                        amount = obj["amount"]?.let { try { it.jsonPrimitive.content } catch(_: Exception) { null } } ?: "-",
+                        dueDate = "-",
+                        status = "PAID",
+                        paymentDate = obj["date"]?.let { try { it.jsonPrimitive.content } catch(_: Exception) { null } },
+                        receiptNo = obj["receiptNumber"]?.let { try { it.jsonPrimitive.content } catch(_: Exception) { null } }
+                    ))
+                }
             }
 
-            val walletLedger = walletResp?.get("ledgerINR")?.jsonArray
+            val walletLedger = walletResp?.get("ledgerINR")?.let { try { it.jsonArray } catch(_: Exception) { null } }
             val balance = if (walletLedger != null && walletLedger.size > 0) {
-                walletLedger[0].jsonObject["bookBalanceAmount"]?.jsonPrimitive?.content
+                try { walletLedger[0].jsonObject["bookBalanceAmount"]?.jsonPrimitive?.content } catch(_: Exception) { null }
             } else null
 
-            val hasDuesVal = duesResp?.get("hasDues")?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: duesResp?.get("hasDues")?.jsonPrimitive?.booleanOrNull
             PaymentsRes(
                 success = true,
                 payments = paymentsList,
                 walletBalance = balance,
-                message = if (hasDuesVal == false) duesResp?.get("message")?.jsonPrimitive?.content else null
+                message = if (hasDues == false) duesResp.get("message")?.let { try { it.jsonPrimitive.content } catch(_: Exception) { null } } else null
             )
         } catch (e: Exception) {
             PaymentsRes(success = false, message = e.message, error = e.toString())
@@ -1023,21 +1028,18 @@ object AmazeClient {
             notes = notes,
             local_only = true
         )
-        val settings = com.russhwolf.settings.Settings()
-        val json = Json { ignoreUnknownKeys = true }
         val serializer = ListSerializer(CabShareTrip.serializer())
         val existing = try {
-            json.decodeFromString(serializer, settings.getString(SettingsManager.CACHE_CAB_LOCAL_TRIPS, "[]"))
+            jsonConfig.decodeFromString(serializer, com.russhwolf.settings.Settings().getString(SettingsManager.CACHE_CAB_LOCAL_TRIPS, "[]"))
         } catch (_: Exception) { emptyList() }
-        settings[SettingsManager.CACHE_CAB_LOCAL_TRIPS] = json.encodeToString(serializer, listOf(trip) + existing)
+        com.russhwolf.settings.Settings()[SettingsManager.CACHE_CAB_LOCAL_TRIPS] = jsonConfig.encodeToString(serializer, listOf(trip) + existing)
         return trip
     }
 
     fun getLocalCabTrips(): List<CabShareTrip> {
         val settings = com.russhwolf.settings.Settings()
-        val json = Json { ignoreUnknownKeys = true }
         return try {
-            json.decodeFromString(ListSerializer(CabShareTrip.serializer()), settings.getString(SettingsManager.CACHE_CAB_LOCAL_TRIPS, "[]"))
+            jsonConfig.decodeFromString(ListSerializer(CabShareTrip.serializer()), settings.getString(SettingsManager.CACHE_CAB_LOCAL_TRIPS, "[]"))
         } catch (_: Exception) { emptyList() }
     }
 
@@ -1312,6 +1314,22 @@ object AmazeClient {
             }
             if (response.status == HttpStatusCode.OK) {
                 response.body<ByteArray>()
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    suspend fun getVtopStudentPhoto(regNo: String): ByteArray? {
+        val cookies = SessionManager.cookies.value ?: return null
+        return try {
+            val response: HttpResponse = httpClient.get("https://vtopcc.vit.ac.in/vtop/student/getPhoto") {
+                header(HttpHeaders.Cookie, cookies)
+                parameter("regNo", regNo)
+            }
+            if (response.status == HttpStatusCode.OK) {
+                val body = response.body<ByteArray>()
+                if (body.size > 100) body else null
             } else null
         } catch (e: Exception) {
             null

@@ -127,13 +127,17 @@ fun HostelDetailsSection(hostelInfo: HostelInfo?, leaves: List<com.amazecc.app.s
         return
     }
 
+    val infoGradient = remember(colors) {
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            colors = listOf(colors.chart3, colors.chart3.copy(alpha = 0.6f))
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(androidx.compose.ui.graphics.Brush.linearGradient(
-                colors = listOf(colors.chart3, colors.chart3.copy(alpha = 0.6f))
-            ))
+            .background(infoGradient)
             .padding(20.dp)
     ) {
         Column {

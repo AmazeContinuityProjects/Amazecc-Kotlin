@@ -58,15 +58,19 @@ fun PaymentsScreen() {
         Column(modifier = Modifier.fillMaxSize()) {
             com.amazecc.app.shared.ui.components.HeaderSpacer()
 
+            val walletCardGradient = remember(colors) {
+                androidx.compose.ui.graphics.Brush.linearGradient(
+                    colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
+                )
+            }
+
             // Premium Wallet Card
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
                     .clip(RoundedCornerShape(AmazeTheme.radius.large))
-                    .background(androidx.compose.ui.graphics.Brush.linearGradient(
-                        colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
-                    ))
+                    .background(walletCardGradient)
                     .padding(20.dp)
             ) {
                 Column {
@@ -195,7 +199,7 @@ private fun PaymentList(items: List<PaymentItem>, colors: com.amazecc.app.shared
         verticalArrangement = Arrangement.spacedBy(12.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
     ) {
-        items(items) { payment ->
+        items(items, key = { it.billingId }) { payment ->
             PaymentReceiptCard(payment, colors)
         }
     }

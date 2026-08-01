@@ -302,7 +302,7 @@ fun FacultyDetailScreen(
 
     DisposableEffect(Unit) {
         onDispose {
-            AppState.headerBackOverride.value = null
+            AppState.clearHeaderBackOverride()
         }
     }
 

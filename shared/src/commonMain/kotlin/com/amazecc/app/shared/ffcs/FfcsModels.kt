@@ -1,5 +1,8 @@
 package com.amazecc.app.shared.ffcs
 
+import androidx.compose.runtime.Immutable
+
+@Immutable
 data class ParsedCourse(
     val code: String,
     val title: String,
@@ -13,6 +16,7 @@ data class ParsedCourse(
     val linkId: String? = null
 )
 
+@Immutable
 data class AddedCourse(
     val id: String,
     val code: String,
@@ -26,6 +30,7 @@ data class AddedCourse(
     val batch: String = ""
 )
 
+@Immutable
 data class GapDetail(
     val day: String,
     val startMin: Int,
@@ -37,6 +42,7 @@ data class GapDetail(
     val toTime: String? = null
 )
 
+@Immutable
 data class DashDetail(
     val fromClass: String,
     val toClass: String,
@@ -47,6 +53,7 @@ data class DashDetail(
     val toBlock: String
 )
 
+@Immutable
 data class TimetableMetrics(
     val halfDays: Int,
     val gaps: Int,
@@ -59,6 +66,7 @@ data class TimetableMetrics(
     val isLongWeekend: Boolean = false
 )
 
+@Immutable
 data class TimetableState(
     val id: String,
     val name: String,
@@ -67,6 +75,7 @@ data class TimetableState(
     val variants: List<TimetableState> = emptyList()
 )
 
+@Immutable
 data class CourseLock(
     val code: String,
     val title: String,
@@ -75,6 +84,7 @@ data class CourseLock(
     val offerings: List<String> = emptyList()
 )
 
+@Immutable
 data class CourseOffering(
     val faculty: String,
     val slot: String,

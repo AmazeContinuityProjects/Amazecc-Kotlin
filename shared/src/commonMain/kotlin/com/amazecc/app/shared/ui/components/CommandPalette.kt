@@ -245,7 +245,10 @@ fun CommandPalette(
                                 )
                             }
                             
-                            items(items.size) { localIndex ->
+                            items(
+                                count = items.size,
+                                key = { localIndex -> items[localIndex].id }
+                            ) { localIndex ->
                                 val item = items[localIndex]
                                 val currentIndex = globalIndex++
                                 val isSelected = selectedIndex == currentIndex

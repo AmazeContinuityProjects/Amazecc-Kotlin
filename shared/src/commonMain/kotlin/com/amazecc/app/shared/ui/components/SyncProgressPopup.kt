@@ -1,39 +1,48 @@
 package com.amazecc.app.shared.ui.components
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.zIndex
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.ModuleState
 import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.state.SyncModule
+import com.amazecc.app.shared.state.SyncCategory
 import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.strings.Strings
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
+import kotlinx.coroutines.delay
+
+private enum class SyncDialogTab(val title: String) {
+    OVERVIEW("Overview"),
+    MODULES("Modules"),
+    LOGS("Activity Log")
+}
 
 @Composable
 fun SyncProgressPopup(
@@ -46,81 +55,105 @@ fun SyncProgressPopup(
     val syncProgress by SyncEngine.syncProgress.collectAsState()
     val logLines by SyncEngine.logLines.collectAsState()
     val showSyncDialog by SyncEngine.showSyncDialog.collectAsState()
-    var isMinimized by remember { mutableStateOf(false) }
+    val startMinimized by SyncEngine.startMinimized.collectAsState()
+    val isAppStateSyncing by AppState.isSyncing.collectAsState()
+    val isAppStateLoading by AppState.isLoading.collectAsState()
+    val syncMessage by AppState.syncMessage.collectAsState()
 
-    if (!showSyncDialog) return
+    val isEngineSyncing = syncProgress.activeModules.isNotEmpty() || SyncEngine.isAnyModuleLoading()
+    val isSyncing = isAppStateSyncing || isAppStateLoading || isEngineSyncing
 
-    val activeModules = syncProgress.activeModules
-    val isSyncing = activeModules.isNotEmpty()
+    var userDismissed by remember(isSyncing) { mutableStateOf(false) }
+    var isMinimized by remember(showSyncDialog, startMinimized) { mutableStateOf(if (showSyncDialog && !startMinimized) false else true) }
+    var selectedTab by remember { mutableStateOf(SyncDialogTab.OVERVIEW) }
+    var showSettingsDialog by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+    var copiedLogsToast by remember { mutableStateOf(false) }
 
-    // ── Minimized pill (bottom-right) ──
+    val shouldShow = (showSyncDialog || isSyncing) && !userDismissed
+    if (!shouldShow) return
+
+    if (showSettingsDialog) {
+        SyncSettingsDialog(onDismiss = { showSettingsDialog = false })
+    }
+
+    val isFinished = !isSyncing && (syncProgress.completedModules > 0 || !isAppStateSyncing)
+
+    // Auto-dismiss 2.5s after clean completion
+    LaunchedEffect(isSyncing, isFinished, syncProgress.errorCount) {
+        if (!isSyncing && syncProgress.errorCount == 0) {
+            delay(2500L)
+            SyncEngine.setShowSyncDialog(false)
+            userDismissed = true
+        }
+    }
+
+    val displayText = when {
+        isSyncing && syncProgress.activeModules.isNotEmpty() -> syncProgress.displayText
+        isSyncing && !syncMessage.isNullOrBlank() -> syncMessage!!
+        isSyncing -> "Syncing data..."
+        syncProgress.errorCount > 0 -> "Completed with ${syncProgress.errorCount} errors"
+        else -> if (syncProgress.displayText.isNotBlank()) syncProgress.displayText else "Sync complete"
+    }
+
+    // Floating Minimized Pill
     if (isMinimized) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .zIndex(100f)
-                .clickable { isMinimized = false },
+                .zIndex(120f),
             contentAlignment = Alignment.BottomEnd
         ) {
-            Box(
+            Card(
+                colors = CardDefaults.cardColors(containerColor = colors.surface),
+                shape = RoundedCornerShape(AmazeTheme.radius.large),
                 modifier = Modifier
                     .padding(end = 16.dp, bottom = 96.dp)
-                    .width(240.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(colors.surface)
-                    .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                    .width(270.dp)
+                    .border(1.dp, colors.accent.copy(alpha = 0.4f), RoundedCornerShape(AmazeTheme.radius.large))
                     .clickable { isMinimized = false }
-                    .padding(14.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(colors.accent.copy(alpha = 0.15f)),
+                            .background(if (isSyncing) colors.accent.copy(alpha = 0.15f) else colors.success.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        val infiniteTransition = rememberInfiniteTransition()
-                        val rotation by infiniteTransition.animateFloat(
-                            initialValue = 0f,
-                            targetValue = 360f,
-                            animationSpec = infiniteRepeatable(
-                                animation = tween(1200, easing = LinearEasing),
-                                repeatMode = RepeatMode.Restart
+                        if (isSyncing) {
+                            CircularProgressIndicator(
+                                progress = { syncProgress.percentage / 100f },
+                                modifier = Modifier.size(24.dp),
+                                color = colors.accent,
+                                strokeWidth = 2.5.dp,
+                                trackColor = colors.accent.copy(alpha = 0.15f),
                             )
-                        )
-                        CircularProgressIndicator(
-                            progress = { syncProgress.percentage / 100f },
-                            modifier = Modifier.size(24.dp),
-                            color = colors.accent,
-                            strokeWidth = 2.5.dp,
-                            trackColor = colors.accent.copy(alpha = 0.15f),
-                        )
+                        } else {
+                            Icon(Icons.Rounded.CheckCircle, null, tint = colors.success, modifier = Modifier.size(22.dp))
+                        }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = if (isSyncing) "Syncing..." else "Sync Complete",
-                            style = AmazeTheme.typography.body.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = 13.sp,
-                                color = colors.textPrimary
-                            )
+                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp, color = colors.textPrimary)
                         )
                         Text(
-                            text = syncProgress.displayText,
-                            style = AmazeTheme.typography.caption.copy(
-                                fontSize = 11.sp,
-                                color = colors.textSecondary
-                            )
+                            text = displayText,
+                            style = AmazeTheme.typography.caption.copy(fontSize = 11.sp, color = colors.textSecondary),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(Icons.Rounded.Close, "Dismiss", tint = colors.textSecondary, modifier = Modifier.size(16.dp))
+                    IconButton(onClick = { showSettingsDialog = true }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Rounded.Settings, "Sync Settings", tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Rounded.Close, "Close", tint = colors.textMuted, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -128,218 +161,290 @@ fun SyncProgressPopup(
         return
     }
 
-    // ── Full overlay ──
+    // Full Overlay Card
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .zIndex(100f)
-            .background(Color.Black.copy(alpha = 0.4f))
-            .clickable { /* consume clicks */ },
+            .zIndex(120f)
+            .background(Color.Black.copy(alpha = 0.45f))
+            .clickable { onDismiss() },
         contentAlignment = Alignment.Center
     ) {
-        Column(
+        Card(
+            colors = CardDefaults.cardColors(containerColor = colors.surface),
+            shape = RoundedCornerShape(24.dp),
             modifier = Modifier
-                .widthIn(max = 400.dp)
+                .widthIn(max = 420.dp)
                 .padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(colors.background)
                 .border(1.dp, colors.border, RoundedCornerShape(24.dp))
+                .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { /* prevent dismiss */ }
         ) {
-            // ── Header ──
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, top = 16.dp, end = 12.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (isSyncing) "Syncing Data" else "Sync Summary",
-                        style = AmazeTheme.typography.subheading.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            color = colors.textPrimary
-                        )
-                    )
-                    Text(
-                        text = syncProgress.displayText,
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                    )
-                }
-                IconButton(onClick = { isMinimized = true }) {
-                    Icon(Icons.Rounded.RemoveRedEye, "Minimize", tint = colors.textSecondary)
-                }
-                IconButton(onClick = onDismiss) {
-                    Icon(Icons.Rounded.Close, "Dismiss", tint = colors.textSecondary)
-                }
-            }
-
-            // ── Overall Progress Bar ──
-            Column(
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-            ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Overall Progress",
-                        style = AmazeTheme.typography.caption.copy(
-                            fontWeight = FontWeight.Medium,
-                            color = colors.textSecondary
-                        )
-                    )
-                    Text(
-                        text = "${syncProgress.percentage.toInt()}%",
-                        style = AmazeTheme.typography.body.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = colors.accent,
-                            fontSize = 14.sp
-                        )
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(colors.accent.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (isSyncing) Icons.Rounded.Sync else Icons.Rounded.CloudDone,
+                                null,
+                                tint = colors.accent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = if (isSyncing) "Syncing Data" else "Sync Overview",
+                                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                            )
+                            Text(
+                                text = syncProgress.displayText,
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                        }
+                    }
+                    Row {
+                        IconButton(onClick = { showSettingsDialog = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Rounded.Settings, "Sync Settings", tint = colors.textMuted)
+                        }
+                        IconButton(onClick = { isMinimized = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Rounded.KeyboardArrowDown, "Minimize", tint = colors.textMuted)
+                        }
+                        IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Rounded.Close, "Dismiss", tint = colors.textMuted)
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.height(6.dp))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(colors.accent.copy(alpha = 0.15f))
+
+                Spacer(Modifier.height(14.dp))
+
+                // Segmented Tabs
+                TabRow(
+                    selectedTabIndex = selectedTab.ordinal,
+                    containerColor = colors.background.copy(alpha = 0.5f),
+                    contentColor = colors.accent,
+                    divider = {},
+                    indicator = { tabPositions ->
+                        if (selectedTab.ordinal < tabPositions.size) {
+                            TabRowDefaults.SecondaryIndicator(
+                                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab.ordinal]),
+                                color = colors.accent
+                            )
+                        }
+                    },
+                    modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.medium))
                 ) {
-                    val animatedProgress by animateFloatAsState(
-                        targetValue = syncProgress.percentage / 100f,
-                        animationSpec = tween(600)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(animatedProgress)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(colors.accent)
-                    )
+                    SyncDialogTab.entries.forEach { tab ->
+                        Tab(
+                            selected = selectedTab == tab,
+                            onClick = { selectedTab = tab },
+                            text = {
+                                Text(
+                                    tab.title,
+                                    style = AmazeTheme.typography.caption.copy(
+                                        fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (selectedTab == tab) colors.accent else colors.textMuted
+                                    )
+                                )
+                            }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                // Tab Content
+                when (selectedTab) {
+                    SyncDialogTab.OVERVIEW -> {
+                        OverviewTabContent(
+                            isSyncing = isSyncing,
+                            isFinished = isFinished,
+                            syncProgress = syncProgress,
+                            colors = colors,
+                            onSyncAll = onSyncAll,
+                            onCancel = { AppState.cancelSync() },
+                            onDismiss = onDismiss
+                        )
+                    }
+                    SyncDialogTab.MODULES -> {
+                        ModulesTabContent(
+                            moduleStates = moduleStates,
+                            colors = colors
+                        )
+                    }
+                    SyncDialogTab.LOGS -> {
+                        LogsTabContent(
+                            logLines = logLines,
+                            colors = colors,
+                            onCopyLogs = {
+                                val text = logLines.joinToString("\n") { "[${it.status.name}] ${it.module.displayName}: ${it.message}" }
+                                clipboard.setText(AnnotatedString(text))
+                                copiedLogsToast = true
+                            },
+                            copiedLogsToast = copiedLogsToast
+                        )
+                    }
                 }
             }
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.height(4.dp))
+@Composable
+private fun OverviewTabContent(
+    isSyncing: Boolean,
+    isFinished: Boolean,
+    syncProgress: com.amazecc.app.shared.state.SyncProgress,
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    onSyncAll: () -> Unit,
+    onCancel: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Main Progress Indicator
+        Box(
+            modifier = Modifier.size(110.dp).padding(8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val animatedProgress by animateFloatAsState(
+                targetValue = syncProgress.percentage / 100f,
+                animationSpec = tween(600)
+            )
+            CircularProgressIndicator(
+                progress = { animatedProgress },
+                modifier = Modifier.fillMaxSize(),
+                color = if (syncProgress.errorCount > 0) colors.warning else if (isFinished) colors.success else colors.accent,
+                strokeWidth = 6.dp,
+                trackColor = colors.accent.copy(alpha = 0.12f)
+            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = "${syncProgress.percentage.toInt()}%",
+                    style = AmazeTheme.typography.subheading.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 22.sp,
+                        color = colors.textPrimary
+                    )
+                )
+                Text(
+                    text = if (isSyncing) "Syncing" else if (syncProgress.errorCount > 0) "Errors" else "Ready",
+                    style = AmazeTheme.typography.caption.copy(fontSize = 11.sp, color = colors.textMuted)
+                )
+            }
+        }
 
-            // ── Module List ──
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 320.dp)
-                    .padding(horizontal = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+        Spacer(Modifier.height(12.dp))
+
+        // Status Card Banner
+        val bannerBg = when {
+            syncProgress.errorCount > 0 -> colors.danger.copy(alpha = 0.12f)
+            isFinished -> colors.success.copy(alpha = 0.12f)
+            else -> colors.accentSurface.copy(alpha = 0.2f)
+        }
+        val bannerColor = when {
+            syncProgress.errorCount > 0 -> colors.danger
+            isFinished -> colors.success
+            else -> colors.accent
+        }
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = bannerBg),
+            shape = RoundedCornerShape(AmazeTheme.radius.medium),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                items(SyncModule.entries.filter { it.cacheKey != null || it == SyncModule.ALL_SEMESTER_ATTENDANCE || it == SyncModule.CAB_TRIPS }) { module ->
+                Icon(
+                    when {
+                        syncProgress.errorCount > 0 -> Icons.Rounded.Warning
+                        isFinished -> Icons.Rounded.CheckCircle
+                        else -> Icons.Rounded.HourglassTop
+                    },
+                    null,
+                    tint = bannerColor,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = syncProgress.displayText,
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = bannerColor, fontSize = 12.sp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Action Buttons
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (isSyncing) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(AmazeTheme.radius.medium),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.danger)
+                ) {
+                    Icon(Icons.Rounded.Cancel, "Cancel", modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Cancel Sync", fontSize = 12.sp)
+                }
+            } else {
+                AmazeButton(
+                    text = "Sync All Modules",
+                    onClick = onSyncAll,
+                    modifier = Modifier.weight(1f).height(38.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModulesTabContent(
+    moduleStates: Map<SyncModule, ModuleState>,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val groupedModules = remember(moduleStates) {
+        SyncCategory.entries.associateWith { cat ->
+            SyncModule.entries.filter { it.category == cat }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(260.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        groupedModules.forEach { (category, modules) ->
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = category.displayName,
+                    style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 11.sp),
+                    modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
+                )
+                modules.forEach { module ->
                     val state = moduleStates[module] ?: ModuleState()
                     ModuleSyncRow(module, state, colors)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // ── Log Lines ──
-            if (logLines.isNotEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 100.dp)
-                        .padding(horizontal = 16.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(colors.surface)
-                        .padding(10.dp)
-                ) {
-                    Text(
-                        text = "Activity Log",
-                        style = AmazeTheme.typography.caption.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            color = colors.textSecondary,
-                            fontSize = 10.sp
-                        )
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    logLines.takeLast(5).forEach { log ->
-                        val icon = when (log.status) {
-                            SyncStatus.SUCCESS -> "✓"
-                            SyncStatus.ERROR -> "✗"
-                            SyncStatus.LOADING -> "⟳"
-                            SyncStatus.IDLE -> "·"
-                        }
-                        val iconColor = when (log.status) {
-                            SyncStatus.SUCCESS -> Color(0xFF4CAF50)
-                            SyncStatus.ERROR -> Color(0xFFEF5350)
-                            SyncStatus.LOADING -> colors.accent
-                            SyncStatus.IDLE -> colors.textSecondary
-                        }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(vertical = 1.dp)
-                        ) {
-                            Text(
-                                text = icon,
-                                color = iconColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "${moduleShortName(log.module)}: ${log.message}",
-                                style = AmazeTheme.typography.caption.copy(
-                                    fontSize = 10.sp,
-                                    color = colors.textSecondary
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // ── Action Buttons ──
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (!isSyncing) {
-                    OutlinedButton(
-                        onClick = onSaveOffline,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.accent)
-                    ) {
-                        Icon(Icons.Rounded.SaveAlt, "Save Offline", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Save Offline", fontSize = 12.sp)
-                    }
-                    OutlinedButton(
-                        onClick = {
-                            onSyncAll()
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.accent)
-                    ) {
-                        Icon(Icons.Rounded.Refresh, "Sync All", modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Sync All", fontSize = 12.sp)
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = { SyncEngine.cancelAll() },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF5350))
-                    ) {
-                        Icon(Icons.Rounded.Cancel, Strings.cancel, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(Strings.cancel, fontSize = 12.sp)
-                    }
+                    Spacer(Modifier.height(4.dp))
                 }
             }
         }
@@ -350,121 +455,112 @@ fun SyncProgressPopup(
 private fun ModuleSyncRow(
     module: SyncModule,
     state: ModuleState,
-    colors: com.amazecc.app.shared.theme.AmazeColors,
+    colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val icon = when (state.status) {
-        SyncStatus.LOADING -> Icons.Rounded.HourglassTop
+        SyncStatus.LOADING -> Icons.Rounded.Sync
         SyncStatus.SUCCESS -> Icons.Rounded.CheckCircle
         SyncStatus.ERROR -> Icons.Rounded.Error
         SyncStatus.IDLE -> Icons.Rounded.RadioButtonUnchecked
     }
     val iconColor = when (state.status) {
         SyncStatus.LOADING -> colors.accent
-        SyncStatus.SUCCESS -> Color(0xFF4CAF50)
-        SyncStatus.ERROR -> Color(0xFFEF5350)
-        SyncStatus.IDLE -> colors.textSecondary.copy(alpha = 0.4f)
-    }
-    val bgColor = when (state.status) {
-        SyncStatus.LOADING -> colors.accent.copy(alpha = 0.06f)
-        SyncStatus.SUCCESS -> Color(0xFF4CAF50).copy(alpha = 0.06f)
-        SyncStatus.ERROR -> Color(0xFFEF5350).copy(alpha = 0.06f)
-        SyncStatus.IDLE -> colors.surface
+        SyncStatus.SUCCESS -> colors.success
+        SyncStatus.ERROR -> colors.danger
+        SyncStatus.IDLE -> colors.textMuted.copy(alpha = 0.4f)
     }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(bgColor)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+            .background(colors.background.copy(alpha = 0.6f))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (state.status == SyncStatus.LOADING) {
             CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(16.dp),
                 color = colors.accent,
                 strokeWidth = 2.dp
             )
         } else {
-            Icon(
-                imageVector = icon,
-                contentDescription = state.status.name,
-                tint = iconColor,
-                modifier = Modifier.size(18.dp)
-            )
+            Icon(icon, null, tint = iconColor, modifier = Modifier.size(16.dp))
         }
-        Spacer(modifier = Modifier.width(10.dp))
+        Spacer(Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = module.displayName,
-                style = AmazeTheme.typography.body.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 13.sp,
-                    color = colors.textPrimary
-                )
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, fontSize = 12.sp, color = colors.textPrimary)
             )
             if (state.error != null) {
                 Text(
                     text = state.error,
-                    style = AmazeTheme.typography.caption.copy(
-                        fontSize = 10.sp,
-                        color = Color(0xFFEF5350)
-                    ),
+                    style = AmazeTheme.typography.caption.copy(fontSize = 10.sp, color = colors.danger),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
         }
-        if (state.lastSynced != null) {
-            Text(
-                text = formatTimeAgo(state.lastSynced),
-                style = AmazeTheme.typography.caption.copy(
-                    fontSize = 10.sp,
-                    color = colors.textSecondary
-                )
-            )
-        }
     }
 }
 
-private fun moduleShortName(module: SyncModule): String = when (module) {
-    SyncModule.ATTENDANCE -> "Att"
-    SyncModule.ALL_SEMESTER_ATTENDANCE -> "AllSem"
-    SyncModule.TIMETABLE -> "TT"
-    SyncModule.MARKS -> "Marks"
-    SyncModule.GRADES -> "Grades"
-    SyncModule.CURRICULUM -> "Curr"
-    SyncModule.HOSTEL_DETAILS -> "Hostel"
-    SyncModule.EXAM_SCHEDULE -> "Exam"
-    SyncModule.CALENDAR -> "Cal"
-    SyncModule.CALENDARS_LIST -> "CalList"
-    SyncModule.PAYMENTS -> "Pay"
-    SyncModule.LIBRARY -> "Lib"
-    SyncModule.TRANSPORT -> "Trans"
-    SyncModule.BUSES -> "Buses"
-    SyncModule.LMS -> "LMS"
-    SyncModule.EVENTS -> "Events"
-    SyncModule.CLUBS -> "Clubs"
-    SyncModule.QCM_VIEW -> "QCM"
-    SyncModule.STUDENT_PROFILE -> Strings.profile
-    SyncModule.CAB_TRIPS -> "Cab Share"
-    SyncModule.CIRCULARS -> "Circ"
-    SyncModule.PROFILE_IMAGES -> "Imgs"
-    SyncModule.BANK_INFO -> "Bank"
-    SyncModule.DAYBOARDER -> "Day"
-    SyncModule.EPT_SCHEDULE -> "EPT"
-    SyncModule.REGISTRATION_SCHEDULE -> "Reg"
-    SyncModule.APAAR_ID -> "APAAR"
-}
+@Composable
+private fun LogsTabContent(
+    logLines: List<com.amazecc.app.shared.state.LogLine>,
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    onCopyLogs: () -> Unit,
+    copiedLogsToast: Boolean
+) {
+    Column(modifier = Modifier.fillMaxWidth().height(260.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Execution Trace",
+                style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textMuted, fontSize = 11.sp)
+            )
+            TextButton(onClick = onCopyLogs, modifier = Modifier.height(28.dp)) {
+                Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(14.dp), tint = colors.accent)
+                Spacer(Modifier.width(4.dp))
+                Text(if (copiedLogsToast) "Copied!" else "Copy Log", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent))
+            }
+        }
 
-private fun formatTimeAgo(instant: Instant): String {
-    val now = kotlinx.datetime.Clock.System.now()
-    val diff = now - instant
-    val seconds = diff.inWholeSeconds
-    return when {
-        seconds < 60 -> "now"
-        seconds < 3600 -> "${seconds / 60}m ago"
-        seconds < 86400 -> "${seconds / 3600}h ago"
-        else -> "${seconds / 86400}d ago"
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                .background(colors.background)
+                .padding(10.dp)
+        ) {
+            if (logLines.isEmpty()) {
+                Text("No log events recorded yet.", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    items(logLines.takeLast(40), key = { "${it.timestamp}-${it.module.name}-${it.message}" }) { log ->
+                        val color = when (log.status) {
+                            SyncStatus.SUCCESS -> colors.success
+                            SyncStatus.ERROR -> colors.danger
+                            SyncStatus.LOADING -> colors.accent
+                            SyncStatus.IDLE -> colors.textMuted
+                        }
+                        Text(
+                            text = "[${log.module.displayName}] ${log.message}",
+                            style = AmazeTheme.typography.caption.copy(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 10.sp,
+                                color = color
+                            )
+                        )
+                    }
+                }
+            }
+        }
     }
 }

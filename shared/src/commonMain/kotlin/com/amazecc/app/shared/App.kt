@@ -103,8 +103,6 @@ fun App() {
             ) {
                 Scaffold(containerColor = colors.background) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Sync Notification Overlay
-                    com.amazecc.app.shared.ui.components.SyncNotification()
                     // Sync Progress Popup (per-module detail + percentage)
                     com.amazecc.app.shared.ui.components.SyncProgressPopup(
                         onDismiss = { SyncEngine.setShowSyncDialog(false) },

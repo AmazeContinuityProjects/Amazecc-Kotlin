@@ -216,7 +216,7 @@ fun DailyPlannerScreen() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(weekDays) { wd ->
+            items(weekDays, key = { it.effectiveAbbrev }) { wd ->
                 val isSelected = selectedWeekDay.fullDate == wd.fullDate
                 val dayMap = SlotMap.map[wd.effectiveAbbrev] ?: emptyMap<String, String>()
                 val classCount = attendance.count { course ->
@@ -344,7 +344,7 @@ fun DailyPlannerScreen() {
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
             ) {
-                items(scheduleData) { item ->
+                items(scheduleData, key = { it.startMins }) { item ->
                     TimelineRow(item)
                 }
 
@@ -358,7 +358,7 @@ fun DailyPlannerScreen() {
                             Text("Today's Tasks (${todayTasks.size})", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                         }
                     }
-                    items(todayTasks) { task ->
+                    items(todayTasks, key = { it.id }) { task ->
                         TaskCard(
                             task = task,
                             colors = colors,

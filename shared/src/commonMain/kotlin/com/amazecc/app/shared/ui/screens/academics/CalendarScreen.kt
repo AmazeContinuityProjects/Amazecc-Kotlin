@@ -272,7 +272,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                 "Holidays" to filterHolidays,
                                 "ODs" to filterODs
                             )
-                            items(filters) { (label, isActive) ->
+                            items(filters, key = { it.first }) { (label, isActive) ->
                                 val interactionSource = remember { MutableInteractionSource() }
                                 val isPressed by interactionSource.collectIsPressedAsState()
                                 val scale by animateFloatAsState(
@@ -320,7 +320,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 contentPadding = PaddingValues(horizontal = spacing.pageHorizontal)
                             ) {
-                                items(allMonths.indices.toList()) { idx ->
+                                items(allMonths.indices.toList(), key = { it }) { idx ->
                                     val month = allMonths[idx]
                                     val isSelected = selectedMonthIdx == idx
                                     val interactionSource = remember { MutableInteractionSource() }
@@ -591,7 +591,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                             }
                         }
                     } else {
-                        items(eventsToShow) { (dateLabel, ev) ->
+                        items(eventsToShow, key = { "${it.first}-${it.second.title}-${it.second.type}" }) { (dateLabel, ev) ->
                             if (dateLabel.isNotEmpty()) {
                                 Row(
                                     modifier = Modifier

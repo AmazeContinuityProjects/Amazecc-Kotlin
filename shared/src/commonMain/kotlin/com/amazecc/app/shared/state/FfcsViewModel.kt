@@ -4,49 +4,51 @@ import com.amazecc.app.shared.data.FfcsReportData
 import com.amazecc.app.shared.ffcs.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 object FfcsViewModel {
 
-    private val scope = CoroutineScope(Dispatchers.Default)
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     private val _allCourses = MutableStateFlow<List<ParsedCourse>>(emptyList())
-    val allCourses: StateFlow<List<ParsedCourse>> = _allCourses
+    val allCourses: StateFlow<List<ParsedCourse>> = _allCourses.asStateFlow()
 
     private val _courseOfferings = MutableStateFlow<List<Pair<String, List<CourseOffering>>>>(emptyList())
-    val courseOfferings: StateFlow<List<Pair<String, List<CourseOffering>>>> = _courseOfferings
+    val courseOfferings: StateFlow<List<Pair<String, List<CourseOffering>>>> = _courseOfferings.asStateFlow()
 
     private val _selectedCodes = MutableStateFlow<Set<String>>(emptySet())
-    val selectedCodes: StateFlow<Set<String>> = _selectedCodes
+    val selectedCodes: StateFlow<Set<String>> = _selectedCodes.asStateFlow()
 
     private val _locks = MutableStateFlow<List<CourseLock>>(emptyList())
-    val locks: StateFlow<List<CourseLock>> = _locks
+    val locks: StateFlow<List<CourseLock>> = _locks.asStateFlow()
 
     private val _generatedTimetables = MutableStateFlow<List<TimetableState>>(emptyList())
-    val generatedTimetables: StateFlow<List<TimetableState>> = _generatedTimetables
+    val generatedTimetables: StateFlow<List<TimetableState>> = _generatedTimetables.asStateFlow()
 
     private val _isGenerating = MutableStateFlow(false)
-    val isGenerating: StateFlow<Boolean> = _isGenerating
+    val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()
 
     private val _errorMsg = MutableStateFlow<String?>(null)
-    val errorMsg: StateFlow<String?> = _errorMsg
+    val errorMsg: StateFlow<String?> = _errorMsg.asStateFlow()
 
     private val _isLoading = MutableStateFlow(true)
-    val isLoading: StateFlow<Boolean> = _isLoading
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val _blockedSlots = MutableStateFlow<Set<String>>(emptySet())
-    val blockedSlots: StateFlow<Set<String>> = _blockedSlots
+    val blockedSlots: StateFlow<Set<String>> = _blockedSlots.asStateFlow()
 
     private val _uniqueFaculty = MutableStateFlow(false)
-    val uniqueFaculty: StateFlow<Boolean> = _uniqueFaculty
+    val uniqueFaculty: StateFlow<Boolean> = _uniqueFaculty.asStateFlow()
 
     private val _morningPreference = MutableStateFlow(false)
-    val morningPreference: StateFlow<Boolean> = _morningPreference
+    val morningPreference: StateFlow<Boolean> = _morningPreference.asStateFlow()
 
     private val _maxResults = MutableStateFlow(50)
-    val maxResults: StateFlow<Int> = _maxResults
+    val maxResults: StateFlow<Int> = _maxResults.asStateFlow()
 
     fun initFromCsv() {
         scope.launch {

@@ -23,43 +23,5 @@ import com.amazecc.app.shared.theme.AmazeTheme
 
 @Composable
 fun SyncNotification() {
-    val isSyncing by AppState.isSyncing.collectAsState()
-    val isLoading by AppState.isLoading.collectAsState()
-    val syncMessage by AppState.syncMessage.collectAsState()
-    val colors = AmazeTheme.colors
-
-    AnimatedVisibility(
-        visible = isSyncing || isLoading,
-        enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-        modifier = Modifier
-            .fillMaxWidth()
-            .zIndex(50f)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(colors.surface)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    color = colors.accent,
-                    strokeWidth = 2.dp
-                )
-                Text(
-                    text = syncMessage ?: "Syncing data...",
-                    style = AmazeTheme.typography.caption.copy(color = colors.textPrimary)
-                )
-            }
-        }
-    }
+    // Deprecated: Sync status is now exclusively displayed in the bottom-right SyncProgressPopup.
 }

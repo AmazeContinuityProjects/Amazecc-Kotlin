@@ -911,7 +911,7 @@ fun TimetableGridScreen() {
         if (selectedDay == null) {
             // Overview: show all days summary
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
-                items(days) { day ->
+                items(days, key = { it }) { day ->
                     val dayCourses = daySlotMap[day]?.values?.distinct() ?: emptyList()
                     val daySlots = dayTimeSlots[day] ?: emptyList()
                     val overrideForDay = weekDayOverrides[day]
@@ -1006,7 +1006,7 @@ fun TimetableGridScreen() {
                     Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 }
                 val slots = dayTimeSlots[selectedDay] ?: emptyList()
-                items(slots) { (slotCode, timeRange) ->
+                items(slots, key = { it.first }) { (slotCode, timeRange) ->
                     val course = daySlotMap[selectedDay]?.get(slotCode)
                     val hasClass = course != null
                     Box(

@@ -21,6 +21,10 @@ object SettingsManager {
     const val KEY_SYNC_ADDITIONAL = "sync_additional"
     const val KEY_SYNC_ARREAR = "sync_arrear"
     const val KEY_NAVBAR_ITEMS = "navbar_items"
+    const val KEY_DASHBOARD_WIDGETS = "dashboard_widgets"
+    const val KEY_SYNC_ENABLED_MODULES = "sync_enabled_modules"
+    const val KEY_SYNC_PROFILES = "sync_named_profiles"
+    const val KEY_ACTIVE_SYNC_PROFILE_ID = "active_sync_profile_id"
     const val KEY_PREFERRED_CALENDAR = "preferred_calendar_name"
 
     // Theme & Display preferences
@@ -44,6 +48,7 @@ object SettingsManager {
     const val KEY_LIBRARY_PASSWORD = "library_password"
 
     // Cache keys for all data types
+    const val CACHE_VTOP_PHOTO = "cache_vtop_photo"
     const val CACHE_GRADES = "cache_grades"
     const val CACHE_MARKS = "cache_marks"
     const val CACHE_ATTENDANCE = "cache_attendance"

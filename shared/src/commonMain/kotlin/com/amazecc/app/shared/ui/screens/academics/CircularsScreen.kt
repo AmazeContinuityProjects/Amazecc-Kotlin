@@ -99,7 +99,7 @@ fun CircularsScreen() {
             ) {
                 item { HeaderSpacer() }
 
-                items(circulars) { folder ->
+                items(circulars, key = { it.title ?: "unknown" }) { folder ->
                     val folderName = folder.title ?: "Untitled"
                     val isExpanded = folderName in expandedFolders
                     val items = folder.children ?: emptyList()

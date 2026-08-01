@@ -712,7 +712,7 @@ private fun MarksTab(
                 item {
                     Text(label, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent))
                 }
-                items(asms) { asm ->
+                items(asms, key = { "${it.title}-${it.maxMark}" }) { asm ->
                     ExpandableAssessmentCard(asm, label, isRelative, colors)
                 }
             }
@@ -1098,7 +1098,7 @@ private fun AttendanceTab(
                 if (filteredHistory.isEmpty()) {
                     item { Text("No entries match filter", color = colors.textMuted, fontSize = 12.sp) }
                 } else {
-                    items(filteredHistory) { (date, status) ->
+                    items(filteredHistory, key = { it.first + "|" + it.second }) { (date, status) ->
                         val isPresent = status.lowercase() in listOf("present", "p")
                         val isOd = status.lowercase() in listOf("on duty", "od")
                         val hasNotes = attendanceNotes["${activeAtt.courseCode}|$date"] ?: false

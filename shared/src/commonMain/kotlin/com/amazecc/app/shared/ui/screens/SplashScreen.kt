@@ -38,6 +38,15 @@ fun SplashScreen() {
         AppState.navigateTo(Screen.LOGIN)
     }
 
+    val logoGradient = remember(colors) {
+        Brush.linearGradient(
+            colors = listOf(
+                colors.accent.copy(alpha = 0.7f),
+                colors.accent.copy(alpha = 0.15f)
+            )
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -51,14 +60,7 @@ fun SplashScreen() {
                     .scale(logoScale)
                     .shadow(20.dp, RoundedCornerShape(AmazeTheme.radius.large))
                     .clip(RoundedCornerShape(AmazeTheme.radius.large))
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                colors.accent.copy(alpha = 0.7f),
-                                colors.accent.copy(alpha = 0.15f)
-                            )
-                        )
-                    )
+                    .background(logoGradient)
                     .border(2.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(AmazeTheme.radius.large)),
                 contentAlignment = Alignment.Center
             ) {

@@ -58,20 +58,16 @@ fun ScreenHeader(
     modifier: Modifier = Modifier
 ) {
     LaunchedEffect(title, description, showBackButton, showSyncButton, onRefresh, syncModules, onBackOverride) {
-        AppState.headerTitle.value = title
-        AppState.headerDescription.value = description
-        AppState.headerShowBack.value = showBackButton
-        AppState.headerShowSync.value = showSyncButton
-        AppState.headerOnRefresh.value = onRefresh
-        AppState.headerSyncModules.value = syncModules
-        AppState.headerBackOverride.value = onBackOverride
+        AppState.setHeader(title, description, showBackButton, showSyncButton, onRefresh, syncModules.toList(), onBackOverride)
     }
 }
 
 @Composable
-fun HeaderSpacer(modifier: Modifier = Modifier) {
+fun HeaderSpacer(
+    modifier: Modifier = Modifier,
+    baseHeight: androidx.compose.ui.unit.Dp = 78.dp
+) {
     val liveClass by AppState.currentLiveClass.collectAsState()
-    val baseHeight = 78.dp
     val height by androidx.compose.animation.core.animateDpAsState(
         targetValue = if (liveClass != null) baseHeight + 70.dp else baseHeight,
         animationSpec = bouncySpring()
@@ -232,7 +228,7 @@ fun FloatingScreenHeader(
                         if (effectiveRefresh != null) {
                             effectiveRefresh()
                         } else if (effectiveModules.isNotEmpty()) {
-                            SyncEngine.setShowSyncDialog(true)
+                            SyncEngine.setShowSyncDialog(true, minimized = true)
                             AppState.loadAllData()
                         } else {
                             AppState.loadAllData()

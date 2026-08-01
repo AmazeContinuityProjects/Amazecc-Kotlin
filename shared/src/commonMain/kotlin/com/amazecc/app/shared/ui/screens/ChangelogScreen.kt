@@ -49,7 +49,7 @@ fun ChangelogScreen() {
             contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            items(changes.size) { index ->
+            items(changes.size, key = { it }) { index ->
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.Top) {
                         Box(

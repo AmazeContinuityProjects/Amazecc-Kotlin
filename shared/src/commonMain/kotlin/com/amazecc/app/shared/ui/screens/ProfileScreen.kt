@@ -68,6 +68,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val registrationSchedule by AppState.registrationSchedule.collectAsState()
     val apaarId by AppState.apaarId.collectAsState()
     val profileImages by AppState.profileImages.collectAsState()
+    val vtopPhotoBase64 by AppState.vtopPhotoBase64.collectAsState()
 
     val scrollState = rememberScrollState()
 
@@ -94,6 +95,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         ?: profileImages?.student?.photoBase64 
                         ?: profileImages?.profile?.photoBase64 
                         ?: profileImages?.studentPhoto
+                        ?: vtopPhotoBase64
                     val decodedBitmap = remember(photoBase64) {
                         if (photoBase64 != null) {
                             try {

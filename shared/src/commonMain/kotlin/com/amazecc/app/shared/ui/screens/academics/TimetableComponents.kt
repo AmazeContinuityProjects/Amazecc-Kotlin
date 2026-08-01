@@ -93,7 +93,7 @@ fun TimetableDialog(
                 Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(days) { day ->
+                    items(days, key = { it }) { day ->
                         val isSelected = selectedDay == day
                         Box(
                             modifier = Modifier
@@ -120,7 +120,7 @@ fun TimetableDialog(
                     }
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(dayCourses) { course ->
+                        items(dayCourses, key = { it.slotName + it.courseCode }) { course ->
                             val time = SlotMap.map[selectedDay]?.get(course.slotName) ?: "—"
                             AmazeCard(
                                 modifier = Modifier.fillMaxWidth(),

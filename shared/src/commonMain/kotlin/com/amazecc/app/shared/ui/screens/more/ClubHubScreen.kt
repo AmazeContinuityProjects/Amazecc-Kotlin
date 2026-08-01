@@ -140,7 +140,7 @@ private fun DirectoryTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                     }
                 }
             } else {
-                items(filteredClubs) { club ->
+                items(filteredClubs, key = { it.id ?: it.name ?: "unknown" }) { club ->
                     ClubCard(club, colors)
                 }
             }
@@ -248,7 +248,7 @@ private fun FeedTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 }
             }
         } else {
-            items(feedPosts) { post ->
+            items(feedPosts, key = { it.id }) { post ->
                 FeedPostCard(post, colors)
             }
         }

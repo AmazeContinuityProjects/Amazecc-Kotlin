@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.utils
 
+import androidx.compose.runtime.Immutable
 import com.amazecc.app.shared.model.AttendanceItem
 import kotlinx.serialization.Serializable
 import kotlin.math.abs
@@ -7,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Serializable
+@Immutable
 data class FriendClassSlot(
     val day: String,
     val timeSlot: String,
@@ -17,6 +19,7 @@ data class FriendClassSlot(
 )
 
 @Serializable
+@Immutable
 data class Friend(
     val id: String,
     val name: String,

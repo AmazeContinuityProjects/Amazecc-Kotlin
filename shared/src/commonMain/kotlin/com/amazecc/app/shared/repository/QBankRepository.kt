@@ -7,7 +7,7 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 
 class QBankRepository(private val client: HttpClient) {
-    private val API_BASE = "https://amazecc.vercel.app" // Adjust accordingly
+    private val API_BASE = "https://api.amazecc.com" // Adjust accordingly
 
     suspend fun getGlobalCourses(): List<Map<String, String>> {
         return try {

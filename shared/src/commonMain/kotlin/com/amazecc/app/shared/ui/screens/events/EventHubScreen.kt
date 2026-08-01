@@ -119,7 +119,7 @@ private fun EventsTab() {
                         }
                     }
                 } else {
-                    items(filteredEvents.drop(1)) { event ->
+                    items(filteredEvents.drop(1), key = { it.eid }) { event ->
                         EventCard(
                             event = event,
                             isRegistered = event.eid in registeredEvents,

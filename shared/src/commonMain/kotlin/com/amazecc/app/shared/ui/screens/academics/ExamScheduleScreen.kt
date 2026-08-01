@@ -123,7 +123,7 @@ fun ExamScheduleScreen() {
                     )
                 }
 
-                items(exams) { exam ->
+                items(exams, key = { "${it.courseCode}-${it.examDate}-${it.slot}" }) { exam ->
                     AmazeCard(
                         modifier = Modifier
                             .fillMaxWidth()

@@ -163,16 +163,23 @@ private fun TransportRegistrationCard(
 ) {
     val isActive = transportData?.hasRegistration == true
 
+    val cardGradient = remember(isActive, colors) {
+        Brush.linearGradient(
+            if (isActive) listOf(colors.accent.copy(alpha = 0.15f), colors.accent.copy(alpha = 0.05f))
+            else listOf(colors.surface.copy(alpha = 0.8f), colors.background)
+        )
+    }
+    val blobGradient = remember(colors) {
+        Brush.radialGradient(
+            colors = listOf(colors.accent.copy(alpha = 0.4f), Color.Transparent)
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(
-                Brush.linearGradient(
-                    if (isActive) listOf(colors.accent.copy(alpha = 0.15f), colors.accent.copy(alpha = 0.05f))
-                    else listOf(colors.surface.copy(alpha = 0.8f), colors.background)
-                )
-            )
+            .background(cardGradient)
             .border(
                 1.dp,
                 if (isActive) colors.accent.copy(alpha = 0.3f) else colors.border,
@@ -186,8 +193,7 @@ private fun TransportRegistrationCard(
                     .size(150.dp)
                     .align(Alignment.TopEnd)
                     .offset(x = 50.dp, y = (-50).dp)
-                    .background(colors.accent.copy(alpha = 0.2f), shape = CircleShape)
-                    .blur(40.dp)
+                    .background(blobGradient, shape = CircleShape)
             )
         }
 
@@ -550,12 +556,19 @@ private fun BusRouteCard(
     }
     val themeColor = if (isAC) colors.chart2 else colors.chart1
 
+    val cardBgGradient = remember(gradientColors) { Brush.linearGradient(gradientColors) }
+    val blobGradient = remember(themeColor) {
+        Brush.radialGradient(
+            colors = listOf(themeColor.copy(alpha = 0.3f), Color.Transparent)
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize()
             .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(Brush.linearGradient(gradientColors))
+            .background(cardBgGradient)
             .background(colors.surface.copy(alpha = 0.85f))
             .border(1.dp, themeColor.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.large))
             .clickable(onClick = onClick)
@@ -566,8 +579,7 @@ private fun BusRouteCard(
                 .size(120.dp)
                 .align(Alignment.BottomStart)
                 .offset(x = (-30).dp, y = 30.dp)
-                .background(themeColor.copy(alpha = 0.15f), shape = CircleShape)
-                .blur(40.dp)
+                .background(blobGradient, shape = CircleShape)
         )
 
         Column(modifier = Modifier.padding(16.dp)) {
@@ -746,7 +758,7 @@ private fun BusRouteCard(
                         CrewRow(
                             icon = Icons.Rounded.AssignmentInd,
                             label = "Driver Incharge",
-                            name = route.driverInchargeName ?: return,
+                            name = route.driverInchargeName.orEmpty(),
                             phone = route.driverInchargePhone,
                             colors = colors
                         )
@@ -758,7 +770,7 @@ private fun BusRouteCard(
                         CrewRow(
                             icon = Icons.Rounded.SupervisorAccount,
                             label = "Supervisor",
-                            name = route.supervisorName ?: return,
+                            name = route.supervisorName.orEmpty(),
                             phone = route.supervisorPhone,
                             colors = colors
                         )

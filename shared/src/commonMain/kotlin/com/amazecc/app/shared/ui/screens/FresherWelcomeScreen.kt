@@ -48,7 +48,7 @@ fun FresherWelcomeScreen() {
                 }
             }
 
-            items(sections) { section ->
+            items(sections, key = { it.title }) { section ->
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.Top) {
                         Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(section.color.copy(alpha = 0.15f)), contentAlignment = Alignment.Center) {

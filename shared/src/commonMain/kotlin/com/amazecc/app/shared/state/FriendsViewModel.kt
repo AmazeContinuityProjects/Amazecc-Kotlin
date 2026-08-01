@@ -8,6 +8,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.datetime.Clock
 
 @Serializable
@@ -25,10 +26,10 @@ object FriendsViewModel {
     private const val CACHE_KEY_GROUPS = "friends_viewmodel_groups"
 
     private val _friends = MutableStateFlow<List<Friend>>(emptyList())
-    val friends: StateFlow<List<Friend>> = _friends
+    val friends: StateFlow<List<Friend>> = _friends.asStateFlow()
 
     private val _groups = MutableStateFlow<List<FriendGroup>>(emptyList())
-    val groups: StateFlow<List<FriendGroup>> = _groups
+    val groups: StateFlow<List<FriendGroup>> = _groups.asStateFlow()
 
     init {
         loadCached()

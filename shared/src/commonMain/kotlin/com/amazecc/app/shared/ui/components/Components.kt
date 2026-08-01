@@ -159,14 +159,15 @@ fun AmazeCard(
         animationSpec = bouncySpring()
     )
 
+    val borderAlpha = 0.4f
     val (bgColor, borderColor) = when (variant) {
-        CardVariant.DEFAULT -> (backgroundColor ?: colors.surface) to colors.border
-        CardVariant.ACCENT -> (backgroundColor ?: colors.accentSurface) to colors.accent.copy(alpha = 0.35f)
-        CardVariant.SUCCESS -> (backgroundColor ?: colors.successSurface) to colors.success.copy(alpha = 0.35f)
-        CardVariant.WARNING -> (backgroundColor ?: colors.warningSurface) to colors.warning.copy(alpha = 0.35f)
-        CardVariant.DANGER -> (backgroundColor ?: colors.dangerSurface) to colors.danger.copy(alpha = 0.35f)
-        CardVariant.INFO -> (backgroundColor ?: colors.infoSurface) to colors.info.copy(alpha = 0.35f)
-        CardVariant.ACCENT_SURFACE -> (backgroundColor ?: colors.accentContainer) to colors.accent.copy(alpha = 0.4f)
+        CardVariant.DEFAULT -> (backgroundColor ?: colors.surface) to colors.textMuted.copy(alpha = borderAlpha)
+        CardVariant.ACCENT -> (backgroundColor ?: colors.accentSurface) to colors.accent.copy(alpha = borderAlpha)
+        CardVariant.SUCCESS -> (backgroundColor ?: colors.successSurface) to colors.success.copy(alpha = borderAlpha)
+        CardVariant.WARNING -> (backgroundColor ?: colors.warningSurface) to colors.warning.copy(alpha = borderAlpha)
+        CardVariant.DANGER -> (backgroundColor ?: colors.dangerSurface) to colors.danger.copy(alpha = borderAlpha)
+        CardVariant.INFO -> (backgroundColor ?: colors.infoSurface) to colors.info.copy(alpha = borderAlpha)
+        CardVariant.ACCENT_SURFACE -> (backgroundColor ?: colors.accentContainer) to colors.accent.copy(alpha = 0.45f)
         CardVariant.GLASS -> (backgroundColor ?: colors.glassSurface) to colors.glassBorder
     }
 

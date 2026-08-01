@@ -58,21 +58,28 @@ fun ProvideInteractionPrefs(
 
 // ── SPRING SPECS ──
 
-/**
- * High bouncy spring spec for juicy press and tap interactions.
- */
-fun <T> bouncySpring(): SpringSpec<T> = spring(
+private val _bouncySpring: SpringSpec<Float> = spring(
     dampingRatio = Spring.DampingRatioHighBouncy,
     stiffness = Spring.StiffnessMedium
 )
-
-/**
- * Smooth medium bouncy spring spec for tab switches and expansions.
- */
-fun <T> mediumSpring(): SpringSpec<T> = spring(
+private val _mediumSpring: SpringSpec<Float> = spring(
     dampingRatio = Spring.DampingRatioMediumBouncy,
     stiffness = Spring.StiffnessMediumLow
 )
+
+/**
+ * High bouncy spring spec for juicy press and tap interactions.
+ * Cached instance to avoid per-frame allocation.
+ */
+@Suppress("UNCHECKED_CAST")
+fun <T> bouncySpring(): SpringSpec<T> = _bouncySpring as SpringSpec<T>
+
+/**
+ * Smooth medium bouncy spring spec for tab switches and expansions.
+ * Cached instance to avoid per-frame allocation.
+ */
+@Suppress("UNCHECKED_CAST")
+fun <T> mediumSpring(): SpringSpec<T> = _mediumSpring as SpringSpec<T>
 
 // ── INTERACTION MODIFIERS ──
 

@@ -41,19 +41,16 @@ fun MainTabPager(
         pageCount = { tabScreens.size }
     )
 
-    var settledPage by remember { mutableStateOf(pagerState.currentPage) }
-
     LaunchedEffect(currentScreen) {
         val targetIndex = tabScreens.indexOf(currentScreen)
-        if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
-            pagerState.scrollToPage(targetIndex)
+        if (targetIndex >= 0 && pagerState.settledPage != targetIndex) {
+            pagerState.animateScrollToPage(targetIndex)
         }
     }
 
-    LaunchedEffect(pagerState.currentPage) {
-        val page = pagerState.currentPage
-        if (page != settledPage && page in tabScreens.indices) {
-            settledPage = page
+    LaunchedEffect(pagerState.settledPage) {
+        val page = pagerState.settledPage
+        if (page in tabScreens.indices) {
             val screen = tabScreens[page]
             if (screen != currentScreen) {
                 onScreenChange(screen)
@@ -64,7 +61,9 @@ fun MainTabPager(
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
-        beyondViewportPageCount = 1
+        flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(state = pagerState),
+        beyondViewportPageCount = 1,
+        key = { tabScreens[it] }
     ) { page ->
         when (val screen = tabScreens[page]) {
             Screen.HOME -> DashboardScreen()

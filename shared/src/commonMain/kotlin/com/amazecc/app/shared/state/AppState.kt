@@ -14,6 +14,8 @@ import com.amazecc.app.shared.utils.requestNotificationPermissions
 import com.amazecc.app.shared.utils.testLocalNotification
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -801,9 +803,23 @@ object AppState {
         }
     }
 
+    private var currentSyncJob: Job? = null
+
+    fun cancelSync() {
+        currentSyncJob?.cancel()
+        currentSyncJob = null
+        _isLoading.value = false
+        _isSyncing.value = false
+        _syncMessage.value = null
+        _syncStatus.value = "Sync cancelled"
+        SyncEngine.cancelAll()
+        SyncEngine.setShowSyncDialog(false)
+    }
+
     fun loadAllData() {
         if (_isLoading.value) return
-        scope.launch {
+        currentSyncJob?.cancel()
+        currentSyncJob = scope.launch {
             _isLoading.value = true
             _isSyncing.value = true
             _error.value = null
@@ -2491,6 +2507,130 @@ object AppState {
             _syncMessage.value = message
         }
     }
+
+    private val _vtopPhotoBase64 = MutableStateFlow<String?>(SettingsManager.getString(SettingsManager.CACHE_VTOP_PHOTO))
+    val vtopPhotoBase64: StateFlow<String?> = _vtopPhotoBase64.asStateFlow()
+
+    private val _widgetOrder = MutableStateFlow<List<DashboardWidget>>(loadWidgetOrder())
+    val widgetOrder: StateFlow<List<DashboardWidget>> = _widgetOrder.asStateFlow()
+
+    private val _dashboardEditMode = MutableStateFlow(false)
+    val dashboardEditMode: StateFlow<Boolean> = _dashboardEditMode.asStateFlow()
+    val isDashboardEditMode: StateFlow<Boolean> = _dashboardEditMode.asStateFlow()
+
+    fun toggleDashboardEditMode() {
+        _dashboardEditMode.value = !_dashboardEditMode.value
+    }
+
+    fun updateWidgetOrder(newOrder: List<DashboardWidget>) {
+        _widgetOrder.value = newOrder
+        saveWidgetOrder(newOrder)
+    }
+
+    fun moveWidgetUp(widget: DashboardWidget) {
+        val current = _widgetOrder.value.toMutableList()
+        val index = current.indexOf(widget)
+        if (index > 0) {
+            val item = current.removeAt(index)
+            current.add(index - 1, item)
+            updateWidgetOrder(current)
+        }
+    }
+
+    fun moveWidgetDown(widget: DashboardWidget) {
+        val current = _widgetOrder.value.toMutableList()
+        val index = current.indexOf(widget)
+        if (index >= 0 && index < current.size - 1) {
+            val item = current.removeAt(index)
+            current.add(index + 1, item)
+            updateWidgetOrder(current)
+        }
+    }
+
+    fun removeWidget(widget: DashboardWidget) {
+        val current = _widgetOrder.value.filter { it != widget }
+        updateWidgetOrder(current)
+    }
+
+    fun reorderWidget(fromIndex: Int, toIndex: Int) {
+        val current = _widgetOrder.value.toMutableList()
+        if (fromIndex in current.indices && toIndex in current.indices) {
+            val item = current.removeAt(fromIndex)
+            current.add(toIndex, item)
+            updateWidgetOrder(current)
+        }
+    }
+
+    fun resetWidgetsToDefault() {
+        updateWidgetOrder(DashboardWidget.entries)
+    }
+
+    fun setWidgetEnabled(widget: DashboardWidget, enabled: Boolean) {
+        if (enabled) {
+            restoreWidget(widget)
+        } else {
+            removeWidget(widget)
+        }
+    }
+
+    fun restoreWidget(widget: DashboardWidget) {
+        if (widget !in _widgetOrder.value) {
+            val newOrder = _widgetOrder.value + widget
+            _widgetOrder.value = newOrder
+            saveWidgetOrder(newOrder)
+        }
+    }
+
+    private fun loadWidgetOrder(): List<DashboardWidget> {
+        val raw = SettingsManager.getString(SettingsManager.KEY_DASHBOARD_WIDGETS) ?: return DashboardWidget.entries
+        if (raw.isBlank()) return DashboardWidget.entries
+        return try {
+            raw.split(",").mapNotNull { name ->
+                try { DashboardWidget.valueOf(name.trim()) } catch (_: Exception) { null }
+            }.ifEmpty { DashboardWidget.entries }
+        } catch (_: Exception) {
+            DashboardWidget.entries
+        }
+    }
+
+    private fun saveWidgetOrder(order: List<DashboardWidget>) {
+        val raw = order.joinToString(",") { it.name }
+        SettingsManager.setString(SettingsManager.KEY_DASHBOARD_WIDGETS, raw)
+    }
+
+    fun setHeader(
+        title: String,
+        description: String? = null,
+        showBackButton: Boolean = false,
+        showSyncButton: Boolean = true,
+        onRefresh: (() -> Unit)? = null,
+        syncModules: List<SyncModule> = emptyList(),
+        onBackOverride: (() -> Unit)? = null
+    ) {
+        headerTitle.value = title
+        headerDescription.value = description ?: ""
+        headerShowBack.value = showBackButton
+        headerShowSync.value = showSyncButton
+        headerOnRefresh.value = onRefresh
+        headerSyncModules.value = syncModules.toSet()
+        if (onBackOverride != null) {
+            headerBackOverride.value = onBackOverride
+        }
+    }
+
+    fun clearHeaderBackOverride() {
+        headerBackOverride.value = null
+    }
+}
+
+enum class DashboardWidget {
+    PROFILE_HEADER,
+    METRIC_CARDS,
+    ATTENDANCE_BUNK,
+    TODAYS_CLASSES,
+    COURSE_ATTENDANCE,
+    QUICK_ACTIONS,
+    FREE_CLASSROOMS
 }
 
 private data class SyncModuleResult(
