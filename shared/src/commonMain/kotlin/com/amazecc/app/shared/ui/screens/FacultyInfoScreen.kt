@@ -240,17 +240,17 @@ private fun FacultyCard(faculty: FacultyProfile, onClick: () -> Unit) {
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.clickable { expanded = !expanded }.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = colors.accent.copy(alpha = 0.15f),
-                    modifier = Modifier.size(44.dp)
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(colors.accent.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(contentAlignment = Alignment.Center) {
                         Text(
                             faculty.name.take(2).uppercase(),
                             style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent)
                         )
-                    }
                 }
                 Spacer(Modifier.width(AmazeTheme.spacing.sm))
                 Column(Modifier.weight(1f)) {

@@ -41,6 +41,14 @@ import com.amazecc.app.shared.theme.AmazeTheme
 
 val BOTTOM_NAV_PADDING = 88.dp
 
+@Composable
+fun FooterSpacer(
+    modifier: Modifier = Modifier,
+    height: Dp = BOTTOM_NAV_PADDING
+) {
+    Spacer(modifier = modifier.fillMaxWidth().height(height))
+}
+
 // ── BUTTONS ──
 
 @Composable
@@ -532,7 +540,6 @@ fun AmazeDropdown(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp)
-                .shadow(1.dp, RoundedCornerShape(radius.small))
                 .clip(RoundedCornerShape(radius.small))
                 .background(colors.surface)
                 .border(1.dp, colors.border, RoundedCornerShape(radius.small))

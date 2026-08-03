@@ -721,6 +721,28 @@ object AppState {
         saveTasks()
     }
 
+    fun toggleSubtaskCompleted(taskId: String, subtaskId: String) {
+        _tasks.value = _tasks.value.map { task ->
+            if (task.id == taskId) {
+                val updatedSubtasks = task.subtasks.map { sub ->
+                    if (sub.id == subtaskId) sub.copy(completed = !sub.completed) else sub
+                }
+                val allDone = updatedSubtasks.isNotEmpty() && updatedSubtasks.all { it.completed }
+                task.copy(subtasks = updatedSubtasks, completed = if (allDone) true else task.completed)
+            } else task
+        }
+        saveTasks()
+    }
+
+    fun addFocusTime(taskId: String, additionalMinutes: Int) {
+        _tasks.value = _tasks.value.map { task ->
+            if (task.id == taskId) {
+                task.copy(actualMinutesSpent = task.actualMinutesSpent + additionalMinutes)
+            } else task
+        }
+        saveTasks()
+    }
+
     val todayTasks: List<HomeworkTask>
         get() {
             val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
@@ -2626,6 +2648,7 @@ object AppState {
 enum class DashboardWidget {
     PROFILE_HEADER,
     METRIC_CARDS,
+    CURRENT_NEXT_CLASS,
     ATTENDANCE_BUNK,
     TODAYS_CLASSES,
     COURSE_ATTENDANCE,

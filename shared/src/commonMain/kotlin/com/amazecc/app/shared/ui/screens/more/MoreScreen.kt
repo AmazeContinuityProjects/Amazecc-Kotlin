@@ -131,10 +131,20 @@ fun MoreScreen() {
             Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ActionCard(title = "Faculty Info", description = "Faculty directory by school", icon = Icons.Rounded.People, onClick = { AppState.navigateTo(Screen.FACULTY_INFO) })
-                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                    ActionCard(title = "Feedback", description = "Course feedback status", icon = Icons.Rounded.RateReview, onClick = { AppState.navigateTo(Screen.FEEDBACK_STATUS) })
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    ClickableRow(
+                        title = "Faculty Info",
+                        icon = Icons.Rounded.People,
+                        onClick = { AppState.navigateTo(Screen.FACULTY_INFO) },
+                        colors = colors
+                    )
+                    HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+                    ClickableRow(
+                        title = "Feedback Status",
+                        icon = Icons.Rounded.RateReview,
+                        onClick = { AppState.navigateTo(Screen.FEEDBACK_STATUS) },
+                        colors = colors
+                    )
                 }
             }
 

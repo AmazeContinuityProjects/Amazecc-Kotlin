@@ -455,7 +455,7 @@ fun SettingsScreen() {
                 AmazeButton("Log Out Student Session", onClick = { AppState.logout() }, variant = ButtonVariant.DANGER, modifier = Modifier.fillMaxWidth())
             }
 
-            Spacer(Modifier.height(AmazeTheme.spacing.lg))
+            FooterSpacer()
         }
     }
 }

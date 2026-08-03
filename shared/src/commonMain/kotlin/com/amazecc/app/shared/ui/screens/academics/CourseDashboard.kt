@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.*
@@ -104,7 +105,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
                         TextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search course by code, title, or faculty...", color = colors.textMuted, fontSize = 13.sp) },
+                            placeholder = { Text("Search courses...", color = colors.textMuted, fontSize = 13.sp) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
@@ -252,6 +253,33 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
     }
 }
 
+data class CleanedTitle(
+    val cleanTitle: String,
+    val typeBadgeOverride: String? = null
+)
+
+fun cleanCourseTitle(rawTitle: String): CleanedTitle {
+    var title = rawTitle.trim()
+    var badge: String? = null
+
+    if (title.contains("(Project)", ignoreCase = true)) {
+        title = title.replace(Regex("(?i)\\(\\s*Project\\s*\\)"), "").trim()
+        badge = "PJ"
+    } else if (title.contains("(Online Course)", ignoreCase = true) || title.contains("(Online)", ignoreCase = true)) {
+        title = title.replace(Regex("(?i)\\(\\s*Online\\s*(Course)?\\s*\\)"), "").trim()
+        badge = "OC"
+    } else if (title.contains("(Theory)", ignoreCase = true)) {
+        title = title.replace(Regex("(?i)\\(\\s*Theory\\s*\\)"), "").trim()
+        badge = "TH"
+    } else if (title.contains("(Lab)", ignoreCase = true)) {
+        title = title.replace(Regex("(?i)\\(\\s*Lab\\s*\\)"), "").trim()
+        badge = "LO"
+    }
+
+    title = title.replace(Regex("\\s+"), " ").trim()
+    return CleanedTitle(cleanTitle = title, typeBadgeOverride = badge)
+}
+
 @Composable
 private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
     val colors = AmazeTheme.colors
@@ -260,10 +288,23 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
     val labAtt = course.labAtt
     val isEmbedded = (course.theory != null && course.lab != null) || (course.theoryAtt != null && course.labAtt != null)
 
+    val cleaned = cleanCourseTitle(course.courseTitle)
+    val displayTitle = cleaned.cleanTitle
+
     fun attColor(pct: Double) = when {
         pct >= 85.0 -> colors.success
         pct >= 75.0 -> colors.warning
         else -> colors.danger
+    }
+
+    val defaultLabel = if (course.theory?.courseType?.contains("Lab", ignoreCase = true) == true || course.lab?.courseType?.contains("Lab", ignoreCase = true) == true) "LO" else "TH"
+    val label = if (isEmbedded) (cleaned.typeBadgeOverride ?: "EMB") else (cleaned.typeBadgeOverride ?: defaultLabel)
+    val badgeColor = when (label) {
+        "PJ" -> Color(0xFF8B5CF6)
+        "OC" -> Color(0xFF06B6D4)
+        "LO" -> Color(0xFF10B981)
+        "EMB" -> Color(0xFF6366F1)
+        else -> colors.accent
     }
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -288,70 +329,167 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                 indication = null,
                 onClick = onClick
             )
-            .padding(16.dp)
+            .padding(14.dp)
     ) {
         Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                            .background(badgeColor.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = label,
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = badgeColor,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 11.sp
+                            )
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = course.courseCode,
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            color = colors.textMuted,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    )
+                }
+
                 if (!isEmbedded) {
                     val attPct = (theoryAtt?.attendancePercentage ?: labAtt?.attendancePercentage ?: "0").toDoubleOrNull() ?: 0.0
-                    val label = if (course.theory?.courseType == "Lab Only" || course.lab?.courseType == "Lab Only") "LO" else "TH"
-                    val iconColor = if (label == "TH") colors.chart2 else colors.chart4
-                    Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(iconColor.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                        Text(label, style = AmazeTheme.typography.subheading.copy(color = iconColor, fontWeight = FontWeight.Black))
-                    }
-                    Spacer(Modifier.width(AmazeTheme.spacing.md))
-                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                        Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    }
                     if (attPct > 0) {
                         val c = attColor(attPct)
-                        Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.small)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.small)).padding(horizontal = 12.dp, vertical = 8.dp), contentAlignment = Alignment.Center) {
-                            Text("${attPct.toInt()}%", style = AmazeTheme.typography.body.copy(color = c, fontWeight = FontWeight.Black))
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(c.copy(alpha = 0.12f))
+                                .border(1.dp, c.copy(alpha = 0.3f), CircleShape)
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "${attPct.toInt()}%",
+                                style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                            )
                         }
                     }
-                } else {
-                    Box(modifier = Modifier.size(48.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                        Text("EMB", style = AmazeTheme.typography.subheading.copy(color = colors.accent, fontWeight = FontWeight.Black))
-                    }
-                    Spacer(Modifier.width(AmazeTheme.spacing.md))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                        Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = displayTitle,
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f).padding(end = 8.dp)
+                )
+                Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
+            }
+
+            val rawFaculty = course.theory?.faculty?.ifBlank { null } ?: course.lab?.faculty?.ifBlank { null }
+                    ?: theoryAtt?.faculty?.ifBlank { null } ?: labAtt?.faculty?.ifBlank { null }
+
+            if (!isEmbedded && !rawFaculty.isNullOrBlank()) {
+                val parsedFac = com.amazecc.app.shared.utils.FacultyUtils.parseFaculty(rawFaculty)
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = parsedFac.name,
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (!parsedFac.school.isNullOrBlank()) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                .background(colors.accent.copy(alpha = 0.1f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = parsedFac.school,
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                            )
+                        }
                     }
                 }
-                Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(22.dp))
             }
+
             if (isEmbedded) {
-                Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                Spacer(Modifier.height(10.dp))
                 Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.4f)))
-                Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                embeddedRow(course.theory, theoryAtt, "TH", colors.chart2, colors)
-                Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                embeddedRow(course.lab, labAtt, "LO", colors.chart4, colors)
+                Spacer(Modifier.height(8.dp))
+                embeddedRow(course.theory, theoryAtt, "TH", "Theory", colors.chart2, colors)
+                Spacer(Modifier.height(6.dp))
+                embeddedRow(course.lab, labAtt, "LO", "Lab", colors.chart4, colors)
             }
         }
     }
 }
 
 @Composable
-private fun embeddedRow(item: MarksCourseItem?, att: AttendanceItem?, label: String, accent: Color, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun embeddedRow(
+    item: MarksCourseItem?,
+    att: AttendanceItem?,
+    label: String,
+    componentName: String,
+    accent: Color,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
     val pct = att?.attendancePercentage?.toDoubleOrNull() ?: 0.0
     val c = when {
         pct >= 85.0 -> colors.chart1
         pct >= 75.0 -> colors.chart3
         else -> colors.chart5
     }
+    val rawFaculty = item?.faculty?.ifBlank { null } ?: att?.faculty?.ifBlank { null }
+    val slot = item?.slot ?: att?.slotName
+
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
             Text(label, style = AmazeTheme.typography.smallLabel.copy(color = accent, fontWeight = FontWeight.Black))
         }
         Spacer(Modifier.width(AmazeTheme.spacing.sm))
         Column(modifier = Modifier.weight(1f)) {
-            Text(item?.courseTitle ?: att?.courseTitle ?: "", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
-            if (item?.faculty?.isNotBlank() == true) {
-                Text(item.faculty, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+            Text(
+                text = if (slot.isNullOrBlank()) componentName else "$componentName ($slot)",
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
+            )
+            if (!rawFaculty.isNullOrBlank()) {
+                val parsedFac = com.amazecc.app.shared.utils.FacultyUtils.parseFaculty(rawFaculty)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(parsedFac.name, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
+                    if (!parsedFac.school.isNullOrBlank()) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                .background(colors.accent.copy(alpha = 0.1f))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = parsedFac.school,
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                            )
+                        }
+                    }
+                }
             }
         }
         Spacer(Modifier.width(AmazeTheme.spacing.sm))

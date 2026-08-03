@@ -5,10 +5,15 @@ import android.content.Context
 
 @SuppressLint("StaticFieldLeak")
 object AndroidApp {
-    lateinit var context: Context
-        private set
+    private var _context: Context? = null
+
+    val context: Context?
+        get() = _context
+
+    val isInitialized: Boolean
+        get() = _context != null
 
     fun init(ctx: Context) {
-        context = ctx.applicationContext
+        _context = ctx.applicationContext
     }
 }

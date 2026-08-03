@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -239,7 +240,11 @@ private fun FeedbackRowItem(row: FeedbackTableRow, colors: com.amazecc.app.share
     val teeGiven = row.teeSemester?.lowercase()?.contains("given") == true
 
     Row(
-        modifier = Modifier.fillMaxWidth().background(colors.background, RoundedCornerShape(AmazeTheme.radius.small)).padding(12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.accent.copy(alpha = 0.05f), RoundedCornerShape(AmazeTheme.radius.small))
+            .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
+            .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {

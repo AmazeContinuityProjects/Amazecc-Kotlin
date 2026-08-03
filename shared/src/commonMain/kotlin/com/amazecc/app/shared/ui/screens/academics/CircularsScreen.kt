@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -99,7 +100,7 @@ fun CircularsScreen() {
             ) {
                 item { HeaderSpacer() }
 
-                items(circulars, key = { it.title ?: "unknown" }) { folder ->
+                itemsIndexed(circulars, key = { idx, folder -> "${folder.title ?: "unknown"}-$idx" }) { idx, folder ->
                     val folderName = folder.title ?: "Untitled"
                     val isExpanded = folderName in expandedFolders
                     val items = folder.children ?: emptyList()

@@ -137,7 +137,6 @@ fun FloatingScreenHeader(
             .fillMaxWidth()
             .statusBarsPadding()
             .padding(horizontal = 14.dp, vertical = 6.dp)
-            .shadow(headerElevation, RoundedCornerShape(26.dp), clip = false)
             .clip(RoundedCornerShape(26.dp))
             .background(colors.navBackground.copy(alpha = bgAlpha))
             .border(1.dp, colors.accent.copy(alpha = borderAlpha), RoundedCornerShape(26.dp))

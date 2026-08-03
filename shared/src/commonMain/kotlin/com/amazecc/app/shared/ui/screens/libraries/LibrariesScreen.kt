@@ -1,6 +1,5 @@
 package com.amazecc.app.shared.ui.screens.libraries
 
-import com.amazecc.app.shared.repository.SettingsManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,14 +25,15 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.BookItem
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.strings.Strings
-import com.amazecc.app.shared.ui.components.AmazeCard
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -45,35 +45,8 @@ fun LibrariesScreen() {
     val libraryRes by AppState.library.collectAsState()
     val loginRequired by AppState.libraryLoginRequired.collectAsState()
     val issuedBooks = libraryRes?.booksIssued ?: emptyList()
-    var activeTab by remember { mutableStateOf("Issued Books") }
-    val tabs = listOf("Issued Books", "Catalog Search")
-    var showLoginDialog by remember { mutableStateOf(false) }
-    var hasCheckedCreds by remember { mutableStateOf(false) }
-
-    LaunchedEffect(loginRequired) {
-        if (loginRequired && !hasCheckedCreds) {
-            showLoginDialog = true
-            hasCheckedCreds = true
-        }
-    }
-    LaunchedEffect(Unit) {
-        val saved = com.amazecc.app.shared.repository.SettingsManager.getLibraryCredentials()
-        if (saved != null) {
-            hasCheckedCreds = true
-        } else if (libraryRes == null) {
-            showLoginDialog = true
-        }
-    }
-
-    if (showLoginDialog) {
-        LibraryLoginDialog(
-            onDismiss = { showLoginDialog = false },
-            onLogin = { username, password ->
-                AppState.saveLibraryCredentials(username, password)
-                showLoginDialog = false
-            }
-        )
-    }
+    var activeTab by remember { mutableStateOf("My Books") }
+    val tabs = listOf("My Books", "Catalog Search")
 
     Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
@@ -81,15 +54,15 @@ fun LibrariesScreen() {
         ScreenHeader(
             title = "Library",
             description = if (issuedBooks.isNotEmpty()) "${issuedBooks.size} book${if (issuedBooks.size != 1) "s" else ""} issued"
-            else if (loginRequired) "Login required"
-            else "Browse the catalog",
+            else if (loginRequired) "Sign in for issued books"
+            else "Search catalog & manage books",
             showBackButton = false,
             showSyncButton = true,
             onRefresh = { AppState.syncLibrary() }
         )
 
         Column(modifier = Modifier.fillMaxSize()) {
-            com.amazecc.app.shared.ui.components.HeaderSpacer()
+            HeaderSpacer()
 
             Row(
                 modifier = Modifier
@@ -119,7 +92,7 @@ fun LibrariesScreen() {
 
             Box(modifier = Modifier.weight(1f)) {
                 when (activeTab) {
-                    "Issued Books" -> IssuedBooksContent(issuedBooks, loginRequired) { showLoginDialog = true }
+                    "My Books" -> IssuedBooksContent(issuedBooks, loginRequired)
                     "Catalog Search" -> CatalogSearchContent()
                 }
             }
@@ -128,14 +101,11 @@ fun LibrariesScreen() {
 }
 
 // ═══════════════════════════════════════════
-//  Library Login Dialog
+//  Inline Library Login Card
 // ═══════════════════════════════════════════
 
 @Composable
-private fun LibraryLoginDialog(
-    onDismiss: () -> Unit,
-    onLogin: (String, String) -> Unit
-) {
+private fun InlineLibraryLoginCard(onLoginSuccess: () -> Unit) {
     val colors = AmazeTheme.colors
     val storedCreds = SettingsManager.getLibraryCredentials()
     var username by remember { mutableStateOf(storedCreds?.first ?: "") }
@@ -143,54 +113,73 @@ private fun LibraryLoginDialog(
     var showPassword by remember { mutableStateOf(false) }
     var isLoggingIn by remember { mutableStateOf(false) }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(AmazeTheme.radius.large))
-                .background(colors.surface)
-                .padding(24.dp)
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
                 Box(
-                    modifier = Modifier.size(64.dp).clip(CircleShape).background(colors.chart2.copy(alpha = 0.12f)),
+                    modifier = Modifier.size(56.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.12f)),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null, tint = colors.chart2, modifier = Modifier.size(32.dp)) }
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null, tint = colors.accent, modifier = Modifier.size(28.dp))
+                }
                 Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-                Text("Library Login", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                Text("Enter your library credentials to access issued books and search the catalog.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, textAlign = TextAlign.Center))
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
+                Text("Library Sign In", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Sign in to check your issued books, due dates, and renewals. Library catalog search is freely available anytime!",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, textAlign = TextAlign.Center)
+                )
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
                 OutlinedTextField(
-                    value = username, onValueChange = { username = it },
-                    label = { Text("Library ID") }, placeholder = { Text("Enter your library ID") },
+                    value = username,
+                    onValueChange = { username = it },
+                    label = { Text("Library ID / Reg No") },
+                    placeholder = { Text("Enter your Library ID") },
                     leadingIcon = { Icon(Icons.Rounded.Person, null, tint = colors.textMuted) },
-                    singleLine = true, shape = RoundedCornerShape(AmazeTheme.radius.small), modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(AmazeTheme.radius.small),
+                    modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent)
                 )
                 Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
                 OutlinedTextField(
-                    value = password, onValueChange = { password = it },
-                    label = { Text("Password") }, placeholder = { Text("Enter your password") },
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text("Password") },
+                    placeholder = { Text("Enter your password") },
                     leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = colors.textMuted) },
                     trailingIcon = {
-                        IconButton(onClick = { showPassword = !showPassword }) { Icon(if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, null, tint = colors.textMuted) }
+                        IconButton(onClick = { showPassword = !showPassword }) {
+                            Icon(if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, null, tint = colors.textMuted)
+                        }
                     },
                     visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                    singleLine = true, shape = RoundedCornerShape(AmazeTheme.radius.small), modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(AmazeTheme.radius.small),
+                    modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent)
                 )
 
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                Text("Your credentials are stored locally and only used to access your library account.", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, textAlign = TextAlign.Center))
-
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
                 Button(
-                    onClick = { isLoggingIn = true; onLogin(username, password) },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    onClick = {
+                        isLoggingIn = true
+                        AppState.saveLibraryCredentials(username, password)
+                        AppState.syncLibrary()
+                        onLoginSuccess()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(AmazeTheme.radius.small),
                     colors = ButtonDefaults.buttonColors(containerColor = colors.accent, disabledContainerColor = colors.border),
                     enabled = username.isNotBlank() && password.isNotBlank() && !isLoggingIn
@@ -198,9 +187,17 @@ private fun LibraryLoginDialog(
                     if (isLoggingIn) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        Text(Strings.login, fontWeight = FontWeight.Bold)
+                        Icon(Icons.AutoMirrored.Rounded.Login, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(Strings.signIn, fontWeight = FontWeight.Bold)
                     }
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Your credentials are saved locally to fetch your library account.",
+                    style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp, textAlign = TextAlign.Center)
+                )
             }
         }
     }
@@ -213,27 +210,13 @@ private fun LibraryLoginDialog(
 @Composable
 private fun IssuedBooksContent(
     books: List<BookItem>,
-    loginRequired: Boolean,
-    onRequestLogin: () -> Unit
+    loginRequired: Boolean
 ) {
     val colors = AmazeTheme.colors
+    val hasCreds = remember(loginRequired) { SettingsManager.getLibraryCredentials() != null }
 
-    if (loginRequired) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-                Text("Library Login Required", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                Text("Sign in with your library credentials to view issued books.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, textAlign = TextAlign.Center), modifier = Modifier.padding(horizontal = 40.dp))
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
-                Button(onClick = onRequestLogin, shape = RoundedCornerShape(AmazeTheme.radius.small), colors = ButtonDefaults.buttonColors(containerColor = colors.accent)) {
-                    Icon(Icons.AutoMirrored.Rounded.Login, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                    Text(Strings.signIn, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
+    if (loginRequired || !hasCreds) {
+        InlineLibraryLoginCard(onLoginSuccess = { AppState.syncLibrary() })
         return
     }
 
@@ -244,6 +227,10 @@ private fun IssuedBooksContent(
                 Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 Text("No books issued", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
                 Text("You have no books currently checked out.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+                TextButton(onClick = { AppState.saveLibraryCredentials("", "") }) {
+                    Text("Sign Out Library Account", color = colors.danger, fontSize = 12.sp)
+                }
             }
         }
         return
@@ -255,10 +242,19 @@ private fun IssuedBooksContent(
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 88.dp)
     ) {
         item {
-            Text(
-                "${books.size} book${if (books.size != 1) "s" else ""} currently issued",
-                style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${books.size} book${if (books.size != 1) "s" else ""} currently issued",
+                    style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium)
+                )
+                TextButton(onClick = { AppState.saveLibraryCredentials("", "") }) {
+                    Text("Sign Out", color = colors.danger, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
         items(books, key = { it.bookId }) { book ->
             IssuedBookCard(book, colors)
@@ -309,15 +305,15 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
                 Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 Text("ID: ${book.bookId}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
             }
-            
+
             var renewing by remember { mutableStateOf(false) }
             val scope = rememberCoroutineScope()
-            
+
             Button(
                 onClick = {
                     scope.launch {
                         renewing = true
-                        val res = AmazeClient.renewLibraryBook(book.bookId)
+                        AmazeClient.renewLibraryBook(book.bookId)
                         AppState.syncLibrary()
                         renewing = false
                     }

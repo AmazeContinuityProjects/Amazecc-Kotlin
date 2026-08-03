@@ -8,20 +8,28 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.Computer
+import androidx.compose.material.icons.rounded.DoorSliding
 import androidx.compose.material.icons.rounded.MeetingRoom
+import androidx.compose.material.icons.rounded.NearMe
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -106,11 +114,11 @@ private fun parseCsv(text: String): List<SimpleParsedCourse> {
 fun FreeClassroomsScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
     val json = Json { ignoreUnknownKeys = true }
-    
-    val schema = remember { 
+
+    val schema = remember {
         try {
-            json.decodeFromString<CampusSchema>(CampusSchemas.CHENNAI_JSON) 
-        } catch (e: Exception) {
+            json.decodeFromString<CampusSchema>(CampusSchemas.CHENNAI_JSON)
+        } catch (_: Exception) {
             CampusSchema()
         }
     }
@@ -124,8 +132,8 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
     )
 
     val timePeriods = remember(schema) {
-        val periods = schema.theory.mapNotNull { 
-            if (it.start.isNotEmpty() && it.end.isNotEmpty() && it.lunch != true) "${it.start} - ${it.end}" else null 
+        val periods = schema.theory.mapNotNull {
+            if (it.start.isNotEmpty() && it.end.isNotEmpty() && it.lunch != true) "${it.start} - ${it.end}" else null
         }.distinct()
         if (periods.isNotEmpty()) periods else listOf(
             "8:00 AM - 8:50 AM",
@@ -141,35 +149,31 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
         )
     }
 
-    var selectedDay by remember { mutableStateOf(days[0].first) }
-    var selectedTime by remember { mutableStateOf(timePeriods.first()) }
+    val now = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()) }
+    val todayIsoDay = now.dayOfWeek.isoDayNumber
+    val currentDayKey = if (todayIsoDay in 1..5) days[todayIsoDay - 1].first else "mon"
+
+    val currentSlotPeriod = remember(schema, now) {
+        val nowMinutes = now.hour * 60 + now.minute
+        var found = ""
+        for (p in schema.theory) {
+            if (p.start.isNotEmpty() && p.end.isNotEmpty() && p.lunch != true) {
+                val startMins = timeToMinutes(p.start)
+                val endMins = timeToMinutes(p.end)
+                if (nowMinutes in (startMins - 15)..endMins) {
+                    found = "${p.start} - ${p.end}"
+                    break
+                }
+            }
+        }
+        found.ifEmpty { timePeriods.first() }
+    }
+
+    var selectedDay by remember { mutableStateOf(currentDayKey) }
+    var selectedTime by remember { mutableStateOf(currentSlotPeriod) }
     var searchRoomQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf("ALL") } // ALL, Theory, Lab
     var selectedBlock by remember { mutableStateOf("ALL") }
-
-    // Auto-select Current Day and Current Time
-    LaunchedEffect(Unit) {
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-        val dayOfWeek = now.dayOfWeek.isoDayNumber
-        if (dayOfWeek in 1..5) {
-            selectedDay = days[dayOfWeek - 1].first
-            val nowMinutes = now.hour * 60 + now.minute
-            var foundPeriod = ""
-            for (p in schema.theory) {
-                if (p.start.isNotEmpty() && p.end.isNotEmpty() && p.lunch != true) {
-                    val startMins = timeToMinutes(p.start)
-                    val endMins = timeToMinutes(p.end)
-                    if (nowMinutes in (startMins - 15)..endMins) {
-                        foundPeriod = "${p.start} - ${p.end}"
-                        break
-                    }
-                }
-            }
-            if (foundPeriod.isNotEmpty()) {
-                selectedTime = foundPeriod
-            }
-        }
-    }
 
     var courses by remember { mutableStateOf<List<SimpleParsedCourse>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -193,7 +197,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
         }
     }
 
-    // Free Rooms Calculation (exact match approach matching reference amazecc)
+    // Calculate free rooms by block
     data class RoomCounts(val theory: Int, val lab: Int)
 
     val freeRoomsByBlock = remember(selectedDay, selectedTime, courses, schema) {
@@ -203,7 +207,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
         if (reqTimeSplit.size < 2) return@remember emptyMap<String, Pair<List<String>, List<String>>>()
         val reqStart = reqTimeSplit[0].trim()
         val reqEnd = reqTimeSplit[1].trim()
-        
+
         val reqStartMins = timeToMinutes(reqStart)
         val reqEndMins = timeToMinutes(reqEnd)
 
@@ -217,7 +221,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 slotsStr.split("+").forEach { targetSlots.add(it.trim().uppercase()) }
             }
         }
-        
+
         for (p in schema.lab) {
             val pStart = timeToMinutes(p.start)
             val pEnd = timeToMinutes(p.end)
@@ -309,177 +313,424 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
         }
     }
 
+    val isCurrentSlotSelected = selectedDay == currentDayKey && selectedTime == currentSlotPeriod
+
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(
             title = "Free Classrooms",
-            description = "Find empty classrooms by day & time",
+            description = "Find live available empty rooms on campus",
             showBackButton = true,
-            showSyncButton = false
+            showSyncButton = false,
+            onBackOverride = onBack
         )
-        Column(
+
+        // Single Top-Level LazyVerticalGrid for FULL PAGE SCROLLING
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 110.dp),
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
         ) {
-            HeaderSpacer()
-
-            // ── Room Search Bar ──
-            AmazeTextField(
-                value = searchRoomQuery,
-                onValueChange = { searchRoomQuery = it },
-                label = "",
-                placeholder = "Search room number (e.g. 101, AB1)...",
-                leadingIcon = {
-                    Icon(Icons.Rounded.Search, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
-                }
-            )
-
-            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-
-            // ── Day & Time Selectors ──
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(modifier = Modifier.weight(1f)) {
-                    AmazeDropdown(
-                        label = "Day",
-                        selectedOption = days.find { it.first == selectedDay }?.second ?: "Monday",
-                        options = days.map { it.second },
-                        onOptionSelected = { sel -> selectedDay = days.find { it.second == sel }?.first ?: "mon" }
-                    )
-                }
-                Box(modifier = Modifier.weight(1.3f)) {
-                    AmazeDropdown(
-                        label = "Time Slot",
-                        selectedOption = selectedTime,
-                        options = timePeriods,
-                        onOptionSelected = { selectedTime = it }
-                    )
-                }
-                Box(modifier = Modifier.weight(0.9f)) {
-                    AmazeDropdown(
-                        label = "Type",
-                        selectedOption = if (selectedTypeFilter == "ALL") "All Types" else selectedTypeFilter,
-                        options = listOf("All Types", "Theory", "Lab"),
-                        onOptionSelected = { selectedTypeFilter = if (it == "All Types") "ALL" else it }
-                    )
-                }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                HeaderSpacer()
             }
 
-            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-
-            // ── Building Block Pills with Free Counts ──
-            Text(
-                "FREE BUILDING BLOCKS",
-                style = AmazeTheme.typography.smallLabel.copy(
-                    color = colors.accent,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                ),
-                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-            )
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                dynamicBlocks.forEach { (block, count) ->
-                    val isSelected = selectedBlock.equals(block, ignoreCase = true)
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val isPressed by interactionSource.collectIsPressedAsState()
-                    val scale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.94f else 1f,
-                        animationSpec = bouncySpring()
-                    )
-
-                    Box(
+            // ── Live Status Banner ──
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
                         modifier = Modifier
-                            .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
-                            }
-                            .clip(CircleShape)
-                            .background(if (isSelected) colors.accent else colors.surface)
-                            .border(
-                                1.dp,
-                                if (isSelected) colors.accent else colors.border,
-                                CircleShape
-                            )
-                            .clickable(
-                                interactionSource = interactionSource,
-                                indication = null,
-                                onClick = { selectedBlock = block }
-                            )
-                            .padding(horizontal = 14.dp, vertical = 8.dp)
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
-                            text = if (block == "ALL") "ALL ($count)" else "$block ($count)",
-                            style = AmazeTheme.typography.smallLabel.copy(
-                                color = if (isSelected) colors.background else colors.textPrimary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-
-            if (loading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = colors.accent)
-                }
-            } else if (loadError) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.MeetingRoom, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                        Text("Unable to load classroom data.", color = colors.textSecondary, fontWeight = FontWeight.Bold)
-                        Text("No course timetable data available.", color = colors.textMuted, fontSize = 12.sp)
-                        Spacer(Modifier.height(AmazeTheme.spacing.md))
-                        OutlinedButton(onClick = { refreshTrigger++ }) {
-                            Text(Strings.retry)
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(if (isCurrentSlotSelected) Color(0xFF22C55E).copy(alpha = 0.15f) else colors.accent.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isCurrentSlotSelected) Icons.Rounded.NearMe else Icons.Rounded.Schedule,
+                                contentDescription = null,
+                                tint = if (isCurrentSlotSelected) Color(0xFF22C55E) else colors.accent,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (isCurrentSlotSelected) "LIVE NOW" else "SELECTED SLOT",
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCurrentSlotSelected) Color(0xFF22C55E) else colors.accent,
+                                        fontSize = 10.sp
+                                    )
+                                )
+                                if (isCurrentSlotSelected) {
+                                    Spacer(Modifier.width(6.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(0xFF22C55E))
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "$freeRoomsTotal Free Rooms",
+                                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                            )
+                            Text(
+                                text = "${days.find { it.first == selectedDay }?.second ?: "Monday"} · $selectedTime",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                        }
+                        if (!isCurrentSlotSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF22C55E).copy(alpha = 0.15f))
+                                    .border(1.dp, Color(0xFF22C55E).copy(alpha = 0.3f), CircleShape)
+                                    .clickable {
+                                        selectedDay = currentDayKey
+                                        selectedTime = currentSlotPeriod
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = "FREE NOW",
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        color = Color(0xFF22C55E),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    )
+                                )
+                            }
                         }
                     }
                 }
-            } else {
-                // ── Free Classrooms Results Summary ──
+            }
+
+            // ── Day Selector Bar (Segmented Tabs) ──
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = "${filteredRooms.size} Free Rooms Available",
-                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                    )
-                    IconButton(
-                        onClick = { refreshTrigger++ },
-                        modifier = Modifier.size(32.dp).background(colors.accent.copy(alpha = 0.1f), CircleShape)
-                    ) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = Strings.refresh, tint = colors.accent, modifier = Modifier.size(16.dp))
+                    days.forEach { (key, label) ->
+                        val isSelected = selectedDay == key
+                        val isToday = key == currentDayKey
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val scale by animateFloatAsState(
+                            targetValue = if (isPressed) 0.94f else 1f,
+                            animationSpec = bouncySpring()
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
+                                }
+                                .clip(CircleShape)
+                                .background(if (isSelected) colors.accent else colors.surface)
+                                .border(
+                                    1.dp,
+                                    if (isSelected) colors.accent else colors.border,
+                                    CircleShape
+                                )
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    onClick = { selectedDay = key }
+                                )
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = label.take(3).uppercase(),
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) colors.background else colors.textPrimary,
+                                        fontSize = 11.sp
+                                    )
+                                )
+                                if (isToday && !isSelected) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(top = 2.dp)
+                                            .size(3.dp)
+                                            .clip(CircleShape)
+                                            .background(colors.accent)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
+            // ── Time Slot Chips (Horizontal Scrollable) ──
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    timePeriods.forEach { period ->
+                        val isSelected = selectedTime == period
+                        val isCurrentSlot = period == currentSlotPeriod && selectedDay == currentDayKey
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val scale by animateFloatAsState(
+                            targetValue = if (isPressed) 0.94f else 1f,
+                            animationSpec = bouncySpring()
+                        )
 
-                if (filteredRooms.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
+                                }
+                                .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                                .background(
+                                    when {
+                                        isSelected -> colors.accent
+                                        isCurrentSlot -> Color(0xFF22C55E).copy(alpha = 0.15f)
+                                        else -> colors.surface
+                                    }
+                                )
+                                .border(
+                                    1.dp,
+                                    when {
+                                        isSelected -> colors.accent
+                                        isCurrentSlot -> Color(0xFF22C55E).copy(alpha = 0.4f)
+                                        else -> colors.border
+                                    },
+                                    RoundedCornerShape(AmazeTheme.radius.small)
+                                )
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    onClick = { selectedTime = period }
+                                )
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = period,
+                                style = AmazeTheme.typography.smallLabel.copy(
+                                    color = when {
+                                        isSelected -> colors.background
+                                        isCurrentSlot -> Color(0xFF22C55E)
+                                        else -> colors.textSecondary
+                                    },
+                                    fontWeight = if (isSelected || isCurrentSlot) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Search & Type Segmented Filters ──
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        AmazeTextField(
+                            value = searchRoomQuery,
+                            onValueChange = { searchRoomQuery = it },
+                            label = "",
+                            placeholder = "Search room (e.g. 101, AB1)...",
+                            leadingIcon = {
+                                Icon(Icons.Rounded.Search, contentDescription = null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                            },
+                            trailingIcon = if (searchRoomQuery.isNotEmpty()) {
+                                {
+                                    Icon(
+                                        Icons.Rounded.Clear,
+                                        contentDescription = "Clear",
+                                        tint = colors.textMuted,
+                                        modifier = Modifier.size(16.dp).clickable { searchRoomQuery = "" }
+                                    )
+                                }
+                            } else null
+                        )
+                    }
+
+                    // Type selector chips (ALL, Theory, Lab)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf("ALL", "Theory", "Lab").forEach { typeOpt ->
+                            val isSelected = selectedTypeFilter == typeOpt
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                                    .background(if (isSelected) colors.accent.copy(alpha = 0.2f) else colors.surface)
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) colors.accent else colors.border,
+                                        RoundedCornerShape(AmazeTheme.radius.small)
+                                    )
+                                    .clickable { selectedTypeFilter = typeOpt }
+                                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = typeOpt,
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        color = if (isSelected) colors.accent else colors.textSecondary,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ── Building Block Pills ──
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    dynamicBlocks.forEach { (block, count) ->
+                        val isSelected = selectedBlock.equals(block, ignoreCase = true)
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+                        val scale by animateFloatAsState(
+                            targetValue = if (isPressed) 0.94f else 1f,
+                            animationSpec = bouncySpring()
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
+                                }
+                                .clip(CircleShape)
+                                .background(if (isSelected) colors.accent else colors.surface)
+                                .border(
+                                    1.dp,
+                                    if (isSelected) colors.accent else colors.border,
+                                    CircleShape
+                                )
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null,
+                                    onClick = { selectedBlock = block }
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = if (block == "ALL") "ALL ($count)" else "$block ($count)",
+                                style = AmazeTheme.typography.smallLabel.copy(
+                                    color = if (isSelected) colors.background else colors.textPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ── Results Summary Header ──
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                if (loading) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = colors.accent)
+                    }
+                } else if (loadError) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Rounded.MeetingRoom, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                             Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                            Text("No free classrooms found.", color = colors.textSecondary, fontWeight = FontWeight.Bold)
-                            Text("Try selecting a different time slot or block.", color = colors.textMuted, fontSize = 12.sp)
+                            Text("Unable to load classroom data", color = colors.textSecondary, fontWeight = FontWeight.Bold)
+                            Text("No course timetable data available", color = colors.textMuted, fontSize = 12.sp)
+                            Spacer(Modifier.height(AmazeTheme.spacing.md))
+                            OutlinedButton(onClick = { refreshTrigger++ }) {
+                                Text(Strings.retry)
+                            }
                         }
                     }
                 } else {
-                    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
-                        items(filteredRooms) { (room, type) ->
-                            FreeClassroomCard(room, type, colors)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${filteredRooms.size} FREE CLASSROOMS",
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = colors.accent,
+                                fontSize = 11.sp
+                            )
+                        )
+                        IconButton(
+                            onClick = { refreshTrigger++ },
+                            modifier = Modifier.size(28.dp).background(colors.accent.copy(alpha = 0.1f), CircleShape)
+                        ) {
+                            Icon(Icons.Rounded.Refresh, contentDescription = Strings.refresh, tint = colors.accent, modifier = Modifier.size(14.dp))
                         }
+                    }
+                }
+            }
+
+            if (!loading && !loadError) {
+                if (filteredRooms.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp)
+                                .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                                .background(colors.surface)
+                                .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Rounded.DoorSliding, null, tint = colors.textMuted, modifier = Modifier.size(40.dp))
+                                Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                                Text("No free classrooms found", color = colors.textSecondary, fontWeight = FontWeight.Bold)
+                                Text("Try selecting a different time slot or building block.", color = colors.textMuted, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                } else {
+                    itemsIndexed(filteredRooms, key = { idx, pair -> "${pair.first}-${pair.second}-$idx" }) { _, (room, type) ->
+                        FreeClassroomGridCard(room = room, type = type, colors = colors)
                     }
                 }
             }
@@ -488,13 +739,21 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun FreeClassroomCard(room: String, type: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun FreeClassroomGridCard(
+    room: String,
+    type: String,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = bouncySpring()
     )
+
+    val isLab = type.equals("Lab", ignoreCase = true)
+    val block = extractBlockName(room)
+    val cardColor = if (isLab) Color(0xFFA855F7) else Color(0xFF22C55E)
 
     Box(
         modifier = Modifier
@@ -505,37 +764,57 @@ private fun FreeClassroomCard(room: String, type: String, colors: com.amazecc.ap
             }
     ) {
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(vertical = 10.dp, horizontal = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(28.dp)
                             .clip(CircleShape)
-                            .background(colors.accent.copy(alpha = 0.12f)),
+                            .background(cardColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Rounded.MeetingRoom, contentDescription = null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                        Icon(
+                            imageVector = if (isLab) Icons.Rounded.Computer else Icons.Rounded.DoorSliding,
+                            contentDescription = null,
+                            tint = cardColor,
+                            modifier = Modifier.size(14.dp)
+                        )
                     }
-                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
+
+                    AmazeBadge(
+                        text = if (isLab) "Lab" else "Theory",
+                        variant = if (isLab) BadgeVariant.WARNING else BadgeVariant.SUCCESS
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = room,
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                if (block.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = room,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.textPrimary,
+                        text = "Block: $block",
+                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                AmazeBadge(
-                    text = type,
-                    variant = if (type == "Theory") BadgeVariant.SUCCESS else BadgeVariant.WARNING
-                )
             }
         }
     }

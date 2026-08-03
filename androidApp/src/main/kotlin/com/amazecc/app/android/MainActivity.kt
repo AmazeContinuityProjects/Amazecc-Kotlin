@@ -24,9 +24,15 @@ import com.amazecc.app.shared.ui.components.NotificationPermissionManager
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        AndroidApp.init(this)
-        
         val nfcManager = AndroidNfcManager(this)
+        
+        val targetScreenStr = intent?.getStringExtra("target_screen")
+        if (!targetScreenStr.isNullOrEmpty()) {
+            try {
+                val targetScreen = Screen.valueOf(targetScreenStr)
+                AppState.navigateTo(targetScreen)
+            } catch (_: Exception) {}
+        }
         
         setContent {
             val currentScreen by AppState.currentScreen.collectAsState()

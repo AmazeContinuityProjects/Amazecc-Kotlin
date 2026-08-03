@@ -57,7 +57,7 @@ val NeutralTextSecondaryLight = Color(0xFF4B5563)
 val NeutralTextMutedLight = Color(0xFF94A3B8)
 
 // Glass & Nav - Light Mode
-val NavBgLight = Color(0xFFFFFFFF)
+val NavBgLight = Color(0xFFF8FAFC)
 val NavBorderLight = Color(0xFFE2E8F0)
 val GlassSurfaceLight = Color.White.copy(alpha = 0.7f)
 val GlassBorderLight = Color.White.copy(alpha = 0.5f)

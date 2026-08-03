@@ -13,8 +13,8 @@ import com.amazecc.app.shared.services.AlarmReceiver
 import com.amazecc.app.shared.services.AndroidApp
 
 actual suspend fun requestNotificationPermissions(): Boolean {
+    val context = AndroidApp.context ?: return true
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true
-    val context = AndroidApp.context
     val granted = context.checkCallingOrSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
     if (!granted) {
         try {
@@ -29,7 +29,7 @@ actual suspend fun requestNotificationPermissions(): Boolean {
 }
 
 actual suspend fun scheduleLocalNotification(id: Int, title: String, body: String, triggerTimeMs: Long) {
-    val context = AndroidApp.context
+    val context = AndroidApp.context ?: return
     val intent = Intent(context, AlarmReceiver::class.java).apply {
         putExtra(AlarmReceiver.EXTRA_TITLE, title)
         putExtra(AlarmReceiver.EXTRA_BODY, body)
@@ -52,7 +52,7 @@ actual suspend fun scheduleLocalNotification(id: Int, title: String, body: Strin
 }
 
 actual suspend fun clearPendingNotifications() {
-    val context = AndroidApp.context
+    val context = AndroidApp.context ?: return
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     val intent = Intent(context, AlarmReceiver::class.java)
     val pendingIntent = PendingIntent.getBroadcast(
@@ -74,7 +74,7 @@ actual suspend fun testLocalNotification() {
 }
 
 actual suspend fun createNotificationChannels() {
-    val context = AndroidApp.context
+    val context = AndroidApp.context ?: return
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val channels = listOf(

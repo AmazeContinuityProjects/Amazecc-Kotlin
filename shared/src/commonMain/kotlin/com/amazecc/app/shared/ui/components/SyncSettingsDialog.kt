@@ -328,13 +328,27 @@ fun SyncSettingsDialog(
     if (showNewProfileDialog) {
         AlertDialog(
             onDismissRequest = { showNewProfileDialog = false },
-            title = { Text("New Sync Config Profile") },
+            containerColor = colors.surface,
+            titleContentColor = colors.textPrimary,
+            textContentColor = colors.textSecondary,
+            title = { Text("New Sync Config Profile", color = colors.textPrimary) },
             text = {
                 OutlinedTextField(
                     value = newProfileName,
                     onValueChange = { newProfileName = it },
                     label = { Text("Profile Name") },
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary,
+                        focusedContainerColor = colors.background.copy(alpha = 0.5f),
+                        unfocusedContainerColor = colors.background.copy(alpha = 0.3f),
+                        focusedBorderColor = colors.accent,
+                        unfocusedBorderColor = colors.border,
+                        focusedLabelColor = colors.accent,
+                        unfocusedLabelColor = colors.textSecondary,
+                        cursorColor = colors.accent
+                    )
                 )
             },
             confirmButton = {
@@ -362,13 +376,27 @@ fun SyncSettingsDialog(
     if (showRenameDialog) {
         AlertDialog(
             onDismissRequest = { showRenameDialog = false },
-            title = { Text("Rename Profile") },
+            containerColor = colors.surface,
+            titleContentColor = colors.textPrimary,
+            textContentColor = colors.textSecondary,
+            title = { Text("Rename Profile", color = colors.textPrimary) },
             text = {
                 OutlinedTextField(
                     value = renameInputText,
                     onValueChange = { renameInputText = it },
                     label = { Text("Profile Name") },
-                    singleLine = true
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary,
+                        focusedContainerColor = colors.background.copy(alpha = 0.5f),
+                        unfocusedContainerColor = colors.background.copy(alpha = 0.3f),
+                        focusedBorderColor = colors.accent,
+                        unfocusedBorderColor = colors.border,
+                        focusedLabelColor = colors.accent,
+                        unfocusedLabelColor = colors.textSecondary,
+                        cursorColor = colors.accent
+                    )
                 )
             },
             confirmButton = {

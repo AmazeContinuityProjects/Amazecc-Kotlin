@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -216,6 +217,25 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
     var selectedDay by remember { mutableStateOf<Int?>(null) }
     val listState = rememberLazyListState()
 
+    val eventsToShow = remember(activeMonthEvents, selectedDay, activeMonth) {
+        val rawList = if (selectedDay != null) {
+            (activeMonthEvents[selectedDay] ?: emptyList()).map { "" to it }
+        } else {
+            activeMonthEvents.keys.sorted().flatMap { dayNum ->
+                val dayLabel = "${monthDisplayName(activeMonth?.month ?: "")} $dayNum"
+                (activeMonthEvents[dayNum] ?: emptyList()).mapIndexed { i, ev ->
+                    (if (i == 0) dayLabel else "") to ev
+                }
+            }
+        }
+        rawList.filter { (_, ev) ->
+            val text = ev.title.lowercase()
+            val isPlainWorkingDay = (text.contains("instructional day") || text.contains("working day") || text == "instructional") &&
+                    !text.contains("holiday") && !text.contains("exam") && !text.contains("od")
+            !isPlainWorkingDay
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         if (showHeader) {
             ScreenHeader(
@@ -407,6 +427,8 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                             val dayNumber = if (isBlank) 0 else currentDay
                                             if (!isBlank && dayNumber in 1..daysInMonth) {
                                                 val dayEvents = activeMonthEvents[dayNumber] ?: emptyList()
+                                                val hasHoliday = dayEvents.any { it.title.contains("Holiday", true) || it.title.contains("Vacation", true) || it.type.contains("Holiday", true) }
+                                                val hasWorkingDay = dayEvents.any { it.title.contains("Instructional Day", true) || it.title.contains("Working Day", true) || it.type.contains("Instructional", true) }
                                                 val isToday = dayNumber == now.dayOfMonth &&
                                                         monthNumber == now.monthNumber &&
                                                         gridYearNum == todayYearNum
@@ -434,6 +456,8 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                                             when {
                                                                 isSelected -> colors.accent
                                                                 isToday -> colors.accent.copy(alpha = 0.18f)
+                                                                hasHoliday -> Color(0xFFEF4444).copy(alpha = 0.18f)
+                                                                hasWorkingDay -> Color(0xFF22C55E).copy(alpha = 0.18f)
                                                                 dayEvents.isNotEmpty() -> colors.surface
                                                                 else -> Color.Transparent
                                                             }
@@ -443,6 +467,8 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                                             when {
                                                                 isSelected -> colors.accent
                                                                 isToday -> colors.accent
+                                                                hasHoliday -> Color(0xFFEF4444).copy(alpha = 0.5f)
+                                                                hasWorkingDay -> Color(0xFF22C55E).copy(alpha = 0.5f)
                                                                 dayEvents.isNotEmpty() -> colors.border
                                                                 else -> Color.Transparent
                                                             },
@@ -462,18 +488,24 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                                                 color = when {
                                                                     isSelected -> colors.background
                                                                     isToday -> colors.accent
+                                                                    hasHoliday -> Color(0xFFEF4444)
+                                                                    hasWorkingDay -> Color(0xFF22C55E)
                                                                     else -> colors.textPrimary
                                                                 },
                                                                 fontWeight = if (isToday || isSelected || dayEvents.isNotEmpty()) FontWeight.Bold else FontWeight.Medium,
                                                                 fontSize = 13.sp
                                                             )
                                                         )
-                                                        if (dayEvents.isNotEmpty()) {
+                                                        val nonWorkingDayEvents = dayEvents.filter { ev ->
+                                                            val t = ev.title.lowercase()
+                                                            !(t.contains("instructional day") || t.contains("working day") || t == "instructional")
+                                                        }
+                                                        if (nonWorkingDayEvents.isNotEmpty()) {
                                                             Row(
                                                                 horizontalArrangement = Arrangement.spacedBy(2.dp),
                                                                 modifier = Modifier.padding(top = 2.dp)
                                                             ) {
-                                                                dayEvents.take(3).forEach { ev ->
+                                                                nonWorkingDayEvents.take(3).forEach { ev ->
                                                                     Box(
                                                                         modifier = Modifier
                                                                             .size(4.dp)
@@ -547,16 +579,6 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                     }
 
                     // ── Events list ──
-                    val eventsToShow: List<Pair<String, ConsolidatedEvent>> = if (selectedDay != null) {
-                        (activeMonthEvents[selectedDay] ?: emptyList()).map { "" to it }
-                    } else {
-                        activeMonthEvents.keys.sorted().flatMap { dayNum ->
-                            val dayLabel = "${monthDisplayName(activeMonth?.month ?: "")} $dayNum"
-                            (activeMonthEvents[dayNum] ?: emptyList()).mapIndexed { i, ev ->
-                                (if (i == 0) dayLabel else "") to ev
-                            }
-                        }
-                    }
 
                     if (eventsToShow.isEmpty()) {
                         item {
@@ -591,7 +613,9 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                             }
                         }
                     } else {
-                        items(eventsToShow, key = { "${it.first}-${it.second.title}-${it.second.type}" }) { (dateLabel, ev) ->
+                        itemsIndexed(eventsToShow, key = { idx, pair -> "${pair.first}-${pair.second.title}-${pair.second.type}-$idx" }) { _, pair ->
+                            val dateLabel = pair.first
+                            val ev = pair.second
                             if (dateLabel.isNotEmpty()) {
                                 Row(
                                     modifier = Modifier
@@ -630,79 +654,59 @@ private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.share
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.96f else 1f,
+        targetValue = if (isPressed) 0.97f else 1f,
         animationSpec = bouncySpring()
     )
-
-    val icon = when (ev.type.lowercase()) {
-        "exam" -> Icons.AutoMirrored.Rounded.MenuBook
-        "moodle" -> Icons.Rounded.Assignment
-        "holiday" -> Icons.Rounded.Celebration
-        else -> Icons.Rounded.EventNote
-    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 3.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
     ) {
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(vertical = 10.dp, horizontal = 12.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(ev.color)
+                Text(
+                    ev.title,
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                Box(
-                    modifier = Modifier
-                        .size(38.dp)
-                        .clip(CircleShape)
-                        .background(ev.color.copy(alpha = 0.14f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = ev.color, modifier = Modifier.size(18.dp))
-                }
-                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        ev.title,
-                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (ev.timeOrLocation.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Rounded.AccessTime,
-                                contentDescription = null,
-                                tint = colors.textMuted,
-                                modifier = Modifier.size(12.dp)
-                            )
-                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
-                            Text(
-                                ev.timeOrLocation,
-                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                if (ev.type.isNotBlank() || ev.timeOrLocation.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        if (ev.type.isNotBlank()) {
+                            CalendarBadge(ev.type, ev.color.copy(alpha = 0.16f), ev.color)
+                        }
+                        if (ev.timeOrLocation.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Rounded.AccessTime,
+                                    contentDescription = null,
+                                    tint = colors.textMuted,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    ev.timeOrLocation,
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                CalendarBadge(ev.type, ev.color.copy(alpha = 0.16f), ev.color)
             }
         }
     }

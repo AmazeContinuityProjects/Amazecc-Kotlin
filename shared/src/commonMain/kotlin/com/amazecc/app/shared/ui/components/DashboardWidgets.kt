@@ -195,6 +195,10 @@ fun WidgetDashboard(
                     HiddenWidgetsRow(colors, onOpenManage = { showManageDialog = true })
                 }
             }
+
+            item(key = "footer_spacer") {
+                FooterSpacer()
+            }
         }
     }
 }
@@ -567,6 +571,7 @@ private fun ManageWidgetsDialog(
 private fun getWidgetTitle(widget: DashboardWidget): String = when (widget) {
     DashboardWidget.PROFILE_HEADER -> "Profile Header & Actions"
     DashboardWidget.METRIC_CARDS -> "Quick Stats (CGPA & Credits)"
+    DashboardWidget.CURRENT_NEXT_CLASS -> "Current & Next Class Tracker"
     DashboardWidget.ATTENDANCE_BUNK -> "Attendance & Bunk Calculator"
     DashboardWidget.TODAYS_CLASSES -> "Today's Schedule & Live Tracker"
     DashboardWidget.COURSE_ATTENDANCE -> "Course Attendance Breakdown"
@@ -577,6 +582,7 @@ private fun getWidgetTitle(widget: DashboardWidget): String = when (widget) {
 private fun getWidgetDescription(widget: DashboardWidget): String = when (widget) {
     DashboardWidget.PROFILE_HEADER -> "Greeting, avatar, sync status & search"
     DashboardWidget.METRIC_CARDS -> "CGPA, earned credits & active ODs"
+    DashboardWidget.CURRENT_NEXT_CLASS -> "Compact view showing ongoing & upcoming class"
     DashboardWidget.ATTENDANCE_BUNK -> "Overall percentage & bunk-o-meter"
     DashboardWidget.TODAYS_CLASSES -> "Timetable for today with countdowns"
     DashboardWidget.COURSE_ATTENDANCE -> "Per-course breakdown and predictor"
@@ -589,6 +595,7 @@ private fun WidgetContent(widget: DashboardWidget) {
     when (widget) {
         DashboardWidget.PROFILE_HEADER -> ProfileHeaderWidget()
         DashboardWidget.METRIC_CARDS -> MetricCardsWidget()
+        DashboardWidget.CURRENT_NEXT_CLASS -> CurrentNextClassWidget()
         DashboardWidget.ATTENDANCE_BUNK -> AttendanceBunkWidget()
         DashboardWidget.TODAYS_CLASSES -> TodayClassesWidget()
         DashboardWidget.COURSE_ATTENDANCE -> CourseAttendanceWidget()
@@ -959,6 +966,185 @@ private data class DashboardClassEvent(
 )
 
 @Composable
+private fun CurrentNextClassWidget() {
+    val colors = AmazeTheme.colors
+    val attendanceRes by AppState.attendance.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
+    val courses = attendanceRes?.attendance ?: emptyList()
+
+    val todayAbbrev = remember(calendarRes) {
+        com.amazecc.app.shared.utils.AttendanceTimetable.getTodayAttendanceDay(calendarRes).name
+    }
+
+    val todayClasses = remember(courses, todayAbbrev) {
+        val dayMap = SlotMap.map[todayAbbrev] ?: emptyMap()
+        val dayClasses = mutableListOf<DashboardClassEvent>()
+        courses.forEach { course ->
+            val slots = course.slotName.split("+").map { it.trim() }.filter { it.isNotEmpty() }
+            slots.forEach { slot ->
+                val timeStr = dayMap[slot]
+                if (timeStr != null) {
+                    val parts = timeStr.split("-")
+                    if (parts.size == 2) {
+                        val start = com.amazecc.app.shared.utils.TimeMath.toMinutes(parts[0])
+                        val end = com.amazecc.app.shared.utils.TimeMath.toMinutes(parts[1])
+                        dayClasses.add(DashboardClassEvent(listOf(slot), start, end, course))
+                    }
+                }
+            }
+        }
+        dayClasses.sortBy { it.startMins }
+        dayClasses
+    }
+
+    var currentMins by remember {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        mutableStateOf(now.hour * 60 + now.minute)
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            kotlinx.coroutines.delay(60000L)
+            val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+            currentMins = now.hour * 60 + now.minute
+        }
+    }
+
+    val currentClass = todayClasses.firstOrNull { it.startMins <= currentMins && it.endMins >= currentMins }
+    val nextClass = todayClasses.firstOrNull { it.startMins > currentMins }
+
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Schedule, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Live & Next Class",
+                        style = AmazeTheme.typography.body.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary
+                        )
+                    )
+                }
+                if (currentClass != null) {
+                    AmazeBadge(text = "LIVE", variant = BadgeVariant.SUCCESS)
+                } else if (nextClass != null) {
+                    AmazeBadge(text = "UPCOMING", variant = BadgeVariant.INFO)
+                }
+            }
+
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+
+            if (todayClasses.isEmpty()) {
+                Text(
+                    "☕ No classes scheduled for today!",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+            } else if (currentClass == null && nextClass == null) {
+                Text(
+                    "🎉 All classes done for today!",
+                    style = AmazeTheme.typography.caption.copy(color = colors.success, fontWeight = FontWeight.Bold),
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (currentClass != null) {
+                        val diff = currentClass.endMins - currentMins
+                        val timeStr = if (diff >= 60) "${diff / 60}h ${diff % 60}m left" else "${diff}m left"
+                        val venue = currentClass.course.slotVenue?.takeIf { it.isNotBlank() } ?: "N/A"
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                                .background(colors.success.copy(alpha = 0.12f))
+                                .border(1.dp, colors.success.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.small))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "CURRENT • ${currentClass.course.courseCode}",
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        color = colors.success,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    )
+                                )
+                                Text(
+                                    currentClass.course.courseTitle,
+                                    style = AmazeTheme.typography.body.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.textPrimary
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "📍 $venue • Slot ${currentClass.slots.joinToString("+")}",
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            AmazeBadge(text = timeStr, variant = BadgeVariant.SUCCESS)
+                        }
+                    }
+
+                    if (nextClass != null) {
+                        val diff = nextClass.startMins - currentMins
+                        val timeStr = if (diff >= 60) "In ${diff / 60}h ${diff % 60}m" else "In ${diff}m"
+                        val venue = nextClass.course.slotVenue?.takeIf { it.isNotBlank() } ?: "N/A"
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                                .background(colors.accentSurface.copy(alpha = 0.2f))
+                                .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.small))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "NEXT • ${nextClass.course.courseCode}",
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        color = colors.accent,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 10.sp
+                                    )
+                                )
+                                Text(
+                                    nextClass.course.courseTitle,
+                                    style = AmazeTheme.typography.body.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.textPrimary
+                                    ),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "📍 $venue • Slot ${nextClass.slots.joinToString("+")}",
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            AmazeBadge(text = timeStr, variant = BadgeVariant.INFO)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun TodayClassesWidget() {
     val colors = AmazeTheme.colors
     val attendanceRes by AppState.attendance.collectAsState()
@@ -1103,7 +1289,8 @@ private fun TodayClassesWidget() {
                             .padding(vertical = 4.dp)
                             .height(IntrinsicSize.Min)
                             .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                            .background(colors.accentSurface.copy(alpha = 0.3f))
+                            .background(colors.surface)
+                            .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
                             .graphicsLayer { alpha = cardAlpha },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1120,13 +1307,44 @@ private fun TodayClassesWidget() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text(
-                                    cls.course.courseCode,
-                                    style = AmazeTheme.typography.smallLabel.copy(
-                                        color = colors.textMuted,
-                                        fontWeight = FontWeight.Medium
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        cls.course.courseCode,
+                                        style = AmazeTheme.typography.smallLabel.copy(
+                                            color = colors.textMuted,
+                                            fontWeight = FontWeight.Medium
+                                        )
                                     )
-                                )
+                                    val venue = cls.course.slotVenue?.takeIf { it.isNotBlank() }
+                                    if (venue != null) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                                .background(colors.accent.copy(alpha = 0.12f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.MeetingRoom,
+                                                    contentDescription = null,
+                                                    tint = colors.accent,
+                                                    modifier = Modifier.size(11.dp)
+                                                )
+                                                Spacer(Modifier.width(3.dp))
+                                                Text(
+                                                    venue,
+                                                    style = AmazeTheme.typography.smallLabel.copy(
+                                                        color = colors.accent,
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 10.sp
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                Spacer(Modifier.height(2.dp))
                                 Text(
                                     cls.course.courseTitle,
                                     style = AmazeTheme.typography.body.copy(
@@ -1199,14 +1417,21 @@ private fun CourseAttendanceWidget() {
                 }
             }
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                StatChip(value = stats.safe.toString(), label = "Safe", color = colors.chart1)
-                StatChip(value = stats.warn.toString(), label = "Warning", color = colors.chart3)
-                StatChip(value = stats.crit.toString(), label = "Critical", color = colors.chart5)
-                StatChip(value = "%.0f%%".format(stats.avgPct), label = "Avg %", color = colors.chart2)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatChip(value = stats.safe.toString(), label = "Safe (≥75%)", color = colors.chart1, modifier = Modifier.weight(1f))
+                    StatChip(value = stats.warn.toString(), label = "Warning (50-74%)", color = colors.chart3, modifier = Modifier.weight(1f))
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    StatChip(value = stats.crit.toString(), label = "Critical (<50%)", color = colors.chart5, modifier = Modifier.weight(1f))
+                    StatChip(value = "%.1f%%".format(stats.avgPct), label = "Overall Avg", color = colors.chart2, modifier = Modifier.weight(1f))
+                }
             }
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
             if (stats.total == 0) {
@@ -1230,7 +1455,7 @@ private fun CourseAttendanceWidget() {
                     AmazeButton(
                         text = "View All ${stats.total} Courses",
                         variant = ButtonVariant.SECONDARY,
-                        onClick = { AppState.navigateTo(Screen.ATTENDANCE) }
+                        onClick = { AppState.navigateTo(Screen.COURSE_DASHBOARD) }
                     )
                 }
             }
@@ -1239,26 +1464,28 @@ private fun CourseAttendanceWidget() {
 }
 
 @Composable
-private fun StatChip(value: String, label: String, color: Color) {
+private fun StatChip(value: String, label: String, color: Color, modifier: Modifier = Modifier) {
     val colors = AmazeTheme.colors
     Column(
-        modifier = Modifier
-            .width(80.dp)
-            .clip(RoundedCornerShape(10.dp))
+        modifier = modifier
+            .clip(RoundedCornerShape(AmazeTheme.radius.small))
             .background(color.copy(alpha = 0.12f))
-            .padding(vertical = 8.dp),
+            .border(1.dp, color.copy(alpha = 0.25f), RoundedCornerShape(AmazeTheme.radius.small))
+            .padding(vertical = 10.dp, horizontal = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             value,
-            style = AmazeTheme.typography.body.copy(
+            style = AmazeTheme.typography.subheading.copy(
                 fontWeight = FontWeight.Bold,
                 color = color
             )
         )
         Text(
             label,
-            style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
+            style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -1282,7 +1509,8 @@ private fun ModernCourseCardWidget(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(AmazeTheme.radius.small))
-            .background(colors.accentSurface.copy(alpha = 0.3f))
+            .background(colors.surface)
+            .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
