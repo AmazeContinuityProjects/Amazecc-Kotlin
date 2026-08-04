@@ -185,8 +185,10 @@ object AppState {
     }
 
     private fun compareVersions(v1: String, v2: String): Int {
-        val parts1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
-        val parts2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        val clean1 = v1.removePrefix("v").removePrefix("V").trim().split("-").first()
+        val clean2 = v2.removePrefix("v").removePrefix("V").trim().split("-").first()
+        val parts1 = clean1.split(".").map { it.filter { ch -> ch.isDigit() }.toIntOrNull() ?: 0 }
+        val parts2 = clean2.split(".").map { it.filter { ch -> ch.isDigit() }.toIntOrNull() ?: 0 }
         for (i in 0 until maxOf(parts1.size, parts2.size)) {
             val p1 = parts1.getOrElse(i) { 0 }
             val p2 = parts2.getOrElse(i) { 0 }
@@ -773,6 +775,8 @@ object AppState {
 
     fun selectSemester(semesterId: String) {
         _selectedSemester.value = semesterId
+        _selectedExamSemester.value = semesterId
+        _examSchedule.value = _allSemesterExams.value[semesterId]
         // Refresh semester-specific data
         if (SessionManager.isLoggedIn) {
             loadSemesterData(semesterId)
@@ -1799,14 +1803,37 @@ object AppState {
     fun selectExamSemester(semesterId: String) {
         _selectedExamSemester.value = semesterId
         _examSchedule.value = _allSemesterExams.value[semesterId]
+        if (_allSemesterExams.value[semesterId]?.schedule?.isEmpty() != false) {
+            refreshExamSchedule()
+        }
     }
 
     fun refreshExamSchedule() {
         if (_isLoading.value) return
         scope.launch {
             _isLoading.value = true
-            _syncStatus.value = "Syncing exam schedule..."
+            _syncStatus.value = "Logging into VTOP & syncing exam schedule..."
             try {
+                // Ensure fresh VTOP login session before fetching exam schedule
+                val creds = SettingsManager.getCredentials()
+                if (creds != null) {
+                    try {
+                        val loginRes = AmazeClient.login(creds.first, creds.second)
+                        if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
+                            SessionManager.saveSession(
+                                cookies = loginRes.cookies,
+                                csrf = loginRes.csrf,
+                                authorizedID = loginRes.authorizedID,
+                                clubToken = loginRes.clubToken
+                            )
+                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
+                            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
+                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
+                            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                        }
+                    } catch (e: Exception) { println("AmazeCC: refreshExamSchedule session refresh error — ${e.message}") }
+                }
+
                 val semId = _selectedExamSemester.value
                 val result = syncModule(
                     name = "Exam schedule",
@@ -1819,9 +1846,22 @@ object AppState {
                         val map = _allSemesterExams.value.toMutableMap()
                         map[semId] = it
                         _allSemesterExams.value = map
-                        cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value)
                     }
                 )
+                
+                // Fetch other semesters in parallel if needed
+                for (otherSemId in semesterIDs) {
+                    if (otherSemId == semId) continue
+                    try {
+                        val res = AmazeClient.getExamSchedule(semesterId = otherSemId)
+                        if (res.error == null && res.schedule.isNotEmpty()) {
+                            val examCurrent = _allSemesterExams.value.toMutableMap()
+                            examCurrent[otherSemId] = res
+                            _allSemesterExams.value = examCurrent
+                        }
+                    } catch (_: Exception) {}
+                }
+                cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value)
                 updateSyncSummary(listOf(result))
             } finally { _isLoading.value = false }
         }

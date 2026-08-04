@@ -38,10 +38,11 @@ fun ExamScheduleScreen() {
     val schedule = examData?.schedule ?: emptyMap()
 
     val availableSemesters = remember(allExams) {
-        AppState.semesterIDs.filter {
+        val filtered = AppState.semesterIDs.filter {
             val res = allExams[it]
             res != null && res.schedule.isNotEmpty()
         }
+        if (filtered.isNotEmpty()) filtered else AppState.semesterIDs
     }
 
     Column(
@@ -57,11 +58,13 @@ fun ExamScheduleScreen() {
             onRefresh = AppState::refreshExamSchedule
         )
 
+        HeaderSpacer()
+
         if (availableSemesters.size > 1) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -76,7 +79,7 @@ fun ExamScheduleScreen() {
                             .background(if (isActive) colors.accent else colors.surface)
                             .border(if (isActive) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small))
                             .clickable { AppState.selectExamSemester(id) }
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                            .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
                         Text(
                             semName,
@@ -110,9 +113,8 @@ fun ExamScheduleScreen() {
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
         ) {
-            item { HeaderSpacer() }
 
             schedule.forEach { (type, exams) ->
                 item {

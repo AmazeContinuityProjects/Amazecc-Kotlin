@@ -433,7 +433,7 @@ object AmazeClient {
             } ?: "Fall Semester 2025-26"
             return ExamScheduleRes(
                 success = true,
-                schedule = mapOf(
+                rawScheduleLower = mapOf(
                     semLabel to listOf(
                         ExamItem("CSE1001", "Software Engineering", "1024", "A1", "2026-09-12", "FN", "08:30 AM", "09:00 AM - 12:00 PM", "SJT-401", "Row 3, Seat A", "A-32"),
                         ExamItem("CSE2002", "Database Management Systems", "1056", "B1", "2026-09-14", "AN", "01:30 PM", "02:00 PM - 05:00 PM", "TT-102", "Row 1, Seat C", "C-08")
@@ -444,7 +444,7 @@ object AmazeClient {
         return try {
             val params = mutableMapOf<String, String>()
             if (semesterId != null) params["semesterId"] = semesterId
-            postAuthorized<ExamScheduleRes>("arrear-schedule", params) ?: ExamScheduleRes(success = false, message = "Empty response")
+            postAuthorized<ExamScheduleRes>("schedule", params) ?: ExamScheduleRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             ExamScheduleRes(success = false, message = e.message, error = e.toString())
         }

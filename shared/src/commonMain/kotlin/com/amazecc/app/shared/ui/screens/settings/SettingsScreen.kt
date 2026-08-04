@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -246,15 +247,15 @@ fun SettingsScreen() {
                                 selectedTabs = newSet
                                 AppState.setPinnedNavTabs(newSet.toList())
                             }
-                            .padding(12.dp),
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(icon, label, tint = if (isSelected) colors.accent else if (!isEnabled) colors.textMuted else colors.textPrimary, modifier = Modifier.size(20.dp))
+                        Icon(icon, label, tint = if (isSelected) colors.accent else if (!isEnabled) colors.textMuted else colors.textPrimary, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                        Text(label, color = if (isSelected) colors.textPrimary else if (!isEnabled) colors.textMuted else colors.textSecondary, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
-                        Checkbox(checked = isSelected, onCheckedChange = null, enabled = isEnabled, colors = CheckboxDefaults.colors(checkedColor = colors.accent, uncheckedColor = colors.textMuted, checkmarkColor = colors.background))
+                        Text(label, color = if (isSelected) colors.textPrimary else if (!isEnabled) colors.textMuted else colors.textSecondary, fontSize = 12.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
+                        Checkbox(checked = isSelected, onCheckedChange = null, enabled = isEnabled, colors = CheckboxDefaults.colors(checkedColor = colors.accent, uncheckedColor = colors.textMuted, checkmarkColor = colors.background), modifier = Modifier.scale(0.85f))
                     }
-                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                    Spacer(Modifier.height(2.dp))
                 }
             }
 
@@ -263,7 +264,7 @@ fun SettingsScreen() {
             // ═══════════════════════════════════════════
             SettingsSection("Academic Calendar", Icons.Rounded.CalendarMonth, colors) {
                 Text("Choose which calendar to display by default", color = colors.textSecondary, fontSize = 12.sp)
-                Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                Spacer(Modifier.height(4.dp))
                 if (availableCalendars.isEmpty()) {
                     Text("Loading calendars…", color = colors.textMuted, fontSize = 12.sp)
                 } else {
@@ -278,15 +279,15 @@ fun SettingsScreen() {
                                     preferredCalendarName = cal.name
                                     SettingsManager.savePreferredCalendar(cal.name)
                                 }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isSelected) colors.accent else colors.border))
+                            Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isSelected) colors.accent else colors.border))
                             Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                            Text(cal.name, color = if (isSelected) colors.accent else colors.textPrimary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                            if (isSelected) Icon(Icons.Rounded.Check, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                            Text(cal.name, color = if (isSelected) colors.accent else colors.textPrimary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                            if (isSelected) Icon(Icons.Rounded.Check, null, tint = colors.accent, modifier = Modifier.size(16.dp))
                         }
-                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                        Spacer(Modifier.height(2.dp))
                     }
                 }
             }
@@ -468,9 +469,9 @@ private fun SettingsSection(title: String, icon: ImageVector, colors: com.amazec
             Spacer(Modifier.width(AmazeTheme.spacing.sm))
             Text(title, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
         }
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+        Spacer(Modifier.height(6.dp))
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
         }
     }
 }

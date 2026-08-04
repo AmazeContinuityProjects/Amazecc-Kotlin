@@ -85,10 +85,14 @@ data class HostelLeaveRes(
 @Serializable
 data class ExamScheduleRes(
     val success: Boolean = true,
-    val schedule: Map<String, List<ExamItem>> = emptyMap(),
+    @kotlinx.serialization.SerialName("Schedule") val rawScheduleUpper: Map<String, List<ExamItem>>? = null,
+    @kotlinx.serialization.SerialName("schedule") val rawScheduleLower: Map<String, List<ExamItem>>? = null,
     val error: String? = null,
     val message: String? = null
-)
+) {
+    val schedule: Map<String, List<ExamItem>>
+        get() = rawScheduleUpper ?: rawScheduleLower ?: emptyMap()
+}
 
 @Serializable
 data class CalendarRes(

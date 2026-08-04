@@ -61,10 +61,21 @@ object WidgetDataUtils {
             json.decodeFromString<AttendanceRes>(rawAttendance)
         } catch (_: Exception) { null }
 
+        val rawCalendar = SettingsManager.getString(SettingsManager.CACHE_CALENDAR, "")
+        val calendarRes = try {
+            if (rawCalendar.isNotBlank()) json.decodeFromString<com.amazecc.app.shared.model.CalendarRes>(rawCalendar) else null
+        } catch (_: Exception) { null }
+
         val courses = attendanceRes?.attendance ?: emptyList()
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         val currentMins = now.hour * 60 + now.minute
-        val dayOfWeek = now.dayOfWeek.name.take(3).lowercase()
+
+        // Determine effective day abbrev matching SlotMap keys ("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
+        val dayOfWeek = try {
+            com.amazecc.app.shared.utils.AttendanceTimetable.getTodayAttendanceDay(calendarRes).name
+        } catch (_: Exception) {
+            now.dayOfWeek.name.take(3).uppercase()
+        }
 
         val dayMap = SlotMap.map[dayOfWeek] ?: emptyMap()
         val dayClasses = mutableListOf<AppWidgetClassEvent>()
@@ -120,7 +131,7 @@ object WidgetDataUtils {
             if (rawGrades.isNotBlank()) json.decodeFromString<CGPA>(rawGrades) else null
         } catch (_: Exception) { null }
 
-        val courses = attendanceRes?.attendance ?: emptyList()
+        val courses = (attendanceRes?.attendance ?: emptyList()).filter { it.totalClasses > 0 }
         val totalAttended = courses.sumOf { it.attendedClasses }
         val totalClasses = courses.sumOf { it.totalClasses }
 
@@ -172,7 +183,7 @@ object WidgetDataUtils {
 
         val courses = attendanceRes?.attendance ?: emptyList()
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-        val dayOfWeek = now.dayOfWeek.name.take(3).lowercase()
+        val dayOfWeek = now.dayOfWeek.name.take(3).uppercase()
 
         val occupiedRooms = mutableSetOf<String>()
         val dayMap = SlotMap.map[dayOfWeek] ?: emptyMap()

@@ -855,11 +855,12 @@ private fun AttendanceBunkWidget() {
     val courses = attendanceRes?.attendance ?: emptyList()
 
     val overallAttendance = remember(courses) {
-        if (courses.isEmpty()) 0f
+        val validCourses = courses.filter { it.totalClasses > 0 }
+        if (validCourses.isEmpty()) 0f
         else {
             var totalAtt = 0
             var totalCls = 0
-            for (item in courses) {
+            for (item in validCourses) {
                 totalAtt += item.attendedClasses
                 totalCls += item.totalClasses
             }

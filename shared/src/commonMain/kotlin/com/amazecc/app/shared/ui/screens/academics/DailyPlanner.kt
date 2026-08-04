@@ -364,7 +364,8 @@ fun DailyPlannerScreen() {
                             colors = colors,
                             onToggle = { AppState.toggleTaskCompleted(task.id) },
                             onDelete = { AppState.deleteTask(task.id) },
-                            showCourse = true
+                            showCourse = true,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
                         )
                     }
                 }

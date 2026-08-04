@@ -614,16 +614,16 @@ private fun SkipButton(text: String, onClick: () -> Unit, colors: com.amazecc.ap
     }
 }
 
-private fun pctFormatted(value: Double): String {
+fun pctFormatted(value: Double): String {
     val i = kotlin.math.round(value * 100).toLong()
     val whole = i / 100
     val frac = (i % 100).coerceIn(0, 99)
     return "$whole.${frac.toString().padStart(2, '0')}%"
 }
 
-private data class SimpleDate(val month: Int, val day: Int, val year: Int)
+data class SimpleDate(val month: Int, val day: Int, val year: Int)
 
-private fun computeImportantDates(months: List<CalendarMonth>, examSchedule: Map<String, List<ExamItem>> = emptyMap()): Map<String, SimpleDate> {
+fun computeImportantDates(months: List<CalendarMonth>, examSchedule: Map<String, List<ExamItem>> = emptyMap()): Map<String, SimpleDate> {
     val monthIndex = mapOf(
         "jan" to 1, "feb" to 2, "mar" to 3, "apr" to 4, "may" to 5, "jun" to 6,
         "jul" to 7, "aug" to 8, "sep" to 9, "oct" to 10, "nov" to 11, "dec" to 12
@@ -702,7 +702,7 @@ private fun computeImportantDates(months: List<CalendarMonth>, examSchedule: Map
     return imp
 }
 
-private fun buildWorkingDays(months: List<CalendarMonth>): List<Triple<Int, Int, Int>> {
+fun buildWorkingDays(months: List<CalendarMonth>): List<Triple<Int, Int, Int>> {
     val monthIndex = mapOf(
         "jan" to 1, "feb" to 2, "mar" to 3, "apr" to 4, "may" to 5, "jun" to 6,
         "jul" to 7, "aug" to 8, "sep" to 9, "oct" to 10, "nov" to 11, "dec" to 12

@@ -767,7 +767,7 @@ private fun FreeClassroomGridCard(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 10.dp, horizontal = 10.dp),
+                    .padding(vertical = 8.dp, horizontal = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Row(
@@ -777,7 +777,7 @@ private fun FreeClassroomGridCard(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(24.dp)
                             .clip(CircleShape)
                             .background(cardColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
@@ -786,7 +786,7 @@ private fun FreeClassroomGridCard(
                             imageVector = if (isLab) Icons.Rounded.Computer else Icons.Rounded.DoorSliding,
                             contentDescription = null,
                             tint = cardColor,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                     }
 
@@ -796,21 +796,21 @@ private fun FreeClassroomGridCard(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = room,
                     style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
 
                 if (block.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(1.dp))
                     Text(
                         text = "Block: $block",
-                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp),
+                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

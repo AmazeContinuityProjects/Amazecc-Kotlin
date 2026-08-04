@@ -18,11 +18,13 @@ object UpdateConfig {
             val version = text.lines()
                 .firstOrNull { it.startsWith("VERSION_NAME=") }
                 ?.substringAfter("=")
-                ?.trim() ?: "1.0.0"
+                ?.trim()
+                ?.removePrefix("v")
+                ?.removePrefix("V") ?: "1.9.2"
             _cachedVersion = version
             version
         } catch (e: Exception) {
-            "1.0.0"
+            "1.9.2"
         }
     }
 }

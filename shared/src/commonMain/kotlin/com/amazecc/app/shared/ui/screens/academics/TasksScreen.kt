@@ -381,7 +381,8 @@ private fun TaskItemCard(
     onToggleSubtask: (String) -> Unit,
     onStartFocus: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp)
 ) {
     var expandedSubtasks by remember { mutableStateOf(false) }
 
@@ -392,9 +393,9 @@ private fun TaskItemCard(
     }
 
     AmazeCard(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
+        modifier = modifier
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
             // Header Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -407,10 +408,10 @@ private fun TaskItemCard(
                         checkedColor = colors.success,
                         uncheckedColor = colors.textMuted
                     ),
-                    modifier = Modifier.scale(0.9f)
+                    modifier = Modifier.scale(0.85f)
                 )
 
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(4.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1113,7 +1114,8 @@ fun TaskCard(
     colors: com.amazecc.app.shared.theme.AmazeColors = AmazeTheme.colors,
     onToggle: () -> Unit,
     onDelete: () -> Unit,
-    showCourse: Boolean = true
+    showCourse: Boolean = true,
+    modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp)
 ) {
     TaskItemCard(
         task = task,
@@ -1122,7 +1124,8 @@ fun TaskCard(
         onToggleSubtask = { AppState.toggleSubtaskCompleted(task.id, it) },
         onStartFocus = {},
         onEdit = {},
-        onDelete = onDelete
+        onDelete = onDelete,
+        modifier = modifier
     )
 }
 
@@ -1142,13 +1145,17 @@ fun CourseTasksTab(
             Text("No tasks for $courseTitle", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
         }
     } else {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             courseTasks.forEach { task ->
                 TaskCard(
                     task = task,
                     colors = colors,
                     onToggle = { AppState.toggleTaskCompleted(task.id) },
-                    onDelete = { AppState.deleteTask(task.id) }
+                    onDelete = { AppState.deleteTask(task.id) },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
                 )
             }
         }

@@ -45,15 +45,27 @@ class TodayClassesWidgetProvider : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_root, pendingIntent)
 
             try {
-                val data = WidgetDataUtils.getScheduleData()
-
                 val calendar = Calendar.getInstance()
                 val hour = calendar.get(Calendar.HOUR_OF_DAY)
                 val minute = calendar.get(Calendar.MINUTE)
                 val currentMins = hour * 60 + minute
 
+                val dayNames = arrayOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+                val monthNames = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+                val dayOfWeekStr = dayNames.getOrElse(calendar.get(Calendar.DAY_OF_WEEK) - 1) { "Today" }
+                val monthStr = monthNames.getOrElse(calendar.get(Calendar.MONTH)) { "" }
+                val dayOfMonth = calendar.get(Calendar.DAY_OF_MONTH)
+                views.setTextViewText(R.id.widget_date_text, "$dayOfWeekStr, $monthStr $dayOfMonth")
+
+                val data = WidgetDataUtils.getScheduleData()
                 val ongoing = data.ongoing
                 val next = data.next
+
+                fun formatMinutes(m: Int): String = when {
+                    m <= 0 -> "Now"
+                    m >= 60 -> "${m / 60}h ${m % 60}m"
+                    else -> "${m}m"
+                }
 
                 if (data.totalToday == 0) {
                     views.setViewVisibility(R.id.widget_empty_text, View.VISIBLE)
@@ -70,8 +82,8 @@ class TodayClassesWidgetProvider : AppWidgetProvider() {
 
                     if (ongoing != null) {
                         views.setViewVisibility(R.id.widget_current_container, View.VISIBLE)
-                        val leftMins = ongoing.endMins - currentMins
-                        views.setTextViewText(R.id.widget_current_time, "Ends in ${leftMins}m")
+                        val leftMins = (ongoing.endMins - currentMins).coerceAtLeast(0)
+                        views.setTextViewText(R.id.widget_current_time, "Ends in ${formatMinutes(leftMins)}")
                         views.setTextViewText(R.id.widget_current_title, ongoing.title)
                         views.setTextViewText(R.id.widget_current_code, ongoing.code)
                         views.setTextViewText(R.id.widget_current_venue, " 📍 ${ongoing.venue}")
@@ -81,8 +93,8 @@ class TodayClassesWidgetProvider : AppWidgetProvider() {
 
                     if (next != null) {
                         views.setViewVisibility(R.id.widget_next_container, View.VISIBLE)
-                        val startIn = next.startMins - currentMins
-                        views.setTextViewText(R.id.widget_next_time, "In ${startIn}m")
+                        val startIn = (next.startMins - currentMins).coerceAtLeast(0)
+                        views.setTextViewText(R.id.widget_next_time, "In ${formatMinutes(startIn)}")
                         views.setTextViewText(R.id.widget_next_title, next.title)
                         views.setTextViewText(R.id.widget_next_code, next.code)
                         views.setTextViewText(R.id.widget_next_venue, " 📍 ${next.venue}")

@@ -55,16 +55,24 @@ fun UpdateDialog(
                     style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 20.sp)
                 )
                 Spacer(Modifier.height(4.dp))
-                Text(
-                    "${release.tagName}",
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.chart2)
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(colors.accent.copy(alpha = 0.1f))
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text("v${currentVersion.removePrefix("v")}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.SemiBold))
+                    Text("➔", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                    Text("v${release.tagName.removePrefix("v").removePrefix("V")}", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                }
             }
         },
         text = {
             Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
                 Text(
-                    "You're running v$currentVersion. Tap download to get the latest release from GitHub.",
+                    "A new update is available on GitHub. Tap download to get the latest release.",
                     style = AmazeTheme.typography.body.copy(color = colors.textSecondary, lineHeight = 20.sp)
                 )
                 if (!release.body.isNullOrBlank()) {

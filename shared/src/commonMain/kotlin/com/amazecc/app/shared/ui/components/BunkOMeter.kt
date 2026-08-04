@@ -41,8 +41,10 @@ fun BunkOMeterCard(
         var warningCount = 0
 
         courseList.forEach { course ->
-            val attended = course.attendedClasses
             val total = course.totalClasses
+            if (total <= 0) return@forEach
+
+            val attended = course.attendedClasses
             val pct = course.attendancePercentage.toDoubleOrNull() ?: 0.0
 
             if (pct < 75.0) {
@@ -51,7 +53,7 @@ fun BunkOMeterCard(
                 warningCount++
             }
 
-            if (total > 0 && pct >= 75.0) {
+            if (pct >= 75.0) {
                 val maxBunks = floor((attended.toDouble() / 0.75) - total.toDouble()).toInt()
                 if (maxBunks > 0) {
                     totalBunkable += maxBunks

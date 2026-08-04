@@ -204,6 +204,9 @@ object SettingsManager {
         setString(CACHE_ATTENDANCE_NOTES, json.encodeToString(kotlinx.serialization.builtins.ListSerializer(NoteEntry.serializer()), entries))
     }
 
+    fun getCourseNote(courseCode: String): String = getString("course_note_$courseCode", "")
+    fun saveCourseNote(courseCode: String, note: String) = setString("course_note_$courseCode", note)
+
     // ── Notification preferences ──
     fun isNotifClassRemindersEnabled(): Boolean = getBoolean(NOTIF_CLASS_REMINDERS, false)
     fun setNotifClassRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_CLASS_REMINDERS, enabled)

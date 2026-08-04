@@ -91,13 +91,33 @@ object AttendanceTimetable {
         if (text.isNullOrBlank()) return null
         val lower = text.lowercase()
         return when {
-            lower.contains("monday day order") || lower.contains("day order: monday") || lower.contains("mon day order") -> AttendanceDay.MON
-            lower.contains("tuesday day order") || lower.contains("day order: tuesday") || lower.contains("tue day order") -> AttendanceDay.TUE
-            lower.contains("wednesday day order") || lower.contains("day order: wednesday") || lower.contains("wed day order") -> AttendanceDay.WED
-            lower.contains("thursday day order") || lower.contains("day order: thursday") || lower.contains("thu day order") -> AttendanceDay.THU
-            lower.contains("friday day order") || lower.contains("day order: friday") || lower.contains("fri day order") -> AttendanceDay.FRI
-            lower.contains("saturday day order") || lower.contains("day order: saturday") || lower.contains("sat day order") -> AttendanceDay.SAT
-            lower.contains("sunday day order") || lower.contains("day order: sunday") || lower.contains("sun day order") -> AttendanceDay.SUN
+            lower.contains("monday") -> AttendanceDay.MON
+            lower.contains("tuesday") -> AttendanceDay.TUE
+            lower.contains("wednesday") -> AttendanceDay.WED
+            lower.contains("thursday") -> AttendanceDay.THU
+            lower.contains("friday") -> AttendanceDay.FRI
+            lower.contains("saturday") -> AttendanceDay.SAT
+            lower.contains("sunday") -> AttendanceDay.SUN
+            lower.contains("mon") -> AttendanceDay.MON
+            lower.contains("tue") -> AttendanceDay.TUE
+            lower.contains("wed") -> AttendanceDay.WED
+            lower.contains("thu") -> AttendanceDay.THU
+            lower.contains("fri") -> AttendanceDay.FRI
+            else -> null
+        }
+    }
+
+    fun getDayOrderLabelFromText(text: String?): String? {
+        if (text.isNullOrBlank()) return null
+        val lower = text.lowercase()
+        return when {
+            lower.contains("monday") || lower.contains("mon order") || lower.contains("mon day") -> "Monday Order"
+            lower.contains("tuesday") || lower.contains("tue order") || lower.contains("tue day") -> "Tuesday Order"
+            lower.contains("wednesday") || lower.contains("wed order") || lower.contains("wed day") -> "Wednesday Order"
+            lower.contains("thursday") || lower.contains("thu order") || lower.contains("thu day") -> "Thursday Order"
+            lower.contains("friday") || lower.contains("fri order") || lower.contains("fri day") -> "Friday Order"
+            lower.contains("saturday") || lower.contains("sat order") || lower.contains("sat day") -> "Saturday Order"
+            lower.contains("sunday") || lower.contains("sun order") || lower.contains("sun day") -> "Sunday Order"
             else -> null
         }
     }
