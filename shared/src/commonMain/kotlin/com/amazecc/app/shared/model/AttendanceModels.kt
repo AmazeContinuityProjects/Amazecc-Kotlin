@@ -56,7 +56,16 @@ data class AttendanceRes(
 data class ODEntry(
     val title: String,
     val type: String, // "LAB" | "TH"
-    val hours: Int
+    val hours: Int,
+    val courseCode: String? = null
+)
+
+@Serializable
+data class ODTrackedEntry(
+    val courseTitle: String,
+    val type: String,
+    val slotName: String? = null,
+    val status: String // "wasted" | "recovered"
 )
 
 @Serializable

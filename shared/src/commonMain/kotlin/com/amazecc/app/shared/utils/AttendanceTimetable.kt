@@ -63,8 +63,8 @@ object AttendanceTimetable {
 
     fun parseAttendanceTime(timeStr: String): Int {
         val parts = timeStr.trim().split(":")
-        var h = parts.getOrNull(0)?.toIntOrNull() ?: 0
-        val m = parts.getOrNull(1)?.toIntOrNull() ?: 0
+        var h = parts.getOrNull(0)?.filter { it.isDigit() }?.toIntOrNull() ?: 0
+        val m = parts.getOrNull(1)?.filter { it.isDigit() }?.toIntOrNull() ?: 0
         if (h < 8) h += 12
         return h * 60 + m
     }
@@ -98,11 +98,11 @@ object AttendanceTimetable {
             lower.contains("friday") -> AttendanceDay.FRI
             lower.contains("saturday") -> AttendanceDay.SAT
             lower.contains("sunday") -> AttendanceDay.SUN
-            lower.contains("mon") -> AttendanceDay.MON
-            lower.contains("tue") -> AttendanceDay.TUE
-            lower.contains("wed") -> AttendanceDay.WED
-            lower.contains("thu") -> AttendanceDay.THU
-            lower.contains("fri") -> AttendanceDay.FRI
+            Regex("""(?i)\bmon\b""").containsMatchIn(lower) -> AttendanceDay.MON
+            Regex("""(?i)\btue\b""").containsMatchIn(lower) -> AttendanceDay.TUE
+            Regex("""(?i)\bwed\b""").containsMatchIn(lower) -> AttendanceDay.WED
+            Regex("""(?i)\bthu\b""").containsMatchIn(lower) -> AttendanceDay.THU
+            Regex("""(?i)\bfri\b""").containsMatchIn(lower) -> AttendanceDay.FRI
             else -> null
         }
     }

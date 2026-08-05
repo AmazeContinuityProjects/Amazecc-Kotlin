@@ -216,7 +216,7 @@ fun DailyPlannerScreen() {
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(weekDays, key = { it.effectiveAbbrev }) { wd ->
+            items(weekDays, key = { it.fullDate.toString() }) { wd ->
                 val isSelected = selectedWeekDay.fullDate == wd.fullDate
                 val dayMap = SlotMap.map[wd.effectiveAbbrev] ?: emptyMap<String, String>()
                 val classCount = attendance.count { course ->
@@ -438,86 +438,87 @@ fun TimelineRow(item: TimelineEvent) {
                     }
                 }
                 "class" -> {
-                    val c = item.course ?: return
-                    val total = c.totalClasses
-                    val attended = c.attendedClasses
-                    val attPct = if (total > 0) ((attended.toFloat() / total) * 100).toInt() else 0
-                    val isSafe = attPct >= 75
-                    val typeColor = courseTypeColor(c.courseType, colors)
-                    val typeLabel = courseTypeLabel(c.courseType)
+                    item.course?.let { c ->
+                        val total = c.totalClasses
+                        val attended = c.attendedClasses
+                        val attPct = if (total > 0) ((attended.toFloat() / total) * 100).toInt() else 0
+                        val isSafe = attPct >= 75
+                        val typeColor = courseTypeColor(c.courseType, colors)
+                        val typeLabel = courseTypeLabel(c.courseType)
 
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Box(
-                            modifier = Modifier
-                                .width(4.dp)
-                                .fillMaxHeight()
-                                .background(typeColor, RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
-                        )
-                        Column(modifier = Modifier.weight(1f).padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                        .background(typeColor.copy(alpha = 0.12f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .fillMaxHeight()
+                                    .background(typeColor, RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                            )
+                            Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                            .background(typeColor.copy(alpha = 0.12f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            typeLabel,
+                                            style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = typeColor)
+                                        )
+                                    }
                                     Text(
-                                        typeLabel,
-                                        style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = typeColor)
+                                        "${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)}",
+                                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                                     )
                                 }
+                                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                                 Text(
-                                    "${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)}",
-                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                    c.courseTitle,
+                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                            }
-                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
-                            Text(
-                                c.courseTitle,
-                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val slotStr = item.slots.joinToString(" + ")
-                                val venue = c.slotVenue
-                                val slotAndVenue = if (!venue.isNullOrBlank()) "$slotStr • $venue" else slotStr
-                                Text(
-                                    slotAndVenue,
-                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                        .background(
-                                            when {
-                                                attPct >= 85 -> colors.chart1.copy(alpha = 0.12f)
-                                                attPct >= 75 -> colors.chart3.copy(alpha = 0.12f)
-                                                else -> colors.chart5.copy(alpha = 0.12f)
-                                            }
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
+                                    val slotStr = item.slots.joinToString(" + ")
+                                    val venue = c.slotVenue
+                                    val slotAndVenue = if (!venue.isNullOrBlank()) "$slotStr • $venue" else slotStr
                                     Text(
-                                        "$attPct%",
-                                        style = AmazeTheme.typography.smallLabel.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = when {
-                                                attPct >= 85 -> colors.chart1
-                                                attPct >= 75 -> colors.chart3
-                                                else -> colors.chart5
-                                            }
-                                        )
+                                        slotAndVenue,
+                                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                                     )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                            .background(
+                                                when {
+                                                    attPct >= 85 -> colors.chart1.copy(alpha = 0.12f)
+                                                    attPct >= 75 -> colors.chart3.copy(alpha = 0.12f)
+                                                    else -> colors.chart5.copy(alpha = 0.12f)
+                                                }
+                                            )
+                                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                                    ) {
+                                        Text(
+                                            "$attPct%",
+                                            style = AmazeTheme.typography.smallLabel.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = when {
+                                                    attPct >= 85 -> colors.chart1
+                                                    attPct >= 75 -> colors.chart3
+                                                    else -> colors.chart5
+                                                }
+                                            )
+                                        )
+                                    }
                                 }
                             }
                         }

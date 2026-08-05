@@ -37,6 +37,7 @@ fun FresherWelcomeScreen() {
         ScreenHeader(title = "Fresher's Welcome", description = "Get started with campus life", showBackButton = true)
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
+            item { HeaderSpacer() }
             item {
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {

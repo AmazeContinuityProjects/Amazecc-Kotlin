@@ -608,7 +608,10 @@ private fun LogSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         historyList.forEach { (date, status) ->
-            val isPresent = status.equals("Present", ignoreCase = true) || status.equals("P", ignoreCase = true)
+            val normalizedStatus = status.trim().lowercase()
+            val isPresent = normalizedStatus == "present" || normalizedStatus == "p"
+            val isOD = normalizedStatus == "on duty" || normalizedStatus == "od" || normalizedStatus == "onduty"
+            
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -621,12 +624,26 @@ private fun LogSection(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                            .background(if (isPresent) colors.success.copy(alpha = 0.15f) else colors.danger.copy(alpha = 0.15f))
+                            .background(
+                                when {
+                                    isPresent -> colors.success.copy(alpha = 0.15f)
+                                    isOD -> colors.info.copy(alpha = 0.15f)
+                                    else -> colors.danger.copy(alpha = 0.15f)
+                                }
+                            )
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            if (isPresent) "Present" else "Absent",
-                            color = if (isPresent) colors.success else colors.danger,
+                            when {
+                                isPresent -> "Present"
+                                isOD -> "On Duty"
+                                else -> "Absent"
+                            },
+                            color = when {
+                                isPresent -> colors.success
+                                isOD -> colors.info
+                                else -> colors.danger
+                            },
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )

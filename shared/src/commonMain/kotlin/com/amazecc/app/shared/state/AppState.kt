@@ -15,6 +15,7 @@ import com.amazecc.app.shared.utils.testLocalNotification
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,7 +65,7 @@ enum class Screen { SPLASH,
 }
 
 object AppState {
-    private val scope = CoroutineScope(Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     // Navigation
     private val _currentScreen = MutableStateFlow(Screen.SPLASH)
@@ -481,7 +482,6 @@ object AppState {
         if (_allGrades.value != null) { cacheData(SettingsManager.CACHE_GRADES, _allGrades.value); saved++ }
         if (_curriculum.value != null) { cacheData(SettingsManager.CACHE_CURRICULUM, _curriculum.value); saved++ }
         if (_hostelDetails.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails.value); saved++ }
-        saved++
         if (_examSchedule.value != null) { cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule.value); saved++ }
         if (_calendar.value != null) { cacheData(SettingsManager.CACHE_CALENDAR, _calendar.value); saved++ }
         if (_calendarsList.value != null) { cacheData(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList.value); saved++ }
@@ -516,7 +516,6 @@ object AppState {
         if (_marks.value != null) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_allGrades.value != null) SyncEngine.updateModuleState(SyncModule.GRADES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_curriculum.value != null) SyncEngine.updateModuleState(SyncModule.CURRICULUM, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_hostelDetails.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_DETAILS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_hostelDetails.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_DETAILS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_examSchedule.value != null) SyncEngine.updateModuleState(SyncModule.EXAM_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_calendar.value != null) SyncEngine.updateModuleState(SyncModule.CALENDAR, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
@@ -785,8 +784,8 @@ object AppState {
 
     fun loadSemesterData(semesterId: String) {
         if (_isLoading.value) return
+        _isLoading.value = true
         scope.launch {
-            _isLoading.value = true
             _error.value = null
             _syncStatus.value = "Syncing semester data..."
             try {
@@ -800,9 +799,11 @@ object AppState {
                                 errorMessage = { it.attendance.error ?: it.marks?.error },
                                 update = {
                                     _attendance.value = it.attendance
+                                    _allSemesterAttendance.value = _allSemesterAttendance.value + (semesterId to it.attendance)
                                     cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
                                     it.marks?.let { marks ->
                                         _marks.value = marks
+                                        _allSemesterMarks.value = _allSemesterMarks.value + (semesterId to marks)
                                         cacheData(SettingsManager.CACHE_MARKS, marks)
                                     }
                                 }
@@ -911,21 +912,21 @@ object AppState {
                                     ?.filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
                                     ?: emptyList()
                                 val allSemIds = (gradeSemIds + semesterIDs).distinct().filter { it != sem }
+                                val newAttMap = _allSemesterAttendance.value.toMutableMap()
+                                val newMarksMap = _allSemesterMarks.value.toMutableMap()
                                 for (semId in allSemIds) {
                                     try {
                                         val res = AmazeClient.getAcademicData(semId)
                                         if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
-                                            val attCurrent = _allSemesterAttendance.value.toMutableMap()
-                                            attCurrent[semId] = res.attendance
-                                            _allSemesterAttendance.value = attCurrent
+                                            newAttMap[semId] = res.attendance
                                         }
                                         if (res.marks?.marks?.isNotEmpty() == true) {
-                                            val marksCurrent = _allSemesterMarks.value.toMutableMap()
-                                            marksCurrent[semId] = res.marks
-                                            _allSemesterMarks.value = marksCurrent
+                                            newMarksMap[semId] = res.marks
                                         }
                                     } catch (_: Exception) { failed = true }
                                 }
+                                _allSemesterAttendance.value = newAttMap
+                                _allSemesterMarks.value = newMarksMap
                                 cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
                                 cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
                                 SyncModuleResult("All Semesters Attendance", !failed)
@@ -1305,8 +1306,8 @@ object AppState {
 
     fun refreshCurrentSemester() {
         if (_isLoading.value) return
+        _isLoading.value = true
         scope.launch {
-            _isLoading.value = true
             _syncStatus.value = "Syncing current semester..."
             try {
                 val sem = _selectedSemester.value
@@ -1349,8 +1350,8 @@ object AppState {
 
     fun refreshAllAcademic() {
         if (_isLoading.value) return
+        _isLoading.value = true
         scope.launch {
-            _isLoading.value = true
             _syncStatus.value = "Syncing academic data..."
             try {
                 val sem = _selectedSemester.value
@@ -1942,12 +1943,22 @@ object AppState {
     }
 
     fun logout() {
+        SettingsManager.remove(SettingsManager.KEY_USERNAME)
+        SettingsManager.remove(SettingsManager.KEY_PASSWORD)
+        SettingsManager.clearMoodleCredentials()
         SessionManager.clearSession()
         backstack.clear()
         _currentScreen.value = Screen.LOGIN
         
         // Clear caches
         _attendance.value = null
+        _profileImages.value = null
+        _bankInfo.value = null
+        _dayboarder.value = null
+        _eptSchedule.value = null
+        _registrationSchedule.value = null
+        _apaarId.value = null
+        _circulars.value = null
         _timetable.value = null
         _marks.value = null
         _allGrades.value = null
@@ -2008,7 +2019,9 @@ object AppState {
         settings.remove(SettingsManager.CACHE_CAB_TRIPS)
         settings.remove(SettingsManager.CACHE_CAB_USER)
         settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
-        settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
+        settings.remove(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE)
+        settings.remove(SettingsManager.CACHE_ALL_SEMESTER_MARKS)
+        settings.remove(SettingsManager.CACHE_ALL_SEMESTER_EXAMS)
         SettingsManager.clearLibraryCredentials()
         settings.remove(SettingsManager.SESSION_COOKIES)
         settings.remove(SettingsManager.SESSION_CSRF)

@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.ScreenHeader
 
 @Composable
@@ -49,6 +50,7 @@ fun ChangelogScreen() {
             contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item { HeaderSpacer() }
             items(changes.size, key = { it }) { index ->
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.Top) {

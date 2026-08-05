@@ -169,7 +169,7 @@ object AnalyzeCalendar {
             val isEmpty = events.isEmpty()
 
             var dayType = "other"
-            if (hasHoliday || isEmpty || (!hasInstructional && events.isNotEmpty())) dayType = "holiday"
+            if (hasHoliday || isEmpty) dayType = "holiday"
             else if (hasInstructional) dayType = "working"
 
             result.days.add(AnalyzedDay(
@@ -187,8 +187,10 @@ object AnalyzeCalendar {
         }
 
         val importantEventNames = listOf(
-            mapOf("key" to "cat i", "display" to "CAT I"),
-            mapOf("key" to "cat ii", "display" to "CAT II"),
+            mapOf("key" to "cat i", "display" to "CAT I", "aliases" to "cat-1,cat 1"),
+            mapOf("key" to "cat ii", "display" to "CAT II", "aliases" to "cat-2,cat 2"),
+            mapOf("key" to "cat iii", "display" to "CAT III", "aliases" to "cat-3,cat 3"),
+            mapOf("key" to "fat", "display" to "FAT"),
             mapOf("key" to "lid for laboratory classes", "display" to "LID FOR LABORATORY CLASSES", "aliases" to "lid for lab"),
             mapOf("key" to "lid for theory classes", "display" to "LID FOR THEORY CLASSES"),
             mapOf("key" to "mid term test", "display" to "MID TERM TEST")
@@ -241,11 +243,15 @@ object AnalyzeCalendar {
 
         for (elem in calArray) {
             val cal = elem.jsonObject
-            val (result, imp) = analyzeCalendar(cal)
-            results.add(result)
-            for ((key, valImp) in imp) {
-                if (!importantEvents.containsKey(key)) {
-                    importantEvents[key] = valImp
+            val monthsArray = cal["months"] as? JsonArray ?: JsonArray(listOf(cal))
+            for (monthElem in monthsArray) {
+                val monthObj = monthElem.jsonObject
+                val (result, imp) = analyzeCalendar(monthObj)
+                results.add(result)
+                for ((key, valImp) in imp) {
+                    if (!importantEvents.containsKey(key)) {
+                        importantEvents[key] = valImp
+                    }
                 }
             }
         }

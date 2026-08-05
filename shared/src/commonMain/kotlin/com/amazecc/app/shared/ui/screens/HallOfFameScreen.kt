@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.ScreenHeader
 
 @Composable
@@ -48,6 +49,7 @@ fun HallOfFameScreen() {
             contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item { HeaderSpacer() }
             items(contributors.size, key = { it }) { index ->
                 val contributor = contributors[index]
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {

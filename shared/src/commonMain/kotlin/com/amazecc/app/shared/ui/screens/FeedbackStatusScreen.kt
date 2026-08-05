@@ -107,6 +107,7 @@ fun FeedbackStatusScreen() {
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
             ) {
+                item { HeaderSpacer() }
                 items(semestersData, key = { it.semester.value }) { semData ->
                     FeedbackSemesterCard(
                         state = semData,

@@ -376,7 +376,7 @@ fun CurriculumScreen() {
                                                                 downloadMessage = null
                                                                 val bytes = AmazeClient.getSyllabusPdf(item.code)
                                                                 if (bytes != null) {
-                                                                    val saved = saveFile("Syllabus_${item.code}.pdf", bytes)
+                                                                    val saved = saveFile("Syllabus_${item.code}.${bytes.extension}", bytes.bytes)
                                                                     downloadMessage = if (saved) "Downloaded ${item.code}" else "Failed to save ${item.code}"
                                                                 } else {
                                                                     downloadMessage = "Download failed for ${item.code}"

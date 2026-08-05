@@ -55,13 +55,14 @@ data class ConsolidatedEvent(
 
 // Helper: parse "YYYY-MM-DD" or "DD-MM-YYYY" -> Triple(day, month, year)
 private fun parseExamDateParts(dateStr: String): Triple<Int, Int, Int> {
-    val parts = dateStr.trim().split("-", "/")
+    val cleanDate = dateStr.trim().split(" ", "T").first() // strip time part
+    val parts = cleanDate.split("-", "/")
     if (parts.size >= 3) {
         return try {
             if (parts[0].length == 4) { // YYYY-MM-DD
-                Triple(parts[2].take(2).toInt(), parts[1].toInt(), parts[0].toInt())
+                Triple(parts[2].toInt(), parts[1].toInt(), parts[0].toInt())
             } else { // DD-MM-YYYY
-                Triple(parts[0].take(2).toInt(), parts[1].toInt(), parts[2].toInt())
+                Triple(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
             }
         } catch (_: Exception) { Triple(0, 0, 0) }
     }
@@ -110,6 +111,7 @@ private fun getConsolidatedEventsForDisplay(
     allDaysSorted.forEach { dayNum ->
         val dayLabel = "$monthName $dayNum"
         val events = activeMonthEvents[dayNum] ?: emptyList()
+        var firstForDay = true
         events.forEachIndexed { i, ev ->
             val t = ev.title.lowercase()
             val isExam = ev.type.equals("Exam", ignoreCase = true) ||
@@ -118,7 +120,8 @@ private fun getConsolidatedEventsForDisplay(
             if (isExam) {
                 examEventsByDay.getOrPut(dayNum) { mutableListOf() }.add(ev)
             } else {
-                nonExamEvents.add((if (i == 0) dayLabel else "") to ev)
+                nonExamEvents.add((if (firstForDay) dayLabel else "") to ev)
+                firstForDay = false
             }
         }
     }
@@ -136,9 +139,9 @@ private fun getConsolidatedEventsForDisplay(
             cat1Regex.containsMatchIn(cleaned) -> "CAT-1 Exam"
             cat2Regex.containsMatchIn(cleaned) -> "CAT-2 Exam"
             cat3Regex.containsMatchIn(cleaned) -> "CAT-3 Exam"
+            labRegex.containsMatchIn(cleaned) -> "Lab Exam"
             fatRegex.containsMatchIn(cleaned) -> "FAT Exam"
             midTermRegex.containsMatchIn(cleaned) -> "Mid-Term Exam"
-            labRegex.containsMatchIn(cleaned) -> "Lab Exam"
             else -> cleaned.split("/", "-", "(").firstOrNull()?.trim() ?: cleaned
         }
     }
@@ -285,7 +288,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                     ?: com.amazecc.app.shared.utils.AttendanceTimetable.getDayOrderLabelFromText(type)
 
                 val isHoliday = ev.text.contains("Holiday", true) || ev.text.contains("Vacation", true) || ev.text.contains("Pooja", true)
-                val isOD = ev.text.contains("OD", true) || ev.text.contains("On Duty", true) || type.contains("OD", true)
+                val isOD = ev.text.contains("OD", true) || ev.text.contains("On Duty", true) || ev.text.contains("OnDuty", true) || type.contains("OD", true)
                 val isClass = ev.text.contains("Instructional Day", true) || type.contains("Instructional", true) || ev.text.contains("Working Day", true) || dayOrderLabel != null
                 val isExam = ev.text.contains("CAT", true) || ev.text.contains("FAT", true) || ev.text.contains("Exam", true) || type.contains("Exam", true)
                 
@@ -359,7 +362,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
             val text = ev.title.lowercase()
             val timeLoc = ev.timeOrLocation.lowercase()
             val hasDayOrder = text.contains("order") || timeLoc.contains("order")
-            val isPlainWorkingDay = (text.contains("instructional day") || text.contains("working day") || text == "instructional") &&
+            val isPlainWorkingDay = (text == "instructional day" || text == "working day" || text == "instructional") &&
                     !text.contains("holiday") && !text.contains("exam") && !text.contains("cat") && !text.contains("fat") && !text.contains("od") && !hasDayOrder
             !isPlainWorkingDay
         }
@@ -589,6 +592,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                                         .background(
                                                             when {
                                                                 isSelected -> colors.accent
+                                                                isToday && hasExam -> Color(0xFFF97316).copy(alpha = 0.22f)
                                                                 isToday -> colors.accent.copy(alpha = 0.18f)
                                                                 hasExam -> Color(0xFFF97316).copy(alpha = 0.22f)
                                                                 hasHoliday -> Color(0xFFEF4444).copy(alpha = 0.18f)
@@ -601,6 +605,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                                             1.dp,
                                                             when {
                                                                 isSelected -> colors.accent
+                                                                isToday && hasExam -> colors.accent
                                                                 isToday -> colors.accent
                                                                 hasExam -> Color(0xFFF97316).copy(alpha = 0.85f)
                                                                 hasHoliday -> Color(0xFFEF4444).copy(alpha = 0.5f)

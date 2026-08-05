@@ -1,15 +1,16 @@
 package com.amazecc.app.shared.utils
 
 import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.model.AttendanceRes
-import com.amazecc.app.shared.model.CGPA
 import com.amazecc.app.shared.model.HomeworkTask
+import com.amazecc.app.shared.model.MarksRes
 import com.amazecc.app.shared.repository.SettingsManager
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
 
 data class AppWidgetClassEvent(
     val code: String,
@@ -51,6 +52,29 @@ data class AppWidgetRoomItem(
 )
 
 object WidgetDataUtils {
+
+    /**
+     * Total on-duty hours across all courses (lab = 2h, theory = 1h).
+     * Mirrors the OD Tracker screen counter: statuses "on duty"/"od"/"onduty" count as OD.
+     */
+    fun computeODHours(courses: List<AttendanceItem>): Int {
+        var hours = 0
+        for (course in courses) {
+            val statuses = try {
+                val arr = parseViewLink(course.viewLinkRaw)?.jsonArray
+                arr?.mapNotNull { elem ->
+                    val obj = elem.jsonObject
+                    obj["status"]?.jsonPrimitive?.contentOrNull?.trim()?.lowercase()
+                } ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+            val odCount = statuses.count { it == "on duty" || it == "od" || it == "onduty" }
+            if (odCount > 0) {
+                val isLab = course.slotName?.startsWith("L") == true
+                hours += odCount * (if (isLab) 2 else 1)
+            }
+        }
+        return hours
+    }
 
     fun getScheduleData(): AppWidgetScheduleData {
         val rawAttendance = SettingsManager.getString(SettingsManager.CACHE_ATTENDANCE, "")
@@ -120,16 +144,17 @@ object WidgetDataUtils {
 
     fun getAttendanceStats(): AppWidgetStatsData {
         val rawAttendance = SettingsManager.getString(SettingsManager.CACHE_ATTENDANCE, "")
-        val rawGrades = SettingsManager.getString(SettingsManager.CACHE_GRADES, "")
+        val rawMarks = SettingsManager.getString(SettingsManager.CACHE_MARKS, "")
         val json = Json { ignoreUnknownKeys = true }
 
         val attendanceRes = try {
             if (rawAttendance.isNotBlank()) json.decodeFromString<AttendanceRes>(rawAttendance) else null
         } catch (_: Exception) { null }
 
-        val cgpaObj = try {
-            if (rawGrades.isNotBlank()) json.decodeFromString<CGPA>(rawGrades) else null
+        val marksRes = try {
+            if (rawMarks.isNotBlank()) json.decodeFromString<MarksRes>(rawMarks) else null
         } catch (_: Exception) { null }
+        val cgpaObj = marksRes?.cgpa
 
         val courses = (attendanceRes?.attendance ?: emptyList()).filter { it.totalClasses > 0 }
         val totalAttended = courses.sumOf { it.attendedClasses }
@@ -145,7 +170,7 @@ object WidgetDataUtils {
             overallPercentage = overallPctStr,
             cgpa = cgpaStr,
             earnedCredits = creditsStr,
-            odHours = "0 hrs",
+            odHours = "${computeODHours(attendanceRes?.attendance ?: emptyList())} hrs",
             isSafe = overallPctNum >= 75.0 || totalClasses == 0
         )
     }

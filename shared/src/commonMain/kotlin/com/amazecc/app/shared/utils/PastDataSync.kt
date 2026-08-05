@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.utils
 
+import com.amazecc.app.shared.api.AmazeClient
 import kotlinx.serialization.json.*
 import io.ktor.client.*
 import io.ktor.client.request.*
@@ -7,7 +8,6 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 
 object PastDataSync {
-    private const val API_BASE = "https://amazecc.vercel.app" // Adjust accordingly
 
     suspend fun syncPastSemesters(
         allGradesDataStr: String?,
@@ -47,7 +47,7 @@ object PastDataSync {
             if (store.getString(attKey) == null || store.getString(marksKey) == null) {
                 println("Fetching frozen data for past semester: $semId")
                 try {
-                    val response = client.post("$API_BASE/api/attendance") {
+                    val response = client.post("${AmazeClient.baseUrl}/api/attendance") {
                         contentType(ContentType.Application.Json)
                         setBody(buildJsonObject {
                             put("cookies", creds["cookies"] ?: JsonNull)

@@ -1754,7 +1754,7 @@ object AmazeClient {
         }
     }
 
-    suspend fun getSyllabusPdf(courseCode: String): ByteArray? {
+    suspend fun getSyllabusPdf(courseCode: String): SyllabusDownload? {
         val cookies = SessionManager.cookies.value ?: return null
         val authorizedID = SessionManager.authorizedID.value ?: return null
         val csrf = SessionManager.csrf.value ?: return null
@@ -1769,7 +1769,11 @@ object AmazeClient {
                 })
             }
             if (response.status == HttpStatusCode.OK) {
-                response.readBytes()
+                val extension = parseFileExtension(
+                    response.headers["Content-Disposition"],
+                    response.headers["Content-Type"]
+                )
+                SyllabusDownload(response.readBytes(), extension)
             } else null
         } catch (_: Exception) {
             null
@@ -1779,6 +1783,34 @@ object AmazeClient {
     suspend fun checkForUpdate(): GitHubRelease {
         val url = "https://api.github.com/repos/${UpdateConfig.GITHUB_OWNER}/${UpdateConfig.GITHUB_REPO}/releases/latest"
         return httpClient.get(url).body()
+    }
+}
+
+data class SyllabusDownload(
+    val bytes: ByteArray,
+    val extension: String
+)
+
+private fun parseFileExtension(contentDisposition: String?, contentType: String?): String {
+    val fromDisposition = contentDisposition
+        ?.substringAfter("filename=", "")
+        ?.substringBefore(';')
+        ?.trim(' ', '"', '\'')
+        ?.substringAfterLast('.')
+        ?.substringBefore('?')
+        ?.lowercase()
+    if (!fromDisposition.isNullOrBlank() && fromDisposition.length <= 6 && fromDisposition.all { it.isLetterOrDigit() }) {
+        return fromDisposition
+    }
+    val ct = contentType?.lowercase() ?: ""
+    return when {
+        ct.contains("pdf") -> "pdf"
+        ct.contains("zip") -> "zip"
+        ct.contains("wordprocessingml") -> "docx"
+        ct.contains("msword") -> "doc"
+        ct.contains("spreadsheetml") -> "xlsx"
+        ct.contains("excel") -> "xls"
+        else -> "bin"
     }
 }
 

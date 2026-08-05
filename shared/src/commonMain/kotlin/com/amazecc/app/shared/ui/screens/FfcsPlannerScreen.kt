@@ -216,7 +216,7 @@ private fun CourseSelectionTab(
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(6.dp),
-            contentPadding = PaddingValues(bottom = 96.dp)
+            contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
         ) {
             items(filtered, key = { it.first }) { (code, offerings) ->
                 val isSelected = selectedCodes.contains(code)

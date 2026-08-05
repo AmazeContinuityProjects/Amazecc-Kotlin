@@ -23,6 +23,10 @@ import com.amazecc.app.shared.ui.strings.Strings
 @Composable
 fun AboutScreen() {
     val colors = AmazeTheme.colors
+    var currentVersion by remember { mutableStateOf("...") }
+    LaunchedEffect(Unit) {
+        currentVersion = com.amazecc.app.shared.utils.UpdateConfig.getCurrentVersion()
+    }
     var showChangelog by remember { mutableStateOf(false) }
     val changes = listOf(
         "Phase 3: 15 new features including QBank, Faculty Info, Course Management, Projects, Wishlist, Feedback, Documents, Activity Tree, Spotlight Search, and more",
@@ -33,7 +37,7 @@ fun AboutScreen() {
     )
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(title = Strings.about, description = "AmazeCC v2.0.0", showBackButton = true)
+        ScreenHeader(title = Strings.about, description = "AmazeCC", showBackButton = true)
 
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
             item { HeaderSpacer() }
@@ -45,7 +49,7 @@ fun AboutScreen() {
                         }
                         Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("AmazeCC", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Text("Version 2.0.0", style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                        Text("Version $currentVersion", style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                         Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Your all-in-one student companion for VIT. Track attendance, manage academics, explore campus life, and stay connected.", style = AmazeTheme.typography.body.copy(color = colors.textSecondary, textAlign = TextAlign.Center, lineHeight = 20.sp))
                     }
@@ -71,6 +75,6 @@ fun AboutScreen() {
     }
 
     if (showChangelog) {
-        ChangelogModal(version = "2.0.0", changes = changes, onDismiss = { showChangelog = false })
+        ChangelogModal(version = currentVersion, changes = changes, onDismiss = { showChangelog = false })
     }
 }

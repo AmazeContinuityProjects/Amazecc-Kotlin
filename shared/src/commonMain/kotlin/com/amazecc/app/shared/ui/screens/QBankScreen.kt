@@ -131,7 +131,8 @@ fun QBankScreen() {
                 Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                 LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
-                items(courses, key = { it.courseCode }) { course ->
+                    item { HeaderSpacer() }
+                    items(courses, key = { it.courseCode }) { course ->
                     AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { loadQuestions(course) }) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {

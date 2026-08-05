@@ -89,8 +89,9 @@ object SettingsManager {
     const val CACHE_DAYBOARDER = "cache_dayboarder"
     const val CACHE_EPT_SCHEDULE = "cache_ept_schedule"
     const val CACHE_REGISTRATION_SCHEDULE = "cache_registration_schedule"
-    const val CACHE_APAAR_ID = "cache_apaarid"
-
+const val CACHE_APAAR_ID = "cache_apaarid"
+    const val CACHE_OD_TRACKER_STATE = "od_tracker_state"
+ 
     // Notification preferences
     const val NOTIF_CLASS_REMINDERS = "notif_class_reminders"
     const val NOTIF_ASSIGNMENT_REMINDERS = "notif_assignment_reminders"
@@ -202,6 +203,15 @@ object SettingsManager {
         val entries = notes.map { NoteEntry(it.key, it.value) }
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
         setString(CACHE_ATTENDANCE_NOTES, json.encodeToString(kotlinx.serialization.builtins.ListSerializer(NoteEntry.serializer()), entries))
+    }
+
+    // ── OD Tracker (wasted/recovered) ──
+    fun getODTrackerState(): String {
+        return getString(CACHE_OD_TRACKER_STATE, "{}")
+    }
+
+    fun saveODTrackerState(json: String) {
+        setString(CACHE_OD_TRACKER_STATE, json)
     }
 
     fun getCourseNote(courseCode: String): String = getString("course_note_$courseCode", "")

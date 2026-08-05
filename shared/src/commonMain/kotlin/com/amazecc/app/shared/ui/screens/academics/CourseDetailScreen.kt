@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.api.SyllabusDownload
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.model.*
@@ -1201,7 +1202,7 @@ private fun CoursePlanTab(
     mainAtt: AttendanceItem?,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    var syllabusBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var syllabusFile by remember { mutableStateOf<SyllabusDownload?>(null) }
     var syllabusLoading by remember { mutableStateOf(false) }
     var syllabusError by remember { mutableStateOf<String?>(null) }
     var showSchedule by remember { mutableStateOf(false) }
@@ -1212,9 +1213,9 @@ private fun CoursePlanTab(
     LaunchedEffect(courseCode) {
         syllabusLoading = true
         try {
-            val bytes = AmazeClient.getSyllabusPdf(courseCode)
-            syllabusBytes = bytes
-            if (bytes == null) syllabusError = "No syllabus available"
+            val download = AmazeClient.getSyllabusPdf(courseCode)
+            syllabusFile = download
+            if (download == null) syllabusError = "No syllabus available"
         } catch (e: Exception) { syllabusError = e.message }
         syllabusLoading = false
     }
@@ -1232,7 +1233,7 @@ private fun CoursePlanTab(
                             Text("Course Syllabus", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text(courseCode, fontSize = 11.sp, color = colors.textMuted)
                         }
-                        val sb = syllabusBytes
+                        val sb = syllabusFile
                         val se = syllabusError
                         when {
                             syllabusLoading -> CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
@@ -1240,7 +1241,7 @@ private fun CoursePlanTab(
                                 var downloadMsg by remember { mutableStateOf<String?>(null) }
                                 IconButton(onClick = {
                                     scope.launch {
-                                        val saved = saveFile("${courseCode}_syllabus.pdf", sb)
+                                        val saved = saveFile("${courseCode}_syllabus.${sb.extension}", sb.bytes)
                                         downloadMsg = if (saved) "Saved!" else "Failed to save"
                                         delay(2.seconds)
                                         downloadMsg = null
@@ -1309,13 +1310,13 @@ private fun CoursePlanTab(
                 Column {
                     Text("Quick Actions", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    val sb = syllabusBytes
+                    val sb = syllabusFile
                     if (sb != null) {
                         AmazeButton(
-                            "Download Syllabus PDF",
+                            "Download Syllabus",
                             onClick = {
                                 scope.launch {
-                                    saveFile("${courseCode}_syllabus.pdf", sb)
+                                    saveFile("${courseCode}_syllabus.${sb.extension}", sb.bytes)
                                 }
                             },
                             icon = Icons.Rounded.PictureAsPdf,

@@ -24,6 +24,8 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.model.ODEntry
 import com.amazecc.app.shared.model.ODListItem
+import com.amazecc.app.shared.model.ODTrackedEntry
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import androidx.compose.animation.core.animateFloatAsState
@@ -38,9 +40,17 @@ import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.utils.parseViewLink
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.*
 
 private const val OD_TOTAL = 40
+
+private val odTrackerSerializer =
+    MapSerializer(String.serializer(), MapSerializer(String.serializer(), ODTrackedEntry.serializer()))
+
+private val statusMapSerializer =
+    MapSerializer(String.serializer(), MapSerializer(String.serializer(), String.serializer()))
 
 private val tabLabels = listOf("Overview", "Entries")
 
@@ -51,8 +61,8 @@ private data class ODMetrics(
     val wastedHours: Int,
     val recoveredHours: Int
 ) {
-    val validHours: Int get() = labHours + theoryHours - wastedHours
-    val netHours: Int get() = validHours + recoveredHours
+    val validHours: Int get() = labHours + theoryHours - wastedHours + recoveredHours
+    val netHours: Int get() = validHours
 }
 
 private data class ODDay(
@@ -75,10 +85,12 @@ private fun extractODEntries(attendance: List<AttendanceItem>): List<ODDay> {
         } catch (_: Exception) { emptyList() }
 
         for ((date, status) in daily) {
-            if (status.equals("On Duty", ignoreCase = true)) {
+            val normalizedStatus = status.trim().lowercase()
+            val isOD = normalizedStatus == "on duty" || normalizedStatus == "od" || normalizedStatus == "onduty"
+            if (isOD) {
                 val isLab = course.slotName?.startsWith("L") == true
                 val hours = if (isLab) 2 else 1
-                rawEntries.add(date to ODEntry(course.courseTitle, if (isLab) "LAB" else "TH", hours))
+                rawEntries.add(date to ODEntry(course.courseTitle, if (isLab) "LAB" else "TH", hours, course.courseCode))
             }
         }
     }
@@ -89,21 +101,31 @@ private fun extractODEntries(attendance: List<AttendanceItem>): List<ODDay> {
     }.sortedByDescending { it.date }
 }
 
-private fun computeMetrics(odDays: List<ODDay>): ODMetrics {
+private fun computeMetrics(odDays: List<ODDay>, trackerState: Map<String, Map<String, ODTrackedEntry>>): ODMetrics {
     var labHours = 0
     var theoryHours = 0
+    var wastedHours = 0
+    var recoveredHours = 0
     for (day in odDays) {
         for (entry in day.entries) {
             if (entry.type == "LAB") labHours += entry.hours
             else theoryHours += entry.hours
+            // Check tracker for this entry
+            entry.courseCode?.let { code ->
+                val tracked = trackerState[day.date]?.get(code)
+                when (tracked?.status) {
+                    "wasted" -> wastedHours += entry.hours
+                    "recovered" -> recoveredHours += entry.hours
+                }
+            }
         }
     }
     return ODMetrics(
         totalODs = odDays.size,
         labHours = labHours,
         theoryHours = theoryHours,
-        wastedHours = 0,
-        recoveredHours = 0
+        wastedHours = wastedHours,
+        recoveredHours = recoveredHours
     )
 }
 
@@ -114,8 +136,94 @@ fun ODTrackerScreen() {
     val attendanceRes by AppState.attendance.collectAsState()
     val courses = attendanceRes?.attendance ?: emptyList()
 
+    // Tracker state: date -> courseCode -> ODTrackedEntry
+    val trackerState = remember {
+        mutableStateOf<Map<String, Map<String, ODTrackedEntry>>>(
+            try {
+                val json = Json { ignoreUnknownKeys = true }
+                val raw = SettingsManager.getODTrackerState()
+                json.decodeFromString<Map<String, Map<String, ODTrackedEntry>>>(raw)
+            } catch (_: Exception) { emptyMap() }
+        )
+    }
+
+    // Previous status map for auto-detection: date -> courseCode -> status
+    val prevStatusMap = remember {
+        mutableStateOf<Map<String, Map<String, String>>>(
+            try {
+                val json = Json { ignoreUnknownKeys = true }
+                val raw = SettingsManager.getString("od_prev_status_map", "{}")
+                json.decodeFromString<Map<String, Map<String, String>>>(raw)
+            } catch (_: Exception) { emptyMap() }
+        )
+    }
+
     val odDays = remember(courses) { extractODEntries(courses) }
-    val metrics = remember(odDays) { computeMetrics(odDays) }
+
+    // Build current status map for auto-detection
+    val currentStatusMap = remember(courses) {
+        val map = mutableMapOf<String, MutableMap<String, String>>()
+        for (course in courses) {
+            val daily = try {
+                val arr = parseViewLink(course.viewLinkRaw)?.jsonArray
+                arr?.mapNotNull { elem ->
+                    val obj = elem.jsonObject
+                    val date = obj["date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                    val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                    date to status.trim().lowercase()
+                } ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+            for ((date, status) in daily) {
+                map.getOrPut(date) { mutableMapOf() }[course.courseCode] = status
+            }
+        }
+        // Convert to immutable map for comparison and serialization
+        map.mapValues { it.value.toMap() }.toMap()
+    }
+
+    // Auto-detect wasted/recovered on attendance change
+    LaunchedEffect(currentStatusMap) {
+        val prev = prevStatusMap.value
+        if (prev.isNotEmpty() && currentStatusMap != prev) {
+            var trackerUpdated = false
+            val newTracker = trackerState.value.mapValues { it.value.toMutableMap() }.toMutableMap()
+            for ((date, courseStatuses) in currentStatusMap) {
+                val oldCourseStatuses = prev[date] ?: emptyMap()
+                for ((courseCode, newStatus) in courseStatuses) {
+                    val oldStatus = oldCourseStatuses[courseCode]
+                    if (oldStatus != null && oldStatus != newStatus) {
+                        val course = courses.find { it.courseCode == courseCode }
+                        val courseTitle = course?.courseTitle ?: ""
+                        val courseType = course?.courseType ?: ""
+                        val slotName = course?.slotName
+                        if (!newTracker.containsKey(date)) newTracker[date] = mutableMapOf()
+
+                        if (oldStatus == "present" && (newStatus == "on duty" || newStatus == "od" || newStatus == "onduty")) {
+                            newTracker[date]!![courseCode] = ODTrackedEntry(courseTitle, courseType, slotName, "wasted")
+                            trackerUpdated = true
+                        } else if ((oldStatus == "on duty" || oldStatus == "od" || oldStatus == "onduty") && newStatus == "present") {
+                            val existing = newTracker[date]?.get(courseCode)
+                            if (existing != null && existing.status == "wasted") {
+                                newTracker[date]!![courseCode] = existing.copy(status = "recovered")
+                                trackerUpdated = true
+                            }
+                        }
+                    }
+                }
+            }
+            if (trackerUpdated) {
+                val json = Json { ignoreUnknownKeys = true }
+                SettingsManager.saveODTrackerState(json.encodeToString(odTrackerSerializer, newTracker))
+                trackerState.value = newTracker
+            }
+        }
+
+        // Persist current status map for next comparison
+        val json = Json { ignoreUnknownKeys = true }
+        SettingsManager.setString("od_prev_status_map", json.encodeToString(statusMapSerializer, currentStatusMap))
+    }
+
+    val metrics = remember(odDays, trackerState.value) { computeMetrics(odDays, trackerState.value) }
 
     val usedHours = metrics.labHours + metrics.theoryHours
     val usagePercent = if (OD_TOTAL > 0) (usedHours.toFloat() / OD_TOTAL).coerceIn(0f, 1f) else 0f
@@ -254,7 +362,34 @@ fun ODTrackerScreen() {
 
         when (activeTab) {
             0 -> OverviewTab(metrics = metrics, colors = colors)
-            1 -> EntriesTab(entries = odDays, colors = colors)
+            1 -> EntriesTab(
+                entries = odDays,
+                colors = colors,
+                trackerState = trackerState.value,
+                onTrackerChange = { date, courseCode, currentStatus ->
+                    val nextStatus = when (currentStatus) {
+                        "none" -> "wasted"
+                        "wasted" -> "recovered"
+                        "recovered" -> "none"
+                        else -> "wasted"
+                    }
+                    val newTracker = trackerState.value.mapValues { it.value.toMutableMap() }.toMutableMap()
+                    if (!newTracker.containsKey(date)) newTracker[date] = mutableMapOf()
+                    if (nextStatus == "none") {
+                        newTracker[date]?.remove(courseCode)
+                        if (newTracker[date]?.isEmpty() == true) newTracker.remove(date)
+                    } else {
+                        val course = courses.find { it.courseCode == courseCode }
+                        val courseTitle = course?.courseTitle ?: ""
+                        val courseType = course?.courseType ?: ""
+                        val slotName = course?.slotName
+                        newTracker[date]!![courseCode] = ODTrackedEntry(courseTitle, courseType, slotName, nextStatus)
+                    }
+                    val json = Json { ignoreUnknownKeys = true }
+                    SettingsManager.saveODTrackerState(json.encodeToString(odTrackerSerializer, newTracker))
+                    trackerState.value = newTracker
+                }
+            )
         }
     }
 }
@@ -479,7 +614,9 @@ private fun SummaryRow(
 @Composable
 private fun EntriesTab(
     entries: List<ODDay>,
-    colors: com.amazecc.app.shared.theme.AmazeColors
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    trackerState: Map<String, Map<String, ODTrackedEntry>>,
+    onTrackerChange: (String, String, String) -> Unit
 ) {
     if (entries.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -500,6 +637,11 @@ private fun EntriesTab(
                     "Sync attendance data to check for On Duty days",
                     style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
                 )
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+                Text(
+                    "Tap an entry to mark Wasted / Recovered",
+                    style = AmazeTheme.typography.caption.copy(color = colors.accent)
+                )
             }
         }
     } else {
@@ -511,7 +653,7 @@ private fun EntriesTab(
             contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
         ) {
             items(entries, key = { it.date }) { day ->
-                ODDateGroup(group = day, colors = colors)
+                ODDateGroup(group = day, colors = colors, trackerState = trackerState, onTrackerChange = onTrackerChange)
             }
             item { Spacer(Modifier.height(AmazeTheme.spacing.md)) }
         }
@@ -521,8 +663,19 @@ private fun EntriesTab(
 @Composable
 private fun ODDateGroup(
     group: ODDay,
-    colors: com.amazecc.app.shared.theme.AmazeColors
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    trackerState: Map<String, Map<String, ODTrackedEntry>>,
+    onTrackerChange: (String, String, String) -> Unit
 ) {
+    val dayTracker = trackerState[group.date] ?: emptyMap()
+    val hasWasted = dayTracker.values.any { it.status == "wasted" }
+    val allWasted = dayTracker.values.all { it.status == "wasted" }
+    val dayStatus = when {
+        allWasted && dayTracker.isNotEmpty() -> "wasted"
+        hasWasted -> "partial wasted"
+        else -> "valid"
+    }
+
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
@@ -548,6 +701,38 @@ private fun ODDateGroup(
                             fontSize = 15.sp
                         )
                     )
+                    // Day status badge
+                    if (dayStatus != "valid") {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                .background(
+                                    when (dayStatus) {
+                                        "wasted" -> colors.danger.copy(alpha = 0.15f)
+                                        "partial wasted" -> colors.warning.copy(alpha = 0.15f)
+                                        else -> colors.success.copy(alpha = 0.15f)
+                                    }
+                                )
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                when (dayStatus) {
+                                    "wasted" -> "Wasted OD"
+                                    "partial wasted" -> "Partial Wasted"
+                                    else -> "Valid OD"
+                                },
+                                style = AmazeTheme.typography.smallLabel.copy(
+                                    color = when (dayStatus) {
+                                        "wasted" -> colors.danger
+                                        "partial wasted" -> colors.warning
+                                        else -> colors.success
+                                    },
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp
+                                )
+                            )
+                        }
+                    }
                 }
                 Box(
                     modifier = Modifier
@@ -569,8 +754,14 @@ private fun ODDateGroup(
             HorizontalDivider(color = colors.border)
 
             group.entries.forEach { entry ->
+                val tracked = entry.courseCode?.let { code -> dayTracker[code] }
+                val isWasted = tracked?.status == "wasted"
+                val isRecovered = tracked?.status == "recovered"
+
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onTrackerChange(group.date, entry.courseCode ?: "", tracked?.status ?: "none") },
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -584,16 +775,17 @@ private fun ODDateGroup(
                         Icon(
                             typeIcon,
                             null,
-                            tint = typeColor,
+                            tint = if (isWasted) colors.danger else if (isRecovered) Color(0xFF7C3AED) else typeColor,
                             modifier = Modifier.size(16.dp)
                         )
                         Column {
                             Text(
                                 entry.title,
                                 style = AmazeTheme.typography.body.copy(
-                                    color = colors.textPrimary,
+                                    color = if (isWasted) colors.danger else if (isRecovered) Color(0xFF7C3AED) else colors.textPrimary,
                                     fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.Medium,
+                                    textDecoration = if (isWasted) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
                                 )
                             )
                             Text(
@@ -603,14 +795,26 @@ private fun ODDateGroup(
                                     fontSize = 10.sp
                                 )
                             )
+                            if (isWasted || isRecovered) {
+                                Text(
+                                    if (isWasted) "Wasted" else "Recovered",
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        color = if (isWasted) colors.danger else Color(0xFF7C3AED),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 9.sp
+                                    )
+                                )
+                            }
                         }
                     }
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(AmazeTheme.radius.xs))
                             .background(
-                                when (entry.type) {
-                                    "LAB" -> colors.info.copy(alpha = 0.1f)
+                                when {
+                                    isWasted -> colors.danger.copy(alpha = 0.15f)
+                                    isRecovered -> Color(0xFF7C3AED).copy(alpha = 0.15f)
+                                    entry.type == "LAB" -> colors.info.copy(alpha = 0.1f)
                                     else -> colors.warning.copy(alpha = 0.1f)
                                 }
                             )
@@ -619,7 +823,12 @@ private fun ODDateGroup(
                         Text(
                             "${entry.hours}h",
                             style = AmazeTheme.typography.smallLabel.copy(
-                                color = if (entry.type == "LAB") colors.info else colors.warning,
+                                color = when {
+                                    isWasted -> colors.danger
+                                    isRecovered -> Color(0xFF7C3AED)
+                                    entry.type == "LAB" -> colors.info
+                                    else -> colors.warning
+                                },
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp
                             )

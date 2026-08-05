@@ -54,6 +54,7 @@ import com.amazecc.app.shared.ui.screens.academics.AddTaskDialog
 import com.amazecc.app.shared.ui.strings.Strings
 import io.ktor.util.decodeBase64Bytes
 import com.amazecc.app.shared.utils.toImageBitmap
+import com.amazecc.app.shared.utils.WidgetDataUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
@@ -762,7 +763,7 @@ private fun MetricCardsWidget() {
         marksRes?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
     }
     val odCount = remember(courses) {
-        0
+        WidgetDataUtils.computeODHours(courses)
     }
 
     Row(
@@ -788,8 +789,8 @@ private fun MetricCardsWidget() {
             onClick = { AppState.navigateTo(Screen.PAYMENTS) }
         )
         GlassMetricCard(
-            title = "ODs",
-            value = if (courses.isNotEmpty()) "$odCount" else "\u2014",
+            title = "OD Hours",
+            value = if (courses.isNotEmpty()) "${odCount}h" else "\u2014",
             icon = Icons.Rounded.CheckCircle,
             colors = colors,
             iconTint = colors.success,

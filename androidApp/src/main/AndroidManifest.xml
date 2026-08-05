@@ -10,7 +10,7 @@
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
 
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:usesCleartextTraffic="true"
         android:name=".MainApplication"
         android:enableOnBackInvokedCallback="true"

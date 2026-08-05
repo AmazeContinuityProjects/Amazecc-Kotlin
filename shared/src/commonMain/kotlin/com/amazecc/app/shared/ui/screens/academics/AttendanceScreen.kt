@@ -716,7 +716,7 @@ fun buildWorkingDays(months: List<CalendarMonth>): List<Triple<Int, Int, Int>> {
             val isWorking = day.events.any {
                 val t = it.type.lowercase()
                 val txt = it.text.lowercase()
-                t == "instructional day" || txt.contains("instructional day") || txt.contains("working")
+                t == "instructional day" || txt.contains("instructional day") || txt.contains("working") || txt.contains("order") || com.amazecc.app.shared.utils.AttendanceTimetable.getDayOrderLabelFromText(it.text) != null
             }
             val isHoliday = day.events.any {
                 val t = it.type.lowercase()
@@ -757,7 +757,7 @@ private fun computeFutureClasses(
 
     for (course in courses) {
         val code = course.courseCode
-        val isLab = code.endsWith("(L)") || course.courseType == "Lab"
+        val isLab = code.endsWith("(L)") || course.courseType.lowercase().contains("lab")
 
         val courseCutoff = when (selectedMode) {
             "CAT1" -> impDates["cat i"]
@@ -789,7 +789,12 @@ private fun computeFutureClasses(
                 val display = "${m}/${d}"
                 // For labs, count as 2 slots (theory + practical in same day)
                 futureDates.add(FutureDate(dateVal, display, dayAbbrToName(abbr)))
-                if (isLab) futureDates.add(FutureDate(dateVal, "$display (Lab2)", dayAbbrToName(abbr)))
+                if (isLab) {
+                    val slots = course.slotName?.split("+")?.filter { it.trim().isNotEmpty() } ?: emptyList()
+                    if (slots.size >= 2) {
+                        futureDates.add(FutureDate(dateVal, "$display (Lab2)", dayAbbrToName(abbr)))
+                    }
+                }
             }
         }
 

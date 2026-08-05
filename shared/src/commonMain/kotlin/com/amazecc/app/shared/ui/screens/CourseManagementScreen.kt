@@ -22,6 +22,7 @@ import com.amazecc.app.shared.model.ArrearResponse
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import kotlinx.coroutines.launch
 
@@ -115,6 +116,7 @@ fun CourseManagementScreen() {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
             ) {
+                item { HeaderSpacer() }
                 if (response == null || response.success == false) {
                     item {
                         AmazeCard(modifier = Modifier.fillMaxWidth()) {
