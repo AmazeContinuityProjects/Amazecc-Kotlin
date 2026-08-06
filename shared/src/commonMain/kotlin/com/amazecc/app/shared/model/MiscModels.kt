@@ -476,6 +476,15 @@ data class FacultyScrapeRes(
 )
 
 @Serializable
+data class DirectoryCCProfile(
+    val employeeId: String = "",
+    val name: String = "",
+    val designation: String = "",
+    val email: String = "",
+    val intercom: String = ""
+)
+
+@Serializable
 data class CabTrip(
     val id: String,
     val from: String,

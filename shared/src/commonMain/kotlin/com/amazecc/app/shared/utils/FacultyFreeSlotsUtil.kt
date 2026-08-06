@@ -38,8 +38,6 @@ object FacultyFreeSlotsUtil {
     private var csvParsed = false
     private var csvRecords: List<CsvRecord> = emptyList()
     private val idRegex = Regex("""\(([^)]+)\)""")
-    private val normalizeRegex1 = Regex("""\b(dr|prof|mr|mrs|ms)\.?\b""")
-    private val normalizeRegex2 = Regex("""[.\s]+""")
 
     private fun ensureCsvParsed() {
         if (csvParsed) return
@@ -77,35 +75,33 @@ object FacultyFreeSlotsUtil {
         val idMatch = idRegex.find(csvFacultyRaw)
         val extractedId = idMatch?.groupValues?.getOrNull(1)?.trim()
 
-        if (extractedId != null) {
+        if (!extractedId.isNullOrEmpty() && extractedId.any { it.isDigit() }) {
             if (extractedId.equals(faculty.id, ignoreCase = true) ||
                 extractedId.equals(faculty.employeeId, ignoreCase = true)
             ) return true
+            // An id that is present but differs means a different person - never fall through to name matching.
+            return false
         }
 
         val csvName = csvFacultyRaw.replace(idRegex, "").trim()
 
-        fun normalize(s: String): String {
-            return s.lowercase()
-                .replace(normalizeRegex1, "")
-                .replace(normalizeRegex2, " ")
-                .trim()
-        }
-
-        val normCsv = normalize(csvName)
-        val normFaculty = normalize(faculty.name)
+        val normCsv = FacultyUtils.normalizeName(csvName)
+        val normFaculty = FacultyUtils.normalizeName(faculty.name)
         if (normCsv.isEmpty() || normFaculty.isEmpty()) return false
         if (normCsv == normFaculty) return true
 
-        if (normCsv.contains(normFaculty) && normCsv.length >= normFaculty.length * 3) return true
-        if (normFaculty.contains(normCsv) && normFaculty.length >= normCsv.length * 3) return true
+        // Match the name exactly or 95%+ (the VTOP name from the course matches the FFCS report)
+        if (FacultyUtils.nameSimilarity(normCsv, normFaculty) >= 0.95) return true
 
+        // CSV-quirk fallback: one name is fully contained in the other (extra title/suffix),
+        // so people sharing a first name (e.g. "Karthik S" vs "Karthik R") never collapse.
         val csvTokens = normCsv.split(" ").filter { it.length > 1 }
         val facultyTokens = normFaculty.split(" ").filter { it.length > 1 }
         if (csvTokens.isEmpty() || facultyTokens.isEmpty()) return false
 
-        val common = csvTokens.intersect(facultyTokens.toSet()).size
-        return common >= csvTokens.size / 2 && common >= facultyTokens.size / 2 && common > 0
+        val csvSet = csvTokens.toSet()
+        val facultySet = facultyTokens.toSet()
+        return csvSet.containsAll(facultySet) || facultySet.containsAll(csvSet)
     }
 
     fun getFacultySchedule(faculty: FacultyProfile): FacultyFreeSlotsResult {

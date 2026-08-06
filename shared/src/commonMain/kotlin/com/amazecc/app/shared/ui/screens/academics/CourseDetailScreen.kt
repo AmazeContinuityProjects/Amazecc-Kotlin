@@ -60,6 +60,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.utils.parseViewLink
 import com.amazecc.app.shared.utils.rememberFileSaver
+import com.amazecc.app.shared.utils.ParsedFaculty
+import com.amazecc.app.shared.ui.screens.FacultyDetailScreen
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
@@ -134,6 +136,29 @@ fun CourseDetailScreen(onBack: () -> Unit) {
     val isEmbedded = (group?.theory != null && group?.lab != null) || (group?.theoryAtt != null && group?.labAtt != null)
     val coroutineScope = rememberCoroutineScope()
 
+    var facultyView by remember { mutableStateOf<FacultyProfile?>(null) }
+    var facultyLoading by remember { mutableStateOf(false) }
+
+    val onViewFaculty: (ParsedFaculty) -> Unit = { parsed ->
+        if (!facultyLoading) {
+            coroutineScope.launch {
+                facultyLoading = true
+                val dir = AmazeClient.searchFacultyDirectory(parsed.name, parsed.id, parsed.school)
+                facultyLoading = false
+                facultyView = FacultyProfile(
+                    id = parsed.id ?: dir?.id ?: "",
+                    name = parsed.name.ifBlank { dir?.name ?: parsed.name },
+                    designation = dir?.designation ?: "",
+                    imageUrl = dir?.imageUrl ?: "",
+                    profileUrl = dir?.profileUrl ?: "",
+                    email = dir?.email ?: "",
+                    employeeId = dir?.employeeId ?: parsed.id ?: "",
+                    intercom = dir?.intercom ?: ""
+                )
+            }
+        }
+    }
+
     val theoryAtt = group?.theoryAtt
     val labAtt = group?.labAtt
     val mainAtt = theoryAtt ?: labAtt
@@ -157,6 +182,12 @@ fun CourseDetailScreen(onBack: () -> Unit) {
                 AmazeButton("Go Back", onClick = onBack)
             }
         }
+        return
+    }
+
+    val fv = facultyView
+    if (fv != null) {
+        FacultyDetailScreen(faculty = fv, onBack = { facultyView = null })
         return
     }
 
@@ -252,7 +283,7 @@ fun CourseDetailScreen(onBack: () -> Unit) {
 
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
                 when (innerTab) {
-                    "overview" -> OverviewTab(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, qcmTables, qcmLoading, { AppState.refreshQcmView() }, colors)
+                    "overview" -> OverviewTab(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, qcmTables, qcmLoading, { AppState.refreshQcmView() }, facultyLoading, onViewFaculty, colors)
                     "grades" -> GradeHistoryTab(courseCode, allGrades, group, colors)
                     "marks" -> MarksTab(group, isEmbedded, allGrades, mainSemesterId, colors)
                     "attendance" -> AttendanceTab(courseCode, group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, calendar, colors)
@@ -283,6 +314,8 @@ private fun OverviewTab(
     qcmTables: List<QcmTable>,
     qcmLoading: Boolean,
     refreshQcm: () -> Unit,
+    facultyLoading: Boolean,
+    onViewFaculty: (ParsedFaculty) -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val moodleAssignments = remember(group) {
@@ -339,7 +372,10 @@ private fun OverviewTab(
                     Text("Course Details", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     Spacer(Modifier.height(12.dp))
                     val mainCourse = group.theory ?: group.lab
-                    val rawFaculty = mainCourse?.faculty
+                    val rawFaculty = mainCourse?.faculty?.ifBlank { null }
+                        ?: group.theoryAtt?.faculty?.ifBlank { null }
+                        ?: group.labAtt?.faculty?.ifBlank { null }
+                        ?: mainAtt?.faculty?.ifBlank { null }
                     val parsedFac = if (!rawFaculty.isNullOrBlank()) com.amazecc.app.shared.utils.FacultyUtils.parseFaculty(rawFaculty) else null
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -382,6 +418,13 @@ private fun OverviewTab(
                                     }
                                 }
                             }
+                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                            AmazeButton(
+                                text = if (facultyLoading) "Finding faculty..." else "View Faculty & Free Slots",
+                                onClick = { onViewFaculty(parsedFac) },
+                                modifier = Modifier.fillMaxWidth(),
+                                variant = ButtonVariant.SECONDARY
+                            )
                         }
                     }
 

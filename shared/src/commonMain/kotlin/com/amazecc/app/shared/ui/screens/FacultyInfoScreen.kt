@@ -209,7 +209,18 @@ fun FacultyInfoScreen() {
                             items(filtered, key = { it.id }) { faculty ->
                                 FacultyCard(
                                     faculty = faculty,
-                                    onClick = { selectedFaculty = faculty }
+                                    onClick = { selectedFaculty = faculty },
+                                    onDetailFetched = { profile ->
+                                        faculties = faculties.map {
+                                            if (it.id == profile.id) {
+                                                it.copy(
+                                                    designation = profile.designation.ifBlank { it.designation },
+                                                    email = profile.email.ifBlank { it.email },
+                                                    intercom = profile.intercom.ifBlank { it.intercom }
+                                                )
+                                            } else it
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -233,9 +244,19 @@ fun FacultyInfoScreen() {
 }
 
 @Composable
-private fun FacultyCard(faculty: FacultyProfile, onClick: () -> Unit) {
+private fun FacultyCard(faculty: FacultyProfile, onClick: () -> Unit, onDetailFetched: (FacultyProfile) -> Unit) {
     val colors = AmazeTheme.colors
     var expanded by remember { mutableStateOf(false) }
+    var loadingDetail by remember { mutableStateOf(false) }
+
+    LaunchedEffect(expanded, faculty.email) {
+        if (expanded && faculty.email.isBlank() && faculty.employeeId.isNotBlank()) {
+            loadingDetail = true
+            val profile = AmazeClient.getFacultyProfile(faculty.employeeId)
+            loadingDetail = false
+            if (profile != null) onDetailFetched(profile)
+        }
+    }
 
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.clickable { expanded = !expanded }.padding(16.dp)) {
@@ -272,6 +293,17 @@ private fun FacultyCard(faculty: FacultyProfile, onClick: () -> Unit) {
                 if (faculty.email.isNotBlank()) {
                     Text("Email", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     Text(faculty.email, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                } else if (loadingDetail) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 2.dp,
+                            color = colors.textMuted
+                        )
+                        Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                        Text("Loading details...", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                    }
                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
                 }
                 AmazeButton(

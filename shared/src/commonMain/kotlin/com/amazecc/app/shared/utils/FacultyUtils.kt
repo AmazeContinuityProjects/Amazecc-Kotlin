@@ -80,4 +80,28 @@ object FacultyUtils {
         }
         return clean
     }
+
+    private val titleRegex = Regex("""\b(dr|prof|mr|mrs|ms)\.?\b""")
+
+    fun normalizeName(name: String): String {
+        var n = name.lowercase()
+        n = n.replace(titleRegex, " ")
+        n = n.replace(Regex("""[^a-z0-9]+"""), " ")
+        return n.trim()
+    }
+
+    /**
+     * Bigram Dice coefficient of two names (0.0 - 1.0). Identical normalized names score 1.0.
+     */
+    fun nameSimilarity(a: String, b: String): Double {
+        val na = normalizeName(a)
+        val nb = normalizeName(b)
+        if (na.isEmpty() || nb.isEmpty()) return 0.0
+        if (na == nb) return 1.0
+        val bigramsA = na.windowed(2).toSet()
+        val bigramsB = nb.windowed(2).toSet()
+        if (bigramsA.isEmpty() || bigramsB.isEmpty()) return 0.0
+        val intersection = bigramsA.intersect(bigramsB).size
+        return 2.0 * intersection / (bigramsA.size + bigramsB.size)
+    }
 }

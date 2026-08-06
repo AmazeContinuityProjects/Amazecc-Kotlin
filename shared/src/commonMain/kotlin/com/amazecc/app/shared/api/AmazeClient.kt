@@ -30,6 +30,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import com.amazecc.app.shared.utils.AnalyzeCalendar
+import com.amazecc.app.shared.utils.FacultyUtils
 import com.amazecc.app.shared.utils.UpdateConfig
 
 @Serializable
@@ -1580,6 +1581,76 @@ object AmazeClient {
         }
     }
 
+    suspend fun getFacultyProfile(employeeId: String): FacultyProfile? {
+        return try {
+            val response: HttpResponse = httpClient.get("https://directorycc.vit.ac.in/api/faculty/$employeeId")
+            if (response.status == HttpStatusCode.OK) {
+                val p: DirectoryCCProfile = jsonConfig.decodeFromString(response.bodyAsText())
+                FacultyProfile(
+                    id = p.employeeId,
+                    name = p.name,
+                    designation = p.designation,
+                    email = p.email,
+                    employeeId = p.employeeId,
+                    intercom = p.intercom
+                )
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun directorySchoolIds(schoolHint: String?): Set<String> {
+        if (schoolHint.isNullOrBlank()) return emptySet()
+        return when (schoolHint.trim().uppercase()) {
+            "SCOPE" -> setOf("scope")
+            "SELECT" -> setOf("select")
+            "SENSE" -> setOf("sense")
+            "SMEC" -> setOf("smec")
+            "SCE" -> setOf("sce")
+            "SSL" -> setOf("SSL")
+            "SBST" -> setOf("SBST")
+            "VSMART", "V-SMART", "SMART" -> setOf("V-SMART")
+            "VFIT", "VFSI" -> setOf("vfsi")
+            "VITSOL", "VSL" -> setOf("vsl")
+            "SAS" -> setOf("SASP", "SASM", "SASC")
+            else -> emptySet() // unknown / university-wide: search all schools
+        }
+    }
+
+    /**
+     * Looks up a faculty member's details from the directorycc.vit.ac.in directory.
+     * 1. Tries the VTOP employee id directly.
+     * 2. Falls back to a roster search (scraped school lists) matching the given name exactly or 95%+.
+     * The name used for matching is the VTOP/FFCS name, not the directory name.
+     */
+    suspend fun searchFacultyDirectory(name: String, idHint: String? = null, schoolHint: String? = null): FacultyProfile? {
+        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return null
+
+        val directId = idHint?.takeIf { it.isNotBlank() && it.all { c -> c.isDigit() } }
+        if (directId != null) {
+            val direct = getFacultyProfile(directId)
+            if (direct != null && direct.name.isNotBlank()) return direct
+        }
+
+        val targetIds = directorySchoolIds(schoolHint)
+        val schoolsRes = getFacultySchools()
+        for (school in schoolsRes.schools) {
+            if (targetIds.isNotEmpty() && school.id !in targetIds) continue
+            val roster = postFacultyScrape(school.id)
+            if (!roster.success) continue
+            for (f in roster.faculties) {
+                if (FacultyUtils.nameSimilarity(name, f.name) >= 0.95) {
+                    val detail = if (f.employeeId.isNotBlank()) getFacultyProfile(f.employeeId) ?: f else f
+                    return detail
+                }
+            }
+        }
+        return null
+    }
+
     suspend fun getCourseOptionChange(): ArrearResponse {
         if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
             return ArrearResponse(
@@ -1745,7 +1816,7 @@ object AmazeClient {
 
     suspend fun getFFCSReport(): ByteArray? {
         return try {
-            val response: HttpResponse = httpClient.get("https://amazecc.vit.ac.in/ffcs/ffcsReport.csv")
+            val response: HttpResponse = httpClient.get("https://amazecc.como/ffcs/ffcsReport.csv")
             if (response.status == HttpStatusCode.OK) {
                 response.readBytes()
             } else null
