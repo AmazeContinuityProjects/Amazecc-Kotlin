@@ -200,7 +200,8 @@ object NotificationsUtils {
         assignments: List<LMSAssignment>?,
         tasks: List<HomeworkTask>? = null
     ) {
-        CoroutineScope(Dispatchers.Main).launch {
+        // Alarms/permission work involves binder transactions — never on the main thread.
+        CoroutineScope(Dispatchers.Default).launch {
             if (attendance != null && slotMap != null && attendance.isNotEmpty()) {
                 scheduleClassReminders(attendance, slotMap)
             }

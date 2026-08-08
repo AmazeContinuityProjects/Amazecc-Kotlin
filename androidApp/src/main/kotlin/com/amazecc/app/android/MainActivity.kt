@@ -25,6 +25,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val nfcManager = AndroidNfcManager(this)
+
+        AppState.checkDueSync()
         
         val targetScreenStr = intent?.getStringExtra("target_screen")
         if (!targetScreenStr.isNullOrEmpty()) {
@@ -63,5 +65,10 @@ class MainActivity : ComponentActivity() {
                 MainView()
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AppState.checkDueSync()
     }
 }

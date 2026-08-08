@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.supervisorScope
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
@@ -172,16 +173,6 @@ object AppState {
         return 0
     }
 
-    // Sync toggles (mirror web app settings)
-    private val _syncExam = MutableStateFlow(true)
-    val syncExam: StateFlow<Boolean> = _syncExam.asStateFlow()
-    private val _syncProfile = MutableStateFlow(true)
-    val syncProfile: StateFlow<Boolean> = _syncProfile.asStateFlow()
-    private val _syncAdditional = MutableStateFlow(true)
-    val syncAdditional: StateFlow<Boolean> = _syncAdditional.asStateFlow()
-    private val _syncArrear = MutableStateFlow(true)
-    val syncArrear: StateFlow<Boolean> = _syncArrear.asStateFlow()
-
     // Student profile data
     private val _studentProfile = MutableStateFlow<StudentProfile?>(null)
     val studentProfile: StateFlow<StudentProfile?> = _studentProfile.asStateFlow()
@@ -275,9 +266,6 @@ object AppState {
         // Load persisted settings
         _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
         _attendanceDisplayMode.value = AttendanceDisplayMode.fromString(SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage"))
-        _syncExam.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_EXAM, true)
-        _syncProfile.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_PROFILE, true)
-        _syncAdditional.value = SettingsManager.getBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, true)
         _updateDialogDismissedVersion.value = SettingsManager.getString(SettingsManager.KEY_UPDATE_DISMISSED_VERSION, "")
 
         val savedTheme = SettingsManager.getString(SettingsManager.KEY_APP_THEME, "")
@@ -399,14 +387,13 @@ object AppState {
             if (cachedExams.isNotBlank()) _allSemesterExams.value = jsonFormat.decodeFromString(cachedExams)
         } catch (e: Exception) { println("AmazeCC: AppState loadCachedData allSemesterExams — ${e.message}") }
         // Also load moodle
-        val cachedMoodle = settings.getString("moodle_data_cache", "")
+        val cachedMoodle = settings.getString(SettingsManager.CACHE_MOODLE, "")
         if (cachedMoodle.isNotBlank()) {
             try {
                 _moodleData.value = jsonFormat.decodeFromString<MoodleRes>(cachedMoodle)
             } catch (e: Exception) { println("AmazeCC: AppState loadCachedData moodle — ${e.message}") }
         }
-        // Sync cached modules state to SyncEngine
-        updateModuleStatesFromCache()
+        // Module states are left IDLE until an actual sync writes SUCCESS/ERROR
         loadTasks()
     }
 
@@ -477,37 +464,6 @@ object AppState {
         if (_allSemesterMarks.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value); saved++ }
         if (_allSemesterExams.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value); saved++ }
         SyncEngine.addLog(SyncModule.ATTENDANCE, "Saved $saved modules offline", SyncStatus.SUCCESS)
-    }
-
-    // ── Mark cached modules as SUCCESS in SyncEngine ──
-    private fun updateModuleStatesFromCache() {
-        if (_attendance.value != null) SyncEngine.updateModuleState(SyncModule.ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_timetable.value != null) SyncEngine.updateModuleState(SyncModule.TIMETABLE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_marks.value != null) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_allGrades.value != null) SyncEngine.updateModuleState(SyncModule.GRADES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_curriculum.value != null) SyncEngine.updateModuleState(SyncModule.CURRICULUM, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_hostelDetails.value != null) SyncEngine.updateModuleState(SyncModule.HOSTEL_DETAILS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_examSchedule.value != null) SyncEngine.updateModuleState(SyncModule.EXAM_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_calendar.value != null) SyncEngine.updateModuleState(SyncModule.CALENDAR, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_calendarsList.value != null) SyncEngine.updateModuleState(SyncModule.CALENDARS_LIST, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_qcmView.value != null) SyncEngine.updateModuleState(SyncModule.QCM_VIEW, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_payments.value != null) SyncEngine.updateModuleState(SyncModule.PAYMENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_library.value != null) SyncEngine.updateModuleState(SyncModule.LIBRARY, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_transportData.value != null) SyncEngine.updateModuleState(SyncModule.TRANSPORT, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_buses.value != null) SyncEngine.updateModuleState(SyncModule.BUSES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_lms.value != null) SyncEngine.updateModuleState(SyncModule.LMS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_events.value != null) SyncEngine.updateModuleState(SyncModule.EVENTS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_clubs.value != null) SyncEngine.updateModuleState(SyncModule.CLUBS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_cachedStudentProfile.value != null) SyncEngine.updateModuleState(SyncModule.STUDENT_PROFILE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_profileImages.value != null) SyncEngine.updateModuleState(SyncModule.PROFILE_IMAGES, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_bankInfo.value != null) SyncEngine.updateModuleState(SyncModule.BANK_INFO, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_dayboarder.value != null) SyncEngine.updateModuleState(SyncModule.DAYBOARDER, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_eptSchedule.value != null) SyncEngine.updateModuleState(SyncModule.EPT_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_registrationSchedule.value != null) SyncEngine.updateModuleState(SyncModule.REGISTRATION_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_apaarId.value != null) SyncEngine.updateModuleState(SyncModule.APAAR_ID, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_circulars.value != null) SyncEngine.updateModuleState(SyncModule.CIRCULARS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_allSemesterAttendance.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_allSemesterMarks.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
     }
 
     fun restoreSession(): Boolean {
@@ -751,97 +707,134 @@ object AppState {
         return false
     }
 
+    private var pendingSemesterSwitch: String? = null
+
     fun selectSemester(semesterId: String) {
         _selectedSemester.value = semesterId
         _selectedExamSemester.value = semesterId
         _examSchedule.value = _allSemesterExams.value[semesterId]
-        // Refresh semester-specific data
+        // Refresh semester-specific data (chains after any in-flight sweep)
         if (SessionManager.isLoggedIn) {
             loadSemesterData(semesterId)
         }
     }
 
     fun loadSemesterData(semesterId: String) {
-        if (_isLoading.value) return
-        _isLoading.value = true
-        scope.launch {
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) {
+            pendingSemesterSwitch = semesterId
+            return
+        }
+        val sweepModules = listOf(
+            SyncEngine.moduleOf("Attendance and CGPA"), SyncEngine.moduleOf("Timetable"),
+            SyncEngine.moduleOf("Calendar")
+        ).filterNotNull().filter { SyncEngine.isModuleEnabled(it) }.toSet()
+        launchSweep(sweepModules) {
             _error.value = null
             _syncStatus.value = "Syncing semester data..."
-            try {
-                val results = supervisorScope {
-                    listOf(
-                        async {
-                            syncModule(
-                                name = "Attendance and CGPA",
-                                fetch = { AmazeClient.getAcademicData(semesterId) },
-                                isSuccess = { it.attendance.error == null && it.marks?.error == null },
-                                errorMessage = { it.attendance.error ?: it.marks?.error },
-                                update = {
-                                    _attendance.value = it.attendance
-                                    _allSemesterAttendance.value = _allSemesterAttendance.value + (semesterId to it.attendance)
-                                    cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
-                                    it.marks?.let { marks ->
-                                        _marks.value = marks
-                                        _allSemesterMarks.value = _allSemesterMarks.value + (semesterId to marks)
-                                        cacheData(SettingsManager.CACHE_MARKS, marks)
-                                    }
+            val results = supervisorScope {
+                listOf(
+                    async {
+                        syncModule(
+                            name = "Attendance and CGPA",
+                            fetch = { AmazeClient.getAcademicData(semesterId) },
+                            isSuccess = { it.attendance.error == null && it.marks?.error == null },
+                            errorMessage = { it.attendance.error ?: it.marks?.error },
+                            update = {
+                                _attendance.value = it.attendance
+                                _allSemesterAttendance.value = _allSemesterAttendance.value + (semesterId to it.attendance)
+                                cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
+                                it.marks?.let { marks ->
+                                    _marks.value = marks
+                                    _allSemesterMarks.value = _allSemesterMarks.value + (semesterId to marks)
+                                    cacheData(SettingsManager.CACHE_MARKS, marks)
                                 }
-                            )
-                        },
-                        async {
-                            syncModule(
-                                name = "Timetable",
-                                fetch = { AmazeClient.getTimetable(semesterId) },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
-                                update = {
-                                    _timetable.value = it
-                                    cacheData(SettingsManager.CACHE_TIMETABLE, it)
-                                }
-                            )
-                        },
-                        async {
-                            syncModule(
-                                name = "Calendar",
-                                fetch = { AmazeClient.getCalendars(semesterId) },
-                                isSuccess = { it.success },
-                                errorMessage = { it.message },
-                                update = {
-                                    _calendarsList.value = it
-                                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
-                                }
-                            )
-                        }
-                    ).awaitAll()
-                }
-                updateSyncSummary(results)
-            } finally {
-                _isLoading.value = false
+                            }
+                        )
+                    },
+                    async {
+                        syncModule(
+                            name = "Timetable",
+                            fetch = { AmazeClient.getTimetable(semesterId) },
+                            isSuccess = { it.error == null },
+                            errorMessage = { it.error },
+                            update = {
+                                _timetable.value = it
+                                cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                            }
+                        )
+                    },
+                    async {
+                        syncModule(
+                            name = "Calendar",
+                            fetch = { AmazeClient.getCalendars(semesterId) },
+                            isSuccess = { it.success },
+                            errorMessage = { it.message },
+                            update = {
+                                _calendarsList.value = it
+                                cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                            }
+                        )
+                    }
+                ).awaitAll()
             }
+            updateSyncSummary(results)
         }
     }
 
-    private var currentSyncJob: Job? = null
+    private var sweepJob: Job? = null
+
+    private fun launchSweep(modules: Set<SyncModule>, stageProfile: String? = null, block: suspend () -> Unit) {
+        if (sweepJob?.isActive == true) return
+        sweepJob = scope.launch {
+            _isLoading.value = true
+            _isSyncing.value = true
+            SyncEngine.beginSweep(modules)
+            try {
+                if (stageProfile != null) {
+                    SyncEngine.withStageProfile(stageProfile) { block() }
+                } else {
+                    block()
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } finally {
+                SyncEngine.endSweep()
+                _isLoading.value = false
+                _isSyncing.value = false
+            }
+        }
+        SyncEngine.registerJob(sweepJob!!)
+    }
 
     fun cancelSync() {
-        currentSyncJob?.cancel()
-        currentSyncJob = null
+        SyncEngine.cancelAll()
+        sweepJob = null
+        pendingSemesterSwitch = null
         _isLoading.value = false
         _isSyncing.value = false
         _syncMessage.value = null
         _syncStatus.value = "Sync cancelled"
-        SyncEngine.cancelAll()
         SyncEngine.setShowSyncDialog(false)
     }
 
-    fun loadAllData() {
+    fun loadAllData(scheduledFor: String? = null) {
         if (_isLoading.value) return
-        currentSyncJob?.cancel()
-        currentSyncJob = scope.launch {
-            _isLoading.value = true
-            _isSyncing.value = true
+        val stageProfile = when (scheduledFor) {
+            SyncScheduler.FULL_KIND -> SyncScheduler.fullProfileId()
+            SyncScheduler.LIGHT_KIND -> SyncScheduler.lightProfileId()
+            else -> null
+        }
+        val sweepModules = listOf(
+            "Attendance", "All Semesters Attendance", "Timetable", "Grade history", "Curriculum",
+            "Hostel details", "Exam schedule", "All Semesters Exam Schedule", "Academic calendar",
+            "Calendars list", "Payments", "Library", "Transport Data", "Buses", "LMS",
+            "Registered Events", "Clubs", "QCM View", "Student Profile", "Profile Images",
+            "Bank Information", "Dayboarder Info", "EPT Schedule", "Registration Schedule",
+            "APAAR ID", "Circulars", "Moodle Assignments"
+        ).mapNotNull { SyncEngine.moduleOf(it) }.filter { SyncEngine.isModuleEnabled(it) }.toSet()
+
+        launchSweep(sweepModules, stageProfile = stageProfile) {
             _error.value = null
-            SyncEngine.markAllLoading()
             _syncMessage.value = "Refreshing VTOP session..."
             _syncStatus.value = "Refreshing VTOP session..."
             notificationService.showLoadingNotification("AmazeCC Sync", "Refreshing VTOP session...")
@@ -895,7 +888,10 @@ object AppState {
                             )
                         },
                         async {
-                            if (_pastSemestersSynced.value) {
+                            if (!SyncEngine.isModuleEnabled(SyncModule.ALL_SEMESTER_ATTENDANCE)) {
+                                SyncModuleResult("All Semesters Attendance", true)
+                            } else if (_pastSemestersSynced.value) {
+                                SyncEngine.markModuleSuccess(SyncModule.ALL_SEMESTER_ATTENDANCE)
                                 SyncModuleResult("All Semesters Attendance", true)
                             } else {
                                 var failed = false
@@ -920,6 +916,8 @@ object AppState {
                                 _allSemesterMarks.value = newMarksMap
                                 cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
                                 cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
+                                if (failed) SyncEngine.markModuleError(SyncModule.ALL_SEMESTER_ATTENDANCE, "Some past semesters failed")
+                                else SyncEngine.markModuleSuccess(SyncModule.ALL_SEMESTER_ATTENDANCE)
                                 SyncModuleResult("All Semesters Attendance", !failed)
                             }
                         },
@@ -987,20 +985,26 @@ object AppState {
                             )
                         },
                         async {
-                            var examFailed = false
-                            for (semId in semesterIDs) {
-                                if (semId == sem) continue
-                                try {
-                                    val res = AmazeClient.getExamSchedule(semesterId = semId)
-                                    if (res.error == null && res.schedule.isNotEmpty()) {
-                                        val examCurrent = _allSemesterExams.value.toMutableMap()
-                                        examCurrent[semId] = res
-                                        _allSemesterExams.value = examCurrent
-                                    }
-                                } catch (_: Exception) { examFailed = true }
+                            if (!SyncEngine.isModuleEnabled(SyncModule.EXAM_SCHEDULE)) {
+                                SyncModuleResult("All Semesters Exam Schedule", true)
+                            } else {
+                                var examFailed = false
+                                for (semId in semesterIDs) {
+                                    if (semId == sem) continue
+                                    try {
+                                        val res = AmazeClient.getExamSchedule(semesterId = semId)
+                                        if (res.error == null && res.schedule.isNotEmpty()) {
+                                            val examCurrent = _allSemesterExams.value.toMutableMap()
+                                            examCurrent[semId] = res
+                                            _allSemesterExams.value = examCurrent
+                                        }
+                                    } catch (_: Exception) { examFailed = true }
+                                }
+                                cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value)
+                                if (examFailed) SyncEngine.markModuleError(SyncModule.EXAM_SCHEDULE, "Some past semester schedules failed")
+                                else SyncEngine.markModuleSuccess(SyncModule.EXAM_SCHEDULE)
+                                SyncModuleResult("All Semesters Exam Schedule", !examFailed)
                             }
-                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value)
-                            SyncModuleResult("All Semesters Exam Schedule", !examFailed)
                         },
                         async {
                             syncModule(
@@ -1092,6 +1096,24 @@ object AppState {
                             )
                         },
                         async {
+                            val moodleCreds = SettingsManager.getMoodleCredentials()
+                            if (moodleCreds == null) {
+                                SyncEngine.resetModule(SyncModule.MOODLE)
+                                SyncModuleResult("Moodle Assignments", true)
+                            } else {
+                                syncModule(
+                                    name = "Moodle Assignments",
+                                    fetch = { AmazeClient.fetchMoodleData(moodleCreds.first, moodleCreds.second) },
+                                    isSuccess = { it.success },
+                                    errorMessage = { it.error ?: it.message },
+                                    update = {
+                                        _moodleData.value = it
+                                        cacheData(SettingsManager.CACHE_MOODLE, it)
+                                    }
+                                )
+                            }
+                        },
+                        async {
                             val clubToken = SessionManager.clubToken.value
                             if (!clubToken.isNullOrBlank()) {
                                 syncModule(
@@ -1104,6 +1126,7 @@ object AppState {
                                     }
                                 )
                             } else {
+                                if (SyncEngine.isModuleEnabled(SyncModule.EVENTS)) SyncEngine.resetModule(SyncModule.EVENTS)
                                 SyncModuleResult("Registered Events", true)
                             }
                         },
@@ -1132,8 +1155,7 @@ object AppState {
                             )
                         },
                         async {
-                            if (syncProfile.value) {
-                                val profResults = supervisorScope {
+                            val profResults = supervisorScope {
                                     listOf(
                                         async {
                                             syncModule("Student Profile", { AmazeClient.getStudentProfile() }, { it.success && it.data != null }, { it.error }) {
@@ -1180,8 +1202,7 @@ object AppState {
                                         }
                                     ).awaitAll()
                                 }
-                                profResults.firstOrNull { !it.success } ?: SyncModuleResult("Profile & Extra", true)
-                            } else SyncModuleResult("Student Profile", true)
+                                profResults.firstOrNull { !it.success } ?: SyncModuleResult("Student Profile", true)
                         },
                         async {
                             syncModule(
@@ -1228,14 +1249,24 @@ object AppState {
                     syncResults
                 }
                 updateSyncSummary(results)
-                updateModuleStatesFromCache()
-                SyncEngine.resetLoadingToIdle()
+                pendingSemesterSwitch?.let {
+                    val semSwitch = it
+                    pendingSemesterSwitch = null
+                    _syncMessage.value = "Refreshing data for new semester..."
+                    loadSemesterData(semSwitch)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } finally {
-                _isLoading.value = false
-                _isSyncing.value = false
                 _syncMessage.value = null
-                notificationService.showLoadingNotification("AmazeCC Sync", "Sync completed")
-                scheduleReminders()
+                if (scheduledFor != null) {
+                    SyncScheduler.markSynced()
+                    SyncScheduler.advanceAndArm(scheduledFor)
+                }
+                if (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                    notificationService.showLoadingNotification("AmazeCC Sync", "Sync completed")
+                    scheduleReminders()
+                }
             }
         }
     }
@@ -1272,13 +1303,11 @@ object AppState {
     // ── Targeted refreshes for specific screens ──
 
     fun refreshCurrentSemester() {
-        if (_isLoading.value) return
-        _isLoading.value = true
-        scope.launch {
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.ATTENDANCE, SyncModule.TIMETABLE)) {
             _syncStatus.value = "Syncing current semester..."
-            try {
-                val sem = _selectedSemester.value
-                val results = supervisorScope {
+            val sem = _selectedSemester.value
+            val results = supervisorScope {
                     listOf(
                         async {
                             syncModule(
@@ -1311,18 +1340,15 @@ object AppState {
                     ).awaitAll()
                 }
                 updateSyncSummary(results)
-            } finally { _isLoading.value = false }
         }
     }
 
     fun refreshAllAcademic() {
-        if (_isLoading.value) return
-        _isLoading.value = true
-        scope.launch {
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.ATTENDANCE, SyncModule.ALL_SEMESTER_ATTENDANCE, SyncModule.TIMETABLE, SyncModule.GRADES)) {
             _syncStatus.value = "Syncing academic data..."
-            try {
-                val sem = _selectedSemester.value
-                val results = supervisorScope {
+            val sem = _selectedSemester.value
+            val results = supervisorScope {
                     val syncResults = listOf(
                         async {
                             syncModule(
@@ -1426,17 +1452,14 @@ object AppState {
                     syncResults
                 }
                 updateSyncSummary(results)
-            } finally { _isLoading.value = false }
         }
     }
 
     fun refreshPastSemesters() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.ALL_SEMESTER_ATTENDANCE)) {
             _syncStatus.value = "Refreshing past semester data..."
-            try {
-                val sem = _selectedSemester.value
+            val sem = _selectedSemester.value
                 val gradeSemIds = _allGrades.value?.grades?.keys
                     ?.filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
                     ?: emptyList()
@@ -1462,176 +1485,142 @@ object AppState {
                 SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
                 _pastSemestersSynced.value = true
                 updateSyncSummary(listOf(SyncModuleResult("All Semesters Attendance", !failed)))
-            } finally { _isLoading.value = false }
         }
     }
 
     fun refreshPayments() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.PAYMENTS)) {
             _syncStatus.value = "Syncing payments..."
-            try {
-                val result = syncModule(
-                    name = "Payments",
-                    fetch = { AmazeClient.getPayments() },
-                    isSuccess = { it.error == null },
-                    errorMessage = { it.error },
-                    update = {
-                        _payments.value = it
-                        cacheData(SettingsManager.CACHE_PAYMENTS, it)
-                    }
-                )
-                updateSyncSummary(listOf(result))
-            } finally { _isLoading.value = false }
+            val result = syncModule(
+                name = "Payments",
+                fetch = { AmazeClient.getPayments() },
+                isSuccess = { it.error == null },
+                errorMessage = { it.error },
+                update = {
+                    _payments.value = it
+                    cacheData(SettingsManager.CACHE_PAYMENTS, it)
+                }
+            )
+            updateSyncSummary(listOf(result))
         }
     }
 
     fun refreshHostel() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.HOSTEL_DETAILS)) {
             _syncStatus.value = "Syncing hostel..."
-            try {
-                val result = syncModule(
-                    name = "Hostel details",
-                    fetch = { AmazeClient.getHostelDetails() },
-                    isSuccess = { it.error == null },
-                    errorMessage = { it.error },
-                    update = {
-                        _hostelDetails.value = it
-                        cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
-                    }
-                )
-                updateSyncSummary(listOf(result))
-            } finally { _isLoading.value = false }
+            val result = syncModule(
+                name = "Hostel details",
+                fetch = { AmazeClient.getHostelDetails() },
+                isSuccess = { it.error == null },
+                errorMessage = { it.error },
+                update = {
+                    _hostelDetails.value = it
+                    cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
+                }
+            )
+            updateSyncSummary(listOf(result))
         }
     }
 
     fun refreshCalendar() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.CALENDAR)) {
             _syncStatus.value = "Syncing calendar..."
-            try {
-                val result = syncModule(
-                    name = "Academic calendar",
-                    fetch = { AmazeClient.getCalendar(semesterId = _selectedSemester.value) },
-                    isSuccess = { it.error == null },
-                    errorMessage = { it.error },
-                    update = {
-                        _calendar.value = it
-                        cacheData(SettingsManager.CACHE_CALENDAR, it)
-                    }
-                )
-                updateSyncSummary(listOf(result))
-            } catch (e: Exception) {
-                _syncStatus.value = "Calendar sync failed"
-            } finally {
-                _isLoading.value = false
-            }
+            val result = syncModule(
+                name = "Academic calendar",
+                fetch = { AmazeClient.getCalendar(semesterId = _selectedSemester.value) },
+                isSuccess = { it.error == null },
+                errorMessage = { it.error },
+                update = {
+                    _calendar.value = it
+                    cacheData(SettingsManager.CACHE_CALENDAR, it)
+                }
+            )
+            updateSyncSummary(listOf(result))
         }
     }
 
     fun refreshCalendarsList() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.CALENDARS_LIST)) {
             _syncStatus.value = "Syncing calendars list..."
-            try {
-                val sem = _selectedSemester.value
-                val res = syncModule(
-                    name = "Calendars list",
-                    fetch = { AmazeClient.getCalendars(semesterId = sem) },
-                    isSuccess = { it.success },
-                    errorMessage = { it.message },
-                    update = {
-                        _calendarsList.value = it
-                        cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
-                    }
-                )
-                updateSyncSummary(listOf(res))
-            } catch (e: Exception) {
-                _syncStatus.value = "Calendars list sync failed"
-            } finally {
-                _isLoading.value = false
-            }
+            val sem = _selectedSemester.value
+            val res = syncModule(
+                name = "Calendars list",
+                fetch = { AmazeClient.getCalendars(semesterId = sem) },
+                isSuccess = { it.success },
+                errorMessage = { it.message },
+                update = {
+                    _calendarsList.value = it
+                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                }
+            )
+            updateSyncSummary(listOf(res))
         }
     }
 
     fun refreshQcmView() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.QCM_VIEW)) {
             _syncStatus.value = "Syncing QCM data..."
-            try {
-                val res = AmazeClient.getQcmView()
-                if (res.success) {
-                    _qcmView.value = res
-                    cacheData(SettingsManager.CACHE_QCM_VIEW, res)
+            val res = syncModule(
+                name = "QCM View",
+                fetch = { AmazeClient.getQcmView() },
+                isSuccess = { it.success },
+                errorMessage = { it.message },
+                update = {
+                    _qcmView.value = it
+                    cacheData(SettingsManager.CACHE_QCM_VIEW, it)
                 }
-                _syncStatus.value = if (res.success) "QCM synced" else "QCM sync failed"
-            } catch (e: Exception) {
-                _syncStatus.value = "QCM sync failed"
-            } finally {
-                _isLoading.value = false
-            }
+            )
+            updateSyncSummary(listOf(res))
         }
     }
 
     fun refreshCurriculum() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.CURRICULUM)) {
             _syncStatus.value = "Syncing curriculum..."
-            try {
-                val result = syncModule(
-                    name = "Curriculum",
-                    fetch = { AmazeClient.getCurriculum(semesterId = _selectedSemester.value) },
-                    isSuccess = { it.error == null },
-                    errorMessage = { it.error },
-                    update = {
-                        _curriculum.value = it
-                        cacheData(SettingsManager.CACHE_CURRICULUM, it)
-                    }
-                )
-                updateSyncSummary(listOf(result))
-            } catch (e: Exception) {
-                _syncStatus.value = "Curriculum sync failed"
-            } finally {
-                _isLoading.value = false
-            }
+            val result = syncModule(
+                name = "Curriculum",
+                fetch = { AmazeClient.getCurriculum(semesterId = _selectedSemester.value) },
+                isSuccess = { it.error == null },
+                errorMessage = { it.error },
+                update = {
+                    _curriculum.value = it
+                    cacheData(SettingsManager.CACHE_CURRICULUM, it)
+                }
+            )
+            updateSyncSummary(listOf(result))
         }
     }
 
     fun refreshGrades() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.GRADES)) {
             _syncStatus.value = "Syncing grades..."
-            try {
-                val result = syncModule(
-                    name = "Grade history",
-                    fetch = { AmazeClient.getAllGrades() },
-                    isSuccess = { it.error == null },
-                    errorMessage = { it.error },
-                    update = {
-                        applyAllGrades(it)
-                        cacheData(SettingsManager.CACHE_GRADES, it)
-                    }
-                )
-                updateSyncSummary(listOf(result))
-            } finally { _isLoading.value = false }
+            val result = syncModule(
+                name = "Grade history",
+                fetch = { AmazeClient.getAllGrades() },
+                isSuccess = { it.error == null },
+                errorMessage = { it.error },
+                update = {
+                    applyAllGrades(it)
+                    cacheData(SettingsManager.CACHE_GRADES, it)
+                }
+            )
+            updateSyncSummary(listOf(result))
         }
     }
 
     fun refreshProfile() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.STUDENT_PROFILE, SyncModule.PROFILE_IMAGES, SyncModule.BANK_INFO,
+            SyncModule.DAYBOARDER, SyncModule.EPT_SCHEDULE, SyncModule.REGISTRATION_SCHEDULE, SyncModule.APAAR_ID)) {
             _syncStatus.value = "Syncing profile..."
-            try {
-                val results = supervisorScope {
+            val results = supervisorScope {
                     listOf(
                         async {
                             syncModule("Student Profile", { AmazeClient.getStudentProfile() }, { it.success && it.data != null }, { it.error }) {
@@ -1679,17 +1668,14 @@ object AppState {
                     ).awaitAll()
                 }
                 updateSyncSummary(results)
-            } finally { _isLoading.value = false }
         }
     }
 
     fun refreshLibrary() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.LIBRARY)) {
             _syncStatus.value = "Syncing library..."
-            try {
-                val result = syncModule(
+            val result = syncModule(
                     name = "Library",
                     fetch = { AmazeClient.getLibrary() },
                     isSuccess = { it.error == null },
@@ -1704,17 +1690,14 @@ object AppState {
                     _libraryLoginRequired.value = true
                 }
                 updateSyncSummary(listOf(result))
-            } finally { _isLoading.value = false }
         }
     }
 
     fun refreshTransport() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.TRANSPORT, SyncModule.BUSES)) {
             _syncStatus.value = "Syncing transport..."
-            try {
-                val results = supervisorScope {
+            val results = supervisorScope {
                     listOf(
                         async {
                             syncModule(
@@ -1743,17 +1726,14 @@ object AppState {
                     ).awaitAll()
                 }
                 updateSyncSummary(results)
-            } finally { _isLoading.value = false }
         }
     }
 
     fun refreshLMS() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.LMS)) {
             _syncStatus.value = "Syncing LMS..."
-            try {
-                val result = syncModule(
+            val result = syncModule(
                     name = "LMS",
                     fetch = { AmazeClient.getLMSAssignments() },
                     isSuccess = { it.error == null },
@@ -1764,7 +1744,6 @@ object AppState {
                     }
                 )
                 updateSyncSummary(listOf(result))
-            } finally { _isLoading.value = false }
         }
     }
 
@@ -1777,12 +1756,10 @@ object AppState {
     }
 
     fun refreshExamSchedule() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.EXAM_SCHEDULE)) {
             _syncStatus.value = "Logging into VTOP & syncing exam schedule..."
-            try {
-                // Ensure fresh VTOP login session before fetching exam schedule
+            // Ensure fresh VTOP login session before fetching exam schedule
                 val creds = SettingsManager.getCredentials()
                 if (creds != null) {
                     try {
@@ -1831,17 +1808,14 @@ object AppState {
                 }
                 cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value)
                 updateSyncSummary(listOf(result))
-            } finally { _isLoading.value = false }
         }
     }
 
     fun refreshCirculars() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.CIRCULARS)) {
             _syncStatus.value = "Syncing circulars..."
-            try {
-                val result = syncModule(
+            val result = syncModule(
                     name = "Circulars",
                     fetch = { AmazeClient.getCirculars() },
                     isSuccess = { it.success },
@@ -1852,7 +1826,6 @@ object AppState {
                     }
                 )
                 updateSyncSummary(listOf(result))
-            } finally { _isLoading.value = false }
         }
     }
 
@@ -1864,16 +1837,37 @@ object AppState {
         errorMessage: (T) -> String?,
         update: (T) -> Unit
     ): SyncModuleResult {
+        val module = SyncEngine.moduleOf(name)
+        if (module != null && !SyncEngine.isModuleEnabled(module)) return SyncModuleResult(name, true)
+        module?.let { SyncEngine.markModuleLoading(it) }
         return try {
             val result = fetch()
             if (isSuccess(result)) {
                 update(result)
+                module?.let {
+                    SyncEngine.markModuleSuccess(it)
+                    SyncEngine.addLog(it, "Synced", SyncStatus.SUCCESS)
+                }
                 SyncModuleResult(name, true)
             } else {
-                SyncModuleResult(name, false, errorMessage(result) ?: "Empty or failed response")
+                val msg = errorMessage(result) ?: "Empty or failed response"
+                module?.let {
+                    if (msg != "NO_LIB_CREDS") {
+                        SyncEngine.markModuleError(it, msg)
+                        SyncEngine.addLog(it, msg, SyncStatus.ERROR)
+                    } else {
+                        SyncEngine.resetModule(it)
+                    }
+                }
+                SyncModuleResult(name, false, msg)
             }
         } catch (e: Exception) {
-            SyncModuleResult(name, false, e.message ?: e.toString())
+            val msg = e.message ?: e.toString()
+            module?.let {
+                SyncEngine.markModuleError(it, msg)
+                SyncEngine.addLog(it, msg, SyncStatus.ERROR)
+            }
+            SyncModuleResult(name, false, msg)
         }
     }
 
@@ -1997,14 +1991,14 @@ object AppState {
         _marks.value = data
     }
 
-    fun updateMoodleData(data: MoodleRes?) {
+fun updateMoodleData(data: MoodleRes?) {
         _moodleData.value = data
         if (data != null) {
             try {
-                settings["moodle_data_cache"] = jsonFormat.encodeToString(data)
+                settings[SettingsManager.CACHE_MOODLE] = jsonFormat.encodeToString(data)
             } catch (e: Exception) { println("AmazeCC: AppState updateMoodleData — ${e.message}") }
         } else {
-            settings.remove("moodle_data_cache")
+            settings.remove(SettingsManager.CACHE_MOODLE)
         }
         scope.launch { scheduleReminders() }
     }
@@ -2134,23 +2128,38 @@ object AppState {
     }
 
     fun syncEventsAndClubs() {
-        scope.launch {
-            _isLoading.value = true
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.EVENTS, SyncModule.CLUBS)) {
             try {
                 val eventsRes = AmazeClient.getEvents()
                 if (eventsRes.error == null) {
                     _events.value = eventsRes
                     cacheData(SettingsManager.CACHE_EVENTS, eventsRes)
+                    SyncEngine.markModuleSuccess(SyncModule.EVENTS)
+                    SyncEngine.addLog(SyncModule.EVENTS, "Synced", SyncStatus.SUCCESS)
+                } else {
+                    SyncEngine.markModuleError(SyncModule.EVENTS, eventsRes.error!!)
+                    SyncEngine.addLog(SyncModule.EVENTS, eventsRes.error!!, SyncStatus.ERROR)
                 }
-            } catch (e: Exception) { println("AmazeCC: AppState syncEventsAndClubs events — ${e.message}") }
+            } catch (e: Exception) {
+                SyncEngine.markModuleError(SyncModule.EVENTS, e.message ?: "Network error")
+                SyncEngine.addLog(SyncModule.EVENTS, e.message ?: "Network error", SyncStatus.ERROR)
+            }
             try {
                 val clubsRes = AmazeClient.getClubsDetails()
                 if (clubsRes.error == null) {
                     _clubs.value = clubsRes
                     cacheData(SettingsManager.CACHE_CLUBS, clubsRes)
+                    SyncEngine.markModuleSuccess(SyncModule.CLUBS)
+                    SyncEngine.addLog(SyncModule.CLUBS, "Synced", SyncStatus.SUCCESS)
+                } else {
+                    SyncEngine.markModuleError(SyncModule.CLUBS, clubsRes.error!!)
+                    SyncEngine.addLog(SyncModule.CLUBS, clubsRes.error!!, SyncStatus.ERROR)
                 }
-            } catch (e: Exception) { println("AmazeCC: AppState syncEventsAndClubs clubs — ${e.message}") }
-            _isLoading.value = false
+            } catch (e: Exception) {
+                SyncEngine.markModuleError(SyncModule.CLUBS, e.message ?: "Network error")
+                SyncEngine.addLog(SyncModule.CLUBS, e.message ?: "Network error", SyncStatus.ERROR)
+            }
         }
     }
 
@@ -2162,94 +2171,121 @@ object AppState {
 
     private suspend fun syncOnboardingAttendance(sem: String) {
         updateOnboardingStep("Attendance", "syncing")
-        try {
-            val res = AmazeClient.getAcademicData(sem)
-            if (res.attendance.error == null) {
-                _attendance.value = res.attendance
-                cacheData(SettingsManager.CACHE_ATTENDANCE, res.attendance)
-                res.marks?.let {
-                    _marks.value = it
-                    cacheData(SettingsManager.CACHE_MARKS, it)
+        val res = syncModule(
+            name = "Attendance",
+            fetch = { AmazeClient.getAcademicData(sem) },
+            isSuccess = { it.attendance.error == null },
+            errorMessage = { it.attendance.error },
+            update = {
+                _attendance.value = it.attendance
+                cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
+                it.marks?.let { m ->
+                    _marks.value = m
+                    cacheData(SettingsManager.CACHE_MARKS, m)
                 }
             }
-            updateOnboardingStep("Attendance", "done")
-        } catch (_: Exception) { updateOnboardingStep("Attendance", "failed") }
+        )
+        updateOnboardingStep("Attendance", if (res.success) "done" else "failed")
     }
 
     private suspend fun syncOnboardingTimetable(sem: String) {
         updateOnboardingStep("Timetable", "syncing")
-        try {
-            val res = AmazeClient.getTimetable(sem)
-            if (res.error == null) {
-                _timetable.value = res
-                cacheData(SettingsManager.CACHE_TIMETABLE, res)
+        val res = syncModule(
+            name = "Timetable",
+            fetch = { AmazeClient.getTimetable(sem) },
+            isSuccess = { it.error == null },
+            errorMessage = { it.error },
+            update = {
+                _timetable.value = it
+                cacheData(SettingsManager.CACHE_TIMETABLE, it)
             }
-            updateOnboardingStep("Timetable", "done")
-        } catch (_: Exception) { updateOnboardingStep("Timetable", "failed") }
+        )
+        updateOnboardingStep("Timetable", if (res.success) "done" else "failed")
     }
 
     private suspend fun syncOnboardingGrades() {
         updateOnboardingStep("Grades", "syncing")
-        try {
-            val res = AmazeClient.getAllGrades()
-            if (res.error == null) {
-                applyAllGrades(res)
-                cacheData(SettingsManager.CACHE_GRADES, res)
+        val res = syncModule(
+            name = "Grade history",
+            fetch = { AmazeClient.getAllGrades() },
+            isSuccess = { it.error == null },
+            errorMessage = { it.error },
+            update = {
+                applyAllGrades(it)
+                cacheData(SettingsManager.CACHE_GRADES, it)
             }
-            updateOnboardingStep("Grades", "done")
-        } catch (_: Exception) { updateOnboardingStep("Grades", "failed") }
+        )
+        updateOnboardingStep("Grades", if (res.success) "done" else "failed")
     }
 
     private suspend fun syncOnboardingCurriculum(sem: String) {
         updateOnboardingStep("Curriculum", "syncing")
-        try {
-            val res = AmazeClient.getCurriculum(semesterId = sem)
-            if (res.error == null) {
-                _curriculum.value = res
-                cacheData(SettingsManager.CACHE_CURRICULUM, res)
+        val res = syncModule(
+            name = "Curriculum",
+            fetch = { AmazeClient.getCurriculum(semesterId = sem) },
+            isSuccess = { it.error == null },
+            errorMessage = { it.error },
+            update = {
+                _curriculum.value = it
+                cacheData(SettingsManager.CACHE_CURRICULUM, it)
             }
-            updateOnboardingStep("Curriculum", "done")
-        } catch (_: Exception) { updateOnboardingStep("Curriculum", "failed") }
+        )
+        updateOnboardingStep("Curriculum", if (res.success) "done" else "failed")
     }
 
     private suspend fun syncOnboardingHostel() {
         updateOnboardingStep("Hostel", "syncing")
-        try {
-            val res = AmazeClient.getHostelDetails()
-            if (res.error == null) {
-                _hostelDetails.value = res
-                cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, res)
+        val res = syncModule(
+            name = "Hostel details",
+            fetch = { AmazeClient.getHostelDetails() },
+            isSuccess = { it.error == null },
+            errorMessage = { it.error },
+            update = {
+                _hostelDetails.value = it
+                cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
             }
-            updateOnboardingStep("Hostel", "done")
-        } catch (_: Exception) { updateOnboardingStep("Hostel", "failed") }
+        )
+        updateOnboardingStep("Hostel", if (res.success) "done" else "failed")
     }
 
     private suspend fun syncOnboardingPayments() {
         updateOnboardingStep("Payments", "syncing")
-        try {
-            val res = AmazeClient.getPayments()
-            if (res.error == null) {
-                _payments.value = res
-                cacheData(SettingsManager.CACHE_PAYMENTS, res)
+        val res = syncModule(
+            name = "Payments",
+            fetch = { AmazeClient.getPayments() },
+            isSuccess = { it.error == null },
+            errorMessage = { it.error },
+            update = {
+                _payments.value = it
+                cacheData(SettingsManager.CACHE_PAYMENTS, it)
             }
-            updateOnboardingStep("Payments", "done")
-        } catch (_: Exception) { updateOnboardingStep("Payments", "failed") }
+        )
+        updateOnboardingStep("Payments", if (res.success) "done" else "failed")
     }
 
     private suspend fun syncOnboardingEvents() {
         updateOnboardingStep("Events", "syncing")
-        try {
-            val res = AmazeClient.getEvents()
-            if (res.error == null) {
-                _events.value = res
-                cacheData(SettingsManager.CACHE_EVENTS, res)
+        val res = syncModule(
+            name = "Registered Events",
+            fetch = { AmazeClient.getEvents() },
+            isSuccess = { it.error == null },
+            errorMessage = { it.error },
+            update = {
+                _events.value = it
+                cacheData(SettingsManager.CACHE_EVENTS, it)
             }
-            updateOnboardingStep("Events", "done")
-        } catch (_: Exception) { updateOnboardingStep("Events", "failed") }
+        )
+        updateOnboardingStep("Events", if (res.success) "done" else "failed")
     }
 
     fun startOnboardingSync() {
-        scope.launch {
+        launchSweep(
+            setOf(
+                SyncModule.ATTENDANCE, SyncModule.TIMETABLE, SyncModule.GRADES,
+                SyncModule.CURRICULUM, SyncModule.HOSTEL_DETAILS, SyncModule.PAYMENTS, SyncModule.EVENTS
+            )
+        ) {
+            SyncEngine.withStageProfile("full_sync") {
             val steps = listOf(
                 "Session", "Attendance", "Timetable", "Grades",
                 "Curriculum", "Hostel", "Payments", "Events"
@@ -2278,14 +2314,222 @@ object AppState {
 
             val sem = _selectedSemester.value
 
-            supervisorScope {
-                launch { syncOnboardingAttendance(sem) }
-                launch { syncOnboardingTimetable(sem) }
-                launch { syncOnboardingGrades() }
-                launch { syncOnboardingCurriculum(sem) }
-                launch { syncOnboardingHostel() }
-                launch { syncOnboardingPayments() }
-                launch { syncOnboardingEvents() }
+            syncOnboardingAttendance(sem)
+            syncOnboardingTimetable(sem)
+            syncOnboardingGrades()
+            syncOnboardingCurriculum(sem)
+            syncOnboardingHostel()
+            syncOnboardingPayments()
+            syncOnboardingEvents()
+            }
+        }
+    }
+
+    // ── Scheduled sync automation ──
+
+    /** Foreground catch-up: called on app launch / resume / alarm. */
+    fun checkDueSync() {
+        if (!SyncScheduler.isEnabled()) return
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        if (!SessionManager.isLoggedIn) return
+        val now = kotlinx.datetime.Clock.System.now()
+        val fullDue = SyncScheduler.getNextRun(SyncScheduler.FULL_KIND)?.let { it <= now } == true
+        val lightDue = SyncScheduler.getNextRun(SyncScheduler.LIGHT_KIND)?.let { it <= now } == true
+        if (fullDue) {
+            runScheduledSync(SyncScheduler.FULL_KIND)
+            if (lightDue) SyncScheduler.advanceAndArm(SyncScheduler.LIGHT_KIND)
+        } else if (lightDue) {
+            runScheduledSync(SyncScheduler.LIGHT_KIND)
+        }
+    }
+
+    /** Entry point for a fired alarm (receivers/platform alarm hooks). */
+    fun runScheduledSync(kind: String = SyncScheduler.LIGHT_KIND, force: Boolean = false) {
+        if (!SyncScheduler.isEnabled() && !force) return
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        if (!SessionManager.isLoggedIn) {
+            // Nothing to fetch while logged out — rearm for the next occurrence.
+            if (!force) SyncScheduler.advanceAndArm(kind)
+            return
+        }
+        if (kind == SyncScheduler.FULL_KIND) {
+            loadAllData(scheduledFor = SyncScheduler.FULL_KIND)
+        } else {
+            runLightReload()
+        }
+    }
+
+    /** Light scheduled reload — the modules in the daily_reload profile. */
+    private fun runLightReload() {
+        val dailyModules = listOf(
+            "Attendance", "Timetable", "Grade history", "Exam schedule", "Academic calendar",
+            "Calendars list", "LMS", "Circulars", "Moodle Assignments"
+        ).mapNotNull { SyncEngine.moduleOf(it) }
+            .filter { SyncEngine.isModuleEnabled(it) }
+            .toSet()
+        launchSweep(dailyModules, stageProfile = SyncScheduler.lightProfileId()) {
+            _syncMessage.value = "Running scheduled refresh..."
+            _syncStatus.value = "Running scheduled refresh..."
+            notificationService.showLoadingNotification("AmazeCC Sync", "Running scheduled refresh...")
+            try {
+                val creds = SettingsManager.getCredentials()
+                if (creds != null) {
+                    try {
+                        val loginRes = AmazeClient.login(creds.first, creds.second)
+                        if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
+                            SessionManager.saveSession(
+                                cookies = loginRes.cookies, csrf = loginRes.csrf,
+                                authorizedID = loginRes.authorizedID, clubToken = loginRes.clubToken
+                            )
+                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
+                            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
+                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
+                            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                        }
+                    } catch (e: Exception) { println("AmazeCC: runLightReload sessionRefresh — ${e.message}") }
+                }
+
+                val sem = _selectedSemester.value
+                val results = supervisorScope {
+                    val syncResults = listOf(
+                        async {
+                            syncModule(
+                                name = "Attendance",
+                                fetch = { AmazeClient.getAcademicData(sem) },
+                                isSuccess = { it.attendance.error == null && it.marks?.error == null },
+                                errorMessage = { it.attendance.error ?: it.marks?.error },
+                                update = {
+                                    _attendance.value = it.attendance
+                                    cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
+                                    val attMap = _allSemesterAttendance.value.toMutableMap()
+                                    attMap[sem] = it.attendance
+                                    _allSemesterAttendance.value = attMap
+                                    it.marks?.let { marks ->
+                                        _marks.value = marks
+                                        cacheData(SettingsManager.CACHE_MARKS, marks)
+                                        val marksMap = _allSemesterMarks.value.toMutableMap()
+                                        marksMap[sem] = marks
+                                        _allSemesterMarks.value = marksMap
+                                    }
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Timetable",
+                                fetch = { AmazeClient.getTimetable(sem) },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _timetable.value = it
+                                    cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Grade history",
+                                fetch = { AmazeClient.getAllGrades() },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    applyAllGrades(it)
+                                    cacheData(SettingsManager.CACHE_GRADES, it)
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Exam schedule",
+                                fetch = { AmazeClient.getExamSchedule(semesterId = sem) },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _examSchedule.value = it
+                                    cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, it)
+                                    val examMap = _allSemesterExams.value.toMutableMap()
+                                    examMap[sem] = it
+                                    _allSemesterExams.value = examMap
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Academic calendar",
+                                fetch = { AmazeClient.getCalendar(semesterId = sem) },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _calendar.value = it
+                                    cacheData(SettingsManager.CACHE_CALENDAR, it)
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Calendars list",
+                                fetch = { AmazeClient.getCalendars(semesterId = sem) },
+                                isSuccess = { it.success },
+                                errorMessage = { it.message },
+                                update = {
+                                    _calendarsList.value = it
+                                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "LMS",
+                                fetch = { AmazeClient.getLMSAssignments() },
+                                isSuccess = { it.error == null },
+                                errorMessage = { it.error },
+                                update = {
+                                    _lms.value = it
+                                    cacheData(SettingsManager.CACHE_LMS, it)
+                                }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Circulars",
+                                fetch = { AmazeClient.getCirculars() },
+                                isSuccess = { it.success },
+                                errorMessage = { it.error ?: it.message },
+                                update = {
+                                    _circulars.value = it
+                                    cacheData(SettingsManager.CACHE_CIRCULARS, it)
+                                }
+                            )
+                        },
+                        async {
+                            val moodleCreds = SettingsManager.getMoodleCredentials()
+                            if (moodleCreds == null) {
+                                SyncEngine.resetModule(SyncModule.MOODLE)
+                                SyncModuleResult("Moodle Assignments", true)
+                            } else {
+                                syncModule(
+                                    name = "Moodle Assignments",
+                                    fetch = { AmazeClient.fetchMoodleData(moodleCreds.first, moodleCreds.second) },
+                                    isSuccess = { it.success },
+                                    errorMessage = { it.error ?: it.message },
+                                    update = {
+                                        _moodleData.value = it
+                                        cacheData(SettingsManager.CACHE_MOODLE, it)
+                                    }
+                                )
+                            }
+                        }
+                    ).awaitAll()
+                    syncResults
+                }
+                updateSyncSummary(results)
+            } finally {
+                SyncScheduler.markSynced()
+                SyncScheduler.advanceAndArm(SyncScheduler.LIGHT_KIND)
+                if (kotlinx.coroutines.currentCoroutineContext().isActive) {
+                    notificationService.showLoadingNotification("AmazeCC Sync", "Sync completed")
+                    scheduleReminders()
+                }
             }
         }
     }
@@ -2373,26 +2617,6 @@ object AppState {
     fun setAnimationsEnabled(enabled: Boolean) {
         _animationsEnabled.value = enabled
         SettingsManager.setBoolean(SettingsManager.KEY_ANIMATIONS_ENABLED, enabled)
-    }
-
-    fun setSyncExam(enabled: Boolean) {
-        _syncExam.value = enabled
-        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_EXAM, enabled)
-    }
-
-    fun setSyncProfile(enabled: Boolean) {
-        _syncProfile.value = enabled
-        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_PROFILE, enabled)
-    }
-
-    fun setSyncAdditional(enabled: Boolean) {
-        _syncAdditional.value = enabled
-        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_ADDITIONAL, enabled)
-    }
-
-    fun setSyncArrear(enabled: Boolean) {
-        _syncArrear.value = enabled
-        SettingsManager.setBoolean(SettingsManager.KEY_SYNC_ARREAR, enabled)
     }
 
     fun updateStudentProfile(profile: StudentProfile?) {

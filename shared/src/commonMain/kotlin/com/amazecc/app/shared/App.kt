@@ -69,9 +69,16 @@ fun App() {
     LaunchedEffect(Unit) {
         AppState.observeSyncEngine()
     }
-    // Load cached data outside of AppState.init — many referenced flows are declared after the init block
+    // Load cached data outside of AppState.init — many referenced flows are declared after the init block.
+    // Runs on a background dispatcher: ~24 cache JSON decodes (some multi-MB) must not pin the main thread.
     LaunchedEffect(Unit) {
-        AppState.loadFromCache()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            AppState.loadFromCache()
+        }
+    }
+    // Foreground catch-up for scheduled syncs (iOS: main entry; Android: also onResume)
+    LaunchedEffect(Unit) {
+        AppState.checkDueSync()
     }
 
     AmazeTheme(

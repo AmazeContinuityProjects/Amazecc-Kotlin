@@ -55,12 +55,19 @@ actual suspend fun scheduleLocalNotification(id: Int, title: String, body: Strin
     } else {
         alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerTimeMs, pendingIntent)
     }
+    addScheduledId(id)
 }
 
+/**
+ * Cancels only the alarms that were actually scheduled (tracked per-package).
+ * The flat 6000-id sweep used before created ~18k binder transactions on the
+ * main thread and caused input-dispatch ANRs whenever reminders rescheduled.
+ */
 actual suspend fun clearPendingNotifications() {
     val context = AndroidApp.context ?: return
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    for (id in NotificationsUtils.scheduleableNotificationIds) {
+    val ids = takeScheduledIds()
+    for (id in ids) {
         val intent = Intent(context, AlarmReceiver::class.java)
         val pendingIntent = PendingIntent.getBroadcast(
             context, id, intent,
@@ -68,6 +75,24 @@ actual suspend fun clearPendingNotifications() {
         )
         alarmManager.cancel(pendingIntent)
     }
+}
+
+private fun scheduledIdsPrefs(context: Context): android.content.SharedPreferences =
+    context.getSharedPreferences("amazecc_scheduled_reminder_ids", Context.MODE_PRIVATE)
+
+private fun addScheduledId(id: Int) {
+    val context = AndroidApp.context ?: return
+    val current = scheduledIdsPrefs(context).getStringSet("ids", null) ?: emptySet()
+    if (id.toString() in current) return
+    scheduledIdsPrefs(context).edit().putStringSet("ids", current + id.toString()).apply()
+}
+
+private fun takeScheduledIds(): Set<Int> {
+    val context = AndroidApp.context ?: return emptySet()
+    val prefs = scheduledIdsPrefs(context)
+    val ids = prefs.getStringSet("ids", null)?.mapNotNull { it.toIntOrNull() }?.toSet().orEmpty()
+    prefs.edit().remove("ids").apply()
+    return ids
 }
 
 actual suspend fun testLocalNotification() {

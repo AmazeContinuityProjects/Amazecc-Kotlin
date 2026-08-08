@@ -205,6 +205,14 @@ fun SyncSettingsDialog(
                     }
 
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (selectedProfile.isBuiltIn) {
+                            IconButton(
+                                onClick = { SyncEngine.resetProfileToBuiltin(selectedProfile.id) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(Icons.Rounded.Restore, "Reset to Defaults", tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                            }
+                        }
                         if (selectedProfile.id != activeProfileId) {
                             TextButton(
                                 onClick = { SyncEngine.setActiveProfile(selectedProfile.id) },

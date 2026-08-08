@@ -63,28 +63,36 @@ fun SyncProgressPopup(
     val isEngineSyncing = syncProgress.activeModules.isNotEmpty() || SyncEngine.isAnyModuleLoading()
     val isSyncing = isAppStateSyncing || isAppStateLoading || isEngineSyncing
 
-    var userDismissed by remember(isSyncing) { mutableStateOf(false) }
-    var isMinimized by remember(showSyncDialog, startMinimized) { mutableStateOf(if (showSyncDialog && !startMinimized) false else true) }
+    var userDismissed by remember { mutableStateOf(false) }
+    var isMinimized by remember { mutableStateOf(if (startMinimized) true else false) }
     var selectedTab by remember { mutableStateOf(SyncDialogTab.OVERVIEW) }
     var showSettingsDialog by remember { mutableStateOf(false) }
     val clipboard = LocalClipboardManager.current
     var copiedLogsToast by remember { mutableStateOf(false) }
 
-    val shouldShow = (showSyncDialog || isSyncing) && !userDismissed
+    LaunchedEffect(showSyncDialog) {
+        if (showSyncDialog) {
+            userDismissed = false
+            if (!startMinimized) isMinimized = false
+        }
+    }
+
+    val shouldShow = if (showSyncDialog) !userDismissed else isSyncing
     if (!shouldShow) return
 
     if (showSettingsDialog) {
         SyncSettingsDialog(onDismiss = { showSettingsDialog = false })
     }
 
+    val isFullOverlay = showSyncDialog && !userDismissed && !isMinimized
+
     val isFinished = !isSyncing && (syncProgress.completedModules > 0 || !isAppStateSyncing)
 
-    // Auto-dismiss 2.5s after clean completion
+    // Auto-dismiss 2.5s after clean completion (only when dialog was explicitly opened)
     LaunchedEffect(isSyncing, isFinished, syncProgress.errorCount) {
-        if (!isSyncing && syncProgress.errorCount == 0) {
+        if (!isSyncing && showSyncDialog && syncProgress.errorCount == 0) {
             delay(2500L)
             SyncEngine.setShowSyncDialog(false)
-            userDismissed = true
         }
     }
 
@@ -96,8 +104,8 @@ fun SyncProgressPopup(
         else -> if (syncProgress.displayText.isNotBlank()) syncProgress.displayText else "Sync complete"
     }
 
-    // Floating Minimized Pill
-    if (isMinimized) {
+    // Floating Minimized Pill (also shown whenever a sync runs in the background)
+    if (!isFullOverlay) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -411,6 +419,13 @@ private fun OverviewTabContent(
                     onClick = onSyncAll,
                     modifier = Modifier.weight(1f).height(38.dp)
                 )
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f).height(38.dp),
+                    shape = RoundedCornerShape(AmazeTheme.radius.medium)
+                ) {
+                    Text("Close", fontSize = AmazeTheme.fontSize.sm)
+                }
             }
         }
     }

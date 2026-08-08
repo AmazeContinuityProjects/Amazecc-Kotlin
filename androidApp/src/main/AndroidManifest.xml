@@ -35,6 +35,10 @@
             android:exported="false" />
 
         <receiver
+            android:name="com.amazecc.app.shared.services.SyncAlarmReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".services.BootReceiver"
             android:exported="true">
             <intent-filter>

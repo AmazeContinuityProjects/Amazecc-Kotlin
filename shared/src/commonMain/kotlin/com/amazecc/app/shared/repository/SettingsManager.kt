@@ -26,6 +26,22 @@ object SettingsManager {
     const val KEY_SYNC_PROFILES = "sync_named_profiles"
     const val KEY_ACTIVE_SYNC_PROFILE_ID = "active_sync_profile_id"
     const val KEY_PREFERRED_CALENDAR = "preferred_calendar_name"
+    const val KEY_SYNC_PROFILES_VERSION = "sync_profiles_version"
+
+    // Sync automation (light/full scheduled reloads)
+    const val KEY_AUTO_SYNC_ENABLED = "auto_sync_enabled"
+    const val KEY_LIGHT_RECURRENCE = "sync_light_recurrence"
+    const val KEY_LIGHT_INTERVAL_DAYS = "sync_light_interval_days"
+    const val KEY_LIGHT_HOUR = "sync_light_hour"
+    const val KEY_LIGHT_MINUTE = "sync_light_minute"
+    const val KEY_LIGHT_PROFILE_ID = "sync_light_profile_id"
+    const val KEY_FULL_DAY_OF_WEEK = "sync_full_day_of_week"
+    const val KEY_FULL_HOUR = "sync_full_hour"
+    const val KEY_FULL_MINUTE = "sync_full_minute"
+    const val KEY_FULL_PROFILE_ID = "sync_full_profile_id"
+    const val KEY_NEXT_LIGHT_SYNC = "next_light_sync"
+    const val KEY_NEXT_FULL_SYNC = "next_full_sync"
+    const val KEY_LAST_SYNCED_AT = "last_synced_at"
 
     // Theme & Display preferences
     const val KEY_APP_THEME = "app_theme"
@@ -86,6 +102,7 @@ object SettingsManager {
     const val CACHE_REGISTRATION_SCHEDULE = "cache_registration_schedule"
 const val CACHE_APAAR_ID = "cache_apaarid"
     const val CACHE_OD_TRACKER_STATE = "od_tracker_state"
+    const val CACHE_MOODLE = "moodle_data_cache"
  
     // Notification preferences
     const val NOTIF_CLASS_REMINDERS = "notif_class_reminders"

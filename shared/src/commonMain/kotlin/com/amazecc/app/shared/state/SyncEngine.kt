@@ -50,6 +50,7 @@ enum class SyncModule(
     EPT_SCHEDULE("EPT Schedule", SettingsManager.CACHE_EPT_SCHEDULE, SyncCategory.PROFILE_MISC),
     REGISTRATION_SCHEDULE("Registration Schedule", SettingsManager.CACHE_REGISTRATION_SCHEDULE, SyncCategory.PROFILE_MISC),
     APAAR_ID("APAAR ID", SettingsManager.CACHE_APAAR_ID, SyncCategory.PROFILE_MISC),
+    MOODLE("Moodle Assignments", SettingsManager.CACHE_MOODLE, SyncCategory.FINANCE_SERVICES),
 }
 
 enum class SyncStatus { IDLE, LOADING, SUCCESS, ERROR }
@@ -78,14 +79,16 @@ data class SyncProgress(
     val errorCount: Int = 0
 ) {
     val percentage: Float
-        get() = if (totalModules == 0) 100f else ((completedModules.toFloat() / totalModules.toFloat()).coerceIn(0f, 1f)) * 100f
+        get() = if (totalModules == 0) 0f else ((completedModules.toFloat() / totalModules.toFloat()).coerceIn(0f, 1f)) * 100f
 
     val displayText: String
         get() = when {
             activeModules.isNotEmpty() -> "Syncing ${activeModules.first().displayName} (${completedModules + 1}/$totalModules)"
-            completedModules == totalModules && errorCount > 0 -> "Completed with $errorCount errors"
-            completedModules == totalModules && totalModules > 0 -> "All $totalModules modules updated"
-            else -> "$completedModules / $totalModules modules"
+            totalModules > 0 && completedModules == totalModules && errorCount > 0 -> "Completed with $errorCount errors"
+            totalModules > 0 && completedModules == totalModules -> "All $totalModules modules updated"
+            totalModules > 0 -> "$completedModules / $totalModules modules"
+            completedModules > 0 -> "$completedModules modules ready"
+            else -> "Ready"
         }
 }
 
@@ -100,7 +103,7 @@ data class SyncConfigProfile(
 val DEFAULT_SYNC_PROFILES = listOf(
     SyncConfigProfile(
         id = "full_sync",
-        name = "Full Sync (27 Modules)",
+        name = "Full Sync (28 Modules)",
         enabledModules = SyncModule.entries.toSet(),
         isBuiltIn = true
     ),
@@ -118,7 +121,7 @@ val DEFAULT_SYNC_PROFILES = listOf(
         ),
         isBuiltIn = true
     ),
-    SyncConfigProfile(
+SyncConfigProfile(
         id = "academics_only",
         name = "Academics Only (10 Modules)",
         enabledModules = setOf(
@@ -134,11 +137,28 @@ val DEFAULT_SYNC_PROFILES = listOf(
             SyncModule.LMS
         ),
         isBuiltIn = true
+    ),
+    SyncConfigProfile(
+        id = "daily_reload",
+        name = "Daily Reload (9 Modules)",
+        enabledModules = setOf(
+            SyncModule.ATTENDANCE,
+            SyncModule.TIMETABLE,
+            SyncModule.MARKS,
+            SyncModule.EXAM_SCHEDULE,
+            SyncModule.CALENDAR,
+            SyncModule.CALENDARS_LIST,
+            SyncModule.MOODLE,
+            SyncModule.CIRCULARS,
+            SyncModule.LMS
+        ),
+        isBuiltIn = true
     )
 )
 
 object SyncEngine {
-    private val activeJobs = mutableMapOf<SyncModule, Job>()
+    private val activeJobs = mutableSetOf<Job>()
+    private var sweepActive = false
 
     private val _moduleStates = MutableStateFlow(
         SyncModule.entries.associateWith { ModuleState() }
@@ -165,8 +185,29 @@ object SyncEngine {
     )
     val activeProfileId: StateFlow<String> = _activeProfileId.asStateFlow()
 
+    // Optional stage-enforced profile: when set, activeProfile resolves to it
+    // (for module gating) while activeProfileId / persisted settings stay
+    // untouched. Used by onboarding and scheduled sync runs.
+    private var profileOverride: String? = null
+
     val activeProfile: SyncConfigProfile
-        get() = _profiles.value.firstOrNull { it.id == _activeProfileId.value } ?: _profiles.value.firstOrNull() ?: DEFAULT_SYNC_PROFILES.first()
+        get() {
+            val id = profileOverride ?: _activeProfileId.value
+            return _profiles.value.firstOrNull { it.id == id }
+                ?: _profiles.value.firstOrNull()
+                ?: DEFAULT_SYNC_PROFILES.first()
+        }
+
+    /** Runs [block] while the given profile is enforced, then restores. */
+    suspend fun withStageProfile(profileId: String, block: suspend () -> Unit) {
+        val previous = profileOverride
+        profileOverride = profileId
+        try {
+            block()
+        } finally {
+            profileOverride = previous
+        }
+    }
 
     fun setShowSyncDialog(show: Boolean, minimized: Boolean = false) {
         _startMinimized.value = minimized
@@ -174,6 +215,72 @@ object SyncEngine {
     }
 
     fun toggleSyncDialog() { _showSyncDialog.value = !_showSyncDialog.value }
+
+    // ── Module name → enum mapping (names come from AppState sweep artifacts) ──
+    private val MODULE_ALIASES = mapOf(
+        "Attendance" to SyncModule.ATTENDANCE,
+        "Attendance and CGPA" to SyncModule.ATTENDANCE,
+        "All Semesters" to SyncModule.ALL_SEMESTER_ATTENDANCE,
+        "All Semesters Attendance" to SyncModule.ALL_SEMESTER_ATTENDANCE,
+        "Timetable" to SyncModule.TIMETABLE,
+        "Marks" to SyncModule.MARKS,
+        "Grade history" to SyncModule.GRADES,
+        "Curriculum" to SyncModule.CURRICULUM,
+        "Hostel details" to SyncModule.HOSTEL_DETAILS,
+        "Exam schedule" to SyncModule.EXAM_SCHEDULE,
+        "All Semesters Exam Schedule" to SyncModule.EXAM_SCHEDULE,
+        "Academic calendar" to SyncModule.CALENDAR,
+        "Calendars list" to SyncModule.CALENDARS_LIST,
+        "Calendar" to SyncModule.CALENDARS_LIST,
+        "Payments" to SyncModule.PAYMENTS,
+        "Library" to SyncModule.LIBRARY,
+        "Transport Data" to SyncModule.TRANSPORT,
+        "Buses" to SyncModule.BUSES,
+        "LMS" to SyncModule.LMS,
+        "Registered Events" to SyncModule.EVENTS,
+        "Clubs" to SyncModule.CLUBS,
+        "QCM View" to SyncModule.QCM_VIEW,
+        "Student Profile" to SyncModule.STUDENT_PROFILE,
+        "Profile Images" to SyncModule.PROFILE_IMAGES,
+        "Bank Information" to SyncModule.BANK_INFO,
+        "Dayboarder Info" to SyncModule.DAYBOARDER,
+        "EPT Schedule" to SyncModule.EPT_SCHEDULE,
+        "Registration Schedule" to SyncModule.REGISTRATION_SCHEDULE,
+        "APAAR ID" to SyncModule.APAAR_ID,
+        "Circulars" to SyncModule.CIRCULARS,
+        "Moodle Assignments" to SyncModule.MOODLE,
+        "Moodle" to SyncModule.MOODLE,
+    )
+
+    fun moduleOf(name: String): SyncModule? = MODULE_ALIASES[name]
+
+    fun isModuleEnabled(module: SyncModule): Boolean = module in activeProfile.enabledModules
+
+    // ── Sweep lifecycle ──
+    fun beginSweep(modules: Set<SyncModule>) {
+        sweepActive = true
+        _moduleStates.value = SyncModule.entries.associateWith { m ->
+            if (m in modules) ModuleState(status = SyncStatus.LOADING) else ModuleState()
+        }
+        recalculateProgress()
+    }
+
+    fun endSweep() {
+        sweepActive = false
+        val updated = _moduleStates.value.mapValues { (_, s) ->
+            if (s.status == SyncStatus.LOADING) ModuleState() else s
+        }
+        _moduleStates.value = updated
+        recalculateProgress()
+    }
+
+    fun registerJob(job: Job) {
+        activeJobs += job
+    }
+
+    fun unregisterJob(job: Job) {
+        activeJobs -= job
+    }
 
     // ── Module Enablement & Profile Management ──
 
@@ -239,12 +346,45 @@ object SyncEngine {
 
     private fun loadProfiles(): List<SyncConfigProfile> {
         val raw = SettingsManager.getString(SettingsManager.KEY_SYNC_PROFILES)
-        if (raw.isNullOrBlank()) return DEFAULT_SYNC_PROFILES
-        return try {
+        if (raw.isNullOrBlank()) {
+            SettingsManager.setString(SettingsManager.KEY_SYNC_PROFILES_VERSION, "1")
+            return DEFAULT_SYNC_PROFILES
+        }
+        val stored = try {
             Json.decodeFromString<List<SyncConfigProfile>>(raw)
         } catch (_: Exception) {
             DEFAULT_SYNC_PROFILES
         }
+        val byId = stored.associateBy { it.id }
+        val version = SettingsManager.getString(SettingsManager.KEY_SYNC_PROFILES_VERSION)
+        // One-time migration: union built-in defaults into stored built-ins so
+        // newly added modules (e.g. MOODLE) appear without undoing later edits.
+        val migrated = DEFAULT_SYNC_PROFILES.map { def ->
+            val existing = byId[def.id]
+            when {
+                existing == null -> def
+                version.isEmpty() -> existing.copy(enabledModules = (existing.enabledModules + def.enabledModules).toSet())
+                else -> existing
+            }
+        } + stored.filterNot { it.isBuiltIn }
+        if (version.isEmpty()) {
+            SettingsManager.setString(SettingsManager.KEY_SYNC_PROFILES_VERSION, "1")
+            saveProfiles(migrated)
+        }
+        return migrated
+    }
+
+    fun resetProfileToBuiltin(id: String) {
+        val def = DEFAULT_SYNC_PROFILES.firstOrNull { it.id == id } ?: return
+        val list = _profiles.value.toMutableList()
+        val index = list.indexOfFirst { it.id == id }
+        if (index != -1) {
+            list[index] = list[index].copy(enabledModules = def.enabledModules)
+        } else {
+            list += def
+        }
+        _profiles.value = list
+        saveProfiles(list)
     }
 
     private fun saveProfiles(profiles: List<SyncConfigProfile>) {
@@ -274,6 +414,16 @@ object SyncEngine {
         recalculateProgress()
     }
 
+    fun markModuleLoading(module: SyncModule) = updateModuleState(module, ModuleState(status = SyncStatus.LOADING))
+
+    fun markModuleSuccess(module: SyncModule) = updateModuleState(
+        module, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now())
+    )
+
+    fun markModuleError(module: SyncModule, error: String?) = updateModuleState(
+        module, ModuleState(status = SyncStatus.ERROR, error = error)
+    )
+
     fun resetModule(module: SyncModule) {
         updateModuleState(module, ModuleState())
     }
@@ -283,55 +433,47 @@ object SyncEngine {
         _logLines.value = emptyList()
     }
 
-    fun markAllLoading() {
-        _moduleStates.value = SyncModule.entries.associateWith { ModuleState(status = SyncStatus.LOADING) }
-    }
-
-    fun resetLoadingToIdle() {
-        val updated = _moduleStates.value.mapValues { (_, state) ->
-            if (state.status == SyncStatus.LOADING) ModuleState() else state
-        }
-        _moduleStates.value = updated
-    }
-
-    fun resetLogs() {
-        _logLines.value = emptyList()
-    }
-
     // ── Logging ──
 
     fun addLog(module: SyncModule, message: String, status: SyncStatus) {
         _logLines.value = (_logLines.value + LogLine(module, message, status, Clock.System.now())).takeLast(500)
     }
 
+    fun resetLogs() {
+        _logLines.value = emptyList()
+    }
+
     // ── Sync execution ──
 
     fun cancelAll() {
-        activeJobs.values.forEach { it.cancel() }
+        activeJobs.forEach { it.cancel() }
         activeJobs.clear()
         resetAllStates()
+        sweepActive = false
+        _syncProgress.value = SyncProgress()
     }
 
     // ── Progress ──
 
     private fun recalculateProgress() {
         val states = _moduleStates.value
-        val targetModules = states.keys.toSet()
-        val total = targetModules.size
-        val completed = targetModules.count { mod ->
-            val s = states[mod]
-            s?.status == SyncStatus.SUCCESS || s?.status == SyncStatus.ERROR
-        }
-        val active = states.filter { (mod, s) -> mod in targetModules && s.status == SyncStatus.LOADING }.keys
-        val successCount = targetModules.count { states[it]?.status == SyncStatus.SUCCESS }
-        val errorCount = targetModules.count { states[it]?.status == SyncStatus.ERROR }
+        val active = states.filter { (_, s) -> s.status == SyncStatus.LOADING }.keys
+        val total = states.count { (_, s) -> s.status != SyncStatus.IDLE }
+        val completed = states.count { (_, s) -> s.status == SyncStatus.SUCCESS || s.status == SyncStatus.ERROR }
+        val successCount = states.count { (_, s) -> s.status == SyncStatus.SUCCESS }
+        val errorCount = states.count { (_, s) -> s.status == SyncStatus.ERROR }
 
-        _syncProgress.value = SyncProgress(
-            totalModules = total,
-            completedModules = completed,
-            activeModules = active,
-            successCount = successCount,
-            errorCount = errorCount
-        )
+        val flatProgress = if (sweepActive) {
+            SyncProgress(
+                totalModules = total,
+                completedModules = completed,
+                activeModules = active,
+                successCount = successCount,
+                errorCount = errorCount
+            )
+        } else {
+            SyncProgress(completedModules = completed, activeModules = active, successCount = successCount, errorCount = errorCount)
+        }
+        _syncProgress.value = flatProgress
     }
 }

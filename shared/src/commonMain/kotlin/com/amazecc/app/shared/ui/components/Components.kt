@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.components
+package com.amazecc.app.shared.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -15,8 +15,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,8 +27,8 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -153,6 +154,7 @@ fun AmazeCard(
     backgroundColor: Color? = null,
     variant: CardVariant = CardVariant.DEFAULT,
     accentStrip: Boolean = false,
+    contentPadding: PaddingValues? = null,
     content: @Composable BoxScope.() -> Unit
 ) {
     val colors = AmazeTheme.colors
@@ -175,6 +177,7 @@ fun AmazeCard(
     }
 
     val spacing = AmazeTheme.spacing
+    val actualPadding = contentPadding ?: PaddingValues(spacing.cardPadding)
 
     Box(
         modifier = modifier
@@ -213,10 +216,11 @@ fun AmazeCard(
                     Modifier
                 }
             )
-            .padding(spacing.cardPadding),
+            .padding(actualPadding),
         content = content
     )
 }
+
 
 // ── BADGES ──
 
@@ -331,4 +335,207 @@ fun AmazeTextField(
         }
     }
 }
+
+// ── SEARCH INPUT ──
+
+@Composable
+fun AmazeSearchInput(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    placeholder: String = "Search...",
+    modifier: Modifier = Modifier
+) {
+    val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(46.dp),
+        placeholder = {
+            Text(
+                text = placeholder,
+                style = AmazeTheme.typography.body.copy(color = colors.textMuted, fontSize = 13.sp)
+            )
+        },
+        leadingIcon = {
+            Icon(
+                imageVector = androidx.compose.material.icons.Icons.Rounded.Search,
+                contentDescription = "Search",
+                tint = colors.accent,
+                modifier = Modifier.size(18.dp)
+            )
+        },
+        trailingIcon = if (query.isNotEmpty()) {
+            {
+                IconButton(
+                    onClick = { onQueryChange("") },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Rounded.Close,
+                        contentDescription = "Clear search",
+                        tint = colors.textMuted,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        } else null,
+        singleLine = true,
+        shape = RoundedCornerShape(radius.small),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = colors.surface,
+            unfocusedContainerColor = colors.surface,
+            focusedBorderColor = colors.accent,
+            unfocusedBorderColor = colors.border.copy(alpha = 0.6f),
+            focusedTextColor = colors.textPrimary,
+            unfocusedTextColor = colors.textPrimary,
+            cursorColor = colors.accent
+        )
+    )
+}
+
+// ── SECTION HEADER ──
+
+@Composable
+fun AmazeSectionHeader(
+    title: String,
+    icon: ImageVector? = null,
+    badgeText: String? = null,
+    modifier: Modifier = Modifier
+) {
+    val colors = AmazeTheme.colors
+    Row(
+        modifier = modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (icon != null) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(colors.accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = colors.accent,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+            Spacer(Modifier.width(AmazeTheme.spacing.sm))
+        }
+        Text(
+            text = title.uppercase(),
+            style = AmazeTheme.typography.smallLabel.copy(
+                fontWeight = FontWeight.Bold,
+                color = colors.accent,
+                letterSpacing = 1.sp
+            ),
+            modifier = Modifier.weight(1f)
+        )
+        if (badgeText != null) {
+            AmazeBadge(text = badgeText, variant = BadgeVariant.INFO)
+        }
+    }
+}
+
+// ── SEGMENTED CONTROL ──
+
+@Composable
+fun <T> AmazeSegmentedControl(
+    items: List<Pair<T, String>>,
+    selectedItem: T,
+    onItemSelected: (T) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = AmazeTheme.colors
+    val radius = AmazeTheme.radius
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(radius.small))
+            .background(colors.surface)
+            .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(radius.small))
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        items.forEach { (item, label) ->
+            val isSelected = item == selectedItem
+            val interactionSource = remember { MutableInteractionSource() }
+            val isPressed by interactionSource.collectIsPressedAsState()
+            val scale by animateFloatAsState(
+                targetValue = if (isPressed) 0.94f else 1f,
+                animationSpec = bouncySpring()
+            )
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .clip(CircleShape)
+                    .background(if (isSelected) colors.accent else Color.Transparent)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = { onItemSelected(item) }
+                    )
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = label,
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        color = if (isSelected) Color.White else colors.textSecondary,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ClickableRow(
+    title: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    colors: com.amazecc.app.shared.theme.AmazeColors = AmazeTheme.colors
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+            .clickable { onClick() }
+            .padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                .background(colors.chart5.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = colors.chart5, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.width(AmazeTheme.spacing.sm))
+        Text(
+            title,
+            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base),
+            modifier = Modifier.weight(1f)
+        )
+        Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
+    }
+}
+
 
