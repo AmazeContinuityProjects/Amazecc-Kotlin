@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.more
+﻿package com.amazecc.app.shared.ui.screens.more
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -404,8 +404,8 @@ private fun ToggleRow(
             }
             Spacer(Modifier.width(AmazeTheme.spacing.sm))
             Column {
-                Text(title, color = colors.textPrimary, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp))
-                Text(subtitle, color = colors.textSecondary, style = AmazeTheme.typography.caption.copy(fontSize = 11.sp))
+                Text(title, color = colors.textPrimary, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.base))
+                Text(subtitle, color = colors.textSecondary, style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.xs))
             }
         }
         Switch(
@@ -436,7 +436,7 @@ fun ClickableRow(
             Icon(icon, null, tint = colors.chart5, modifier = Modifier.size(16.dp))
         }
         Spacer(Modifier.width(AmazeTheme.spacing.sm))
-        Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp), modifier = Modifier.weight(1f))
+        Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base), modifier = Modifier.weight(1f))
         Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
     }
 }

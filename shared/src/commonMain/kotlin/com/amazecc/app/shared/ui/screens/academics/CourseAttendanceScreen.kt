@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import kotlinx.datetime.*
 import androidx.compose.foundation.background
@@ -248,7 +248,7 @@ fun EmbeddedCourseAttendanceView(course: AttendanceItem) {
                             pctFormatted(currentPct),
                             style = AmazeTheme.typography.display.copy(
                                 fontWeight = FontWeight.Black,
-                                fontSize = 36.sp,
+                                fontSize = AmazeTheme.fontSize.display,
                                 color = progressColor
                             )
                         )
@@ -397,7 +397,7 @@ private fun PredictorSection(
                         style = AmazeTheme.typography.smallLabel.copy(
                             color = if (isSel) colors.background else colors.textPrimary,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            fontSize = AmazeTheme.fontSize.xs
                         )
                     )
                 }
@@ -527,14 +527,14 @@ private fun PredictorSection(
                                                 style = AmazeTheme.typography.smallLabel.copy(
                                                     fontWeight = FontWeight.Bold,
                                                     color = if (isSkipped) colors.danger else colors.textPrimary,
-                                                    fontSize = 11.sp
+                                                    fontSize = AmazeTheme.fontSize.xs
                                                 )
                                             )
                                             Text(
                                                 if (isSkipped) "Bunked" else "Attend",
                                                 style = AmazeTheme.typography.smallLabel.copy(
                                                     color = if (isSkipped) colors.danger else colors.success,
-                                                    fontSize = 9.sp
+                                                    fontSize = AmazeTheme.fontSize.micro
                                                 )
                                             )
                                         }
@@ -645,7 +645,7 @@ private fun LogSection(
                                 else -> colors.danger
                             },
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            fontSize = AmazeTheme.fontSize.xs
                         )
                     }
                 }

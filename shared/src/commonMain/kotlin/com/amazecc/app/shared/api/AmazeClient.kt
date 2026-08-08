@@ -6,8 +6,10 @@ import com.amazecc.app.shared.repository.SettingsManager
 import com.russhwolf.settings.set
 import kotlinx.datetime.Clock
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
 
 import io.ktor.client.*
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -32,26 +34,10 @@ import kotlinx.serialization.builtins.ListSerializer
 import com.amazecc.app.shared.utils.AnalyzeCalendar
 import com.amazecc.app.shared.utils.FacultyUtils
 import com.amazecc.app.shared.utils.UpdateConfig
+import com.amazecc.app.shared.utils.DemoData
 
 @Serializable
 data class LoginRequest(val username: String, val password: String)
-
-private val fallbackHubs = listOf(
-    CabShareHub(1, "VIT Chennai"),
-    CabShareHub(2, "Chennai Airport"),
-    CabShareHub(3, "Chennai Central Railway Station"),
-    CabShareHub(4, "Tambaram Railway Station"),
-    CabShareHub(5, "Chengalpattu Railway Station"),
-    CabShareHub(6, "Koyambedu Bus Stand"),
-    CabShareHub(7, "Kelambakkam"),
-    CabShareHub(8, "Sholinganallur"),
-    CabShareHub(9, "T Nagar"),
-    CabShareHub(10, "Guindy"),
-    CabShareHub(11, "OMR"),
-    CabShareHub(12, "Perungudi"),
-    CabShareHub(13, "Thoraipakkam"),
-    CabShareHub(14, "Velachery")
-)
 
 @Serializable
 data class MoodleLoginRequest(val username: String, val pass: String)
@@ -91,18 +77,15 @@ object AmazeClient {
         install(ContentNegotiation) {
             json(jsonConfig)
         }
+        install(HttpTimeout) {
+            requestTimeoutMillis = 30_000
+            connectTimeoutMillis = 15_000
+            socketTimeoutMillis = 30_000
+        }
     }
 
     suspend fun login(username: String, password: String): LoginResponse {
-        if (useMockData || username.lowercase() == "demo" || username.uppercase() == "DEMO123") {
-            return LoginResponse(
-                success = true,
-                message = "Login successful (Demo Mode)!",
-                cookies = "vtop_session_cookie=demo_session_123; csrf_token=demo_csrf_abc",
-                csrf = "demo_csrf_abc",
-                authorizedID = "DEMO123"
-            )
-        }
+if (useMockData) return DemoData.get("login", LoginResponse.serializer()) ?: LoginResponse(success = true, message = "Demo login successful")
 
         return try {
             val response: HttpResponse = httpClient.post("$baseUrl/api/login") {
@@ -160,115 +143,14 @@ object AmazeClient {
         } else null
     }
 
-    suspend fun getAttendance(semesterId: String? = null): AttendanceRes {
-        return getAcademicData(semesterId).attendance
-    }
-
     suspend fun getAcademicData(semesterId: String? = null): AcademicSyncResult {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            val attendance = AttendanceRes(
-                success = true,
-                semesterId = semesterId ?: "CH20252601",
-                attendance = listOf(
-                    AttendanceItem(slNo = "1", courseCode = "CSE1001", courseTitle = "Software Engineering", courseType = "Theory", slotName = "A1+TA1", faculty = "Dr. Amit Kumar", attendedClasses = 26, totalClasses = 30, attendancePercentage = "86", slotVenue = "SJT-402", credits = "3", category = "PC",
-                        viewLinkRaw = buildJsonArray {
-                            add(buildJsonObject { put("date", "01 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "03 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "06 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "08 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "10 Jul 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "13 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "15 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "17 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "20 Jul 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "22 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "24 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "27 Jul 2026"); put("status", "On Duty") })
-                            add(buildJsonObject { put("date", "29 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "31 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "03 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "05 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "07 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "10 Aug 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "12 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "14 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "17 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "19 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "21 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "24 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "26 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "28 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "31 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "02 Sep 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "04 Sep 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "07 Sep 2026"); put("status", "Present") })
-                        }),
-                    AttendanceItem(slNo = "2", courseCode = "CSE2002", courseTitle = "Database Management Systems", courseType = "Theory", slotName = "B1+TB1", faculty = "Dr. Rajeev Sen", attendedClasses = 14, totalClasses = 20, attendancePercentage = "70", slotVenue = "SJT-503", credits = "4", category = "PC",
-                        viewLinkRaw = buildJsonArray {
-                            add(buildJsonObject { put("date", "02 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "05 Jul 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "09 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "12 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "16 Jul 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "19 Jul 2026"); put("status", "On Duty") })
-                            add(buildJsonObject { put("date", "23 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "26 Jul 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "30 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "02 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "06 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "09 Aug 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "13 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "16 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "20 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "23 Aug 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "27 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "30 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "03 Sep 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "06 Sep 2026"); put("status", "Absent") })
-                        }),
-                    AttendanceItem(slNo = "3", courseCode = "CSE3001", courseTitle = "Artificial Intelligence", courseType = "Embedded Lab", slotName = "L1+L2", faculty = "Prof. Priya Nair", attendedClasses = 10, totalClasses = 10, attendancePercentage = "100", slotVenue = "TT-204", credits = "4", category = "PE",
-                        viewLinkRaw = buildJsonArray {
-                            add(buildJsonObject { put("date", "04 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "11 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "18 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "25 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "01 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "08 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "15 Aug 2026"); put("status", "On Duty") })
-                            add(buildJsonObject { put("date", "22 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "29 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "05 Sep 2026"); put("status", "Present") })
-                        }),
-                    AttendanceItem(slNo = "4", courseCode = "MAT2001", courseTitle = "Differential Equations", courseType = "Theory", slotName = "C1+TC1", faculty = "Dr. Sarah John", attendedClasses = 16, totalClasses = 24, attendancePercentage = "66", slotVenue = "SJT-612", credits = "3", category = "UC",
-                        viewLinkRaw = buildJsonArray {
-                            add(buildJsonObject { put("date", "01 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "04 Jul 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "07 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "10 Jul 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "13 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "16 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "19 Jul 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "22 Jul 2026"); put("status", "On Duty") })
-                            add(buildJsonObject { put("date", "25 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "28 Jul 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "31 Jul 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "03 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "06 Aug 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "09 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "12 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "15 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "18 Aug 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "21 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "24 Aug 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "27 Aug 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "30 Aug 2026"); put("status", "Absent") })
-                            add(buildJsonObject { put("date", "02 Sep 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "05 Sep 2026"); put("status", "Present") })
-                            add(buildJsonObject { put("date", "08 Sep 2026"); put("status", "Absent") })
-                        })
-                )
+        if (useMockData) {
+            val attendance = DemoData.get("attendance", AttendanceRes.serializer())
+            val marks = DemoData.get("marks", MarksRes.serializer())
+            return AcademicSyncResult(
+                attendance = attendance ?: AttendanceRes(success = false, error = "Demo data missing"),
+                marks = marks
             )
-            return AcademicSyncResult(attendance = attendance, marks = getMarks(semesterId))
         }
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
@@ -294,17 +176,7 @@ object AmazeClient {
     }
 
     suspend fun getTimetable(semesterId: String? = null): TimetableRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return TimetableRes(
-                success = true,
-                semesterId = semesterId ?: "CH20252601",
-                courseInfo = listOf(
-                    CourseItem(slNo = "1", course = "CSE1001 - Software Engineering", courseCode = "CSE1001(T)", LTPJC = "3 0 0 3 0", category = "PC", classId = "1024", slotVenue = "A1+TA1 / SJT-402", facultyDetails = "Dr. Amit Kumar"),
-                    CourseItem(slNo = "2", course = "CSE2002 - Database Management Systems", courseCode = "CSE2002(T)", LTPJC = "3 0 2 4 0", category = "PC", classId = "1056", slotVenue = "B1+TB1 / SJT-503", facultyDetails = "Dr. Rajeev Sen"),
-                    CourseItem(slNo = "3", course = "CSE3001 - Artificial Intelligence Lab", courseCode = "CSE3001(L)", LTPJC = "0 0 4 2 0", category = "PE", classId = "1188", slotVenue = "L1+L2 / TT-204", facultyDetails = "Prof. Priya Nair")
-                )
-            )
-        }
+if (useMockData) return DemoData.get("timetable", TimetableRes.serializer()) ?: TimetableRes()
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
             postAuthorized<TimetableRes>("timetable", params) ?: TimetableRes(success = false, message = "Empty response")
@@ -314,29 +186,7 @@ object AmazeClient {
     }
 
     suspend fun getMarks(semesterId: String? = null): MarksRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return MarksRes(
-                success = true,
-                marks = listOf(
-                    MarksCourseItem(
-                        slNo = "1", classNbr = "1024", courseCode = "CSE1001", credits = "3.0", courseTitle = "Software Engineering", courseType = "Theory", courseSystem = "CBCS", courseMode = "Regular", faculty = "Dr. Amit Kumar", slot = "A1",
-                        assessments = listOf(
-                            AssessmentItem("1", "Continuous Assessment Test 1", "50", "15", "Completed", "42", "12.6"),
-                            AssessmentItem("2", "Continuous Assessment Test 2", "50", "15", "Completed", "45", "13.5"),
-                            AssessmentItem("3", "Digital Assignment 1", "10", "10", "Completed", "9", "9.0")
-                        )
-                    ),
-                    MarksCourseItem(
-                        slNo = "2", classNbr = "1056", courseCode = "CSE2002", credits = "4.0", courseTitle = "Database Management Systems", courseType = "Theory", courseSystem = "CBCS", courseMode = "Regular", faculty = "Dr. Rajeev Sen", slot = "B1",
-                        assessments = listOf(
-                            AssessmentItem("1", "Continuous Assessment Test 1", "50", "15", "Completed", "35", "10.5"),
-                            AssessmentItem("2", "Continuous Assessment Test 2", "50", "15", "Completed", "38", "11.4")
-                        )
-                    )
-                ),
-                cgpa = CGPAResult("120", "84", "8.54", "Completed")
-            )
-        }
+if (useMockData) return DemoData.get("marks", MarksRes.serializer()) ?: MarksRes()
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
             postAuthorized<MarksRes>("marks", params) ?: MarksRes(success = false, message = "Empty response")
@@ -346,27 +196,7 @@ object AmazeClient {
     }
 
     suspend fun getAllGrades(): AllGradesRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return AllGradesRes(
-                success = true,
-                grades = mapOf(
-                    "CH20242501" to SemesterGradeResult(
-                        gpa = "8.42",
-                        grades = listOf(
-                            GradeItem("1", "CSE1001", "Software Engineering", "Theory", "86", "A"),
-                            GradeItem("2", "MAT2001", "Differential Equations", "Theory", "74", "B")
-                        )
-                    ),
-                    "CH20242505" to SemesterGradeResult(
-                        gpa = "8.75",
-                        grades = listOf(
-                            GradeItem("1", "CSE2002", "Database Management Systems", "Theory", "92", "S"),
-                            GradeItem("2", "CSE3001", "Artificial Intelligence", "Theory", "88", "A")
-                        )
-                    )
-                )
-            )
-        }
+if (useMockData) return DemoData.get("allGrades", AllGradesRes.serializer()) ?: AllGradesRes()
         return try {
             postAuthorized<AllGradesRes>("all-grades") ?: AllGradesRes(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -397,22 +227,7 @@ object AmazeClient {
     }
 
     suspend fun getHostelDetails(): HostelDetails {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return HostelDetails(
-                success = true,
-                hostelInfo = HostelInfo(
-                    gender = "MALE",
-                    isHosteller = true,
-                    blockName = "Q-Block",
-                    roomNo = "612",
-                    messInfo = "Special Veg Mess (Caterer: CRCL)"
-                ),
-                leaveHistory = listOf(
-                    LeaveItem("LV-9810", "Home (Delhi)", "Family function", "Home Leave", "2026-07-15", "2026-07-20", "APPROVED", "Ensure return by due time"),
-                    LeaveItem("LV-9541", "Local (Vellore)", "Shopping", "Outing", "2026-06-28 10:00 AM", "2026-06-28 06:00 PM", "COMPLETED", "Returned on time")
-                )
-            )
-        }
+if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: HostelDetails()
         return try {
             postAuthorized<HostelDetails>("hostel") ?: HostelDetails(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -421,27 +236,7 @@ object AmazeClient {
     }
 
     suspend fun getExamSchedule(semesterId: String? = null): ExamScheduleRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            val semLabel = semesterId?.let { sem ->
-                mapOf(
-                    "CH20262705" to "Winter Semester 2026-27",
-                    "CH20262701" to "Fall Semester 2026-27",
-                    "CH20252605" to "Winter Semester 2025-26",
-                    "CH20252601" to "Fall Semester 2025-26",
-                    "CH20242505" to "Winter Semester 2024-25",
-                    "CH20242501" to "Fall Semester 2024-25"
-                )[sem]
-            } ?: "Fall Semester 2025-26"
-            return ExamScheduleRes(
-                success = true,
-                rawScheduleLower = mapOf(
-                    semLabel to listOf(
-                        ExamItem("CSE1001", "Software Engineering", "1024", "A1", "2026-09-12", "FN", "08:30 AM", "09:00 AM - 12:00 PM", "SJT-401", "Row 3, Seat A", "A-32"),
-                        ExamItem("CSE2002", "Database Management Systems", "1056", "B1", "2026-09-14", "AN", "01:30 PM", "02:00 PM - 05:00 PM", "TT-102", "Row 1, Seat C", "C-08")
-                    )
-                )
-            )
-        }
+if (useMockData) return DemoData.get("examSchedule", ExamScheduleRes.serializer()) ?: ExamScheduleRes()
         return try {
             val params = mutableMapOf<String, String>()
             if (semesterId != null) params["semesterId"] = semesterId
@@ -452,9 +247,7 @@ object AmazeClient {
     }
 
     suspend fun getCurriculum(semesterId: String? = null): CurriculumRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CurriculumRes(success = true, title = "Curriculum Overview") // return empty mock for now
-        }
+if (useMockData) return DemoData.get("curriculum", CurriculumRes.serializer()) ?: CurriculumRes()
         return try {
             val params = mutableMapOf<String, String>()
             if (semesterId != null) params["semesterId"] = semesterId
@@ -465,30 +258,7 @@ object AmazeClient {
     }
 
     suspend fun getCalendar(type: String = "ALL", semesterId: String? = null): CalendarRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            val extraMonths = if (type != "ALL") listOf(
-                CalendarMonth(
-                    month = "August 2026",
-                    days = listOf(
-                        CalendarDay(5, listOf(CalendarEvent("Instructional Day", "Type: $type"))),
-                        CalendarDay(15, listOf(CalendarEvent("Holiday", "Independence Day", "#ef4444")))
-                    )
-                )
-            ) else emptyList()
-            return CalendarRes(
-                success = true,
-                months = listOf(
-                    CalendarMonth(
-                        month = "July 2026",
-                        days = listOf(
-                            CalendarDay(1, listOf(CalendarEvent("Instructional Day", "Day Order: Monday (Unit Test starting)"))),
-                            CalendarDay(15, listOf(CalendarEvent("Holiday", "College Foundation Day", "#ef4444"))),
-                            CalendarDay(20, listOf(CalendarEvent("Other", "Course Registration starts")))
-                        )
-                    )
-                ) + extraMonths
-            )
-        }
+if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: CalendarRes()
         return try {
             val params = mutableMapOf("type" to type)
             if (semesterId != null) params["semesterId"] = semesterId
@@ -522,84 +292,39 @@ object AmazeClient {
     }
 
     suspend fun getCalendars(semesterId: String? = null): CalendarsListRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CalendarsListRes(
-                success = true,
-                calendars = listOf(
-                    NamedCalendar(
-                        name = "Academic Calendar",
-                        months = listOf(
-                            CalendarMonth(month = "July 2026", days = listOf(
-                                CalendarDay(1, listOf(CalendarEvent("Instructional Day", "Day Order: Monday (Unit Test starting)"))),
-                                CalendarDay(15, listOf(CalendarEvent("Holiday", "College Foundation Day", "#ef4444"))),
-                                CalendarDay(20, listOf(CalendarEvent("Other", "Course Registration starts")))
-                            )),
-                            CalendarMonth(month = "August 2026", days = listOf(
-                                CalendarDay(15, listOf(CalendarEvent("Holiday", "Independence Day", "#ef4444"))),
-                                CalendarDay(30, listOf(CalendarEvent("Other", "Last day for course withdrawal")))
-                            ))
-                        )
-                    ),
-                    NamedCalendar(
-                        name = "Examination Calendar",
-                        months = listOf(
-                            CalendarMonth(month = "September 2026", days = listOf(
-                                CalendarDay(12, listOf(CalendarEvent("Exam", "CAT 1 begins"))),
-                                CalendarDay(18, listOf(CalendarEvent("Exam", "CAT 1 ends")))
-                            )),
-                            CalendarMonth(month = "November 2026", days = listOf(
-                                CalendarDay(10, listOf(CalendarEvent("Exam", "FAT begins"))),
-                                CalendarDay(25, listOf(CalendarEvent("Exam", "FAT ends")))
-                            ))
-                        )
-                    ),
-                    NamedCalendar(
-                        name = "Semester Calendar",
-                        months = listOf(
-                            CalendarMonth(month = "July 2026", days = listOf(
-                                CalendarDay(1, listOf(CalendarEvent("Instructional Day", "Semester starts"))),
-                                CalendarDay(31, listOf(CalendarEvent("Other", "Last day for registration")))
-                            )),
-                            CalendarMonth(month = "December 2026", days = listOf(
-                                CalendarDay(15, listOf(CalendarEvent("Other", "Semester ends")))
-                            ))
-                        )
-                    ),
-                    NamedCalendar(
-                        name = "Freshers Calendar",
-                        months = listOf(
-                            CalendarMonth(month = "July 2026", days = listOf(
-                                CalendarDay(5, listOf(CalendarEvent("Other", "Freshers orientation"))),
-                                CalendarDay(10, listOf(CalendarEvent("Other", "Campus tour")))
-                            ))
-                        )
-                    )
-                )
-            )
-        }
-        // Delegate to getCalendar() and wrap result
-        val old = getCalendar("ALL", semesterId)
-        return if (old.success && old.months.isNotEmpty()) {
-            CalendarsListRes(
-                success = true,
-                calendars = listOf(NamedCalendar(name = "Academic Calendar", months = old.months))
-            )
-        } else {
-            CalendarsListRes(success = false, message = old.message ?: "Empty response")
+if (useMockData) return DemoData.get("calendars", CalendarsListRes.serializer()) ?: CalendarsListRes()
+        return coroutineScope {
+            val results = calendarTypes.map { (type, name) ->
+                async { getCalendar(type, semesterId) to name }
+            }.map { it.await() }
+
+            val calendars = mutableListOf<NamedCalendar>()
+            for ((res, name) in results) {
+                if (!res.success || res.months.isEmpty()) continue
+                calendars.add(NamedCalendar(name = name, months = res.months))
+            }
+
+            if (calendars.isNotEmpty()) {
+                CalendarsListRes(success = true, calendars = calendars)
+            } else {
+                CalendarsListRes(success = false, message = results.firstOrNull()?.first?.message ?: "Empty response")
+            }
         }
     }
 
+    val calendarTypes = listOf(
+        "ALL" to "General Semester",
+        "ALL02" to "General Flexible",
+        "ALL03" to "General Freshers",
+        "ALL05" to "General LAW",
+        "ALL06" to "Flexible Freshers",
+        "ALL08" to "Cohort LAW",
+        "ALL11" to "Flexible Research",
+        "WEI" to "Weekend Intra Semester"
+    )
+
     suspend fun getPayments(): PaymentsRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return PaymentsRes(
-                success = true,
-                payments = listOf(
-                    PaymentItem("BILL-4412", "Academic Tuition Fees 2026-27", "Rs. 1,98,000", "2026-06-15", "PAID", "2026-06-10", "REC-99120"),
-                    PaymentItem("BILL-4501", "Hostel & Mess Booking Q-Block", "Rs. 1,12,000", "2026-06-30", "PAID", "2026-06-25", "REC-99881")
-                ),
-                walletBalance = "Rs. 2,450.00"
-            )
-        }
+if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: PaymentsRes()
         return try {
             val duesResp = postAuthorized<JsonObject>("payments")
             val receiptsResp = postAuthorized<JsonObject>("payment-receipts")
@@ -654,15 +379,7 @@ object AmazeClient {
     }
 
     suspend fun getLibrary(libUsername: String? = null, libPassword: String? = null): LibraryRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return LibraryRes(
-                success = true,
-                booksIssued = listOf(
-                    BookItem("BK-90123", "Introduction to Algorithms", "Thomas H. Cormen", "2026-06-10", "2026-06-25", "Rs. 0.00"),
-                    BookItem("BK-90224", "Database System Concepts", "Abraham Silberschatz", "2026-07-01", "2026-07-16", "Rs. 0.00")
-                )
-            )
-        }
+if (useMockData) return DemoData.get("library", LibraryRes.serializer()) ?: LibraryRes()
         val creds = if (libUsername != null && libPassword != null) {
             mapOf("libUsername" to libUsername, "libPassword" to libPassword)
         } else {
@@ -680,15 +397,7 @@ object AmazeClient {
     }
 
     suspend fun searchLibrary(query: String, index: String = "kw", offset: Int = 0): LibraryRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return LibraryRes(
-                success = true,
-                searchResults = listOf(
-                    BookItem("BK-100", "Computer Networking: A Top-Down Approach", "James F. Kurose"),
-                    BookItem("BK-200", "Design Patterns: Elements of Reusable Object-Oriented Software", "Erich Gamma")
-                )
-            )
-        }
+if (useMockData) return DemoData.get("librarySearch", LibraryRes.serializer()) ?: LibraryRes()
         return try {
             val response: HttpResponse = httpClient.get("$baseUrl/api/koha/search?q=${query.encodeURLParameter()}&idx=${index.encodeURLParameter()}&offset=$offset&count=20")
             jsonConfig.decodeFromString(response.bodyAsText())
@@ -698,9 +407,7 @@ object AmazeClient {
     }
     
     suspend fun renewLibraryBook(bookId: String): BasicRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return BasicRes(success = true, message = "Book renewed successfully.")
-        }
+if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: BasicRes(success = true, message = "Book renewed successfully")
         return try {
             val creds = com.amazecc.app.shared.repository.SettingsManager.getLibraryCredentials()
             if (creds == null) return BasicRes(success = false, message = "Library credentials not found.")
@@ -718,19 +425,7 @@ object AmazeClient {
         }
     }
     suspend fun getTransportData(): TransportDataRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return TransportDataRes(
-                success = true,
-                hasRegistration = true,
-                registerNumber = "23ABC1234",
-                name = "John Doe",
-                programme = "B.Tech",
-                branch = "CSE",
-                routeSelected = "Katpadi",
-                paymentStatus = "PAID",
-                busRouteId = "R-12"
-            )
-        }
+if (useMockData) return DemoData.get("transport", TransportDataRes.serializer()) ?: TransportDataRes()
         return try {
             postAuthorized<TransportDataRes>("transport") ?: TransportDataRes(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -739,18 +434,7 @@ object AmazeClient {
     }
 
     suspend fun getBuses(): BusesRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return BusesRes(
-                success = true,
-                buses = listOf(
-                    BusRoute(
-                        id = "R-12", type = "Bus", route = "Vellore New Bus Stand - VIT Campus", boardingPoints = listOf("Vellore New Bus Stand"),
-                        driverName = "S. Kumar", driverPhone = "+91 9442190831", whatsappGroup = "http://wa.me/something", busLocation = "Campus",
-                        stops = listOf(BusStop(1, "Vellore New Bus Stand", "7:15 AM"))
-                    )
-                )
-            )
-        }
+if (useMockData) return DemoData.get("buses", BusesRes.serializer()) ?: BusesRes()
         return try {
             val response: HttpResponse = httpClient.get("$baseUrl/api/buses")
             if (response.status == HttpStatusCode.OK) {
@@ -764,9 +448,7 @@ object AmazeClient {
     }
 
     suspend fun submitTransportRegistration(request: TransportRegRequest): TransportRegSubmitRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return TransportRegSubmitRes(success = true, message = "Transport pass application submitted!", registrationId = "REG-${(1000..9999).random()}")
-        }
+if (useMockData) return DemoData.get("transportRegister", TransportRegSubmitRes.serializer()) ?: TransportRegSubmitRes()
         return try {
             val params = mapOf(
                 "routeNo" to request.routeNo,
@@ -782,127 +464,8 @@ object AmazeClient {
     }
 
 
-    suspend fun searchCabTrips(from: String, to: String, date: String): CabTripsRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabTripsRes(
-                success = true,
-                trips = listOf(
-                    CabTrip(id = "CT-101", from = from, to = to, date = date, time = "2:00 PM", seatsTotal = 4, seatsAvailable = 2, fare = "â‚¹250", driverName = "S. Rajan", driverPhone = "+91 9876543210", driverRating = "4.8", vehicleModel = "Toyota Etios", vehicleColor = "White", vehiclePlate = "TN 01 AB 1234"),
-                    CabTrip(id = "CT-102", from = from, to = to, date = date, time = "3:30 PM", seatsTotal = 4, seatsAvailable = 3, fare = "â‚¹200", driverName = "Priya K.", driverPhone = "+91 9876543211", driverRating = "4.9", vehicleModel = "Honda City", vehicleColor = "Blue", vehiclePlate = "TN 22 CD 5678"),
-                    CabTrip(id = "CT-103", from = from, to = to, date = date, time = "5:00 PM", seatsTotal = 4, seatsAvailable = 1, fare = "â‚¹300", driverName = "Arun M.", driverPhone = "+91 9876543212", driverRating = "4.7", vehicleModel = "Maruti Swift", vehicleColor = "Silver", vehiclePlate = "TN 07 EF 9012"),
-                    CabTrip(id = "CT-104", from = from, to = to, date = date, time = "6:15 PM", seatsTotal = 4, seatsAvailable = 4, fare = "â‚¹180", driverName = "Deepa R.", driverPhone = "+91 9876543213", driverRating = "4.6", vehicleModel = "Hyundai i10", vehicleColor = "Red", vehiclePlate = "TN 11 GH 3456")
-                )
-            )
-        }
-        return try {
-            val params = mapOf("from" to from, "to" to to, "date" to date)
-            postAuthorized<CabTripsRes>("cab/search", params) ?: CabTripsRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            CabTripsRes(success = false, message = e.message, error = e.toString())
-        }
-    }
-
-    suspend fun createCabTrip(request: CabCreateTripRequest): CabActionRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabActionRes(success = true, message = "Trip created!", tripId = "CT-${(1000..9999).random()}")
-        }
-        return try {
-            val params = mapOf(
-                "from" to request.from, "to" to request.to, "date" to request.date,
-                "time" to request.time, "seats" to request.seats.toString(), "fare" to request.fare,
-                "vehicleModel" to (request.vehicleModel ?: ""),
-                "vehicleColor" to (request.vehicleColor ?: ""),
-                "vehiclePlate" to (request.vehiclePlate ?: "")
-            )
-            postAuthorized<CabActionRes>("cab/create", params) ?: CabActionRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            CabActionRes(success = false, message = e.message, error = e.toString())
-        }
-    }
-
-    suspend fun getMyCabTrips(): CabTripsRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabTripsRes(
-                success = true,
-                trips = listOf(
-                    CabTrip(id = "CT-201", from = "VIT Chennai", to = "Chennai Airport", date = "2026-07-15", time = "2:00 PM", seatsTotal = 4, seatsAvailable = 2, fare = "â‚¹250", driverName = "You", vehicleModel = "Toyota Etios", vehicleColor = "White", vehiclePlate = "TN 01 AB 1234", status = "Scheduled", isOwnTrip = true),
-                    CabTrip(id = "CT-202", from = "Railway Station", to = "VIT Chennai", date = "2026-07-10", time = "10:00 AM", seatsTotal = 3, seatsAvailable = 0, fare = "â‚¹150", driverName = "You", vehicleModel = "Honda City", vehicleColor = "Blue", vehiclePlate = "TN 22 CD 5678", status = "Completed", isOwnTrip = true)
-                )
-            )
-        }
-        return try {
-            postAuthorized<CabTripsRes>("cab/my-trips") ?: CabTripsRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            CabTripsRes(success = false, message = e.message, error = e.toString())
-        }
-    }
-
-    suspend fun requestJoinTrip(tripId: String, seats: Int): CabActionRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabActionRes(success = true, message = "Request sent!", tripId = tripId)
-        }
-        return try {
-            val params = mapOf("tripId" to tripId, "seats" to seats.toString())
-            postAuthorized<CabActionRes>("cab/join", params) ?: CabActionRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            CabActionRes(success = false, message = e.message, error = e.toString())
-        }
-    }
-
-    suspend fun getCabJoinRequests(tripId: String): CabJoinRequestsRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabJoinRequestsRes(
-                success = true,
-                requests = listOf(
-                    CabJoinRequest(id = "REQ-001", tripId = tripId, requesterName = "Vikram S.", seats = 2, status = "Pending"),
-                    CabJoinRequest(id = "REQ-002", tripId = tripId, requesterName = "Neha P.", seats = 1, status = "Pending")
-                )
-            )
-        }
-        return try {
-            val params = mapOf("tripId" to tripId)
-            postAuthorized<CabJoinRequestsRes>("cab/requests", params) ?: CabJoinRequestsRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            CabJoinRequestsRes(success = false, message = e.message, error = e.toString())
-        }
-    }
-
-    suspend fun acceptCabJoinRequest(tripId: String, requestId: String): CabActionRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabActionRes(success = true, message = "Request accepted!")
-        }
-        return try {
-            val params = mapOf("tripId" to tripId, "requestId" to requestId)
-            postAuthorized<CabActionRes>("cab/accept", params) ?: CabActionRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            CabActionRes(success = false, message = e.message, error = e.toString())
-        }
-    }
-
-    suspend fun rejectCabJoinRequest(tripId: String, requestId: String): CabActionRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabActionRes(success = true, message = "Request rejected")
-        }
-        return try {
-            val params = mapOf("tripId" to tripId, "requestId" to requestId)
-            postAuthorized<CabActionRes>("cab/reject", params) ?: CabActionRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            CabActionRes(success = false, message = e.message, error = e.toString())
-        }
-    }
-
     suspend fun cabShareAuth(username: String, password: String, phoneNumber: String): CabShareAuthRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabShareAuthRes(
-                success = true,
-                user = CabShareUser(
-                    reg_number = username,
-                    name = "Demo User",
-                    phone_number = phoneNumber,
-                    local_only = false
-                )
-            )
-        }
+if (useMockData) return DemoData.get("cabShareAuth", CabShareAuthRes.serializer()) ?: CabShareAuthRes()
         return try {
             val params = buildJsonObject {
                 put("phone_number", phoneNumber)
@@ -917,13 +480,11 @@ object AmazeClient {
     }
 
     suspend fun getCabHubs(): List<CabShareHub> {
-        return fallbackHubs
+        return fallbackCabHubs
     }
 
     suspend fun searchCabShareTrips(fromHubId: Int?, toHubId: Int?, date: String): CabShareTripsRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabShareTripsRes(success = true, trips = emptyList())
-        }
+if (useMockData) return DemoData.get("cabShareSearch", CabShareTripsRes.serializer()) ?: CabShareTripsRes()
         return try {
             val params = mutableMapOf<String, String>()
             fromHubId?.let { params["from_hub_id"] = it.toString() }
@@ -941,9 +502,7 @@ object AmazeClient {
         fromHubId: Int, toHubId: Int, date: String, time: String,
         tolerance: Double, seats: Int, gender: String, notes: String
     ): CabActionRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabActionRes(success = true, message = "Trip created!", tripId = "CT-${(1000..9999).random()}")
-        }
+if (useMockData) return DemoData.get("cabShareCreate", CabActionRes.serializer()) ?: CabActionRes()
         return try {
             val body = buildJsonObject {
                 put("reg_number", SessionManager.authorizedID.value ?: "")
@@ -966,9 +525,7 @@ object AmazeClient {
     }
 
     suspend fun getMyCabShareTrips(regNumber: String): CabShareTripsRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CabShareTripsRes(success = true)
-        }
+if (useMockData) return DemoData.get("cabShareMyTrips", CabShareTripsRes.serializer()) ?: CabShareTripsRes()
         return try {
             postAuthorized<CabShareTripsRes>("cabshare/trips/me?reg_number=$regNumber")
                 ?: CabShareTripsRes(success = false, error = "Empty response")
@@ -1005,55 +562,8 @@ object AmazeClient {
         }
     }
 
-    fun createLocalCabTrip(
-        fromHubId: Int, toHubId: Int, date: String, time: String,
-        tolerance: Double, seats: Int, gender: String, notes: String,
-        user: CabShareUser, hubs: List<CabShareHub>
-    ): CabShareTrip {
-        val fromHub = hubs.find { it.hub_id == fromHubId }
-        val toHub = hubs.find { it.hub_id == toHubId }
-        val trip = CabShareTrip(
-            trip_id = Clock.System.now().toEpochMilliseconds(),
-            reg_number = user.reg_number,
-            name = user.name.ifBlank { user.reg_number },
-            owner_name = user.name.ifBlank { user.reg_number },
-            owner_phone = user.phone_number,
-            from_hub_id = fromHubId,
-            hub_id = toHubId,
-            from_hub_name = fromHub?.hub_name ?: "",
-            hub_name = toHub?.hub_name ?: "",
-            travel_date = date,
-            preferred_time = time,
-            tolerance_hours = tolerance,
-            gender_preference = gender,
-            notes = notes,
-            local_only = true
-        )
-        val serializer = ListSerializer(CabShareTrip.serializer())
-        val existing = try {
-            jsonConfig.decodeFromString(serializer, com.russhwolf.settings.Settings().getString(SettingsManager.CACHE_CAB_LOCAL_TRIPS, "[]"))
-        } catch (_: Exception) { emptyList() }
-        com.russhwolf.settings.Settings()[SettingsManager.CACHE_CAB_LOCAL_TRIPS] = jsonConfig.encodeToString(serializer, listOf(trip) + existing)
-        return trip
-    }
-
-    fun getLocalCabTrips(): List<CabShareTrip> {
-        val settings = com.russhwolf.settings.Settings()
-        return try {
-            jsonConfig.decodeFromString(ListSerializer(CabShareTrip.serializer()), settings.getString(SettingsManager.CACHE_CAB_LOCAL_TRIPS, "[]"))
-        } catch (_: Exception) { emptyList() }
-    }
-
     suspend fun getLMSAssignments(): LMSRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return LMSRes(
-                success = true,
-                assignments = listOf(
-                    LMSAssignment("ASM-102", "CSE1001", "Design Pattern Implementation", "10", "2026-07-15", "Pending"),
-                    LMSAssignment("ASM-098", "CSE2002", "SQL Queries Lab Assignment", "10", "2026-07-08", "Submitted", "9.5")
-                )
-            )
-        }
+if (useMockData) return DemoData.get("lms", LMSRes.serializer()) ?: LMSRes()
         return try {
             postAuthorized<LMSRes>("lms-data") ?: LMSRes(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -1061,21 +571,7 @@ object AmazeClient {
         }
     }
     suspend fun getQBankQuestions(courseCode: String): QBankRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return QBankRes(
-                success = true,
-                data = listOf(
-                    QBankQuestion(
-                        question_id = "Q-1",
-                        question_text = "What is encapsulation?",
-                        question_type = "Descriptive",
-                        marks = 5,
-                        topic_name = "OOPs",
-                        exam_semester = "Fall 2025"
-                    )
-                )
-            )
-        }
+if (useMockData) return DemoData.get("qbankQuestions", QBankRes.serializer()) ?: QBankRes()
         return try {
             val response: HttpResponse = httpClient.get("$baseUrl/api/qbank/questions?course=${courseCode.encodeURLParameter()}")
             if (response.status == HttpStatusCode.OK) {
@@ -1089,16 +585,7 @@ object AmazeClient {
     }
 
     suspend fun getQBankPapers(courseCode: String): QBankPapersRes {
-        if (useMockData) {
-            return QBankPapersRes(
-                success = true,
-                data = listOf(
-                    QBankPaper("1", "Mid Term 2023", "https://example.com/paper1.pdf", "Mid Term"),
-                    QBankPaper("2", "End Term 2023", "https://example.com/paper2.pdf", "End Term"),
-                    QBankPaper("3", "FAT 2022", "https://example.com/paper3.pdf", "FAT")
-                )
-            )
-        }
+if (useMockData) return DemoData.get("qbankPapers", QBankPapersRes.serializer()) ?: QBankPapersRes()
         return try {
             val response: HttpResponse = httpClient.get("$baseUrl/api/qbank/papers?course=${courseCode.encodeURLParameter()}")
             if (response.status.value in 200..299) {
@@ -1112,25 +599,7 @@ object AmazeClient {
     }
 
     suspend fun getQcmView(): QcmViewRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return QcmViewRes(
-                success = true,
-                data = buildJsonArray {
-                    add(buildJsonObject {
-                        put("caption", "QCM 1")
-                        put("rows", buildJsonArray {
-                            add(buildJsonObject { put("qcmNo", "1"); put("actionTaken", "Resolved"); put("suggestions", "Improve lab equipment"); put("facultyReply", "Noted") })
-                        })
-                    })
-                    add(buildJsonObject {
-                        put("caption", "QCM 2")
-                        put("rows", buildJsonArray {
-                            add(buildJsonObject { put("qcmNo", "2"); put("actionTaken", "In Progress"); put("suggestions", "More practice sessions"); put("facultyReply", "Will schedule") })
-                        })
-                    })
-                }
-            )
-        }
+if (useMockData) return DemoData.get("qcmView", QcmViewRes.serializer()) ?: QcmViewRes()
         return try {
             postAuthorized<QcmViewRes>("qcm-view") ?: QcmViewRes(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -1139,15 +608,7 @@ object AmazeClient {
     }
 
     suspend fun getEvents(): EventHubRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return EventHubRes(
-                success = true,
-                events = listOf(
-                    EventHubEvent(eid = "E001", title = "RoboWars 2026", eligibility = "All", type = "Technical", date = "2026-08-20", location = "SJT Ground", price = "Free", time = "10:00 AM"),
-                    EventHubEvent(eid = "E002", title = "Code Sprint", eligibility = "All", type = "Technical", date = "2026-09-05", location = "Anna Auditorium", price = "Free", time = "09:00 AM")
-                )
-            )
-        }
+if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: EventHubRes()
         return try {
             val response = httpClient.get("$baseUrl/api/events") {
                 contentType(ContentType.Application.Json)
@@ -1241,21 +702,7 @@ object AmazeClient {
     }
 
     suspend fun getEventsProfile(): EventHubRegisteredEventsRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return EventHubRegisteredEventsRes(
-                success = true,
-                events = listOf(
-                    EventHubRegisteredEvent(
-                        eid = "EV-901",
-                        title = "Hackathon 2026",
-                        location = "Anna Auditorium",
-                        date = "2026-08-15",
-                        time = "10:00 AM",
-                        paymentStatus = "Registered"
-                    )
-                )
-            )
-        }
+if (useMockData) return DemoData.get("eventsProfile", EventHubRegisteredEventsRes.serializer()) ?: EventHubRegisteredEventsRes()
         return try {
             val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
             val extraParams = mutableMapOf<String, String>()
@@ -1273,20 +720,7 @@ object AmazeClient {
     }
 
     suspend fun getClubsDetails(): ClubsRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ClubsRes(
-                success = true,
-                clubs = listOf(
-                    ClubItem(
-                        id = "CL-1",
-                        name = "Computer Society of India (CSI)",
-                        description = "Technical Club",
-                        website = "https://csi.vit.ac.in",
-                        instagram = "csi_vitc"
-                    )
-                )
-            )
-        }
+if (useMockData) return DemoData.get("clubs", ClubsRes.serializer()) ?: ClubsRes()
         return try {
             val response: HttpResponse = httpClient.get("$baseUrl/api/clubs/details")
             if (response.status == HttpStatusCode.OK) {
@@ -1321,40 +755,8 @@ object AmazeClient {
         }
     }
 
-    suspend fun getVtopStudentPhoto(regNo: String): ByteArray? {
-        val cookies = SessionManager.cookies.value ?: return null
-        return try {
-            val response: HttpResponse = httpClient.get("https://vtopcc.vit.ac.in/vtop/student/getPhoto") {
-                header(HttpHeaders.Cookie, cookies)
-                parameter("regNo", regNo)
-            }
-            if (response.status == HttpStatusCode.OK) {
-                val body = response.body<ByteArray>()
-                if (body.size > 100) body else null
-            } else null
-        } catch (e: Exception) {
-            null
-        }
-    }
-
     suspend fun getStudentProfile(): StudentProfileRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return StudentProfileRes(
-                success = true,
-                data = StudentProfile(
-                    regNo = "23BCE1234",
-                    name = "Alexander Pierce",
-                    email = "alex.pierce2023@vitstudent.ac.in",
-                    mobile = "+91 98765 43210",
-                    program = "B.Tech CSE (Specialisation in AI & ML)",
-                    campus = "VIT Chennai",
-                    batch = "2023-2027",
-                    section = "A",
-                    advisorName = "Dr. Rajesh Kumar",
-                    bloodGroup = "O+"
-                )
-            )
-        }
+if (useMockData) return DemoData.get("studentProfile", StudentProfileRes.serializer()) ?: StudentProfileRes()
         return try {
             postAuthorized<StudentProfileRes>("student") ?: StudentProfileRes(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -1363,9 +765,7 @@ object AmazeClient {
     }
 
     suspend fun getProfileImages(): ProfileImagesRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ProfileImagesRes(success = true)
-        }
+if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serializer()) ?: ProfileImagesRes()
         return try {
             postAuthorized<ProfileImagesRes>("profile-images") ?: ProfileImagesRes(success = false)
         } catch (e: Exception) {
@@ -1374,126 +774,42 @@ object AmazeClient {
     }
 
     suspend fun getEptSchedule(): EptScheduleRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return EptScheduleRes(success = true)
+        if (useMockData) return DemoData.get("eptSchedule", EptScheduleRes.serializer()) ?: EptScheduleRes(success = true)
         return try {
             postAuthorized<EptScheduleRes>("ept-schedule") ?: EptScheduleRes(success = false)
         } catch (e: Exception) { EptScheduleRes(success = false, error = e.toString()) }
     }
 
     suspend fun getRegistrationSchedule(): RegistrationScheduleRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return RegistrationScheduleRes(success = true)
+        if (useMockData) return DemoData.get("registrationSchedule", RegistrationScheduleRes.serializer()) ?: RegistrationScheduleRes(success = true)
         return try {
             postAuthorized<RegistrationScheduleRes>("registration-schedule") ?: RegistrationScheduleRes(success = false)
         } catch (e: Exception) { RegistrationScheduleRes(success = false, error = e.toString()) }
     }
 
     suspend fun getBankInfo(): BankInfoRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return BankInfoRes(success = true)
+        if (useMockData) return DemoData.get("bankInfo", BankInfoRes.serializer()) ?: BankInfoRes(success = true)
         return try {
             postAuthorized<BankInfoRes>("bank-info") ?: BankInfoRes(success = false)
         } catch (e: Exception) { BankInfoRes(success = false, error = e.toString()) }
     }
 
     suspend fun getDayboarderInfo(): DayboarderRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return DayboarderRes(success = true)
+        if (useMockData) return DemoData.get("dayboarder", DayboarderRes.serializer()) ?: DayboarderRes(success = true)
         return try {
             postAuthorized<DayboarderRes>("dayboarder") ?: DayboarderRes(success = false)
         } catch (e: Exception) { DayboarderRes(success = false, error = e.toString()) }
     }
 
     suspend fun getApaarId(): ApaarIdRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return ApaarIdRes(success = true)
+        if (useMockData) return DemoData.get("apaarId", ApaarIdRes.serializer()) ?: ApaarIdRes(success = true)
         return try {
             postAuthorized<ApaarIdRes>("apaarid") ?: ApaarIdRes(success = false)
         } catch (e: Exception) { ApaarIdRes(success = false, error = e.toString()) }
     }
 
-    suspend fun getMakeupExam(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                keyValuePairs = listOf(
-                    KeyValuePair("Eligibility Status", "Eligible"),
-                    KeyValuePair("Courses Eligible", "2"),
-                    KeyValuePair("Last Date to Apply", "2026-07-25")
-                ),
-                tables = listOf(
-                    ApiTable(
-                        title = "Makeup Exam Eligibility",
-                        headers = listOf("Course Code", "Course Title", "Credits", "Eligibility"),
-                        rows = listOf(
-                            listOf("MAT2001", "Statistics for Engineers", "4", "Eligible"),
-                            listOf("PHY1701", "Engineering Physics", "3", "Eligible")
-                        )
-                    )
-                )
-            )
-        }
-        return postAuthorized<ArrearResponse>("makeup-exam") ?: ArrearResponse(success = false, message = "Empty response")
-    }
-
-    suspend fun getMakeupSchedule(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                tables = listOf(
-                    ApiTable(
-                        title = "Makeup Schedule",
-                        headers = listOf("Course Code", "Course Title", "Date", "Time", "Venue"),
-                        rows = listOf(
-                            listOf("MAT2001", "Statistics for Engineers", "2026-07-28", "10:00 AM", "SJT-101"),
-                            listOf("PHY1701", "Engineering Physics", "2026-07-30", "2:00 PM", "SJT-204")
-                        )
-                    )
-                )
-            )
-        }
-        return postAuthorized<ArrearResponse>("makeup-schedule") ?: ArrearResponse(success = false, message = "Empty response")
-    }
-
-    suspend fun getCompreInfo(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                keyValuePairs = listOf(
-                    KeyValuePair("Total Eligible Courses", "6"),
-                    KeyValuePair("Comprehensive Exam Date", "2026-08-15"),
-                    KeyValuePair("Result Declaration", "2026-08-30")
-                ),
-                tables = listOf(
-                    ApiTable(
-                        title = "Comprehensive Exam Info",
-                        headers = listOf("Course Code", "Course Title", "Credits", "Compre Status"),
-                        rows = listOf(
-                            listOf("MAT2001", "Statistics for Engineers", "4", "Scheduled"),
-                            listOf("PHY1701", "Engineering Physics", "3", "Scheduled"),
-                            listOf("CSE1001", "Problem Solving", "3", "Completed"),
-                            listOf("ENG1001", "Technical English", "2", "Completed")
-                        )
-                    )
-                )
-            )
-        }
-        return postAuthorized<ArrearResponse>("compre-info") ?: ArrearResponse(success = false, message = "Empty response")
-    }
-
     suspend fun getCirculars(): CircularsRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return CircularsRes(
-                success = true,
-                circulars = listOf(
-                    CircularItem(title = "Academic Calendar", children = listOf(
-                        CircularItem(id = "CIR-001", title = "Revised Academic Calendar for 2026-27"),
-                        CircularItem(id = "CIR-002", title = "Holiday List for Upcoming Semester")
-                    )),
-                    CircularItem(title = "Examinations", children = listOf(
-                        CircularItem(id = "CIR-003", title = "CAT I Examination Schedule"),
-                        CircularItem(id = "CIR-004", title = "Makeup Exam Application Notice")
-                    )),
-                    CircularItem(title = "General", children = listOf(
-                        CircularItem(id = "CIR-005", title = "Hostel Fee Payment Deadline"),
-                        CircularItem(id = "CIR-006", title = "Transport Route Changes Effective Aug 1")
-                    ))
-                )
-            )
-        }
+if (useMockData) return DemoData.get("circulars", CircularsRes.serializer()) ?: CircularsRes()
         return postAuthorized<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
     }
 
@@ -1501,10 +817,8 @@ object AmazeClient {
     // â”€â”€ Phase 3 endpoints â”€â”€
 
     suspend fun postQBankPaper(courseCode: String, title: String, link: String, type: String): QBankSubmitRes? {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return QBankSubmitRes(success = true, message = "Paper uploaded!")
-        }
-        return postAuthorized("/api/qbank/upload", mapOf(
+if (useMockData) return DemoData.get("qbankUpload", QBankSubmitRes.serializer()) ?: QBankSubmitRes(true)
+        return postAuthorized("qbank/upload", mapOf(
             "courseCode" to courseCode,
             "title" to title,
             "link" to link,
@@ -1513,36 +827,12 @@ object AmazeClient {
     }
 
     suspend fun getQBankCourses(): QBankCoursesRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return QBankCoursesRes(success = true, courses = listOf(
-                QBankCourse("CSE1001", "Software Engineering"),
-                QBankCourse("CSE2002", "Database Management Systems"),
-                QBankCourse("CSE3001", "Artificial Intelligence"),
-                QBankCourse("MAT2001", "Differential Equations"),
-                QBankCourse("PHY1701", "Engineering Physics")
-            ))
-        }
+if (useMockData) return DemoData.get("qbankCourses", QBankCoursesRes.serializer()) ?: QBankCoursesRes()
         return postAuthorized<QBankCoursesRes>("qbank/courses") ?: QBankCoursesRes(success = false, message = "Empty response")
     }
 
     suspend fun getFacultySchools(): FacultySchoolsRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return FacultySchoolsRes(success = true, schools = listOf(
-                FacultySchool("SCOPE", "SCOPE"),
-                FacultySchool("SENSE", "SENSE"),
-                FacultySchool("SCE", "SCE"),
-                FacultySchool("SMEC", "SMEC"),
-                FacultySchool("SASM", "SAS MATHS"),
-                FacultySchool("SASP", "SAS PHYSICS"),
-                FacultySchool("SASC", "SAS CHEMISTRY"),
-                FacultySchool("SSL", "SSL"),
-                FacultySchool("SBST", "SBST"),
-                FacultySchool("SELECT", "SELECT"),
-                FacultySchool("V-SMART", "V-SMART"),
-                FacultySchool("VFSI", "VFIT"),
-                FacultySchool("VSL", "VITSOL")
-            ))
-        }
+if (useMockData) return DemoData.get("facultySchools", FacultySchoolsRes.serializer()) ?: FacultySchoolsRes()
         return try {
             val response: HttpResponse = httpClient.get("$baseUrl/api/faculty/schools")
             if (response.status == HttpStatusCode.OK) {
@@ -1556,16 +846,7 @@ object AmazeClient {
     }
 
     suspend fun postFacultyScrape(schoolId: String): FacultyScrapeRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            val facultyMap = mapOf(
-                "SCOPE" to listOf(
-                    FacultyProfile("50300", "Dr. Viswanathan V", "Professor and Dean", imageUrl = "https://chennai.vit.ac.in/wp-content/uploads/2020/08/50300-Viswanathan-V.jpg", profileUrl = "https://chennai.vit.ac.in/member/dr-viswanathan-v/", email = "viswanathan.v@vit.ac.in", employeeId = "50300", intercom = "044 3993 1130"),
-                    FacultyProfile("50443", "Dr. Nithyanandam P", "Professor and Associate Dean", email = "nithyanandam.p@vit.ac.in", employeeId = "50443", intercom = "044 3993 1396"),
-                    FacultyProfile("50438", "Dr. Suganya G", "Professor and Associate Dean", email = "suganya.g@vit.ac.in", employeeId = "50438", intercom = "044 3993 1399")
-                )
-            )
-            return FacultyScrapeRes(success = true, faculties = facultyMap[schoolId] ?: emptyList())
-        }
+if (useMockData) return DemoData.get("facultyScrape", FacultyScrapeRes.serializer()) ?: FacultyScrapeRes()
         return try {
             val response: HttpResponse = httpClient.post("$baseUrl/api/faculty/scrape") {
                 contentType(ContentType.Application.Json)
@@ -1627,7 +908,7 @@ object AmazeClient {
      * The name used for matching is the VTOP/FFCS name, not the directory name.
      */
     suspend fun searchFacultyDirectory(name: String, idHint: String? = null, schoolHint: String? = null): FacultyProfile? {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") return null
+        if (useMockData) return null
 
         val directId = idHint?.takeIf { it.isNotBlank() && it.all { c -> c.isDigit() } }
         if (directId != null) {
@@ -1652,93 +933,37 @@ object AmazeClient {
     }
 
     suspend fun getCourseOptionChange(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                tables = listOf(ApiTable(title = "Course Option Change", headers = listOf("Course Code", "Course Title", "Status", "Last Date"), rows = listOf(
-                    listOf("CSE1001", "Software Engineering", "Open", "2026-07-20"),
-                    listOf("MAT2001", "Differential Equations", "Closed", "2026-06-30")
-                )))
-            )
-        }
+if (useMockData) return DemoData.get("courseOptionChange", ArrearResponse.serializer()) ?: ArrearResponse()
         return postAuthorized<ArrearResponse>("course-option-change") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
     suspend fun getExcRegistration(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                keyValuePairs = listOf(KeyValuePair("Eligible Credits", "22"), KeyValuePair("Applied Credits", "18")),
-                tables = listOf(ApiTable(title = "EXC Registration", headers = listOf("Course Code", "Course Title", "Credits", "Status"), rows = listOf(
-                    listOf("CSE4001", "Machine Learning", "4", "Approved"),
-                    listOf("CSE4002", "Cloud Computing", "3", "Pending")
-                )))
-            )
-        }
+if (useMockData) return DemoData.get("excRegistration", ArrearResponse.serializer()) ?: ArrearResponse()
         return postAuthorized<ArrearResponse>("exc-registration") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
     suspend fun getMinorHonour(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                tables = listOf(ApiTable(title = "Minor / Honour Courses", headers = listOf("Course Code", "Course Title", "Type", "Status"), rows = listOf(
-                    listOf("MNC1001", "Data Science Minor", "Minor", "Enrolled"),
-                    listOf("HON2001", "Advanced Algorithms", "Honour", "Completed")
-                )))
-            )
-        }
+if (useMockData) return DemoData.get("minorHonour", ArrearResponse.serializer()) ?: ArrearResponse()
         return postAuthorized<ArrearResponse>("minor-honour") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
     suspend fun getCourseCompletion(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                keyValuePairs = listOf(KeyValuePair("Total Credits Required", "160"), KeyValuePair("Credits Completed", "84")),
-                tables = listOf(ApiTable(title = "Course Completion Status", headers = listOf("Category", "Required", "Completed", "Status"), rows = listOf(
-                    listOf("University Core", "48", "36", "In Progress"),
-                    listOf("Program Core", "52", "30", "In Progress"),
-                    listOf("Program Elective", "24", "8", "In Progress"),
-                    listOf("Open Elective", "12", "4", "In Progress")
-                )))
-            )
-        }
+if (useMockData) return DemoData.get("courseCompletion", ArrearResponse.serializer()) ?: ArrearResponse()
         return postAuthorized<ArrearResponse>("course-completion") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
     suspend fun getProjects(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                tables = listOf(ApiTable(title = "Projects", headers = listOf("Project Code", "Title", "Guide", "Status"), rows = listOf(
-                    listOf("PJ-001", "AI Chatbot for Education", "Dr. Amit Kumar", "In Progress"),
-                    listOf("PJ-002", "Blockchain-based Voting", "Dr. Rajeev Sen", "Completed")
-                )))
-            )
-        }
+if (useMockData) return DemoData.get("projects", ArrearResponse.serializer()) ?: ArrearResponse()
         return postAuthorized<ArrearResponse>("project") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
     suspend fun getWishlist(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                tables = listOf(ApiTable(title = "Course Wishlist", headers = listOf("Course Code", "Course Title", "Priority", "Semester"), rows = listOf(
-                    listOf("CSE4003", "Natural Language Processing", "High", "Fall 2026-27"),
-                    listOf("CSE4004", "Computer Vision", "Medium", "Fall 2026-27")
-                )))
-            )
-        }
+if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?: ArrearResponse()
         return postAuthorized<ArrearResponse>("wishlist") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
     suspend fun getFeedbackStatus(semesterId: String? = null): FeedbackStatusRes {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return FeedbackStatusRes(
-                success = true,
-                semesters = listOf(FeedbackSemester("Fall 2026", "CH20262701", true)),
-                feedbackTable = listOf(
-                    FeedbackTableRow("Software Engineering", "Given", "Given"),
-                    FeedbackTableRow("Database Management Systems", "Given", "Not Given"),
-                    FeedbackTableRow("Differential Equations", "Not Given", "Not Given")
-                )
-            )
-        }
+if (useMockData) return DemoData.get("feedback", FeedbackStatusRes.serializer()) ?: FeedbackStatusRes()
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
             postAuthorized<FeedbackStatusRes>("feedback-status", params) ?: FeedbackStatusRes(success = false, error = "Empty response")
@@ -1748,40 +973,17 @@ object AmazeClient {
     }
 
     suspend fun getBonafide(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                tables = listOf(ApiTable(title = "Bonafide Certificates", headers = listOf("Request ID", "Purpose", "Status", "Issued Date"), rows = listOf(
-                    listOf("BNF-001", "Bank Loan", "Issued", "2026-06-20"),
-                    listOf("BNF-002", "Passport Application", "Processing", "â€”")
-                )))
-            )
-        }
+if (useMockData) return DemoData.get("bonafide", ArrearResponse.serializer()) ?: ArrearResponse()
         return postAuthorized<ArrearResponse>("bonafide") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
     suspend fun getETranscript(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                keyValuePairs = listOf(KeyValuePair("Available Transcripts", "4"), KeyValuePair("Pending Requests", "1")),
-                tables = listOf(ApiTable(title = "E-Transcripts", headers = listOf("Transcript ID", "Semester", "Type", "Status"), rows = listOf(
-                    listOf("TR-101", "Fall 2025-26", "Provisional", "Downloaded"),
-                    listOf("TR-102", "Winter 2025-26", "Consolidated", "Available"),
-                    listOf("TR-103", "Fall 2026-27", "Provisional", "Requested")
-                )))
-            )
-        }
+if (useMockData) return DemoData.get("eTranscript", ArrearResponse.serializer()) ?: ArrearResponse()
         return postAuthorized<ArrearResponse>("e-transcript") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
     suspend fun getAdditionalLearning(): ArrearResponse {
-        if (useMockData || SessionManager.authorizedID.value == "DEMO123") {
-            return ArrearResponse(
-                tables = listOf(ApiTable(title = "Additional Learning", headers = listOf("Course Code", "Course Title", "Platform", "Progress"), rows = listOf(
-                    listOf("AL-001", "Python for Data Science", "Coursera", "80%"),
-                    listOf("AL-002", "Web Development", "NPTEL", "45%")
-                )))
-            )
-        }
+if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serializer()) ?: ArrearResponse()
         return postAuthorized<ArrearResponse>("additional-learning") ?: ArrearResponse(success = false, message = "Empty response")
     }
 
@@ -1795,33 +997,6 @@ object AmazeClient {
             }
         } catch (e: Exception) {
             FeedRes(success = false, error = e.toString())
-        }
-    }
-
-    suspend fun promoteFeedPost(postId: String): PromoteRes? {
-        return try {
-            val body = buildJsonObject {
-                put("post_id", postId)
-                put("vtop_id", SessionManager.authorizedID.value ?: "")
-            }
-            val response: HttpResponse = httpClient.post("$baseUrl/api/club-admin/feed/promote") {
-                contentType(ContentType.Application.Json)
-                setBody(body.toString())
-            }
-            if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString<PromoteRes>(response.bodyAsText())
-            } else null
-        } catch (_: Exception) { null }
-    }
-
-    suspend fun getFFCSReport(): ByteArray? {
-        return try {
-            val response: HttpResponse = httpClient.get("https://amazecc.como/ffcs/ffcsReport.csv")
-            if (response.status == HttpStatusCode.OK) {
-                response.readBytes()
-            } else null
-        } catch (_: Exception) {
-            null
         }
     }
 

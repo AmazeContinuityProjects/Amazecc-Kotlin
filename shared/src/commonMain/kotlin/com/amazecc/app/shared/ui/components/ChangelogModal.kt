@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.components
+﻿package com.amazecc.app.shared.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -50,7 +50,7 @@ fun ChangelogModal(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF3B82F6)),
+                        .background(colors.info),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -65,7 +65,7 @@ fun ChangelogModal(
                     Text(
                         "What's New!",
                         style = AmazeTheme.typography.heading.copy(
-                            fontSize = 20.sp,
+                            fontSize = AmazeTheme.fontSize.xl,
                             fontWeight = FontWeight.Bold,
                             color = colors.textPrimary
                         )
@@ -73,7 +73,7 @@ fun ChangelogModal(
                     Text(
                         "Version $version",
                         style = AmazeTheme.typography.caption.copy(
-                            color = Color(0xFF3B82F6),
+                            color = colors.info,
                             fontWeight = FontWeight.Bold
                         )
                     )
@@ -98,14 +98,14 @@ fun ChangelogModal(
                         Icon(
                             Icons.Rounded.CheckCircle,
                             contentDescription = null,
-                            tint = Color(0xFF10B981),
+                            tint = colors.success,
                             modifier = Modifier.size(18.dp).padding(top = 2.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = change,
                             style = AmazeTheme.typography.body.copy(
-                                fontSize = 14.sp,
+                                fontSize = AmazeTheme.fontSize.md,
                                 color = colors.textPrimary
                             )
                         )

@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.events
+﻿package com.amazecc.app.shared.ui.screens.events
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
@@ -306,10 +306,10 @@ private fun FeaturedEventCard(
             modifier = Modifier
                 .align(Alignment.TopEnd).padding(12.dp)
                 .clip(RoundedCornerShape(6.dp))
-                .background(if (event.price == "Free") Color(0xFF4CAF50).copy(alpha = 0.85f) else colors.accent.copy(alpha = 0.85f))
+                .background(if (event.price == "Free") colors.success.copy(alpha = 0.85f) else colors.accent.copy(alpha = 0.85f))
                 .padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
-            Text(event.price, color = Color.White, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp))
+            Text(event.price, color = Color.White, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs))
         }
     }
 }
@@ -361,10 +361,10 @@ private fun EventCard(
                             .background(colors.accent.copy(alpha = 0.1f))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
-                        Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 10.sp))
+                        Text(event.type, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro))
                     }
                     Spacer(modifier = Modifier.weight(1f))
-                    Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = 11.sp))
+                    Text(event.date, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.xs))
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
@@ -382,11 +382,11 @@ private fun EventCard(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (isRegistered) {
                     Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText, modifier = Modifier.size(28.dp))
-                    Text("Registered", style = AmazeTheme.typography.smallLabel.copy(color = colors.successText, fontWeight = FontWeight.Bold, fontSize = 9.sp))
+                    Text("Registered", style = AmazeTheme.typography.smallLabel.copy(color = colors.successText, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro))
                 } else {
-                    Text(event.price, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent, fontSize = 15.sp))
+                    Text(event.price, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.accent, fontSize = AmazeTheme.fontSize.lg))
                     if (event.eligibility.isNotEmpty()) {
-                        Text(event.eligibility, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp))
+                        Text(event.eligibility, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
                     }
                 }
             }
@@ -599,7 +599,7 @@ private fun EventDetailSheet(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             event.title,
-                            style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 22.sp)
+                            style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.xl)
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -609,13 +609,13 @@ private fun EventDetailSheet(
                                     .background(colors.accent.copy(alpha = 0.1f))
                                     .padding(horizontal = 10.dp, vertical = 4.dp)
                             ) {
-                                Text(event.type, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = colors.accent)
+                                Text(event.type, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm, color = colors.accent)
                             }
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(
-                                        if (event.price == "Free") Color(0xFF4CAF50).copy(alpha = 0.1f)
+                                        if (event.price == "Free") colors.success.copy(alpha = 0.1f)
                                         else colors.accent.copy(alpha = 0.1f)
                                     )
                                     .padding(horizontal = 10.dp, vertical = 4.dp)
@@ -623,8 +623,8 @@ private fun EventDetailSheet(
                                 Text(
                                     event.price,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
-                                    color = if (event.price == "Free") Color(0xFF4CAF50) else colors.accent
+                                    fontSize = AmazeTheme.fontSize.sm,
+                                    color = if (event.price == "Free") colors.success else colors.accent
                                 )
                             }
                         }
@@ -728,8 +728,8 @@ private fun MetaRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label
         }
         Spacer(modifier = Modifier.width(12.dp))
         Column {
-            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 11.sp))
-            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary, fontSize = 14.sp))
+            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.xs))
+            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.md))
         }
     }
 }
@@ -747,7 +747,7 @@ private fun RegisterButton(isLoading: Boolean, colors: com.amazecc.app.shared.th
         } else {
             Icon(Icons.Rounded.HowToReg, null, modifier = Modifier.size(20.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Register Now", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text("Register Now", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.lg)
         }
     }
 }
@@ -763,7 +763,7 @@ private fun RegisteredButton(colors: com.amazecc.app.shared.theme.AmazeColors) {
     ) {
         Icon(Icons.Rounded.CheckCircle, null, modifier = Modifier.size(20.dp))
         Spacer(modifier = Modifier.width(8.dp))
-        Text("Registered", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text("Registered", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.lg)
     }
 }
 
@@ -776,7 +776,7 @@ private fun RegistrationResult(res: EventHubRegisterRes, colors: com.amazecc.app
                 .clip(RoundedCornerShape(12.dp))
                 .background(
                     when (res.status) {
-                        "success", "already_registered" -> Color(0xFF4CAF50).copy(alpha = 0.1f)
+                        "success", "already_registered" -> colors.success.copy(alpha = 0.1f)
                         "payment_required", "payment_form" -> colors.warning.copy(alpha = 0.1f)
                         else -> colors.danger.copy(alpha = 0.1f)
                     }
@@ -792,7 +792,7 @@ private fun RegistrationResult(res: EventHubRegisterRes, colors: com.amazecc.app
                     },
                     contentDescription = null,
                     tint = when (res.status) {
-                        "success", "already_registered" -> Color(0xFF4CAF50)
+                        "success", "already_registered" -> colors.success
                         "payment_required", "payment_form" -> colors.warning
                         else -> colors.danger
                     },

@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.animateColorAsState
+import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.strings.Strings
@@ -55,6 +56,10 @@ fun OnboardingScreen() {
     var uiScale by remember { mutableStateOf(AppState.uiScale.value) }
     var cgpaHidden by remember { mutableStateOf(AppState.cgpaHidden.value) }
     var attendanceMode by remember { mutableStateOf(AppState.attendanceDisplayMode.value) }
+
+    // Academic Preferences
+    var selectedSemester by remember { mutableStateOf(AppState.selectedSemester.value) }
+    var selectedCalendar by remember { mutableStateOf(SettingsManager.getPreferredCalendar() ?: AmazeClient.calendarTypes.first().second) }
 
     // Residential & Notifications
     var residentialStatus by remember { mutableStateOf(AppState.residentialStatus.value) }
@@ -98,6 +103,7 @@ fun OnboardingScreen() {
     val pages = listOf(
         OnboardingPage("Welcome to AmazeCC", "Your all-in-one campus companion", Icons.Rounded.CloudSync),
         OnboardingPage("Personalize", "Theme, accent & display preferences", Icons.Rounded.Palette),
+        OnboardingPage("Academic Preferences", "Semester & default calendar type", Icons.Rounded.CalendarMonth),
         OnboardingPage("Residence & Alerts", "Notifications & residential info", Icons.Rounded.Notifications),
         OnboardingPage("Choose Your Modules", "Pin your most-used sections", Icons.Rounded.Apps),
         OnboardingPage("Link Accounts", "Optional: Moodle & Library login", Icons.Rounded.Link),
@@ -163,10 +169,11 @@ fun OnboardingScreen() {
                 when (page) {
                     0 -> WelcomePage(colors, syncSteps)
                     1 -> PersonalizationPage(colors, selectedTheme, { selectedTheme = it }, selectedAccent, { selectedAccent = it }, uiScale, { uiScale = it }, cgpaHidden, { cgpaHidden = it }, attendanceMode, { attendanceMode = it })
-                    2 -> ResidentialNotifPage(colors, residentialStatus, { residentialStatus = it }, classNotif, { classNotif = it }, assignNotif, { assignNotif = it }, offsetMinutes, { offsetMinutes = it })
-                    3 -> ModulesPage(colors, availableModules, selectedModules) { selectedModules = it }
-                    4 -> AccountsPage(colors, moodleUser, { moodleUser = it }, moodlePass, { moodlePass = it }, libUser, { libUser = it }, libPass, { libPass = it })
-                    5 -> CompletionPage(colors, syncSteps)
+                    2 -> AcademicPrefsPage(colors, selectedSemester, { selectedSemester = it }, selectedCalendar, { selectedCalendar = it })
+                    3 -> ResidentialNotifPage(colors, residentialStatus, { residentialStatus = it }, classNotif, { classNotif = it }, assignNotif, { assignNotif = it }, offsetMinutes, { offsetMinutes = it })
+                    4 -> ModulesPage(colors, availableModules, selectedModules) { selectedModules = it }
+                    5 -> AccountsPage(colors, moodleUser, { moodleUser = it }, moodlePass, { moodlePass = it }, libUser, { libUser = it }, libPass, { libPass = it })
+                    6 -> CompletionPage(colors, syncSteps)
                 }
             }
         }
@@ -207,6 +214,8 @@ fun OnboardingScreen() {
                         AppState.setAttendanceDisplayMode(attendanceMode)
                         AppState.setResidentialStatus(residentialStatus)
                         AppState.setPinnedNavTabs(selectedModules)
+                        SettingsManager.savePreferredCalendar(selectedCalendar)
+                        if (selectedSemester != AppState.selectedSemester.value) AppState.selectSemester(selectedSemester)
                         SettingsManager.setNotifClassRemindersEnabled(classNotif)
                         SettingsManager.setNotifAssignmentRemindersEnabled(assignNotif)
                         SettingsManager.setNotifOffsetMinutes(offsetMinutes)
@@ -366,7 +375,70 @@ private fun PersonalizationPage(
     }
 }
 
-// ─── Page 2: Residential & Notifications ───
+// ─── Page 2: Academic Preferences ───
+@Composable
+private fun AcademicPrefsPage(
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    selectedSemester: String, onSemesterChange: (String) -> Unit,
+    selectedCalendar: String, onCalendarChange: (String) -> Unit
+) {
+    val semesterMap by AppState.semesterMap.collectAsState()
+    val scrollState = rememberScrollState()
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+        Text("Semester", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+        Text("Your data is synced for this semester. Change anytime in Settings", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+        val semIds = semesterMap.keys.toList().sortedDescending()
+        if (semIds.isEmpty()) {
+            Text("Semesters are still syncing — your current semester stays selected", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+        }
+        semIds.forEach { semId ->
+            val isSelected = semId == selectedSemester
+            Row(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small))
+                    .background(if (isSelected) colors.success.copy(alpha = 0.12f) else colors.surface)
+                    .border(1.dp, if (isSelected) colors.success else colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
+                    .clickable { onSemesterChange(semId) }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isSelected) colors.success else colors.border))
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                Text(semesterMap[semId] ?: semId, color = if (isSelected) colors.success else colors.textPrimary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = AmazeTheme.fontSize.sm, modifier = Modifier.weight(1f))
+                if (isSelected) Icon(Icons.Rounded.Check, null, tint = colors.success, modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.height(2.dp))
+        }
+
+        Spacer(Modifier.height(AmazeTheme.spacing.lg))
+        Text("Default Calendar", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+        Text("Which class-group calendar to show on the Calendar page", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+        AmazeClient.calendarTypes.forEach { (_, name) ->
+            val isSelected = selectedCalendar == name
+            Row(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small))
+                    .background(if (isSelected) colors.accent.copy(alpha = 0.12f) else colors.surface)
+                    .border(1.dp, if (isSelected) colors.accent else colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
+                    .clickable { onCalendarChange(name) }
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isSelected) colors.accent else colors.border))
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                Text(name, color = if (isSelected) colors.accent else colors.textPrimary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, fontSize = AmazeTheme.fontSize.sm, modifier = Modifier.weight(1f))
+                if (isSelected) Icon(Icons.Rounded.Check, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.height(2.dp))
+        }
+    }
+}
+
+// ─── Page 3: Residential & Notifications ───
 @Composable
 private fun ResidentialNotifPage(
     colors: com.amazecc.app.shared.theme.AmazeColors,

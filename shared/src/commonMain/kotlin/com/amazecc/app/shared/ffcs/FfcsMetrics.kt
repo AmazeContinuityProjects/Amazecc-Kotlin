@@ -8,7 +8,7 @@ import kotlin.math.min
 object FfcsMetrics {
 
     fun calculateTimetableMetrics(courses: List<AddedCourse>): TimetableMetrics {
-        val days = listOf("MON", "TUE", "WED", "THU", "FRI")
+        val days = SlotMap.weekdays
         var halfDays = 0
         var totalGaps = 0
         val gapsPerDay = mutableMapOf<String, Int>()
@@ -146,10 +146,10 @@ object FfcsMetrics {
         }
 
         val mondayCourses = courses.filter { c ->
-            c.slots.any { SlotMap.map["MON"]?.containsKey(it) == true }
+            c.slots.any { SlotMap.map[SlotMap.weekdays.first()]?.containsKey(it) == true }
         }
         val fridayCourses = courses.filter { c ->
-            c.slots.any { SlotMap.map["FRI"]?.containsKey(it) == true }
+            c.slots.any { SlotMap.map[SlotMap.weekdays.last()]?.containsKey(it) == true }
         }
         if (fridayCourses.isEmpty() || mondayCourses.isEmpty()) {
             isLongWeekend = true

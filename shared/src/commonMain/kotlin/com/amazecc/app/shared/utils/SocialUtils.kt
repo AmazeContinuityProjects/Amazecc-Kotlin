@@ -135,7 +135,8 @@ object SocialUtils {
         for (char in regNumber) {
             hash = char.code + ((hash shl 5) - hash)
         }
-        val color = colors[abs(hash) % colors.size]
+        val mod = ((hash % colors.size) + colors.size) % colors.size
+        val color = colors[mod]
 
         return Friend(
             id = regNumber,

@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -173,7 +173,7 @@ fun TasksScreen() {
                                         Text(
                                             "$overdueCount OVERDUE",
                                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                            style = AmazeTheme.typography.smallLabel.copy(color = colors.danger, fontWeight = FontWeight.Black, fontSize = 10.sp)
+                                            style = AmazeTheme.typography.smallLabel.copy(color = colors.danger, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.micro)
                                         )
                                     }
                                 }
@@ -246,7 +246,7 @@ fun TasksScreen() {
                                             FilterChip(
                                                 selected = filter == key,
                                                 onClick = { filter = key },
-                                                label = { Text(label, fontSize = 11.sp, fontWeight = if (filter == key) FontWeight.Bold else FontWeight.Normal) }
+                                                label = { Text(label, fontSize = AmazeTheme.fontSize.xs, fontWeight = if (filter == key) FontWeight.Bold else FontWeight.Normal) }
                                             )
                                         }
                                     }
@@ -367,7 +367,7 @@ private fun ViewTabButton(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = if (isSelected) colors.accent else colors.textMuted, modifier = Modifier.size(14.dp))
             Spacer(Modifier.width(4.dp))
-            Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) colors.textPrimary else colors.textMuted)
+            Text(label, fontSize = AmazeTheme.fontSize.xs, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium, color = if (isSelected) colors.textPrimary else colors.textMuted)
         }
     }
 }
@@ -420,7 +420,7 @@ private fun TaskItemCard(
                             style = AmazeTheme.typography.smallLabel.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = colors.accent,
-                                fontSize = 10.sp
+                                fontSize = AmazeTheme.fontSize.micro
                             ),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
@@ -433,7 +433,7 @@ private fun TaskItemCard(
                             style = AmazeTheme.typography.smallLabel.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = colors.textSecondary,
-                                fontSize = 9.sp
+                                fontSize = AmazeTheme.fontSize.micro
                             )
                         )
                         if (task.isAutoSynced) {
@@ -443,7 +443,7 @@ private fun TaskItemCard(
                                 style = AmazeTheme.typography.smallLabel.copy(
                                     fontWeight = FontWeight.Black,
                                     color = colors.info,
-                                    fontSize = 8.sp
+                                    fontSize = AmazeTheme.fontSize.micro
                                 ),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(4.dp))
@@ -504,7 +504,7 @@ private fun TaskItemCard(
                         Spacer(Modifier.width(4.dp))
                         Text(
                             "Subtasks ($doneSub/$totalSub)",
-                            style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 11.sp)
+                            style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = AmazeTheme.fontSize.xs)
                         )
                     }
                     LinearProgressIndicator(
@@ -533,7 +533,7 @@ private fun TaskItemCard(
                                     style = AmazeTheme.typography.caption.copy(
                                         color = if (sub.completed) colors.textMuted else colors.textPrimary,
                                         textDecoration = if (sub.completed) TextDecoration.LineThrough else TextDecoration.None,
-                                        fontSize = 11.sp
+                                        fontSize = AmazeTheme.fontSize.xs
                                     )
                                 )
                             }
@@ -553,7 +553,7 @@ private fun TaskItemCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.Schedule, null, tint = colors.textMuted, modifier = Modifier.size(13.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Due ${task.dueDate}", style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = 10.sp))
+                    Text("Due ${task.dueDate}", style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
 
                     if (task.estimatedMinutes > 0) {
                         Spacer(Modifier.width(10.dp))
@@ -561,7 +561,7 @@ private fun TaskItemCard(
                         Spacer(Modifier.width(2.dp))
                         Text(
                             "${task.actualMinutesSpent}/${task.estimatedMinutes}m",
-                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp)
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro)
                         )
                     }
                 }
@@ -625,7 +625,7 @@ private fun KanbanColumn(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(badgeColor))
                 Spacer(Modifier.width(8.dp))
-                Text(title, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp))
+                Text(title, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base))
             }
             Spacer(Modifier.height(8.dp))
             if (list.isEmpty()) {
@@ -644,8 +644,8 @@ private fun KanbanColumn(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(task.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = colors.textPrimary))
-                            Text("${task.courseCode} • Due ${task.dueDate}", style = AmazeTheme.typography.caption.copy(fontSize = 10.sp, color = colors.textSecondary))
+                            Text(task.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary))
+                            Text("${task.courseCode} • Due ${task.dueDate}", style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary))
                         }
                         IconButton(onClick = { onToggleTask(task.id) }, modifier = Modifier.size(24.dp)) {
                             Icon(if (task.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked, null, tint = if (task.completed) colors.success else colors.textMuted, modifier = Modifier.size(16.dp))
@@ -699,11 +699,11 @@ private fun WorkloadDensityContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text(if (date == todayStr) "Today ($date)" else date, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 12.sp))
-                        Text("${dayTasks.size} tasks assigned", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 10.sp))
+                        Text(if (date == todayStr) "Today ($date)" else date, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm))
+                        Text("${dayTasks.size} tasks assigned", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${totalMins}m est.", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = densityColor, fontSize = 12.sp))
+                        Text("${totalMins}m est.", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = densityColor, fontSize = AmazeTheme.fontSize.sm))
                         Spacer(Modifier.width(8.dp))
                         Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(densityColor))
                     }
@@ -803,7 +803,7 @@ private fun AddTaskBottomSheet(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = currentCourseOpt.displayLabel,
-                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 12.sp),
+                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -823,9 +823,9 @@ private fun AddTaskBottomSheet(
                         DropdownMenuItem(
                             text = {
                                 Column {
-                                    Text(opt.code, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 12.sp)
+                                    Text(opt.code, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm)
                                     if (opt.title.isNotBlank()) {
-                                        Text(opt.title, color = colors.textSecondary, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(opt.title, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
                             },
@@ -869,7 +869,7 @@ private fun AddTaskBottomSheet(
                     FilterChip(
                         selected = type == key,
                         onClick = { type = key },
-                        label = { Text(label, fontSize = 11.sp) }
+                        label = { Text(label, fontSize = AmazeTheme.fontSize.xs) }
                     )
                 }
             }
@@ -883,7 +883,7 @@ private fun AddTaskBottomSheet(
                     FilterChip(
                         selected = priority == key,
                         onClick = { priority = key },
-                        label = { Text(label, fontSize = 11.sp) }
+                        label = { Text(label, fontSize = AmazeTheme.fontSize.xs) }
                     )
                 }
             }
@@ -947,7 +947,7 @@ private fun AddTaskBottomSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("• ${sub.title}", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontSize = 12.sp))
+                            Text("• ${sub.title}", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm))
                             IconButton(onClick = { subtasksList = subtasksList.filter { it.id != sub.id } }, modifier = Modifier.size(24.dp)) {
                                 Icon(Icons.Rounded.Close, "Remove", tint = colors.danger, modifier = Modifier.size(14.dp))
                             }
@@ -1051,8 +1051,8 @@ private fun AmazeFocusTimerModal(
                         trackColor = colors.accent.copy(alpha = 0.15f)
                     )
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(timeFormatted, style = AmazeTheme.typography.heading.copy(fontSize = 32.sp, fontWeight = FontWeight.Black, color = colors.textPrimary))
-                        Text(if (isRunning) "FOCUSING" else "PAUSED", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp))
+                        Text(timeFormatted, style = AmazeTheme.typography.heading.copy(fontSize = AmazeTheme.fontSize.x3l, fontWeight = FontWeight.Black, color = colors.textPrimary))
+                        Text(if (isRunning) "FOCUSING" else "PAUSED", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
                     }
                 }
 

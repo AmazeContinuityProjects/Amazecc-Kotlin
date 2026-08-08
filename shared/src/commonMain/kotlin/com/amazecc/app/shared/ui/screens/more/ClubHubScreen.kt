@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.more
+﻿package com.amazecc.app.shared.ui.screens.more
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -129,7 +129,7 @@ private fun DirectoryTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                             Icon(Icons.Rounded.Groups, null, tint = colors.textMuted, modifier = Modifier.size(56.dp))
                             Spacer(Modifier.height(AmazeTheme.spacing.sm))
                             Text("No clubs available", color = colors.textPrimary, fontWeight = FontWeight.Medium)
-                            Text("Sync from Events page to load data", color = colors.textSecondary, fontSize = 12.sp)
+                            Text("Sync from Events page to load data", color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm)
                         }
                     }
                 }
@@ -180,7 +180,7 @@ private fun ClubCard(club: ClubItem, colors: com.amazecc.app.shared.theme.AmazeC
             Column(modifier = Modifier.weight(1f)) {
                 Text(club.name ?: "Unnamed Club", fontWeight = FontWeight.Bold, color = colors.textPrimary, maxLines = 1)
                 if (!club.description.isNullOrEmpty()) {
-                    Text(club.description, color = colors.textSecondary, fontSize = 12.sp, maxLines = 1)
+                    Text(club.description, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm, maxLines = 1)
                 }
             }
             Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
@@ -223,7 +223,7 @@ private fun FeedTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         Icon(Icons.Rounded.CloudOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                         Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("Could not load feed", color = colors.textPrimary, fontWeight = FontWeight.Medium)
-                        Text(error ?: "", color = colors.textSecondary, fontSize = 12.sp)
+                        Text(error ?: "", color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm)
                         Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         AmazeButton(Strings.retry, onClick = {
                             error = null; isLoading = true
@@ -243,7 +243,7 @@ private fun FeedTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                         Icon(Icons.AutoMirrored.Rounded.Feed, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                         Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Text("No community posts yet", color = colors.textPrimary, fontWeight = FontWeight.Medium)
-                        Text("Check back later for updates", color = colors.textSecondary, fontSize = 12.sp)
+                        Text("Check back later for updates", color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm)
                     }
                 }
             }
@@ -265,11 +265,11 @@ private fun FeedPostCard(post: FeedPost, colors: com.amazecc.app.shared.theme.Am
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Club ${post.clubId}", fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                Text(post.createdAt, color = colors.textMuted, fontSize = 11.sp)
+                Text("Club ${post.clubId}", fontWeight = FontWeight.Bold, color = colors.accent, fontSize = AmazeTheme.fontSize.base, modifier = Modifier.weight(1f))
+                Text(post.createdAt, color = colors.textMuted, fontSize = AmazeTheme.fontSize.xs)
             }
 
-            Text(post.content, color = colors.textPrimary, fontSize = 13.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
+            Text(post.content, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base, maxLines = 6, overflow = TextOverflow.Ellipsis)
 
             if (post.imageUrls.isNotEmpty()) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -292,7 +292,7 @@ private fun FeedPostCard(post: FeedPost, colors: com.amazecc.app.shared.theme.Am
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.Event, null, tint = colors.info, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                        Text("Event: ${post.eventId}", color = colors.info, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text("Event: ${post.eventId}", color = colors.info, fontSize = AmazeTheme.fontSize.sm, fontWeight = FontWeight.Medium)
                     }
                 }
             }
@@ -314,7 +314,7 @@ private fun FeedPostCard(post: FeedPost, colors: com.amazecc.app.shared.theme.Am
                         modifier = Modifier.size(18.dp)
                     )
                 }
-                Text("$promoteCount", color = if (promoted) colors.accent else colors.textMuted, fontSize = 12.sp)
+                Text("$promoteCount", color = if (promoted) colors.accent else colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
             }
         }
     }

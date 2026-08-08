@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +34,8 @@ import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.model.displayCgpa
+import com.amazecc.app.shared.model.displayCreditsEarned
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 
 private val gradePointMap = mapOf(
@@ -47,8 +49,8 @@ fun GPAPredictorScreen() {
     val marksRes by AppState.marks.collectAsState()
     val attendanceRes by AppState.attendance.collectAsState()
 
-    val currentCgpa = marksRes?.cgpa?.cgpa?.toDoubleOrNull() ?: 0.0
-    val creditsEarned = marksRes?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
+    val currentCgpa = marksRes.displayCgpa
+    val creditsEarned = marksRes.displayCreditsEarned
 
     var activeMode by remember { mutableStateOf("project") }
 
@@ -155,7 +157,7 @@ fun GPAPredictorScreen() {
                             style = AmazeTheme.typography.smallLabel.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = if (isSelected) colors.background else colors.textPrimary,
-                                fontSize = 11.sp
+                                fontSize = AmazeTheme.fontSize.xs
                             ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -416,7 +418,7 @@ private fun WhatIfMode(
                         style = AmazeTheme.typography.display.copy(
                             color = colors.success,
                             fontWeight = FontWeight.Black,
-                            fontSize = 48.sp
+                            fontSize = AmazeTheme.fontSize.hero
                         )
                     )
                     Text(

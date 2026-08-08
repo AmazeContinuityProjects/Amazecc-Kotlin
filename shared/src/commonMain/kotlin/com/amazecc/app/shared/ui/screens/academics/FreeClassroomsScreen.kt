@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -351,13 +351,13 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                             modifier = Modifier
                                 .size(44.dp)
                                 .clip(CircleShape)
-                                .background(if (isCurrentSlotSelected) Color(0xFF22C55E).copy(alpha = 0.15f) else colors.accent.copy(alpha = 0.15f)),
+                                .background(if (isCurrentSlotSelected) colors.success.copy(alpha = 0.15f) else colors.accent.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = if (isCurrentSlotSelected) Icons.Rounded.NearMe else Icons.Rounded.Schedule,
                                 contentDescription = null,
-                                tint = if (isCurrentSlotSelected) Color(0xFF22C55E) else colors.accent,
+                                tint = if (isCurrentSlotSelected) colors.success else colors.accent,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -368,8 +368,8 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                     text = if (isCurrentSlotSelected) "LIVE NOW" else "SELECTED SLOT",
                                     style = AmazeTheme.typography.smallLabel.copy(
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isCurrentSlotSelected) Color(0xFF22C55E) else colors.accent,
-                                        fontSize = 10.sp
+                                        color = if (isCurrentSlotSelected) colors.success else colors.accent,
+                                        fontSize = AmazeTheme.fontSize.micro
                                     )
                                 )
                                 if (isCurrentSlotSelected) {
@@ -378,7 +378,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                         modifier = Modifier
                                             .size(6.dp)
                                             .clip(CircleShape)
-                                            .background(Color(0xFF22C55E))
+                                            .background(colors.success)
                                     )
                                 }
                             }
@@ -395,8 +395,8 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                             Box(
                                 modifier = Modifier
                                     .clip(CircleShape)
-                                    .background(Color(0xFF22C55E).copy(alpha = 0.15f))
-                                    .border(1.dp, Color(0xFF22C55E).copy(alpha = 0.3f), CircleShape)
+                                    .background(colors.success.copy(alpha = 0.15f))
+                                    .border(1.dp, colors.success.copy(alpha = 0.3f), CircleShape)
                                     .clickable {
                                         selectedDay = currentDayKey
                                         selectedTime = currentSlotPeriod
@@ -406,9 +406,9 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                 Text(
                                     text = "FREE NOW",
                                     style = AmazeTheme.typography.smallLabel.copy(
-                                        color = Color(0xFF22C55E),
+                                        color = colors.success,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
+                                        fontSize = AmazeTheme.fontSize.micro
                                     )
                                 )
                             }
@@ -463,7 +463,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                     style = AmazeTheme.typography.smallLabel.copy(
                                         fontWeight = FontWeight.Bold,
                                         color = if (isSelected) colors.background else colors.textPrimary,
-                                        fontSize = 11.sp
+                                        fontSize = AmazeTheme.fontSize.xs
                                     )
                                 )
                                 if (isToday && !isSelected) {
@@ -510,7 +510,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                 .background(
                                     when {
                                         isSelected -> colors.accent
-                                        isCurrentSlot -> Color(0xFF22C55E).copy(alpha = 0.15f)
+                                        isCurrentSlot -> colors.success.copy(alpha = 0.15f)
                                         else -> colors.surface
                                     }
                                 )
@@ -518,7 +518,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                     1.dp,
                                     when {
                                         isSelected -> colors.accent
-                                        isCurrentSlot -> Color(0xFF22C55E).copy(alpha = 0.4f)
+                                        isCurrentSlot -> colors.success.copy(alpha = 0.4f)
                                         else -> colors.border
                                     },
                                     RoundedCornerShape(AmazeTheme.radius.small)
@@ -535,11 +535,11 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                 style = AmazeTheme.typography.smallLabel.copy(
                                     color = when {
                                         isSelected -> colors.background
-                                        isCurrentSlot -> Color(0xFF22C55E)
+                                        isCurrentSlot -> colors.success
                                         else -> colors.textSecondary
                                     },
                                     fontWeight = if (isSelected || isCurrentSlot) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 11.sp
+                                    fontSize = AmazeTheme.fontSize.xs
                                 )
                             )
                         }
@@ -602,7 +602,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                     style = AmazeTheme.typography.smallLabel.copy(
                                         color = if (isSelected) colors.accent else colors.textSecondary,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
+                                        fontSize = AmazeTheme.fontSize.micro
                                     )
                                 )
                             }
@@ -654,7 +654,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                 style = AmazeTheme.typography.smallLabel.copy(
                                     color = if (isSelected) colors.background else colors.textPrimary,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp
+                                    fontSize = AmazeTheme.fontSize.xs
                                 )
                             )
                         }
@@ -674,7 +674,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                             Icon(Icons.Rounded.MeetingRoom, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                             Spacer(Modifier.height(AmazeTheme.spacing.sm))
                             Text("Unable to load classroom data", color = colors.textSecondary, fontWeight = FontWeight.Bold)
-                            Text("No course timetable data available", color = colors.textMuted, fontSize = 12.sp)
+                            Text("No course timetable data available", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
                             Spacer(Modifier.height(AmazeTheme.spacing.md))
                             OutlinedButton(onClick = { refreshTrigger++ }) {
                                 Text(Strings.retry)
@@ -694,7 +694,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                             style = AmazeTheme.typography.smallLabel.copy(
                                 fontWeight = FontWeight.Bold,
                                 color = colors.accent,
-                                fontSize = 11.sp
+                                fontSize = AmazeTheme.fontSize.xs
                             )
                         )
                         IconButton(
@@ -724,7 +724,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                 Icon(Icons.Rounded.DoorSliding, null, tint = colors.textMuted, modifier = Modifier.size(40.dp))
                                 Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                 Text("No free classrooms found", color = colors.textSecondary, fontWeight = FontWeight.Bold)
-                                Text("Try selecting a different time slot or building block.", color = colors.textMuted, fontSize = 12.sp)
+                                Text("Try selecting a different time slot or building block.", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
                             }
                         }
                     }
@@ -753,7 +753,7 @@ private fun FreeClassroomGridCard(
 
     val isLab = type.equals("Lab", ignoreCase = true)
     val block = extractBlockName(room)
-    val cardColor = if (isLab) Color(0xFFA855F7) else Color(0xFF22C55E)
+    val cardColor = if (isLab) Color(0xFFA855F7) else colors.success
 
     Box(
         modifier = Modifier
@@ -801,7 +801,7 @@ private fun FreeClassroomGridCard(
                 Text(
                     text = room,
                     style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                    fontSize = 14.sp,
+                    fontSize = AmazeTheme.fontSize.md,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -810,7 +810,7 @@ private fun FreeClassroomGridCard(
                     Spacer(modifier = Modifier.height(1.dp))
                     Text(
                         text = "Block: $block",
-                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 9.sp),
+                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

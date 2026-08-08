@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -55,7 +55,7 @@ fun GradesScreen() {
     val colors = AmazeTheme.colors
     val allGradesRes by AppState.allGrades.collectAsState()
     val marksRes by AppState.marks.collectAsState()
-    val semesterMap = AppState.semesterMap
+    val semesterMap by AppState.semesterMap.collectAsState()
 
     val gpaRecords = allGradesRes?.grades ?: emptyMap()
     val semesterIds = gpaRecords.filter { (_, v) -> v?.gpa != null && v?.grades?.isNotEmpty() == true }
@@ -409,7 +409,7 @@ private fun GradeCourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> 
                                                     Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(c.copy(alpha = 0.08f)).border(1.dp, c.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.xs)).padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
                                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                                             Text(g, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Black, color = c))
-                                                            Text(r, style = AmazeTheme.typography.smallLabel.copy(color = c.copy(alpha = 0.7f), fontSize = 8.sp))
+                                                            Text(r, style = AmazeTheme.typography.smallLabel.copy(color = c.copy(alpha = 0.7f), fontSize = AmazeTheme.fontSize.micro))
                                                         }
                                                     }
                                                 }

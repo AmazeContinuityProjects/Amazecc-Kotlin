@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,6 +36,8 @@ import com.amazecc.app.shared.ui.components.HeaderSpacer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.ui.text.style.TextOverflow
+import com.amazecc.app.shared.model.displayCgpa
+import com.amazecc.app.shared.model.displayCreditsEarned
 import kotlin.math.roundToInt
 
 @Composable
@@ -57,12 +59,12 @@ fun AcademicsScreen() {
     val attendanceCourses = attendanceRes?.attendance ?: emptyList()
     val months = calendarRes?.months ?: emptyList()
 
-    val currentCgpa = marksRes?.cgpa?.cgpa?.toDoubleOrNull() ?: 0.0
-    val creditsEarned = marksRes?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
+    val currentCgpa = marksRes.displayCgpa
+    val creditsEarned = marksRes.displayCreditsEarned
     val totalRequiredCredits = 160.0
     val attendanceRows = attendanceRes?.attendance ?: emptyList()
     val avgAttendance = if (attendanceRows.isNotEmpty()) {
-        attendanceRows.sumOf { it.attendancePercentage.toDoubleOrNull() ?: 0.0 } / attendanceRows.size
+        attendanceRows.sumOf { it.attendancePercentage.replace("%", "").trim().toDoubleOrNull() ?: 0.0 } / attendanceRows.size
     } else 0.0
 
     val hubCards = listOf(

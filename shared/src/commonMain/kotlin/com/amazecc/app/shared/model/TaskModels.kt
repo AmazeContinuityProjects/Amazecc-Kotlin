@@ -25,6 +25,5 @@ data class HomeworkTask(
     val completed: Boolean = false,
     val subtasks: List<Subtask> = emptyList(),
     val isAutoSynced: Boolean = false,
-    val referenceUrl: String = "",
     val createdAt: String
 )

@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.repository
 
 import com.russhwolf.settings.Settings
+import com.amazecc.app.shared.security.Encryption
 
 /**
  * SettingsManager mirrors the localStorage caching layer found in the AmazeCC web application.
@@ -11,7 +12,6 @@ object SettingsManager {
 
     // Key constants mirroring web app
     const val KEY_GPA_GOAL = "uni_cc_gpa_goal"
-    const val KEY_APP_ICON = "app-icon"
     const val KEY_USERNAME = "username"
     const val KEY_PASSWORD = "password"
     const val KEY_CGPA_HIDDEN = "cgpa_hidden"
@@ -62,16 +62,12 @@ object SettingsManager {
     const val CACHE_LIBRARY = "cache_library"
     const val CACHE_TRANSPORT_DATA = "cache_transport_data"
     const val CACHE_BUSES = "cache_buses"
-    const val CACHE_TRANSPORT = "cache_transport"
-    const val CACHE_TRANSPORT_ROUTES = "cache_transport_routes"
-    const val CACHE_TRANSPORT_PASS = "cache_transport_pass"
     const val CACHE_LMS = "cache_lms"
     const val CACHE_EVENTS = "cache_events"
     const val CACHE_CLUBS = "cache_clubs"
     const val CACHE_STUDENT_PROFILE = "cache_student_profile"
     const val KEY_MOODLE_USERNAME = "moodle_username"
     const val KEY_MOODLE_PASSWORD = "moodle_password"
-    const val CACHE_CAB_TRIPS = "cache_cab_trips"
     const val CACHE_ALL_SEMESTER_ATTENDANCE = "cache_all_semester_attendance"
     const val CACHE_ALL_SEMESTER_MARKS = "cache_all_semester_marks"
     const val CACHE_ALL_SEMESTER_EXAMS = "cache_all_semester_exams"
@@ -80,7 +76,6 @@ object SettingsManager {
     const val CACHE_TASKS = "cache_tasks"
     const val CACHE_CIRCULARS = "cache_circulars"
     const val CACHE_CAB_USER = "cache_cab_user"
-    const val CACHE_CAB_LOCAL_TRIPS = "cache_cab_local_trips"
     const val RESIDENTIAL_STATUS = "residential_status"
     
     // Additional profile cache keys
@@ -136,24 +131,24 @@ const val CACHE_APAAR_ID = "cache_apaarid"
     // Web app specific getters/setters for Profile/Settings parity
     fun saveCredentials(username: String, pass: String) {
         setString(KEY_USERNAME, username)
-        setString(KEY_PASSWORD, pass)
+        setString(KEY_PASSWORD, Encryption.encryptOrPlain(pass))
     }
     
     fun getCredentials(): Pair<String, String>? {
         val u = getNullableString(KEY_USERNAME)
         val p = getNullableString(KEY_PASSWORD)
-        return if (u != null && p != null) Pair(u, p) else null
+        return if (u != null && p != null) Pair(u, Encryption.decryptOrPlain(p)) else null
     }
 
     fun saveLibraryCredentials(username: String, password: String) {
-        setString(KEY_LIBRARY_USERNAME, username)
-        setString(KEY_LIBRARY_PASSWORD, password)
+        setString(KEY_LIBRARY_USERNAME, Encryption.encryptOrPlain(username))
+        setString(KEY_LIBRARY_PASSWORD, Encryption.encryptOrPlain(password))
     }
 
     fun getLibraryCredentials(): Pair<String, String>? {
         val u = getNullableString(KEY_LIBRARY_USERNAME)
         val p = getNullableString(KEY_LIBRARY_PASSWORD)
-        return if (u != null && p != null) Pair(u, p) else null
+        return if (u != null && p != null) Pair(Encryption.decryptOrPlain(u), Encryption.decryptOrPlain(p)) else null
     }
 
     fun clearLibraryCredentials() {
@@ -162,14 +157,14 @@ const val CACHE_APAAR_ID = "cache_apaarid"
     }
 
     fun saveMoodleCredentials(username: String, password: String) {
-        setString(KEY_MOODLE_USERNAME, username)
-        setString(KEY_MOODLE_PASSWORD, password)
+        setString(KEY_MOODLE_USERNAME, Encryption.encryptOrPlain(username))
+        setString(KEY_MOODLE_PASSWORD, Encryption.encryptOrPlain(password))
     }
 
     fun getMoodleCredentials(): Pair<String, String>? {
         val u = getNullableString(KEY_MOODLE_USERNAME)
         val p = getNullableString(KEY_MOODLE_PASSWORD)
-        return if (u != null && p != null) Pair(u, p) else null
+        return if (u != null && p != null) Pair(Encryption.decryptOrPlain(u), Encryption.decryptOrPlain(p)) else null
     }
 
     fun clearMoodleCredentials() {

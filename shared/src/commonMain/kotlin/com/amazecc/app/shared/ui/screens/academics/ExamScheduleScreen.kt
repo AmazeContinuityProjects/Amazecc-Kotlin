@@ -31,6 +31,7 @@ import com.amazecc.app.shared.ui.components.HeaderSpacer
 @Composable
 fun ExamScheduleScreen() {
     val colors = AmazeTheme.colors
+    val semesterMap by AppState.semesterMap.collectAsState()
     val allExams by AppState.allSemesterExams.collectAsState()
     val examData by AppState.examSchedule.collectAsState()
     val selectedSemId by AppState.selectedExamSemester.collectAsState()
@@ -70,7 +71,7 @@ fun ExamScheduleScreen() {
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 availableSemesters.forEach { id ->
-                    val semName = AppState.semesterMap[id]?.let { full ->
+                    val semName = semesterMap[id]?.let { full ->
                         if (id.endsWith("1")) "FS ${full.take(4).takeLast(2)}" else "WS ${full.take(4).takeLast(2)}"
                     } ?: id.takeLast(4)
                     val isActive = id == selectedSemId

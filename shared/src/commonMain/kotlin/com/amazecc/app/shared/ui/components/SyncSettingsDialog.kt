@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.components
+﻿package com.amazecc.app.shared.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -127,7 +127,7 @@ fun SyncSettingsDialog(
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
                                         text = profile.name,
-                                        fontSize = 12.sp,
+                                        fontSize = AmazeTheme.fontSize.sm,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                     )
                                     if (isActive) {
@@ -158,7 +158,7 @@ fun SyncSettingsDialog(
                                 newProfileName = "Custom Config ${profiles.size - 2}"
                                 showNewProfileDialog = true
                             },
-                            label = { Text("+ New Config", fontSize = 12.sp, color = colors.accent, fontWeight = FontWeight.Bold) },
+                            label = { Text("+ New Config", fontSize = AmazeTheme.fontSize.sm, color = colors.accent, fontWeight = FontWeight.Bold) },
                             colors = FilterChipDefaults.filterChipColors(containerColor = colors.accent.copy(alpha = 0.12f))
                         )
                     }
@@ -189,7 +189,7 @@ fun SyncSettingsDialog(
                                     style = AmazeTheme.typography.smallLabel.copy(
                                         fontWeight = FontWeight.Black,
                                         color = colors.success,
-                                        fontSize = 9.sp
+                                        fontSize = AmazeTheme.fontSize.micro
                                     ),
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
@@ -200,7 +200,7 @@ fun SyncSettingsDialog(
                         }
                         Text(
                             text = "${selectedProfile.enabledModules.size} / ${SyncModule.entries.size} modules active",
-                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp)
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs)
                         )
                     }
 
@@ -243,12 +243,12 @@ fun SyncSettingsDialog(
                     FilterChip(
                         selected = selectedProfile.enabledModules.size == SyncModule.entries.size,
                         onClick = { SyncEngine.setAllModulesEnabled(true, selectedProfile.id) },
-                        label = { Text("Enable All", fontSize = 11.sp) }
+                        label = { Text("Enable All", fontSize = AmazeTheme.fontSize.xs) }
                     )
                     FilterChip(
                         selected = selectedProfile.enabledModules.isEmpty(),
                         onClick = { SyncEngine.setAllModulesEnabled(false, selectedProfile.id) },
-                        label = { Text("Disable All", fontSize = 11.sp) }
+                        label = { Text("Disable All", fontSize = AmazeTheme.fontSize.xs) }
                     )
                 }
 
@@ -289,7 +289,7 @@ fun SyncSettingsDialog(
                                         text = module.displayName,
                                         style = AmazeTheme.typography.body.copy(
                                             fontWeight = FontWeight.SemiBold,
-                                            fontSize = 12.sp,
+                                            fontSize = AmazeTheme.fontSize.sm,
                                             color = colors.textPrimary
                                         ),
                                         modifier = Modifier.weight(1f)

@@ -15,7 +15,6 @@ object FfcsViewModel {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     private val _allCourses = MutableStateFlow<List<ParsedCourse>>(emptyList())
-    val allCourses: StateFlow<List<ParsedCourse>> = _allCourses.asStateFlow()
 
     private val _courseOfferings = MutableStateFlow<List<Pair<String, List<CourseOffering>>>>(emptyList())
     val courseOfferings: StateFlow<List<Pair<String, List<CourseOffering>>>> = _courseOfferings.asStateFlow()
@@ -42,13 +41,10 @@ object FfcsViewModel {
     val blockedSlots: StateFlow<Set<String>> = _blockedSlots.asStateFlow()
 
     private val _uniqueFaculty = MutableStateFlow(false)
-    val uniqueFaculty: StateFlow<Boolean> = _uniqueFaculty.asStateFlow()
 
     private val _morningPreference = MutableStateFlow(false)
-    val morningPreference: StateFlow<Boolean> = _morningPreference.asStateFlow()
 
     private val _maxResults = MutableStateFlow(50)
-    val maxResults: StateFlow<Int> = _maxResults.asStateFlow()
 
     fun initFromCsv() {
         scope.launch {
@@ -84,9 +80,7 @@ object FfcsViewModel {
                     CourseLock(
                         code = code,
                         title = offs.firstOrNull()?.title ?: "",
-                        allowedSlots = emptyList(),
-                        allowedFaculty = emptyList(),
-                        offerings = offs.map { it.toKey() }
+                        allowedOfferings = emptyList()
                     )
                 }
 
@@ -98,57 +92,10 @@ object FfcsViewModel {
         }
     }
 
-    fun initFromParsedCourses(parsed: List<ParsedCourse>) {
-        val processed = FfcsCourseProcessor.processCourses(parsed)
-        _allCourses.value = processed
-
-        val offerings = processed
-            .groupBy { it.code.uppercase() }
-            .map { (code, courseList) ->
-                val offs = courseList.map { c ->
-                    CourseOffering(
-                        faculty = c.faculty,
-                        slot = c.slot,
-                        room = c.room,
-                        code = code,
-                        title = c.title,
-                        type = c.type,
-                        credits = c.credits
-                    )
-                }
-                code to offs
-            }
-            .sortedBy { it.first }
-
-        _courseOfferings.value = offerings
-
-        _locks.value = offerings.map { (code, offs) ->
-            CourseLock(
-                code = code,
-                title = offs.firstOrNull()?.title ?: "",
-                allowedSlots = emptyList(),
-                allowedFaculty = emptyList(),
-                offerings = offs.map { it.toKey() }
-            )
-        }
-    }
-
-    fun toggleCourse(code: String) {
+        fun toggleCourse(code: String) {
         val current = _selectedCodes.value.toMutableSet()
         if (current.contains(code)) current.remove(code) else current.add(code)
         _selectedCodes.value = current
-    }
-
-    fun setLock(code: String, allowedSlots: List<String>, allowedFaculty: List<String>) {
-        val current = _locks.value.toMutableList()
-        val index = current.indexOfFirst { it.code.equals(code, ignoreCase = true) }
-        if (index != -1) {
-            current[index] = current[index].copy(
-                allowedSlots = allowedSlots,
-                allowedFaculty = allowedFaculty
-            )
-            _locks.value = current
-        }
     }
 
     fun selectOffering(code: String, offering: CourseOffering) {
@@ -156,30 +103,22 @@ object FfcsViewModel {
         val index = current.indexOfFirst { it.code.equals(code, ignoreCase = true) }
         if (index != -1) {
             val lock = current[index]
-            val currentSlots = lock.allowedSlots.toMutableList()
-            val currentFaculty = lock.allowedFaculty.toMutableList()
+            val key = offering.toKey()
+            val currentOfferings = lock.allowedOfferings.toMutableList()
 
-            if (currentSlots.contains(offering.slot) && currentFaculty.contains(offering.faculty)) {
-                currentSlots.remove(offering.slot)
-                currentFaculty.remove(offering.faculty)
-            } else {
-                currentSlots.add(offering.slot)
-                if (!currentFaculty.contains(offering.faculty)) {
-                    currentFaculty.add(offering.faculty)
-                }
-            }
+            if (currentOfferings.contains(key)) currentOfferings.remove(key)
+            else currentOfferings.add(key)
 
-            current[index] = lock.copy(
-                allowedSlots = currentSlots,
-                allowedFaculty = currentFaculty
-            )
+            current[index] = lock.copy(allowedOfferings = currentOfferings)
             _locks.value = current
         }
     }
 
-    fun toggleBlockSlot(slotKey: String) {
+    fun toggleBlockSlots(keys: Collection<String>) {
+        if (keys.isEmpty()) return
         val current = _blockedSlots.value.toMutableSet()
-        if (current.contains(slotKey)) current.remove(slotKey) else current.add(slotKey)
+        val anyBlocked = keys.any { it in current }
+        if (anyBlocked) current.removeAll(keys.toSet()) else current.addAll(keys)
         _blockedSlots.value = current
     }
 
@@ -202,39 +141,57 @@ object FfcsViewModel {
             return
         }
 
+        val locksSnapshot = _locks.value
+        val blockedSnapshot = _blockedSlots.value
+        val maxResultsSnapshot = _maxResults.value
+        val uniqueFacultySnapshot = _uniqueFaculty.value
+        val morningPrefSnapshot = _morningPreference.value
+        val allCoursesSnapshot = _allCourses.value
+
         _isGenerating.value = true
         _errorMsg.value = null
         _generatedTimetables.value = emptyList()
 
         scope.launch {
             try {
-                val lockMap = _locks.value.associateBy { it.code.uppercase() }
+                val lockMap = locksSnapshot.associateBy { it.code.uppercase() }
+
+                val droppedCodes = mutableListOf<String>()
                 val optionsPerCourse = selected.mapNotNull { code ->
                     val lock = lockMap[code.uppercase()]
-                    val allOpts = _allCourses.value.filter { it.code.uppercase() == code.uppercase() }
+                    val allOpts = allCoursesSnapshot.filter { it.code.uppercase() == code.uppercase() }
 
-                    if (lock != null && lock.allowedFaculty.isNotEmpty() && lock.allowedSlots.isNotEmpty()) {
-                        allOpts.filter { it.faculty in lock.allowedFaculty && it.slot in lock.allowedSlots }
-                    } else if (lock != null && lock.allowedFaculty.isNotEmpty()) {
-                        allOpts.filter { it.faculty in lock.allowedFaculty }
-                    } else if (lock != null && lock.allowedSlots.isNotEmpty()) {
-                        allOpts.filter { it.slot in lock.allowedSlots }
+                    val opts = if (lock != null && lock.allowedOfferings.isNotEmpty()) {
+                        allOpts.filter { it.offeringKey() in lock.allowedOfferings }
                     } else {
                         allOpts
-                    }.ifEmpty { null }
+                    }
+
+                    if (opts.isEmpty()) {
+                        droppedCodes.add(code)
+                        null
+                    } else {
+                        opts
+                    }
                 }
 
+                if (droppedCodes.isNotEmpty()) {
+                    throw Exception(
+                        "No available offerings for: ${droppedCodes.joinToString(", ")}. " +
+                            "Deselect them or clear their locks/blocks."
+                    )
+                }
                 if (optionsPerCourse.isEmpty()) {
                     throw Exception("No valid courses selected. Check your locks.")
                 }
 
                 val results = FfcsEngine.generateTimetables(
                     optionsPerCourse = optionsPerCourse,
-                    locks = _locks.value,
-                    blockedSlots = _blockedSlots.value,
-                    maxResults = _maxResults.value,
-                    uniqueFaculty = _uniqueFaculty.value,
-                    morningPreference = _morningPreference.value
+                    locks = locksSnapshot,
+                    blockedSlots = blockedSnapshot,
+                    maxResults = maxResultsSnapshot,
+                    uniqueFaculty = uniqueFacultySnapshot,
+                    morningPreference = morningPrefSnapshot
                 )
 
                 _generatedTimetables.value = results

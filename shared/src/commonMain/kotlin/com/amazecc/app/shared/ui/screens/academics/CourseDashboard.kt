@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,6 +37,7 @@ import com.amazecc.app.shared.ui.components.HeaderSpacer
 @Composable
 fun CourseDashboardScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
+    val semesterMap by AppState.semesterMap.collectAsState()
     val allSemesterMarks by AppState.allSemesterMarks.collectAsState()
     val allSemesterAttendance by AppState.allSemesterAttendance.collectAsState()
     val attendanceRes by AppState.attendance.collectAsState()
@@ -106,7 +107,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
                         TextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search courses...", color = colors.textMuted, fontSize = 13.sp) },
+                            placeholder = { Text("Search courses...", color = colors.textMuted, fontSize = AmazeTheme.fontSize.base) },
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             colors = TextFieldDefaults.colors(
@@ -138,7 +139,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
                 ) {
                     semesterIds.forEach { semId ->
                         val isSelected = selectedSemester == semId
-                        val label = if (semId == "All") "All Semesters" else AppState.semesterMap[semId]?.let {
+                        val label = if (semId == "All") "All Semesters" else semesterMap[semId]?.let {
                             val parts = it.split(" ")
                             if (parts.size >= 2) "${parts[0]} ${parts[1].take(4)}" else it.take(20)
                         } ?: semId.take(10)
@@ -171,7 +172,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
                                 label,
                                 color = if (isSelected) Color.White else colors.textPrimary,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
+                                fontSize = AmazeTheme.fontSize.sm,
                                 maxLines = 1
                             )
                         }
@@ -201,7 +202,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
                                 if (pastSynced) "Past semesters loaded. Tap to refresh data"
                                 else "Load past semester attendance & marks",
                                 color = if (pastSynced) colors.textSecondary else colors.accent,
-                                fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f)
+                                fontSize = AmazeTheme.fontSize.base, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f)
                             )
                             Icon(Icons.Rounded.Refresh, null, tint = if (pastSynced) colors.textMuted else colors.accent, modifier = Modifier.size(18.dp))
                         }
@@ -216,7 +217,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(54.dp))
                             Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                            Text("No courses found", color = colors.textMuted, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Text("No courses found", color = colors.textMuted, fontSize = AmazeTheme.fontSize.md, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -228,7 +229,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
                             modifier = Modifier.padding(vertical = 4.dp)
                         ) {
                             Text(
-                                text = courses.firstOrNull()?.semesterName ?: AppState.semesterMap[semId] ?: semId,
+                                text = courses.firstOrNull()?.semesterName ?: semesterMap[semId] ?: semId,
                                 style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent),
                                 modifier = Modifier.weight(1f)
                             )
@@ -238,7 +239,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
                                     .background(colors.accent.copy(alpha = 0.1f))
                                     .padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
-                                Text("${courses.size} courses", fontSize = 11.sp, color = colors.accent, fontWeight = FontWeight.Bold)
+                                Text("${courses.size} courses", fontSize = AmazeTheme.fontSize.xs, color = colors.accent, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -303,8 +304,8 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
     val badgeColor = when (label) {
         "PJ" -> Color(0xFF8B5CF6)
         "OC" -> Color(0xFF06B6D4)
-        "LO" -> Color(0xFF10B981)
-        "EMB" -> Color(0xFF6366F1)
+        "LO" -> colors.success
+        "EMB" -> colors.chart3
         else -> colors.accent
     }
 
@@ -350,7 +351,7 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                             style = AmazeTheme.typography.smallLabel.copy(
                                 color = badgeColor,
                                 fontWeight = FontWeight.Black,
-                                fontSize = 11.sp
+                                fontSize = AmazeTheme.fontSize.xs
                             )
                         )
                     }
@@ -360,13 +361,13 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                         style = AmazeTheme.typography.smallLabel.copy(
                             color = colors.textMuted,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
+                            fontSize = AmazeTheme.fontSize.sm
                         )
                     )
                 }
 
                 if (!isEmbedded) {
-                    val attPct = (theoryAtt?.attendancePercentage ?: labAtt?.attendancePercentage ?: "0").toDoubleOrNull() ?: 0.0
+                    val attPct = (theoryAtt?.attendancePercentage ?: labAtt?.attendancePercentage ?: "0").replace("%", "").trim().toDoubleOrNull() ?: 0.0
                     if (attPct > 0) {
                         val c = attColor(attPct)
                         Box(
@@ -378,7 +379,7 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                         ) {
                             Text(
                                 text = "${attPct.toInt()}%",
-                                style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black, fontSize = 11.sp)
+                                style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xs)
                             )
                         }
                     }
@@ -411,7 +412,7 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = parsedFac.name,
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = 11.sp),
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -425,7 +426,7 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                         ) {
                             Text(
                                 text = parsedFac.school,
-                                style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
                             )
                         }
                     }
@@ -453,7 +454,7 @@ private fun embeddedRow(
     accent: Color,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val pct = att?.attendancePercentage?.toDoubleOrNull() ?: 0.0
+    val pct = att?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
     val c = when {
         pct >= 85.0 -> colors.chart1
         pct >= 75.0 -> colors.chart3
@@ -486,7 +487,7 @@ private fun embeddedRow(
                         ) {
                             Text(
                                 text = parsedFac.school,
-                                style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
                             )
                         }
                     }
@@ -514,7 +515,7 @@ private fun buildSemesterGroups(
     val allGroups = mutableListOf<CourseGroup>()
 
     // Process current semester
-    val currentSemId = attendanceRes?.semesterId ?: "CH20262701"
+    val currentSemId = attendanceRes?.semesterId ?: AppState.DEFAULT_SEMESTER_ID
     val currentMarks = marksRes?.marks ?: allSemesterMarks[currentSemId]?.marks ?: emptyList()
     val currentAtt = attendanceRes?.attendance ?: allSemesterAttendance[currentSemId]?.attendance ?: emptyList()
 
@@ -567,7 +568,7 @@ private fun buildSemesterGroups(
                             courseCode = cleanCode,
                             courseTitle = grade.courseTitle,
                             semesterSubId = semId,
-                            semesterName = AppState.semesterMap[semId] ?: semId,
+                            semesterName = AppState.semesterMap.value[semId] ?: semId,
                             theory = MarksCourseItem(courseCode = grade.courseCode, courseTitle = grade.courseTitle, courseType = grade.courseType),
                             grade = grade
                         )
@@ -582,7 +583,7 @@ private fun buildSemesterGroups(
 
 private fun buildSemesterMap(marks: List<MarksCourseItem>, attendance: List<AttendanceItem>, semId: String): Map<String, CourseGroup> {
     val map = mutableMapOf<String, CourseGroup>()
-    val semName = AppState.semesterMap[semId] ?: semId
+    val semName = AppState.semesterMap.value[semId] ?: semId
 
     marks.forEach { c ->
         if (c.courseCode.isBlank()) return@forEach

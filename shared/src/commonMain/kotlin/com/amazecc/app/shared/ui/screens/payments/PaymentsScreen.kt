@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.payments
+﻿package com.amazecc.app.shared.ui.screens.payments
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -87,7 +87,7 @@ fun PaymentsScreen() {
                     Spacer(Modifier.height(AmazeTheme.spacing.md))
                     Text(
                         paymentsRes?.walletBalance?.replace("Rs.", "\u20B9")?.replace("INR", "\u20B9") ?: "\u20B9 0.00",
-                        fontWeight = FontWeight.Black, fontSize = 36.sp, color = Color.White
+                        fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.display, color = Color.White
                     )
                     Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -99,7 +99,7 @@ fun PaymentsScreen() {
                         ) {
                             Icon(Icons.Rounded.Add, null, tint = colors.accent, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                            Text("Top Up", color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("Top Up", color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.base)
                         }
                         Button(
                             onClick = { /* TODO */ },
@@ -110,7 +110,7 @@ fun PaymentsScreen() {
                         ) {
                             Icon(Icons.Rounded.History, null, tint = Color.White, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                            Text("History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.base)
                         }
                     }
                 }

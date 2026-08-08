@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.components
+﻿package com.amazecc.app.shared.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -52,7 +52,7 @@ fun UpdateDialog(
                 Spacer(Modifier.height(12.dp))
                 Text(
                     "Update Available",
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 20.sp)
+                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.xl)
                 )
                 Spacer(Modifier.height(4.dp))
                 Row(
@@ -84,7 +84,7 @@ fun UpdateDialog(
                     Spacer(Modifier.height(6.dp))
                     Text(
                         release.body.take(500),
-                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, lineHeight = 18.sp, fontSize = 12.sp)
+                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, lineHeight = 18.sp, fontSize = AmazeTheme.fontSize.sm)
                     )
                 }
             }
@@ -111,60 +111,3 @@ fun UpdateDialog(
     )
 }
 
-@Composable
-fun UpdateResultDialog(
-    status: com.amazecc.app.shared.state.AppState.UpdateStatus,
-    onDismiss: () -> Unit,
-    onCheckAgain: () -> Unit
-) {
-    val colors = AmazeTheme.colors
-    val title: String
-    val text: String
-    val icon: @Composable () -> Unit
-
-    when (status) {
-        is com.amazecc.app.shared.state.AppState.UpdateStatus.UpToDate -> {
-            title = "You're up to date"
-            text = "You're running the latest version of AmazeCC."
-            icon = {
-                Box(modifier = Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).background(colors.chart1.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                    Text("✓", style = AmazeTheme.typography.heading.copy(color = colors.chart1, fontSize = 28.sp))
-                }
-            }
-        }
-        is com.amazecc.app.shared.state.AppState.UpdateStatus.Error -> {
-            title = "Check Failed"
-            text = status.message
-            icon = {
-                Box(modifier = Modifier.size(64.dp).clip(RoundedCornerShape(20.dp)).background(colors.chart5.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                    Text("!", style = AmazeTheme.typography.heading.copy(color = colors.chart5, fontSize = 28.sp))
-                }
-            }
-        }
-        else -> return
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = colors.surface,
-        shape = RoundedCornerShape(28.dp),
-        title = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                icon()
-                Spacer(Modifier.height(12.dp))
-                Text(title, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 20.sp))
-            }
-        },
-        text = { Text(text, style = AmazeTheme.typography.body.copy(color = colors.textSecondary)) },
-        confirmButton = {
-            Button(
-                onClick = onDismiss,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = if (status is com.amazecc.app.shared.state.AppState.UpdateStatus.Error) colors.chart5 else colors.chart1),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(if (status is com.amazecc.app.shared.state.AppState.UpdateStatus.Error) "Try Again" else "Great", fontWeight = FontWeight.Bold)
-            }
-        }
-    )
-}

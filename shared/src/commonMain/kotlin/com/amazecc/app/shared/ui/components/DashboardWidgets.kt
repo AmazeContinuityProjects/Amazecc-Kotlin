@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.components
+﻿package com.amazecc.app.shared.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -55,6 +55,8 @@ import com.amazecc.app.shared.ui.strings.Strings
 import io.ktor.util.decodeBase64Bytes
 import com.amazecc.app.shared.utils.toImageBitmap
 import com.amazecc.app.shared.utils.WidgetDataUtils
+import com.amazecc.app.shared.model.displayCgpa
+import com.amazecc.app.shared.model.displayCreditsEarned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
@@ -75,9 +77,7 @@ private fun rememberDragState(): DragState = remember { DragState() }
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun WidgetDashboard(
-    updateDialog: @Composable () -> Unit,
-    commandPaletteTrigger: @Composable () -> Unit,
-    addTaskDialog: @Composable () -> Unit
+    updateDialog: @Composable () -> Unit
 ) {
     val colors = AmazeTheme.colors
     val widgetOrder by AppState.widgetOrder.collectAsState()
@@ -86,8 +86,6 @@ fun WidgetDashboard(
     var showManageDialog by remember { mutableStateOf(false) }
 
     updateDialog()
-    commandPaletteTrigger()
-    addTaskDialog()
 
     if (showManageDialog) {
         ManageWidgetsDialog(onDismiss = { showManageDialog = false })
@@ -754,13 +752,13 @@ private fun MetricCardsWidget() {
     val isCgpaHidden by AppState.cgpaHidden.collectAsState()
 
     val cgpa = remember(marksRes) {
-        marksRes?.cgpa?.cgpa?.toDoubleOrNull() ?: 0.0
+        marksRes.displayCgpa
     }
     val cgpaDisplay = remember(cgpa, isCgpaHidden) {
         if (isCgpaHidden) "\u2022\u2022\u2022" else "%.2f".format(cgpa)
     }
     val credits = remember(marksRes) {
-        marksRes?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
+        marksRes.displayCreditsEarned
     }
     val odCount = remember(courses) {
         WidgetDataUtils.computeODHours(courses)
@@ -913,7 +911,7 @@ private fun AttendanceBunkWidget() {
                         style = AmazeTheme.typography.subheading.copy(
                             fontWeight = FontWeight.Bold,
                             color = colors.textPrimary,
-                            fontSize = 16.sp
+                            fontSize = AmazeTheme.fontSize.lg
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -1076,7 +1074,7 @@ private fun CurrentNextClassWidget() {
                                     style = AmazeTheme.typography.smallLabel.copy(
                                         color = colors.success,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
+                                        fontSize = AmazeTheme.fontSize.micro
                                     )
                                 )
                                 Text(
@@ -1119,7 +1117,7 @@ private fun CurrentNextClassWidget() {
                                     style = AmazeTheme.typography.smallLabel.copy(
                                         color = colors.accent,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 10.sp
+                                        fontSize = AmazeTheme.fontSize.micro
                                     )
                                 )
                                 Text(
@@ -1339,7 +1337,7 @@ private fun TodayClassesWidget() {
                                                     style = AmazeTheme.typography.smallLabel.copy(
                                                         color = colors.accent,
                                                         fontWeight = FontWeight.Bold,
-                                                        fontSize = 10.sp
+                                                        fontSize = AmazeTheme.fontSize.micro
                                                     )
                                                 )
                                             }
@@ -1531,7 +1529,7 @@ private fun ModernCourseCardWidget(
                 course.courseTitle,
                 style = AmazeTheme.typography.smallLabel.copy(
                     color = colors.textMuted,
-                    fontSize = 11.sp
+                    fontSize = AmazeTheme.fontSize.xs
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1543,7 +1541,7 @@ private fun ModernCourseCardWidget(
                 "$attended/$total",
                 style = AmazeTheme.typography.smallLabel.copy(
                     color = colors.textMuted,
-                    fontSize = 11.sp
+                    fontSize = AmazeTheme.fontSize.xs
                 )
             )
             Spacer(Modifier.width(8.dp))
@@ -1559,7 +1557,7 @@ private fun ModernCourseCardWidget(
                     style = AmazeTheme.typography.smallLabel.copy(
                         fontWeight = FontWeight.Bold,
                         color = pctColor,
-                        fontSize = 11.sp
+                        fontSize = AmazeTheme.fontSize.xs
                     )
                 )
             }
@@ -1653,7 +1651,7 @@ private fun GlassActionCardWidget(
                 label,
                 style = AmazeTheme.typography.smallLabel.copy(
                     color = colors.textSecondary,
-                    fontSize = 10.sp,
+                    fontSize = AmazeTheme.fontSize.micro,
                     textAlign = TextAlign.Center
                 ),
                 maxLines = 2,
@@ -1690,7 +1688,7 @@ private fun FreeClassroomsWidget() {
                 Text(
                     "Find Free Classrooms",
                     style = AmazeTheme.typography.subheading.copy(
-                        fontSize = 15.sp,
+                        fontSize = AmazeTheme.fontSize.lg,
                         color = colors.textPrimary,
                         fontWeight = FontWeight.Bold
                     )

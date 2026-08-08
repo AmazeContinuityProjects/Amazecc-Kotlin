@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -96,7 +96,8 @@ private fun monthDisplayName(monthStr: String): String {
 private fun getConsolidatedEventsForDisplay(
     activeMonthEvents: Map<Int, List<ConsolidatedEvent>>,
     selectedDay: Int?,
-    monthName: String
+    monthName: String,
+    examColor: Color
 ): List<Pair<String, ConsolidatedEvent>> {
     if (selectedDay != null) {
         return (activeMonthEvents[selectedDay] ?: emptyList()).map { "" to it }
@@ -180,7 +181,7 @@ private fun getConsolidatedEventsForDisplay(
                         title = titleText,
                         type = "Exam",
                         timeOrLocation = if (rangeStart == prevDay) "Exam Day" else "${prevDay - rangeStart + 1} Days Exam Period",
-                        color = Color(0xFFF97316),
+                        color = examColor,
                         startDay = rangeStart,
                         endDay = prevDay
                     )
@@ -305,9 +306,9 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                     ev.color?.let { Color(it.removePrefix("#").toLong(16) or 0xFF000000) }
                 } catch (_: Exception) { null } ?: (
                     when {
-                        isExam -> Color(0xFFF97316)
-                        isHoliday -> Color(0xFFEF4444)
-                        isClass && dayOrderLabel != null -> Color(0xFF22C55E)
+                        isExam -> colors.chart1
+                        isHoliday -> colors.danger
+                        isClass && dayOrderLabel != null -> colors.success
                         else -> colors.accent
                     }
                 )
@@ -342,7 +343,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                     if (exYear == yearNum && exMonth == monthNum) {
                         if (filterExams) {
                             val list = map.getOrPut(exDay) { mutableListOf() }
-                            list.add(ConsolidatedEvent("${ex.courseCode} ($type)", "Exam", "${ex.examTime} · ${ex.venue}", Color(0xFFF97316), startDay = exDay, endDay = exDay))
+                            list.add(ConsolidatedEvent("${ex.courseCode} ($type)", "Exam", "${ex.examTime} · ${ex.venue}", colors.chart1, startDay = exDay, endDay = exDay))
                         }
                     }
                 } catch (e: Exception) { println("AmazeCC: CalendarScreen examEvents — ${e.message}") }
@@ -357,7 +358,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
 
     val eventsToShow = remember(activeMonthEvents, selectedDay, activeMonth) {
         val monthName = monthDisplayName(activeMonth?.month ?: "")
-        val rawList = getConsolidatedEventsForDisplay(activeMonthEvents, selectedDay, monthName)
+        val rawList = getConsolidatedEventsForDisplay(activeMonthEvents, selectedDay, monthName, colors.chart1)
         rawList.filter { (_, ev) ->
             val text = ev.title.lowercase()
             val timeLoc = ev.timeOrLocation.lowercase()
@@ -397,7 +398,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                         Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                         Text(errorMsg, color = colors.danger, textAlign = TextAlign.Center)
                         Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                        Text("Pull to refresh or tap sync", color = colors.textMuted, fontSize = 13.sp)
+                        Text("Pull to refresh or tap sync", color = colors.textMuted, fontSize = AmazeTheme.fontSize.base)
                     }
                 }
             }
@@ -457,9 +458,56 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                         style = AmazeTheme.typography.smallLabel.copy(
                                             color = if (isActive) colors.background else colors.textPrimary,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 12.sp
+                                            fontSize = AmazeTheme.fontSize.sm
                                         )
                                     )
+                                }
+                            }
+                        }
+                    }
+                    // ── Calendar type selector ──
+                    item {
+                        if (calendars.isNotEmpty()) {
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(horizontal = spacing.pageHorizontal)
+                            ) {
+                                items(calendars.indices.toList(), key = { it }) { idx ->
+                                    val cal = calendars[idx]
+                                    val isSelected = selectedCalIdx == idx
+                                    val interactionSource = remember { MutableInteractionSource() }
+                                    val isPressed by interactionSource.collectIsPressedAsState()
+                                    val scale by animateFloatAsState(
+                                        targetValue = if (isPressed) 0.94f else 1f,
+                                        animationSpec = bouncySpring()
+                                    )
+
+                                    Box(
+                                        modifier = Modifier
+                                            .graphicsLayer { scaleX = scale; scaleY = scale }
+                                            .clip(CircleShape)
+                                            .background(if (isSelected) colors.accent else colors.surface)
+                                            .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
+                                            .clickable(
+                                                interactionSource = interactionSource,
+                                                indication = null,
+                                                onClick = {
+                                                    selectedCalIdx = idx
+                                                    SettingsManager.savePreferredCalendar(cal.name)
+                                                }
+                                            )
+                                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = cal.name,
+                                            style = AmazeTheme.typography.smallLabel.copy(
+                                                color = if (isSelected) colors.background else colors.textPrimary,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = AmazeTheme.fontSize.sm
+                                            )
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -507,7 +555,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                             style = AmazeTheme.typography.smallLabel.copy(
                                                 color = if (isSelected) colors.background else colors.textPrimary,
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 11.sp
+                                                fontSize = AmazeTheme.fontSize.xs
                                             ),
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
@@ -532,7 +580,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                         style = AmazeTheme.typography.smallLabel.copy(
                                             color = colors.textMuted,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 10.sp
+                                            fontSize = AmazeTheme.fontSize.micro
                                         )
                                     )
                                 }
@@ -592,11 +640,11 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                                         .background(
                                                             when {
                                                                 isSelected -> colors.accent
-                                                                isToday && hasExam -> Color(0xFFF97316).copy(alpha = 0.22f)
+                                                                isToday && hasExam -> colors.chart1.copy(alpha = 0.22f)
                                                                 isToday -> colors.accent.copy(alpha = 0.18f)
-                                                                hasExam -> Color(0xFFF97316).copy(alpha = 0.22f)
-                                                                hasHoliday -> Color(0xFFEF4444).copy(alpha = 0.18f)
-                                                                hasWorkingDay -> Color(0xFF22C55E).copy(alpha = 0.18f)
+                                                                hasExam -> colors.chart1.copy(alpha = 0.22f)
+                                                                hasHoliday -> colors.danger.copy(alpha = 0.18f)
+                                                                hasWorkingDay -> colors.success.copy(alpha = 0.18f)
                                                                 dayEvents.isNotEmpty() -> colors.surface
                                                                 else -> Color.Transparent
                                                             }
@@ -607,9 +655,9 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                                                 isSelected -> colors.accent
                                                                 isToday && hasExam -> colors.accent
                                                                 isToday -> colors.accent
-                                                                hasExam -> Color(0xFFF97316).copy(alpha = 0.85f)
-                                                                hasHoliday -> Color(0xFFEF4444).copy(alpha = 0.5f)
-                                                                hasWorkingDay -> Color(0xFF22C55E).copy(alpha = 0.5f)
+                                                                hasExam -> colors.chart1.copy(alpha = 0.85f)
+                                                                hasHoliday -> colors.danger.copy(alpha = 0.5f)
+                                                                hasWorkingDay -> colors.success.copy(alpha = 0.5f)
                                                                 dayEvents.isNotEmpty() -> colors.border
                                                                 else -> Color.Transparent
                                                             },
@@ -629,13 +677,13 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                                                 color = when {
                                                                     isSelected -> colors.background
                                                                     isToday -> colors.accent
-                                                                    hasExam -> Color(0xFFF97316)
-                                                                    hasHoliday -> Color(0xFFEF4444)
-                                                                    hasWorkingDay -> Color(0xFF22C55E)
+                                                                    hasExam -> colors.chart1
+                                                                    hasHoliday -> colors.danger
+                                                                    hasWorkingDay -> colors.success
                                                                     else -> colors.textPrimary
                                                                 },
                                                                 fontWeight = if (isToday || isSelected || dayEvents.isNotEmpty()) FontWeight.Bold else FontWeight.Medium,
-                                                                fontSize = 13.sp
+                                                                fontSize = AmazeTheme.fontSize.base
                                                             )
                                                         )
                                                         val nonWorkingDayEvents = dayEvents.filter { ev ->
@@ -694,7 +742,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                 style = AmazeTheme.typography.smallLabel.copy(
                                     fontWeight = FontWeight.Bold,
                                     color = colors.accent,
-                                    fontSize = 11.sp
+                                    fontSize = AmazeTheme.fontSize.xs
                                 )
                             )
 
@@ -712,7 +760,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                         style = AmazeTheme.typography.smallLabel.copy(
                                             color = colors.textSecondary,
                                             fontWeight = FontWeight.Bold,
-                                            fontSize = 9.sp
+                                            fontSize = AmazeTheme.fontSize.micro
                                         )
                                     )
                                 }
@@ -749,7 +797,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                         "No events scheduled${if (selectedDay != null) " for this date" else " for this month"}",
                                         color = colors.textSecondary,
                                         fontWeight = FontWeight.SemiBold,
-                                        fontSize = 13.sp
+                                        fontSize = AmazeTheme.fontSize.base
                                     )
                                 }
                             }
@@ -776,7 +824,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                             style = AmazeTheme.typography.smallLabel.copy(
                                                 fontWeight = FontWeight.Bold,
                                                 color = colors.accent,
-                                                fontSize = 10.sp
+                                                fontSize = AmazeTheme.fontSize.micro
                                             )
                                         )
                                     }

@@ -1,4 +1,4 @@
-package com.amazecc.app.shared
+﻿package com.amazecc.app.shared
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -63,7 +63,6 @@ fun App() {
     val uiScale by AppState.uiScale.collectAsState()
     val hapticEnabled by AppState.hapticEnabled.collectAsState()
     val animationsEnabled by AppState.animationsEnabled.collectAsState()
-    val showSearch by AppState.showSearch.collectAsState()
     val clipboardManager = LocalClipboardManager.current
 
     // Observe SyncEngine outside of AppState.init to avoid classloading deadlocks
@@ -115,26 +114,12 @@ fun App() {
 
                     // Global Spotlight Search Overlay
                     val commandPaletteOpen by AppState.commandPaletteOpen.collectAsState()
-                    val libraryPaletteOpen by AppState.libraryPaletteOpen.collectAsState()
-                    val eventPaletteOpen by AppState.eventPaletteOpen.collectAsState()
 
                     if (commandPaletteOpen) {
                         com.amazecc.app.shared.ui.components.CommandPalette(
                             isOpen = commandPaletteOpen,
                             onClose = { AppState.closeCommandPalette() },
                             commands = com.amazecc.app.shared.ui.components.rememberGlobalCommands()
-                        )
-                    }
-                    if (libraryPaletteOpen) {
-                        com.amazecc.app.shared.ui.components.LibraryPalette(
-                            isOpen = libraryPaletteOpen,
-                            onClose = { AppState.closeLibraryPalette() }
-                        )
-                    }
-                    if (eventPaletteOpen) {
-                        com.amazecc.app.shared.ui.components.EventPalette(
-                            isOpen = eventPaletteOpen,
-                            onClose = { AppState.closeEventPalette() }
                         )
                     }
 
@@ -284,7 +269,7 @@ fun App() {
                                             text = syncError ?: "",
                                             style = AmazeTheme.typography.smallLabel.copy(
                                                 fontFamily = FontFamily.Monospace,
-                                                fontSize = 11.sp,
+                                                fontSize = AmazeTheme.fontSize.xs,
                                                 color = colors.dangerText
                                             )
                                         )

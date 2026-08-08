@@ -140,3 +140,8 @@ AmazeClient (55+ endpoints, ~70 mock-gated)
 ## 9. What "connected" means for the cleanup
 
 The connectivity story in one sentence: **every screen reaches directly into the `AppState` singleton for data and into `AmazeClient` for actions, and nothing else does — which is why repositories, the sync engine's execution layer, and dozens of helpers could die without any UI noticing.** The fix direction (hooks pattern) is in `06-modularization.md`.
+
+## Phase 0 Fix Log (2026-08-06)
+
+- `postQBankPaper` path fixed (`/api/qbank/upload` → `qbank/upload`): the `postAuthorized` helper already prepends `/api/`, so uploads were POSTed to `https://api.amazecc.com/api//api/qbank/upload` and 404'd. QBank uploads now reach `https://api.amazecc.com/api/qbank/upload`.
+- `HttpTimeout` installed on the shared client (request 30s / connect 15s / socket 30s) so dead sockets fail fast instead of hanging coroutines forever. `expectSuccess` deliberately not enabled — the client's endpoints check `response.status` manually and return error payloads on non-200.

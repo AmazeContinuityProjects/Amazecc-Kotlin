@@ -4,7 +4,6 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class AssessmentItem(
-    val slNo: String? = null,
     val title: String = "",
     val maxMark: String = "",
     val weightagePercent: String = "",
@@ -15,15 +14,12 @@ data class AssessmentItem(
 
 @Serializable
 data class MarksCourseItem(
-    val slNo: String? = null,
     val classNbr: String = "",
     val courseCode: String = "",
     val courseTitle: String = "",
     val courseType: String = "",
     val courseSystem: String = "",
-    val credits: String? = null,
     val faculty: String = "",
     val slot: String = "",
-    val courseMode: String = "",
     val assessments: List<AssessmentItem> = emptyList()
 )

@@ -1,6 +1,13 @@
 package com.amazecc.app.shared.config
 
 object SlotMap {
+    val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
+    val weekdays = listOf("MON", "TUE", "WED", "THU", "FRI")
+    val dayLabels = mapOf(
+        "MON" to "Mon", "TUE" to "Tue", "WED" to "Wed",
+        "THU" to "Thu", "FRI" to "Fri", "SAT" to "Sat", "SUN" to "Sun"
+    )
+
     val map = mapOf(
         "MON" to mapOf(
             "A1" to "8:00-8:50",

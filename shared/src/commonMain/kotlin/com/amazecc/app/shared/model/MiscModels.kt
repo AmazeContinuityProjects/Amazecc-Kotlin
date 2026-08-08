@@ -20,31 +20,21 @@ data class LoginResponse(
     val csrf: String? = null,
     val authorizedID: String? = null,
     val clubToken: String? = null,
-    val clubRoles: List<ClubRole> = emptyList(),
     val error: String? = null
-)
-
-@Serializable
-data class ClubRole(
-    val club_id: String,
-    val role: String
 )
 
 @Serializable
 data class TimetableRes(
     val success: Boolean = true,
     val semesterId: String? = null,
-    val courseInfo: List<CourseItem> = emptyList(),
     val error: String? = null,
     val message: String? = null
 )
 
 @Serializable
 data class CGPAResult(
-    val creditsRequired: String? = null,
     val creditsEarned: String? = null,
-    val cgpa: String? = null,
-    val nonGradedRequirement: String? = null
+    val cgpa: String? = null
 )
 
 @Serializable
@@ -55,6 +45,9 @@ data class MarksRes(
     val error: String? = null,
     val message: String? = null
 )
+
+val MarksRes?.displayCgpa: Double get() = this?.cgpa?.cgpa?.toDoubleOrNull() ?: 0.0
+val MarksRes?.displayCreditsEarned: Double get() = this?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
 
 @Serializable
 data class HostelInfo(
@@ -70,14 +63,6 @@ data class HostelDetails(
     val success: Boolean = true,
     val hostelInfo: HostelInfo? = null,
     val leaveHistory: List<LeaveItem> = emptyList(),
-    val error: String? = null,
-    val message: String? = null
-)
-
-@Serializable
-data class HostelLeaveRes(
-    val success: Boolean = true,
-    val leaves: List<LeaveItem> = emptyList(),
     val error: String? = null,
     val message: String? = null
 )
@@ -193,7 +178,6 @@ data class BookItem(
     val bookId: String,
     val title: String,
     val author: String? = null,
-    val issueDate: String? = null,
     val dueDate: String? = null,
     val fineAmount: String? = null
 )
@@ -216,12 +200,6 @@ data class BusStop(
 )
 
 @Serializable
-data class BusPlacement(
-    val zone: String,
-    val dispersalTime: String
-)
-
-@Serializable
 data class BusRoute(
     val id: String,
     val type: String,
@@ -235,8 +213,7 @@ data class BusRoute(
     val supervisorPhone: String? = null,
     val driverInchargeName: String? = null,
     val driverInchargePhone: String? = null,
-    val stops: List<BusStop> = emptyList(),
-    val placements: List<BusPlacement> = emptyList()
+    val stops: List<BusStop> = emptyList()
 )
 
 @Serializable
@@ -253,14 +230,10 @@ data class TransportDataRes(
     val hasRegistration: Boolean = false,
     val registerNumber: String? = null,
     val name: String? = null,
-    val programme: String? = null,
     val branch: String? = null,
     val routeSelected: String? = null,
-    val fpReference: String? = null,
-    val paymentStatus: String? = null,
     val busRouteId: String? = null,
     val qrCode: String? = null,
-    val pageCsrf: String? = null,
     val error: String? = null,
     val message: String? = null
 )
@@ -309,9 +282,7 @@ data class QBankQuestion(
     val correct_answer: String? = null,
     val marks: Int? = null,
     val topic_name: String? = null,
-    val exam_semester: String? = null,
-    val exam_year: String? = null,
-    val image_url: String? = null
+    val exam_semester: String? = null
 )
 
 @Serializable
@@ -324,7 +295,6 @@ data class QBankRes(
 
 @Serializable
 data class QBankPaper(
-    val paper_id: String,
     val title: String,
     val link: String,
     val type: String
@@ -355,8 +325,7 @@ data class ClubItem(
     @SerialName("logo_url") val logoUrl: String? = null,
     val website: String? = null,
     val instagram: String? = null,
-    val whatsapp: String? = null,
-    @SerialName("recruitment_link") val recruitmentLink: String? = null
+    val whatsapp: String? = null
 )
 
 @Serializable
@@ -378,9 +347,9 @@ data class FeedPost(
     val content: String = "",
     @SerialName("image_urls") val imageUrls: List<String> = emptyList(),
     @SerialName("event_id") val eventId: String? = null,
-    val links: List<FeedLink>? = null,
     @SerialName("has_promoted") val hasPromoted: Boolean = false,
-    @SerialName("promote_count") val promoteCount: Int = 0
+    @SerialName("promote_count") val promoteCount: Int = 0,
+    val links: List<FeedLink>? = null
 )
 
 @Serializable
@@ -389,13 +358,6 @@ data class FeedRes(
     val feed: List<FeedPost> = emptyList(),
     val error: String? = null,
     val message: String? = null
-)
-
-@Serializable
-data class PromoteRes(
-    val success: Boolean = true,
-    val promoted: Boolean = false,
-    val error: String? = null
 )
 
 @Serializable
@@ -485,82 +447,33 @@ data class DirectoryCCProfile(
 )
 
 @Serializable
-data class CabTrip(
-    val id: String,
-    val from: String,
-    val to: String,
-    val date: String,
-    val time: String,
-    val seatsTotal: Int,
-    val seatsAvailable: Int,
-    val fare: String,
-    val driverName: String,
-    val driverPhone: String? = null,
-    val driverRating: String? = null,
-    val vehicleModel: String? = null,
-    val vehicleColor: String? = null,
-    val vehiclePlate: String? = null,
-    val status: String = "Scheduled",
-    val isOwnTrip: Boolean = false
-)
-
-@Serializable
-data class CabTripsRes(
-    val success: Boolean = true,
-    val trips: List<CabTrip> = emptyList(),
-    val error: String? = null,
-    val message: String? = null
-)
-
-@Serializable
-data class CabSearchRequest(
-    val from: String,
-    val to: String,
-    val date: String
-)
-
-@Serializable
-data class CabCreateTripRequest(
-    val from: String,
-    val to: String,
-    val date: String,
-    val time: String,
-    val seats: Int,
-    val fare: String,
-    val vehicleModel: String? = null,
-    val vehicleColor: String? = null,
-    val vehiclePlate: String? = null
-)
-
-@Serializable
-data class CabActionRes(
-    val success: Boolean = true,
-    val message: String? = null,
-    val error: String? = null,
-    val tripId: String? = null
-)
-
-@Serializable
-data class CabJoinRequest(
-    val id: String,
-    val tripId: String,
-    val requesterName: String,
-    val seats: Int,
-    val status: String = "Pending"
-)
-
-@Serializable
 data class CabShareUser(
     val reg_number: String,
     val name: String = "",
-    val phone_number: String = "",
-    val local_only: Boolean = false
+    val phone_number: String = ""
 )
 
 @Serializable
 data class CabShareHub(
     val hub_id: Int,
     val hub_name: String
+)
+
+val fallbackCabHubs = listOf(
+    CabShareHub(1, "VIT Chennai"),
+    CabShareHub(2, "Chennai Airport"),
+    CabShareHub(3, "Chennai Central Railway Station"),
+    CabShareHub(4, "Tambaram Railway Station"),
+    CabShareHub(5, "Chengalpattu Railway Station"),
+    CabShareHub(6, "Koyambedu Bus Stand"),
+    CabShareHub(7, "Kelambakkam"),
+    CabShareHub(8, "Sholinganallur"),
+    CabShareHub(9, "T Nagar"),
+    CabShareHub(10, "Guindy"),
+    CabShareHub(11, "OMR"),
+    CabShareHub(12, "Perungudi"),
+    CabShareHub(13, "Thoraipakkam"),
+    CabShareHub(14, "Velachery")
 )
 
 @Serializable
@@ -570,26 +483,16 @@ data class CabShareTrip(
     val name: String = "",
     val owner_name: String = "",
     val owner_phone: String = "",
-    val from_hub_id: Int? = null,
-    val hub_id: Int? = null,
     val from_hub_name: String = "",
+    val hub_id: Int? = null,
     val hub_name: String = "",
     val travel_date: String = "",
     val preferred_time: String = "",
     val tolerance_hours: Double = 1.0,
-    val seat_options: CabShareSeatOptions? = null,
-    val gender_preference: String = "mixed",
     val notes: String = "",
     val status: String = "active",
     val match_status: String? = null,
-    val requests: List<CabShareMatchRequest> = emptyList(),
-    val local_only: Boolean = false
-)
-
-@Serializable
-data class CabShareSeatOptions(
-    val requested: Int = 1,
-    val max: Int = 4
+    val requests: List<CabShareMatchRequest> = emptyList()
 )
 
 @Serializable
@@ -619,11 +522,11 @@ data class CabShareAuthRes(
 )
 
 @Serializable
-data class CabJoinRequestsRes(
+data class CabActionRes(
     val success: Boolean = true,
-    val requests: List<CabJoinRequest> = emptyList(),
+    val message: String? = null,
     val error: String? = null,
-    val message: String? = null
+    val tripId: String? = null
 )
 
 
@@ -631,10 +534,7 @@ data class CabJoinRequestsRes(
 data class ProfileImagesCredential(
     val account: String = "",
     val username: String = "",
-    val defaultCredentials: String = "",
-    val url: String? = null,
-    val venueDate: String = "",
-    val seatLocation: String = ""
+    val url: String? = null
 )
 
 @Serializable

@@ -10,13 +10,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.ui.screens.DashboardScreen
+import com.amazecc.app.shared.ui.screens.FfcsPlannerScreen
 import com.amazecc.app.shared.ui.screens.ProfileScreen
+import com.amazecc.app.shared.ui.screens.ProjectsScreen
 import com.amazecc.app.shared.ui.screens.QBankScreen
 import com.amazecc.app.shared.ui.screens.SocialScreen
+import com.amazecc.app.shared.ui.screens.WishlistScreen
 import com.amazecc.app.shared.ui.screens.academics.AcademicsScreen
 import com.amazecc.app.shared.ui.screens.academics.AttendanceScreen
+import com.amazecc.app.shared.ui.screens.academics.CalendarScreen
+import com.amazecc.app.shared.ui.screens.academics.FreeClassroomsScreen
 import com.amazecc.app.shared.ui.screens.cabshare.CabShareScreen
 import com.amazecc.app.shared.ui.screens.events.EventHubScreen
 import com.amazecc.app.shared.ui.screens.hostel.HostelScreen
@@ -79,6 +85,11 @@ fun MainTabPager(
             Screen.EVENTS -> EventHubScreen()
             Screen.QBANK -> QBankScreen()
             Screen.SOCIAL -> SocialScreen()
+            Screen.FFCS_PLANNER -> FfcsPlannerScreen()
+            Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateTo(Screen.ACADEMICS) }
+            Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateTo(Screen.ACADEMICS) })
+            Screen.PROJECTS -> ProjectsScreen()
+            Screen.WISHLIST -> WishlistScreen()
             else -> {}
         }
     }

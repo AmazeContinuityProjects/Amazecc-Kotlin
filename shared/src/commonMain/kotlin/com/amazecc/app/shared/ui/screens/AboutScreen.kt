@@ -28,13 +28,7 @@ fun AboutScreen() {
         currentVersion = com.amazecc.app.shared.utils.UpdateConfig.getCurrentVersion()
     }
     var showChangelog by remember { mutableStateOf(false) }
-    val changes = listOf(
-        "Phase 3: 15 new features including QBank, Faculty Info, Course Management, Projects, Wishlist, Feedback, Documents, Activity Tree, Spotlight Search, and more",
-        "Phase 2: Hostel (Mess/Laundry/Counselling), Transport, CabShare, Events, Social modules",
-        "Phase 1: Attendance Predictor, Arrear Management, Circulars, Curriculum, OD Tracker",
-        "Phase 0: Foundation with Settings, Profile, Grades, GPA Predictor",
-        "Initial release with Attendance, Timetable, Academic Calendar, Libraries, Payments"
-    )
+    val changes = changelogEntries
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         ScreenHeader(title = Strings.about, description = "AmazeCC", showBackButton = true)

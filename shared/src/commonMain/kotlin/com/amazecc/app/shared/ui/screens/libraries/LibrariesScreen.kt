@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.libraries
+﻿package com.amazecc.app.shared.ui.screens.libraries
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -196,7 +196,7 @@ private fun InlineLibraryLoginCard(onLoginSuccess: () -> Unit) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     "Your credentials are saved locally to fetch your library account.",
-                    style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp, textAlign = TextAlign.Center)
+                    style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro, textAlign = TextAlign.Center)
                 )
             }
         }
@@ -229,7 +229,7 @@ private fun IssuedBooksContent(
                 Text("You have no books currently checked out.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                 TextButton(onClick = { AppState.saveLibraryCredentials("", "") }) {
-                    Text("Sign Out Library Account", color = colors.danger, fontSize = 12.sp)
+                    Text("Sign Out Library Account", color = colors.danger, fontSize = AmazeTheme.fontSize.sm)
                 }
             }
         }
@@ -252,7 +252,7 @@ private fun IssuedBooksContent(
                     style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium)
                 )
                 TextButton(onClick = { AppState.saveLibraryCredentials("", "") }) {
-                    Text("Sign Out", color = colors.danger, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Sign Out", color = colors.danger, fontSize = AmazeTheme.fontSize.sm, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -287,7 +287,7 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (isOverdue) colors.chart5.copy(alpha = 0.12f) else colors.successSurface).padding(horizontal = 10.dp, vertical = 4.dp)
             ) {
-                Text(if (isOverdue) "Overdue" else "Issued", color = if (isOverdue) colors.chart5 else colors.successText, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(if (isOverdue) "Overdue" else "Issued", color = if (isOverdue) colors.chart5 else colors.successText, fontSize = AmazeTheme.fontSize.xs, fontWeight = FontWeight.Bold)
             }
         }
         Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
@@ -326,7 +326,7 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
                 if (renewing) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
                 } else {
-                    Text("Renew", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Renew", fontSize = AmazeTheme.fontSize.base, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }

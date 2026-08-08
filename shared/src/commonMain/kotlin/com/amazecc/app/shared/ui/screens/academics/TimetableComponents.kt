@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
-import com.amazecc.app.shared.model.CourseItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
@@ -51,15 +50,18 @@ fun TimetableCard(code: String, title: String, faculty: String, venue: String, s
 @Composable
 fun TimetableDialog(
     attendanceCourses: List<AttendanceItem>,
-    timetableCourses: List<Any>,
     onDismiss: () -> Unit
 ) {
     val colors = AmazeTheme.colors
     val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
     var selectedDay by remember { mutableStateOf("MON") }
 
+    fun slotCodes(name: String) = name.uppercase().split('+').map { it.trim() }
+
     val dayCourses = remember(selectedDay, attendanceCourses) {
-        attendanceCourses.filter { it.slotName.uppercase().take(3) == selectedDay }
+        attendanceCourses.filter { course ->
+            slotCodes(course.slotName).any { SlotMap.map[selectedDay]?.containsKey(it) == true }
+        }
     }
 
     Box(
@@ -106,7 +108,7 @@ fun TimetableDialog(
                                 day,
                                 color = if (isSelected) Color.White else colors.textPrimary,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
+                                fontSize = AmazeTheme.fontSize.base
                             )
                         }
                     }
@@ -121,7 +123,7 @@ fun TimetableDialog(
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         items(dayCourses, key = { it.slotName + it.courseCode }) { course ->
-                            val time = SlotMap.map[selectedDay]?.get(course.slotName) ?: "—"
+                            val time = slotCodes(course.slotName).firstNotNullOfOrNull { SlotMap.map[selectedDay]?.get(it) } ?: "—"
                             AmazeCard(
                                 modifier = Modifier.fillMaxWidth(),
                                 onClick = { AppState.openCourseDetail(course.courseCode) }
@@ -131,7 +133,7 @@ fun TimetableDialog(
                                         modifier = Modifier.size(40.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.15f)),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        Text(course.slotName.take(3), fontWeight = FontWeight.Bold, fontSize = 11.sp, color = colors.accent)
+                                        Text(course.slotName.take(3), fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs, color = colors.accent)
                                     }
                                     Spacer(Modifier.width(AmazeTheme.spacing.sm))
                                     Column(modifier = Modifier.weight(1f)) {
@@ -139,8 +141,8 @@ fun TimetableDialog(
                                         Text(course.courseTitle, fontWeight = FontWeight.Bold, color = colors.textPrimary, maxLines = 1)
                                     }
                                     Column(horizontalAlignment = Alignment.End) {
-                                        Text(time, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = colors.accent)
-                                        Text(course.faculty, fontSize = 10.sp, color = colors.textSecondary)
+                                        Text(time, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm, color = colors.accent)
+                                        Text(course.faculty, fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary)
                                     }
                                 }
                             }

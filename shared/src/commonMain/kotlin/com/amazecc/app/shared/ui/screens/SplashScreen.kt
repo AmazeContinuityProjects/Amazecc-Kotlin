@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens
+﻿package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
@@ -79,7 +79,7 @@ fun SplashScreen() {
                 style = AmazeTheme.typography.display.copy(
                     fontWeight = FontWeight.Black,
                     color = colors.textPrimary,
-                    fontSize = 36.sp
+                    fontSize = AmazeTheme.fontSize.display
                 )
             )
 

@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens
+﻿package com.amazecc.app.shared.ui.screens
 
 import amazecc_app.shared.generated.resources.Res
 import amazecc_app.shared.generated.resources.ic_launcher
@@ -148,7 +148,7 @@ fun LoginScreen() {
                 text = Strings.appName,
                 style = AmazeTheme.typography.display.copy(
                     color = colors.textPrimary,
-                    fontSize = 32.sp,
+                    fontSize = AmazeTheme.fontSize.x3l,
                     fontWeight = FontWeight.Black
                 )
             )
@@ -315,6 +315,7 @@ fun LoginScreen() {
                                 try {
                                     val response = AmazeClient.login(username, password)
                                     if (response.success && response.cookies != null && response.csrf != null && response.authorizedID != null) {
+                                        AmazeClient.setUseMockData(false)
                                         SessionManager.saveSession(
                                             cookies = response.cookies,
                                             csrf = response.csrf,
@@ -326,11 +327,6 @@ fun LoginScreen() {
                                         SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
                                         response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
                                         SettingsManager.saveCredentials(username, password)
-                                        if (username.lowercase() == "demo" || username.uppercase() == "DEMO123") {
-                                            AmazeClient.setUseMockData(true)
-                                        } else {
-                                            AmazeClient.setUseMockData(false)
-                                        }
                                         AppState.navigateTo(if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING)
                                     } else {
                                         errorMessage = if (response.message.contains("401") || response.message.contains("Unauthorized", ignoreCase = true)) {
@@ -359,39 +355,24 @@ fun LoginScreen() {
                 onClick = {
                     scope.launch {
                         isSubmitting = true
-                        val demoRes = AmazeClient.login("DEMO123", "password")
-                        demoRes.cookies?.let { cookies ->
-                            demoRes.csrf?.let { csrf ->
-                                demoRes.authorizedID?.let { authId ->
-                                    SessionManager.saveSession(
-                                        cookies = cookies,
-                                        csrf = csrf,
-                                        authorizedID = authId,
-                                        clubToken = null
-                                    )
-                                    SettingsManager.setString(SettingsManager.SESSION_COOKIES, cookies)
-                                    SettingsManager.setString(SettingsManager.SESSION_CSRF, csrf)
-                                    SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, authId)
-                                    SettingsManager.saveCredentials("DEMO123", "password")
-                                    AmazeClient.setUseMockData(true)
-                                    AppState.navigateTo(if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING)
-                                }
-                            }
+                        errorMessage = null
+                        AppState.enterDemoMode { success, message ->
+                            if (!success) errorMessage = message
+                            isSubmitting = false
                         }
-                        isSubmitting = false
                     }
-                }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSubmitting
             ) {
                 Text(
                     text = "Explore in Demo Mode",
-                    style = AmazeTheme.typography.body.copy(
+                    style = AmazeTheme.typography.caption.copy(
                         color = colors.accent,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.SemiBold
                     )
                 )
             }
-
-            Spacer(Modifier.height(AmazeTheme.spacing.lg))
 
             Text(
                 text = "AmazeCC • An unofficial community initiative",

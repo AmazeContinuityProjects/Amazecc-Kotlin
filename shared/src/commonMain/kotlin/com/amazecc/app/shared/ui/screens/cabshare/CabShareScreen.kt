@@ -637,25 +637,25 @@ fun MyJoinedTripCard(trip: CabShareTrip) {
 
 @Composable
 fun SelectHubField(value: String, onValueChange: (String) -> Unit, hubs: List<CabShareHub>, placeholder: String) {
-    val colors = AmazeTheme.colors
-    var expanded by remember { mutableStateOf(false) }
-    Box(
-        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small)).padding(horizontal = 12.dp, vertical = 12.dp).clickable { if (hubs.isNotEmpty()) expanded = true }
-    ) {
-        if (hubs.isEmpty()) {
-            Text("Loading hubs...", style = AmazeTheme.typography.body.copy(color = colors.textMuted))
-        } else {
-            val selected = hubs.find { it.hub_id.toString() == value }
-            Text(selected?.hub_name ?: placeholder, style = AmazeTheme.typography.body.copy(fontWeight = if (selected != null) FontWeight.Bold else FontWeight.Normal, color = if (selected != null) colors.textPrimary else colors.textMuted))
+    if (hubs.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                .background(AmazeTheme.colors.surface)
+                .border(1.dp, AmazeTheme.colors.border, RoundedCornerShape(AmazeTheme.radius.small))
+                .padding(horizontal = 12.dp, vertical = 12.dp)
+        ) {
+            Text("Loading hubs...", style = AmazeTheme.typography.body.copy(color = AmazeTheme.colors.textMuted))
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            hubs.forEach { hub ->
-                DropdownMenuItem(
-                    text = { Text(hub.hub_name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)) },
-                    onClick = { onValueChange(hub.hub_id.toString()); expanded = false }
-                )
-            }
-        }
+    } else {
+        SelectField(
+            value = value,
+            onValueChange = onValueChange,
+            options = hubs.map { it.hub_id.toString() },
+            displayMap = hubs.associate { it.hub_id.toString() to it.hub_name },
+            placeholder = placeholder
+        )
     }
 }
 

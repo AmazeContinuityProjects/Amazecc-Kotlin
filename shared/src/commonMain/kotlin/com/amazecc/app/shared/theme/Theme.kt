@@ -4,7 +4,9 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 enum class AppTheme {
     LIGHT, DARK, AMOLED, SYSTEM
@@ -210,12 +212,28 @@ class AmazeSpacing(
     val sectionGap: Dp = 20.dp
 )
 
+@Stable
+class AmazeFontSize(
+    val micro: TextUnit = 10.sp,
+    val xs: TextUnit = 11.sp,
+    val sm: TextUnit = 12.sp,
+    val base: TextUnit = 13.sp,
+    val md: TextUnit = 14.sp,
+    val lg: TextUnit = 16.sp,
+    val xl: TextUnit = 20.sp,
+    val x2l: TextUnit = 24.sp,
+    val x3l: TextUnit = 32.sp,
+    val display: TextUnit = 36.sp,
+    val hero: TextUnit = 48.sp
+)
+
 val LocalAmazeColors = staticCompositionLocalOf<AmazeColors> {
     error("No AmazeColors provided")
 }
 
 val LocalAmazeRadius = staticCompositionLocalOf { AmazeRadius() }
 val LocalAmazeSpacing = staticCompositionLocalOf { AmazeSpacing() }
+val LocalAmazeFontSize = staticCompositionLocalOf { AmazeFontSize() }
 val LocalAmazeTypography = staticCompositionLocalOf { 
     AmazeTypography(
         androidx.compose.ui.text.TextStyle(),
@@ -354,12 +372,14 @@ fun AmazeTheme(
     val rememberColors = remember { colors }.apply { updateWith(colors) }
     val radius = remember { AmazeRadius() }
     val spacing = remember { AmazeSpacing() }
+    val fontSize = remember { AmazeFontSize() }
     val typography = getAmazeTypography()
 
     CompositionLocalProvider(
         LocalAmazeColors provides rememberColors,
         LocalAmazeRadius provides radius,
         LocalAmazeSpacing provides spacing,
+        LocalAmazeFontSize provides fontSize,
         LocalAmazeTypography provides typography,
     ) {
         com.amazecc.app.shared.ui.components.ProvideInteractionPrefs(
@@ -385,6 +405,11 @@ object AmazeTheme {
         @Composable
         @ReadOnlyComposable
         get() = LocalAmazeSpacing.current
+
+    val fontSize: AmazeFontSize
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalAmazeFontSize.current
 
     val typography: AmazeTypography
         @Composable

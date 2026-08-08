@@ -109,7 +109,7 @@ fun FfcsPlannerScreen() {
                         allCourses = allCourses,
                         locks = locks,
                         blockedSlots = blockedSlots,
-                        onToggleBlockSlot = { FfcsViewModel.toggleBlockSlot(it) },
+                        onToggleBlockSlots = { FfcsViewModel.toggleBlockSlots(it) },
                         onGenerate = { showGeneratorModal = true }
                     )
                     2 -> ResultsTab(
@@ -222,7 +222,7 @@ private fun CourseSelectionTab(
                 val isSelected = selectedCodes.contains(code)
                 val isExpanded = expandedCourse == code
                 val lock = locks.find { it.code.equals(code, ignoreCase = true) }
-                val hasLock = lock != null && (lock.allowedFaculty.isNotEmpty() || lock.allowedSlots.isNotEmpty())
+                val hasLock = lock?.hasLock == true
 
                 Column(
                     modifier = Modifier
@@ -268,9 +268,7 @@ private fun CourseSelectionTab(
 
                     if (isExpanded) {
                         offerings.forEach { offering ->
-                            val isLocked = lock != null &&
-                                lock.allowedSlots.contains(offering.slot) &&
-                                lock.allowedFaculty.contains(offering.faculty)
+                            val isLocked = lock?.allowedOfferings?.contains(offering.toKey()) == true
 
                             Row(
                                 modifier = Modifier
@@ -314,7 +312,7 @@ private fun TimetableTab(
     allCourses: List<Pair<String, List<CourseOffering>>>,
     locks: List<CourseLock>,
     blockedSlots: Set<String>,
-    onToggleBlockSlot: (String) -> Unit,
+    onToggleBlockSlots: (List<String>) -> Unit,
     onGenerate: () -> Unit
 ) {
     val colors = AmazeTheme.colors
@@ -324,14 +322,10 @@ private fun TimetableTab(
 
         allCourses.filter { (code, _) -> selectedCodes.contains(code) }.flatMap { (code, offerings) ->
             val lock = locks.find { it.code.equals(code, ignoreCase = true) }
-            val hasLock = lock != null && (lock.allowedSlots.isNotEmpty() || lock.allowedFaculty.isNotEmpty())
+            val hasLock = lock != null && lock.allowedOfferings.isNotEmpty()
 
             if (hasLock && lock != null) {
-                offerings.filter { o ->
-                    val slotMatch = lock.allowedSlots.isEmpty() || lock.allowedSlots.contains(o.slot)
-                    val facMatch = lock.allowedFaculty.isEmpty() || lock.allowedFaculty.contains(o.faculty)
-                    slotMatch && facMatch
-                }.map { o ->
+                offerings.filter { o -> lock.allowedOfferings.contains(o.toKey()) }.map { o ->
                     AddedCourse(
                         id = "${o.code}_${o.slot}_${o.faculty}",
                         code = o.code,
@@ -376,7 +370,7 @@ private fun TimetableTab(
             FfcsTimetableGrid(
                 courses = currentCourses,
                 blockedSlots = blockedSlots,
-                onToggleBlockSlot = onToggleBlockSlot,
+                onToggleBlockSlots = onToggleBlockSlots,
                 modifier = Modifier.weight(1f)
             )
 
@@ -472,7 +466,7 @@ private fun ResultsTab(
                     FfcsTimetableGrid(
                         courses = currentTt.courses,
                         blockedSlots = emptySet(),
-                        onToggleBlockSlot = {},
+                        onToggleBlockSlots = {},
                         modifier = Modifier.weight(1f)
                     )
 
@@ -585,7 +579,7 @@ private fun GeneratorModal(
                 ) {
                     selectedCodes.forEach { code ->
                         val lock = locks.find { it.code.equals(code, ignoreCase = true) }
-                        val hasLock = lock != null && (lock.allowedFaculty.isNotEmpty() || lock.allowedSlots.isNotEmpty())
+                        val hasLock = lock?.hasLock == true
                         Box(
                             modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs))
                                 .background(if (hasLock) colors.warning.copy(alpha = 0.15f) else colors.accent.copy(alpha = 0.1f))

@@ -10,6 +10,7 @@ import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.utils.SlotInfo
 import com.amazecc.app.shared.utils.UpdateConfig
+import com.amazecc.app.shared.utils.DemoData
 import com.amazecc.app.shared.utils.requestNotificationPermissions
 import com.amazecc.app.shared.utils.testLocalNotification
 import kotlinx.coroutines.CoroutineScope
@@ -44,16 +45,6 @@ enum class AttendanceDisplayMode(val value: String) {
     }
 }
 
-enum class CalendarViewMode(val value: String) {
-    LIST("List"),
-    GRID("Grid");
-
-    companion object {
-        fun fromString(s: String): CalendarViewMode =
-            entries.find { it.value == s } ?: LIST
-    }
-}
-
 enum class Screen { SPLASH, 
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
@@ -79,14 +70,6 @@ object AppState {
     val headerOnRefresh = MutableStateFlow<(() -> Unit)?>(null)
     val headerSyncModules = MutableStateFlow<Set<SyncModule>>(emptySet())
     val headerBackOverride = MutableStateFlow<(() -> Unit)?>(null)
-    
-    // Global Spotlight Search
-    private val _showSearch = MutableStateFlow(false)
-    val showSearch: StateFlow<Boolean> = _showSearch.asStateFlow()
-
-    fun setSearchOpen(open: Boolean) {
-        _showSearch.value = open
-    }
     
     private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
@@ -115,12 +98,6 @@ object AppState {
     private val _uiScale = MutableStateFlow(1.0f)
     val uiScale: StateFlow<Float> = _uiScale.asStateFlow()
 
-    private val _decimalValues = MutableStateFlow(true)
-    val decimalValues: StateFlow<Boolean> = _decimalValues.asStateFlow()
-
-    private val _friendlyName = MutableStateFlow(true)
-    val friendlyName: StateFlow<Boolean> = _friendlyName.asStateFlow()
-
     private val _cgpaHidden = MutableStateFlow(false)
     val cgpaHidden: StateFlow<Boolean> = _cgpaHidden.asStateFlow()
 
@@ -132,9 +109,6 @@ object AppState {
 
     private val _animationsEnabled = MutableStateFlow(true)
     val animationsEnabled: StateFlow<Boolean> = _animationsEnabled.asStateFlow()
-
-    private val _calendarView = MutableStateFlow(CalendarViewMode.LIST)
-    val calendarView: StateFlow<CalendarViewMode> = _calendarView.asStateFlow()
 
     private val _residentialStatus = MutableStateFlow(SettingsManager.getString(SettingsManager.RESIDENTIAL_STATUS, "Hosteller"))
     val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()
@@ -232,24 +206,9 @@ object AppState {
     private val _apaarId = MutableStateFlow<ApaarIdRes?>(null)
     val apaarId: StateFlow<ApaarIdRes?> = _apaarId.asStateFlow()
 
-    val fallbackHubs = listOf(
-        CabShareHub(1, "VIT Chennai"),
-        CabShareHub(2, "Chennai Airport"),
-        CabShareHub(3, "Chennai Central Railway Station"),
-        CabShareHub(4, "Tambaram Railway Station"),
-        CabShareHub(5, "Chengalpattu Railway Station"),
-        CabShareHub(6, "Koyambedu Bus Stand"),
-        CabShareHub(7, "Kelambakkam"),
-        CabShareHub(8, "Sholinganallur"),
-        CabShareHub(9, "T Nagar"),
-        CabShareHub(10, "Guindy"),
-        CabShareHub(11, "OMR"),
-        CabShareHub(12, "Perungudi"),
-        CabShareHub(13, "Thoraipakkam"),
-        CabShareHub(14, "Velachery")
-    )
+    const val DEFAULT_SEMESTER_ID = "CH20262701"
 
-    val semesterMap = mapOf(
+    private val fallbackSemesterMap = mapOf(
         "CH20262705" to "Winter Semester 2026-27",
         "CH20262701" to "Fall Semester 2026-27",
         "CH20252605" to "Winter Semester 2025-26",
@@ -259,8 +218,10 @@ object AppState {
         "CH20232405" to "Winter Semester 2023-24",
         "CH20232401" to "Fall Semester 2023-24"
     )
-    val semesterIDs = semesterMap.keys.toList()
-    private val _selectedSemester = MutableStateFlow("CH20262701")
+    private val _semesterMap = MutableStateFlow(fallbackSemesterMap)
+    val semesterMap: StateFlow<Map<String, String>> = _semesterMap.asStateFlow()
+    val semesterIDs: List<String> get() = _semesterMap.value.keys.toList()
+    private val _selectedSemester = MutableStateFlow(DEFAULT_SEMESTER_ID)
     val selectedSemester: StateFlow<String> = _selectedSemester.asStateFlow()
 
     // Loading & Error states (driven by SyncEngine for backward compat)
@@ -282,20 +243,8 @@ object AppState {
     private val _commandPaletteOpen = MutableStateFlow(false)
     val commandPaletteOpen: StateFlow<Boolean> = _commandPaletteOpen.asStateFlow()
     
-    private val _libraryPaletteOpen = MutableStateFlow(false)
-    val libraryPaletteOpen: StateFlow<Boolean> = _libraryPaletteOpen.asStateFlow()
-    
-    private val _eventPaletteOpen = MutableStateFlow(false)
-    val eventPaletteOpen: StateFlow<Boolean> = _eventPaletteOpen.asStateFlow()
-    
     fun openCommandPalette() { _commandPaletteOpen.value = true }
     fun closeCommandPalette() { _commandPaletteOpen.value = false }
-    
-    fun openLibraryPalette() { _libraryPaletteOpen.value = true }
-    fun closeLibraryPalette() { _libraryPaletteOpen.value = false }
-    
-    fun openEventPalette() { _eventPaletteOpen.value = true }
-    fun closeEventPalette() { _eventPaletteOpen.value = false }
 
     // Cached Data
     private val _attendance = MutableStateFlow<AttendanceRes?>(null)
@@ -404,6 +353,7 @@ object AppState {
         loadCachedData<TimetableRes>(SettingsManager.CACHE_TIMETABLE, _timetable)
         loadCachedData<MarksRes>(SettingsManager.CACHE_MARKS, _marks)
         loadCachedData<AllGradesRes>(SettingsManager.CACHE_GRADES, _allGrades)
+        mergeSemestersFromAllGrades()
         loadCachedData<HostelDetails>(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails)
         loadCachedData<ExamScheduleRes>(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule)
         loadCachedData<CalendarRes>(SettingsManager.CACHE_CALENDAR, _calendar)
@@ -425,7 +375,6 @@ object AppState {
         loadCachedData<EptScheduleRes>(SettingsManager.CACHE_EPT_SCHEDULE, _eptSchedule)
         loadCachedData<RegistrationScheduleRes>(SettingsManager.CACHE_REGISTRATION_SCHEDULE, _registrationSchedule)
         loadCachedData<ApaarIdRes>(SettingsManager.CACHE_APAAR_ID, _apaarId)
-        loadCachedData<CabTripsRes>(SettingsManager.CACHE_CAB_TRIPS, _cabTrips)
         loadCachedData<CabShareUser>(SettingsManager.CACHE_CAB_USER, _cabShareUser)
         loadCachedData<CircularsRes>(SettingsManager.CACHE_CIRCULARS, _circulars)
 
@@ -467,9 +416,31 @@ object AppState {
         } catch (e: Exception) { println("AmazeCC: AppState cacheData — ${e.message}") }
     }
 
-    @Suppress("unused")
-    private fun removeCache(key: String) {
-        settings.remove(key)
+    private fun applyAllGrades(res: AllGradesRes) {
+        _allGrades.value = res
+        mergeSemestersFromAllGrades()
+    }
+
+    private fun mergeSemestersFromAllGrades() {
+        val grades = _allGrades.value?.grades ?: return
+        val ids = (grades.keys.filter { it != "curriculum" && it != "effectiveGrades" } + _selectedSemester.value).distinct()
+        if (ids.isEmpty()) return
+        val merged = ids.associateWith { fallbackSemesterMap[it] ?: deriveSemesterName(it) }
+        if (merged.keys.containsAll(_semesterMap.value.keys) && _semesterMap.value.keys.containsAll(merged.keys)) return
+        _semesterMap.value = merged
+    }
+
+    fun deriveSemesterName(semId: String): String {
+        val match = Regex("^CH(\\d{4})(\\d{2})$").find(semId) ?: return semId
+        val year = match.groupValues[1]
+        val suffix = match.groupValues[2]
+        val nextShort = (year.substring(2).toInt() + 1).toString().padStart(2, '0')
+        return when (suffix) {
+            "01" -> "Fall Semester $year-$nextShort"
+            "05" -> "Winter Semester $year-$nextShort"
+            "07" -> "Summer Semester $year-$nextShort"
+            else -> semId
+        }
     }
 
     // ── Save Offline: persists all currently-loaded in-memory data to cache ──
@@ -501,7 +472,6 @@ object AppState {
         if (_eptSchedule.value != null) { cacheData(SettingsManager.CACHE_EPT_SCHEDULE, _eptSchedule.value); saved++ }
         if (_registrationSchedule.value != null) { cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, _registrationSchedule.value); saved++ }
         if (_apaarId.value != null) { cacheData(SettingsManager.CACHE_APAAR_ID, _apaarId.value); saved++ }
-        if (_cabTrips.value != null) { cacheData(SettingsManager.CACHE_CAB_TRIPS, _cabTrips.value); saved++ }
         if (_cabShareUser.value != null) { cacheData(SettingsManager.CACHE_CAB_USER, _cabShareUser.value); saved++ }
         if (_allSemesterAttendance.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value); saved++ }
         if (_allSemesterMarks.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value); saved++ }
@@ -535,7 +505,6 @@ object AppState {
         if (_eptSchedule.value != null) SyncEngine.updateModuleState(SyncModule.EPT_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_registrationSchedule.value != null) SyncEngine.updateModuleState(SyncModule.REGISTRATION_SCHEDULE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_apaarId.value != null) SyncEngine.updateModuleState(SyncModule.APAAR_ID, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
-        if (_cabTrips.value != null) SyncEngine.updateModuleState(SyncModule.CAB_TRIPS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_circulars.value != null) SyncEngine.updateModuleState(SyncModule.CIRCULARS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_allSemesterAttendance.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.ALL_SEMESTER_ATTENDANCE, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
         if (_allSemesterMarks.value.isNotEmpty()) SyncEngine.updateModuleState(SyncModule.MARKS, ModuleState(status = SyncStatus.SUCCESS, lastSynced = kotlinx.datetime.Clock.System.now()))
@@ -549,6 +518,25 @@ object AppState {
         SessionManager.saveSession(cookies, csrf, authorizedID, clubToken)
         AmazeClient.setUseMockData(false)
         return true
+    }
+
+    fun enterDemoMode(onResult: (Boolean, String) -> Unit = { _, _ -> }) {
+        scope.launch {
+            val loaded = DemoData.load()
+            if (!loaded) {
+                onResult(false, "Demo data could not be loaded")
+                return@launch
+            }
+            AmazeClient.setUseMockData(true)
+            SessionManager.saveInMemorySession(
+                cookies = "vtop_session_cookie=demo; csrf_token=demo",
+                csrf = "demo",
+                authorizedID = "DEMO",
+                clubToken = null
+            )
+            navigateTo(if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING)
+            onResult(true, "Demo mode enabled")
+        }
     }
 
     private val _allGrades = MutableStateFlow<AllGradesRes?>(null)
@@ -657,15 +645,6 @@ object AppState {
     }
 
     // Cab Share state
-    private val _cabTrips = MutableStateFlow<CabTripsRes?>(null)
-    val cabTrips: StateFlow<CabTripsRes?> = _cabTrips.asStateFlow()
-
-    private val _myCabTrips = MutableStateFlow<CabTripsRes?>(null)
-    val myCabTrips: StateFlow<CabTripsRes?> = _myCabTrips.asStateFlow()
-
-    private val _cabJoinRequests = MutableStateFlow<Map<String, CabJoinRequestsRes>>(emptyMap())
-    val cabJoinRequests: StateFlow<Map<String, CabJoinRequestsRes>> = _cabJoinRequests.asStateFlow()
-
     private val _cabLoading = MutableStateFlow(false)
     val cabLoading: StateFlow<Boolean> = _cabLoading.asStateFlow()
 
@@ -820,6 +799,18 @@ object AppState {
                                     cacheData(SettingsManager.CACHE_TIMETABLE, it)
                                 }
                             )
+                        },
+                        async {
+                            syncModule(
+                                name = "Calendar",
+                                fetch = { AmazeClient.getCalendars(semesterId) },
+                                isSuccess = { it.success },
+                                errorMessage = { it.message },
+                                update = {
+                                    _calendarsList.value = it
+                                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                                }
+                            )
                         }
                     ).awaitAll()
                 }
@@ -951,7 +942,7 @@ object AppState {
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _allGrades.value = it
+                                    applyAllGrades(it)
                                     cacheData(SettingsManager.CACHE_GRADES, it)
                                 }
                             )
@@ -1194,17 +1185,6 @@ object AppState {
                         },
                         async {
                             syncModule(
-                                name = "Cab Share",
-                                fetch = { AmazeClient.getMyCabTrips() },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
-                                update = {
-                                    _myCabTrips.value = it
-                                }
-                            )
-                        },
-                        async {
-                            syncModule(
                                 name = "Circulars",
                                 fetch = { AmazeClient.getCirculars() },
                                 isSuccess = { it.success },
@@ -1267,26 +1247,13 @@ object AppState {
             LMSAssignment("moodle_${a.hashCode()}", a.courseCode, a.taskTitle, "", a.due, "Pending")
         } ?: emptyList()
         val allAssignments = (assignments ?: emptyList()) + moodleAssignments
-        val attMaps = attendanceItems?.map { item ->
-            mapOf(
-                "courseCode" to item.courseCode,
-                "courseTitle" to item.courseTitle,
-                "courseType" to item.courseType,
-                "faculty" to item.faculty,
-                "slotName" to (item.slotName ?: ""),
-                "attendancePercentage" to item.attendancePercentage,
-                "venue" to (item.slotVenue ?: "")
-            )
-        } ?: emptyList()
-        val typedSlotMap = SlotMap.map.mapValues { (_, inner) ->
-            inner.mapValues { (_, time) -> SlotInfo(time) }
-        }
         com.amazecc.app.shared.utils.NotificationsUtils.scheduleAll(
-            attendance = attMaps,
-            slotMap = typedSlotMap,
+            attendance = com.amazecc.app.shared.utils.NotificationsUtils.buildAttendanceMaps(attendanceItems),
+            slotMap = com.amazecc.app.shared.utils.NotificationsUtils.typedSlotMap(),
             assignments = allAssignments,
             tasks = _tasks.value
         )
+        com.amazecc.app.shared.utils.pushWidgetUpdates()
     }
 
     suspend fun sendTestNotification(): String {
@@ -1421,7 +1388,7 @@ object AppState {
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _allGrades.value = it
+                                    applyAllGrades(it)
                                     cacheData(SettingsManager.CACHE_GRADES, it)
                                 }
                             )
@@ -1649,7 +1616,7 @@ object AppState {
                     isSuccess = { it.error == null },
                     errorMessage = { it.error },
                     update = {
-                        _allGrades.value = it
+                        applyAllGrades(it)
                         cacheData(SettingsManager.CACHE_GRADES, it)
                     }
                 )
@@ -1868,24 +1835,6 @@ object AppState {
         }
     }
 
-    fun refreshCabShare() {
-        if (_isLoading.value) return
-        scope.launch {
-            _isLoading.value = true
-            _syncStatus.value = "Syncing cab share..."
-            try {
-                val result = syncModule(
-                    name = "Cab Share",
-                    fetch = { AmazeClient.getMyCabTrips() },
-                    isSuccess = { it.error == null },
-                    errorMessage = { it.error },
-                    update = { _myCabTrips.value = it }
-                )
-                updateSyncSummary(listOf(result))
-            } finally { _isLoading.value = false }
-        }
-    }
-
     fun refreshCirculars() {
         if (_isLoading.value) return
         scope.launch {
@@ -1979,16 +1928,14 @@ object AppState {
         _clubs.value = null
         
         _moodleData.value = null
-        _moodleData.value = null
         _cachedStudentProfile.value = null
+        _studentProfile.value = null
+        _vtopPhotoBase64.value = null
         _curriculum.value = null
         _selectedSemester.value = "CH20262701"
         _selectedCourseCode.value = null
         _selectedCourseSemester.value = null
         _isLoading.value = false
-        _cabTrips.value = null
-        _myCabTrips.value = null
-        _cabJoinRequests.value = emptyMap()
         _cabShareUser.value = null
         _cabHubs.value = emptyList()
         _allSemesterMarks.value = emptyMap()
@@ -2010,13 +1957,9 @@ object AppState {
         settings.remove(SettingsManager.CACHE_CURRICULUM)
         settings.remove(SettingsManager.CACHE_PAYMENTS)
         settings.remove(SettingsManager.CACHE_LIBRARY)
-        settings.remove(SettingsManager.CACHE_TRANSPORT)
-        settings.remove(SettingsManager.CACHE_TRANSPORT_ROUTES)
-        settings.remove(SettingsManager.CACHE_TRANSPORT_PASS)
         settings.remove(SettingsManager.CACHE_LMS)
         settings.remove(SettingsManager.CACHE_EVENTS)
         settings.remove(SettingsManager.CACHE_CLUBS)
-        settings.remove(SettingsManager.CACHE_CAB_TRIPS)
         settings.remove(SettingsManager.CACHE_CAB_USER)
         settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
         settings.remove(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE)
@@ -2028,6 +1971,22 @@ object AppState {
         settings.remove(SettingsManager.SESSION_AUTHORIZED_ID)
         settings.remove(SettingsManager.SESSION_CLUB_TOKEN)
         settings.remove("moodle_data_cache")
+        settings.remove(SettingsManager.CACHE_VTOP_PHOTO)
+        settings.remove(SettingsManager.CACHE_BUSES)
+        settings.remove(SettingsManager.CACHE_TRANSPORT_DATA)
+        settings.remove(SettingsManager.CACHE_CALENDARS_LIST)
+        settings.remove(SettingsManager.CACHE_QCM_VIEW)
+        settings.remove(SettingsManager.CACHE_TASKS)
+        settings.remove(SettingsManager.CACHE_ATTENDANCE_NOTES)
+        settings.remove(SettingsManager.CACHE_OD_TRACKER_STATE)
+        settings.remove(SettingsManager.RESIDENTIAL_STATUS)
+        settings.remove(SettingsManager.CACHE_PROFILE_IMAGES)
+        settings.remove(SettingsManager.CACHE_BANK_INFO)
+        settings.remove(SettingsManager.CACHE_DAYBOARDER)
+        settings.remove(SettingsManager.CACHE_EPT_SCHEDULE)
+        settings.remove(SettingsManager.CACHE_REGISTRATION_SCHEDULE)
+        settings.remove(SettingsManager.CACHE_APAAR_ID)
+        scope.launch { com.amazecc.app.shared.utils.clearPendingNotifications() }
     }
 
     fun updateAttendance(data: AttendanceRes?) {
@@ -2057,109 +2016,6 @@ object AppState {
         } ?: emptyList()
     }
 
-    fun searchCabTrips(from: String, to: String, date: String) {
-        scope.launch {
-            _cabLoading.value = true
-            try {
-                val res = AmazeClient.searchCabTrips(from, to, date)
-                if (res.error == null) {
-                    _cabTrips.value = res
-                    cacheData(SettingsManager.CACHE_CAB_TRIPS, res)
-                }
-            } catch (e: Exception) { println("AmazeCC: AppState searchCabTrips — ${e.message}") }
-            _cabLoading.value = false
-        }
-    }
-
-    fun createCabTrip(
-        from: String, to: String, date: String, time: String,
-        seats: Int, fare: String,
-        vehicleModel: String?, vehicleColor: String?, vehiclePlate: String?,
-        onSuccess: (String) -> Unit = {}, onError: (String) -> Unit = {}
-    ) {
-        scope.launch {
-            _cabLoading.value = true
-            try {
-                val request = CabCreateTripRequest(
-                    from = from, to = to, date = date, time = time,
-                    seats = seats, fare = fare,
-                    vehicleModel = vehicleModel, vehicleColor = vehicleColor, vehiclePlate = vehiclePlate
-                )
-                val res = AmazeClient.createCabTrip(request)
-                if (res.success && res.tripId != null) {
-                    onSuccess(res.tripId)
-                    // Refresh my trips
-                    val myTrips = AmazeClient.getMyCabTrips()
-                    if (myTrips.error == null) _myCabTrips.value = myTrips
-                } else {
-                    onError(res.message ?: "Failed to create trip")
-                }
-            } catch (e: Exception) {
-                onError(e.message ?: "Network error")
-            }
-            _cabLoading.value = false
-        }
-    }
-
-    fun requestJoinTrip(tripId: String, seats: Int, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
-        scope.launch {
-            try {
-                val res = AmazeClient.requestJoinTrip(tripId, seats)
-                onResult(res.success, res.message ?: if (res.success) "Request sent!" else "Failed to join")
-            } catch (e: Exception) {
-                onResult(false, e.message ?: "Network error")
-            }
-        }
-    }
-
-    fun acceptJoinRequest(tripId: String, requestId: String, onResult: (Boolean) -> Unit = {}) {
-        scope.launch {
-            try {
-                val res = AmazeClient.acceptCabJoinRequest(tripId, requestId)
-                onResult(res.success)
-                refreshJoinRequests(tripId)
-            } catch (e: Exception) { println("AmazeCC: AppState acceptJoinRequest — ${e.message}") }
-        }
-    }
-
-    fun rejectJoinRequest(tripId: String, requestId: String, onResult: (Boolean) -> Unit = {}) {
-        scope.launch {
-            try {
-                val res = AmazeClient.rejectCabJoinRequest(tripId, requestId)
-                onResult(res.success)
-                refreshJoinRequests(tripId)
-            } catch (e: Exception) { println("AmazeCC: AppState rejectJoinRequest — ${e.message}") }
-        }
-    }
-
-    fun refreshMyCabTrips() {
-        scope.launch {
-            try {
-                val res = AmazeClient.getMyCabTrips()
-                if (res.error == null) {
-                    _myCabTrips.value = res
-                }
-            } catch (e: Exception) { println("AmazeCC: AppState refreshMyCabTrips — ${e.message}") }
-        }
-    }
-
-    fun refreshJoinRequests(tripId: String) {
-        scope.launch {
-            try {
-                val res = AmazeClient.getCabJoinRequests(tripId)
-                if (res.error == null) {
-                    val current = _cabJoinRequests.value.toMutableMap()
-                    current[tripId] = res
-                    if (current.size > 20) {
-                        val oldest = current.keys.first()
-                        current.remove(oldest)
-                    }
-                    _cabJoinRequests.value = current
-                }
-            } catch (e: Exception) { println("AmazeCC: AppState refreshJoinRequests — ${e.message}") }
-        }
-    }
-
     fun cabShareLogin(username: String, password: String, phoneNumber: String, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
         scope.launch {
             _cabShareAuthLoading.value = true
@@ -2173,16 +2029,7 @@ object AppState {
                     onResult(false, res.error ?: "Authentication failed")
                 }
             } catch (e: Exception) {
-                val profile = _studentProfile.value
-                val fallbackUser = CabShareUser(
-                    reg_number = username,
-                    name = profile?.name ?: username,
-                    phone_number = phoneNumber,
-                    local_only = true
-                )
-                _cabShareUser.value = fallbackUser
-                cacheData(SettingsManager.CACHE_CAB_USER, fallbackUser)
-                onResult(true, "Offline mode - saved locally")
+                onResult(false, "Network error: ${e.message}")
             }
             _cabShareAuthLoading.value = false
         }
@@ -2199,7 +2046,7 @@ object AppState {
                 val hubs = AmazeClient.getCabHubs()
                 _cabHubs.value = hubs
             } catch (_: Exception) {
-                _cabHubs.value = fallbackHubs
+                _cabHubs.value = fallbackCabHubs
             }
         }
     }
@@ -2231,22 +2078,10 @@ object AppState {
                 if (res.success) {
                     onResult(true, "Trip created!")
                 } else {
-                    val user = _cabShareUser.value
-                    if (user != null) {
-                        AmazeClient.createLocalCabTrip(fromHubId, toHubId, date, time, tolerance, seats, gender, notes, user, _cabHubs.value)
-                        onResult(true, "Trip saved locally!")
-                    } else {
-                        onResult(false, res.error ?: "Failed to create trip")
-                    }
+                    onResult(false, res.error ?: "Failed to create trip")
                 }
             } catch (e: Exception) {
-                val user = _cabShareUser.value
-                if (user != null) {
-                    AmazeClient.createLocalCabTrip(fromHubId, toHubId, date, time, tolerance, seats, gender, notes, user, _cabHubs.value)
-                    onResult(true, "Trip saved locally!")
-                } else {
-                    onResult(false, e.message ?: "Network error")
-                }
+                onResult(false, e.message ?: "Network error")
             }
             _cabLoading.value = false
         }
@@ -2278,7 +2113,7 @@ object AppState {
                 val res = AmazeClient.requestCabShareJoin(user.reg_number, tripId)
                 onResult(res.success, if (res.success) "Request sent!" else (res.error ?: "Failed"))
             } catch (e: Exception) {
-                onResult(true, "Request saved locally!")
+                onResult(false, "Network error: ${e.message}")
             }
         }
     }
@@ -2293,7 +2128,7 @@ object AppState {
                 val res = AmazeClient.cabShareMatchAction(user.reg_number, matchId, action)
                 onResult(res.success, res.message ?: "")
             } catch (e: Exception) {
-                onResult(true, "Updated locally!")
+                onResult(false, "Network error: ${e.message}")
             }
         }
     }
@@ -2358,7 +2193,7 @@ object AppState {
         try {
             val res = AmazeClient.getAllGrades()
             if (res.error == null) {
-                _allGrades.value = res
+                applyAllGrades(res)
                 cacheData(SettingsManager.CACHE_GRADES, res)
             }
             updateOnboardingStep("Grades", "done")
@@ -2506,18 +2341,6 @@ object AppState {
     fun changeUiScale(scale: Float) {
         _uiScale.value = scale
         SettingsManager.setString(SettingsManager.KEY_UI_SCALE, scale.toString())
-    }
-
-    fun setDecimalValues(enabled: Boolean) {
-        _decimalValues.value = enabled
-    }
-
-    fun setFriendlyName(enabled: Boolean) {
-        _friendlyName.value = enabled
-    }
-
-    fun setCalendarView(view: CalendarViewMode) {
-        _calendarView.value = view
     }
 
     fun setResidentialStatus(status: String) {
@@ -2688,9 +2511,7 @@ object AppState {
         headerShowSync.value = showSyncButton
         headerOnRefresh.value = onRefresh
         headerSyncModules.value = syncModules.toSet()
-        if (onBackOverride != null) {
-            headerBackOverride.value = onBackOverride
-        }
+        headerBackOverride.value = onBackOverride
     }
 
     fun clearHeaderBackOverride() {

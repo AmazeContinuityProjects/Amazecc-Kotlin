@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens
+﻿package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -105,7 +105,7 @@ fun SocialScreen() {
                         text = tab,
                         style = AmazeTheme.typography.smallLabel.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            fontSize = AmazeTheme.fontSize.xs
                         ),
                         color = if (isSelected) colors.background else colors.textPrimary,
                         maxLines = 1,

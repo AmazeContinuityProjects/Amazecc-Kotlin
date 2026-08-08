@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -131,7 +131,7 @@ fun CircularsScreen() {
                                     style = AmazeTheme.typography.subheading.copy(
                                         color = colors.textPrimary,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
+                                        fontSize = AmazeTheme.fontSize.lg
                                     ),
                                     modifier = Modifier.weight(1f),
                                     maxLines = 1,
@@ -142,7 +142,7 @@ fun CircularsScreen() {
                                         text = "${items.size}",
                                         style = AmazeTheme.typography.smallLabel.copy(
                                             color = colors.textSecondary,
-                                            fontSize = 12.sp
+                                            fontSize = AmazeTheme.fontSize.sm
                                         ),
                                         modifier = Modifier
                                             .background(colors.elevatedSurface, RoundedCornerShape(AmazeTheme.radius.xs))
@@ -174,7 +174,7 @@ fun CircularsScreen() {
                                             text = "No items",
                                             style = AmazeTheme.typography.body.copy(
                                                 color = colors.textMuted,
-                                                fontSize = 13.sp
+                                                fontSize = AmazeTheme.fontSize.base
                                             ),
                                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
                                         )
@@ -199,7 +199,7 @@ fun CircularsScreen() {
                                                     text = item.title ?: item.id ?: "Untitled",
                                                     style = AmazeTheme.typography.body.copy(
                                                         color = colors.textPrimary,
-                                                        fontSize = 13.sp
+                                                        fontSize = AmazeTheme.fontSize.base
                                                     ),
                                                     modifier = Modifier.weight(1f),
                                                     maxLines = 2,
@@ -210,7 +210,7 @@ fun CircularsScreen() {
                                                         text = item.id,
                                                         style = AmazeTheme.typography.smallLabel.copy(
                                                             color = colors.textMuted,
-                                                            fontSize = 10.sp
+                                                            fontSize = AmazeTheme.fontSize.micro
                                                         )
                                                     )
                                                 }

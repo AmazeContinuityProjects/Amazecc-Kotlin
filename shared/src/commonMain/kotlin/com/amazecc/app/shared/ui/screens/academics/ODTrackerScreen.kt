@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -264,7 +264,7 @@ fun ODTrackerScreen() {
                         "$usedHours / $OD_TOTAL",
                         style = AmazeTheme.typography.display.copy(
                             color = colors.textPrimary,
-                            fontSize = 28.sp,
+                            fontSize = AmazeTheme.fontSize.x2l,
                             fontWeight = FontWeight.Bold
                         )
                     )
@@ -291,7 +291,7 @@ fun ODTrackerScreen() {
                                 else -> colors.success
                             },
                             fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp
+                            fontSize = AmazeTheme.fontSize.xl
                         )
                     )
                 }
@@ -353,7 +353,7 @@ fun ODTrackerScreen() {
                         style = AmazeTheme.typography.body.copy(
                             fontWeight = FontWeight.Bold,
                             color = if (isSelected) colors.background else colors.textPrimary,
-                            fontSize = 13.sp
+                            fontSize = AmazeTheme.fontSize.base
                         )
                     )
                 }
@@ -566,7 +566,7 @@ private fun KPICard(
                 value,
                 style = AmazeTheme.typography.display.copy(
                     color = colors.textPrimary,
-                    fontSize = 28.sp
+                    fontSize = AmazeTheme.fontSize.x2l
                 )
             )
             if (subtitle != null) {
@@ -574,7 +574,7 @@ private fun KPICard(
                     subtitle,
                     style = AmazeTheme.typography.smallLabel.copy(
                         color = colors.textMuted,
-                        fontSize = 10.sp
+                        fontSize = AmazeTheme.fontSize.micro
                     )
                 )
             }
@@ -698,7 +698,7 @@ private fun ODDateGroup(
                         style = AmazeTheme.typography.subheading.copy(
                             fontWeight = FontWeight.Bold,
                             color = colors.textPrimary,
-                            fontSize = 15.sp
+                            fontSize = AmazeTheme.fontSize.lg
                         )
                     )
                     // Day status badge
@@ -728,7 +728,7 @@ private fun ODDateGroup(
                                         else -> colors.success
                                     },
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 9.sp
+                                    fontSize = AmazeTheme.fontSize.micro
                                 )
                             )
                         }
@@ -745,7 +745,7 @@ private fun ODDateGroup(
                         style = AmazeTheme.typography.smallLabel.copy(
                             color = colors.accent,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            fontSize = AmazeTheme.fontSize.xs
                         )
                     )
                 }
@@ -783,7 +783,7 @@ private fun ODDateGroup(
                                 entry.title,
                                 style = AmazeTheme.typography.body.copy(
                                     color = if (isWasted) colors.danger else if (isRecovered) Color(0xFF7C3AED) else colors.textPrimary,
-                                    fontSize = 14.sp,
+                                    fontSize = AmazeTheme.fontSize.md,
                                     fontWeight = FontWeight.Medium,
                                     textDecoration = if (isWasted) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
                                 )
@@ -792,7 +792,7 @@ private fun ODDateGroup(
                                 entry.type,
                                 style = AmazeTheme.typography.smallLabel.copy(
                                     color = colors.textMuted,
-                                    fontSize = 10.sp
+                                    fontSize = AmazeTheme.fontSize.micro
                                 )
                             )
                             if (isWasted || isRecovered) {
@@ -801,7 +801,7 @@ private fun ODDateGroup(
                                     style = AmazeTheme.typography.smallLabel.copy(
                                         color = if (isWasted) colors.danger else Color(0xFF7C3AED),
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 9.sp
+                                        fontSize = AmazeTheme.fontSize.micro
                                     )
                                 )
                             }
@@ -830,7 +830,7 @@ private fun ODDateGroup(
                                     else -> colors.warning
                                 },
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
+                                fontSize = AmazeTheme.fontSize.xs
                             )
                         )
                     }

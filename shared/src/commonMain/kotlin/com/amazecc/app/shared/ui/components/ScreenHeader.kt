@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.components
+﻿package com.amazecc.app.shared.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -172,7 +172,7 @@ fun FloatingScreenHeader(
                         text = title,
                         style = AmazeTheme.typography.display.copy(
                             color = colors.textPrimary,
-                            fontSize = 19.sp,
+                            fontSize = AmazeTheme.fontSize.xl,
                             fontWeight = FontWeight.Bold
                         ),
                         maxLines = 1,
@@ -184,7 +184,7 @@ fun FloatingScreenHeader(
                             text = description,
                             style = AmazeTheme.typography.caption.copy(
                                 color = colors.textSecondary,
-                                fontSize = 12.sp
+                                fontSize = AmazeTheme.fontSize.sm
                             ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -197,7 +197,7 @@ fun FloatingScreenHeader(
                             style = AmazeTheme.typography.smallLabel.copy(
                                 color = colors.accent,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp
+                                fontSize = AmazeTheme.fontSize.xs
                             ),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -325,7 +325,7 @@ fun DynamicIslandLiveClass(
                         style = AmazeTheme.typography.smallLabel.copy(
                             color = colors.accent,
                             fontWeight = FontWeight.Black,
-                            fontSize = 9.sp
+                            fontSize = AmazeTheme.fontSize.micro
                         )
                     )
                     Text(
@@ -333,7 +333,7 @@ fun DynamicIslandLiveClass(
                         style = AmazeTheme.typography.body.copy(
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                            fontSize = AmazeTheme.fontSize.md
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -353,7 +353,7 @@ fun DynamicIslandLiveClass(
                     style = AmazeTheme.typography.smallLabel.copy(
                         color = colors.accent,
                         fontWeight = FontWeight.Black,
-                        fontSize = 12.sp
+                        fontSize = AmazeTheme.fontSize.sm
                     )
                 )
             }

@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.components
+﻿package com.amazecc.app.shared.ui.components
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -140,11 +140,11 @@ fun SyncProgressPopup(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = if (isSyncing) "Syncing..." else "Sync Complete",
-                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp, color = colors.textPrimary)
+                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.base, color = colors.textPrimary)
                         )
                         Text(
                             text = displayText,
-                            style = AmazeTheme.typography.caption.copy(fontSize = 11.sp, color = colors.textSecondary),
+                            style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -335,13 +335,13 @@ private fun OverviewTabContent(
                     text = "${syncProgress.percentage.toInt()}%",
                     style = AmazeTheme.typography.subheading.copy(
                         fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
+                        fontSize = AmazeTheme.fontSize.xl,
                         color = colors.textPrimary
                     )
                 )
                 Text(
                     text = if (isSyncing) "Syncing" else if (syncProgress.errorCount > 0) "Errors" else "Ready",
-                    style = AmazeTheme.typography.caption.copy(fontSize = 11.sp, color = colors.textMuted)
+                    style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.xs, color = colors.textMuted)
                 )
             }
         }
@@ -382,7 +382,7 @@ private fun OverviewTabContent(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = syncProgress.displayText,
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = bannerColor, fontSize = 12.sp)
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = bannerColor, fontSize = AmazeTheme.fontSize.sm)
                 )
             }
         }
@@ -403,7 +403,7 @@ private fun OverviewTabContent(
                 ) {
                     Icon(Icons.Rounded.Cancel, "Cancel", modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Cancel Sync", fontSize = 12.sp)
+                    Text("Cancel Sync", fontSize = AmazeTheme.fontSize.sm)
                 }
             } else {
                 AmazeButton(
@@ -438,7 +438,7 @@ private fun ModulesTabContent(
             Column(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = category.displayName,
-                    style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = 11.sp),
+                    style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = AmazeTheme.fontSize.xs),
                     modifier = Modifier.padding(bottom = 4.dp, start = 4.dp)
                 )
                 modules.forEach { module ->
@@ -491,12 +491,12 @@ private fun ModuleSyncRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = module.displayName,
-                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, fontSize = 12.sp, color = colors.textPrimary)
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary)
             )
             if (state.error != null) {
                 Text(
                     text = state.error,
-                    style = AmazeTheme.typography.caption.copy(fontSize = 10.sp, color = colors.danger),
+                    style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.micro, color = colors.danger),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -520,7 +520,7 @@ private fun LogsTabContent(
         ) {
             Text(
                 "Execution Trace",
-                style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textMuted, fontSize = 11.sp)
+                style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textMuted, fontSize = AmazeTheme.fontSize.xs)
             )
             TextButton(onClick = onCopyLogs, modifier = Modifier.height(28.dp)) {
                 Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(14.dp), tint = colors.accent)
@@ -554,7 +554,7 @@ private fun LogsTabContent(
                             text = "[${log.module.displayName}] ${log.message}",
                             style = AmazeTheme.typography.caption.copy(
                                 fontFamily = FontFamily.Monospace,
-                                fontSize = 10.sp,
+                                fontSize = AmazeTheme.fontSize.micro,
                                 color = color
                             )
                         )

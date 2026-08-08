@@ -43,18 +43,18 @@ class AmazeTests {
         AppState.logout()
         assertEquals(Screen.LOGIN, AppState.currentScreen.value)
 
-        // Navigate to Dashboard
-        AppState.navigateTo(Screen.DASHBOARD)
-        assertEquals(Screen.DASHBOARD, AppState.currentScreen.value)
+        // Navigate to Home
+        AppState.navigateTo(Screen.HOME)
+        assertEquals(Screen.HOME, AppState.currentScreen.value)
 
         // Navigate to Attendance
         AppState.navigateTo(Screen.ATTENDANCE)
         assertEquals(Screen.ATTENDANCE, AppState.currentScreen.value)
 
-        // Navigate back (should return to Dashboard)
+        // Navigate back (should return to Home)
         val popped = AppState.navigateBack()
         assertTrue(popped)
-        assertEquals(Screen.DASHBOARD, AppState.currentScreen.value)
+        assertEquals(Screen.HOME, AppState.currentScreen.value)
 
         // Navigate back again (should return to Login)
         val poppedAgain = AppState.navigateBack()

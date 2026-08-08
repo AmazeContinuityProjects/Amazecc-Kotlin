@@ -70,3 +70,21 @@ A student-portal companion: attendance, marks, timetable, grades, CGPA predictor
 ## 5. The single biggest structural problem
 
 Everything funnels through the `AppState` singleton — screens bind to `AppState.x.collectAsState()`, which makes unit testing, modularization, and dead-code detection impossible, and it's why the "repositories" could go dead: `AmazeClient` + `AppState` absorbed their job. The path forward (see `06-modularization.md`) is to promote `AppState` flows to **typed reactive hooks** (a small `DataStore`-backed `FlowRepository` per domain, injected via `CompositionLocal`), have screens consume narrow flows, and delete the dead layers.
+
+## Phase 0 Fix Log (2026-08-06) — executed
+
+All 10 Phase 0 checklist items are implemented and compile-verified (`:androidApp:compileDebugKotlin` → BUILD SUCCESSFUL; iOS unverifiable on Windows).
+
+| Item | Fix | Where |
+|---|---|---|
+| 0.1 | Demo backdoor removed: `login()` no longer accepts `demo`/`DEMO123`; all 60 `authorizedID == "DEMO123"` mock gates → `useMockData` only; "Explore in Demo Mode" button + post-login mock toggle deleted from LoginScreen | `AmazeClient.kt:97,168-1777`, `LoginScreen.kt` |
+| 0.2 | Credentials encrypted: `expect advancedEncrypt/Decrypt` + Android Keystore AES-GCM actual; iOS plain passthrough (documented); password + library/moodle creds wrapped at accessor level | `security/Encryption.kt` (+.android/.ios), `SettingsManager.kt` |
+| 0.3 | Logout wipes all account data: `_studentProfile`/`_vtopPhotoBase64` flows + 16 missing persisted caches + pending alarms cancelled | `AppState.kt:1945` |
+| 0.4 | `postQBankPaper` double-`/api/` → 404 fixed (`qbank/upload`) | `AmazeClient.kt:1507` |
+| 0.5 | `MarksSync.kt` + `MarksSync.android.kt` deleted (iOS build restored); `KeyValueStore` interface re-homed into `PastDataSync.kt` | files removed |
+| 0.6 | Verified keystore files were never tracked (only `local.properties` ignored-on-disk); `.gitignore` already covers all 4 — audit claim corrected | repo hygiene |
+| 0.7 | `clearPendingNotifications()` cancels real requestCodes; per-alarm id now reaches the receiver (was constant-title hash → one notification) | `NotificationsUtils.kt`, `NotificationsUtils.android.kt`, `AlarmReceiver.kt` |
+| 0.8 | Cab fake-success paths killed (login/create/join/match); `createLocalCabTrip`/`getLocalCabTrips` deleted | `AppState.kt`, `AmazeClient.kt` |
+| 0.9 | `HttpTimeout` installed (30s/15s/30s); `expectSuccess` intentionally off (client checks status manually) | `AmazeClient.kt:90` |
+
+Deferred to later phases: session-cookie encryption (12+ direct `setString` sites), `course_note_*` purge on logout (settings lib has no `getKeys()`), iOS Keychain crypto.

@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.transport
+﻿package com.amazecc.app.shared.ui.screens.transport
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -278,7 +278,7 @@ private fun TransportRegistrationCard(
                                         "Registration Active",
                                         color = Color.White,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 11.sp
+                                        fontSize = AmazeTheme.fontSize.xs
                                     )
                                 }
                             }
@@ -619,7 +619,7 @@ private fun BusRouteCard(
                                     Text(
                                         route.type,
                                         color = themeColor,
-                                        fontSize = 10.sp,
+                                        fontSize = AmazeTheme.fontSize.micro,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }

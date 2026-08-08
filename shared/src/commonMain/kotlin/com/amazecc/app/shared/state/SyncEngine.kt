@@ -1,15 +1,10 @@
 package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.repository.SettingsManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
 import androidx.compose.runtime.Immutable
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -48,7 +43,6 @@ enum class SyncModule(
     CLUBS("Clubs", SettingsManager.CACHE_CLUBS, SyncCategory.CAMPUS_HOSTEL),
     QCM_VIEW("QCM View", SettingsManager.CACHE_QCM_VIEW, SyncCategory.FINANCE_SERVICES),
     STUDENT_PROFILE("Student Profile", SettingsManager.CACHE_STUDENT_PROFILE, SyncCategory.PROFILE_MISC),
-    CAB_TRIPS("Cab Trips", SettingsManager.CACHE_CAB_TRIPS, SyncCategory.CAMPUS_HOSTEL),
     CIRCULARS("Circulars", SettingsManager.CACHE_CIRCULARS, SyncCategory.ACADEMICS),
     PROFILE_IMAGES("Profile Images", SettingsManager.CACHE_PROFILE_IMAGES, SyncCategory.PROFILE_MISC),
     BANK_INFO("Bank Information", SettingsManager.CACHE_BANK_INFO, SyncCategory.FINANCE_SERVICES),
@@ -144,9 +138,7 @@ val DEFAULT_SYNC_PROFILES = listOf(
 )
 
 object SyncEngine {
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val activeJobs = mutableMapOf<SyncModule, Job>()
-    private val syncSessionModules = mutableSetOf<SyncModule>()
 
     private val _moduleStates = MutableStateFlow(
         SyncModule.entries.associateWith { ModuleState() }
@@ -176,9 +168,6 @@ object SyncEngine {
     val activeProfile: SyncConfigProfile
         get() = _profiles.value.firstOrNull { it.id == _activeProfileId.value } ?: _profiles.value.firstOrNull() ?: DEFAULT_SYNC_PROFILES.first()
 
-    val enabledModules: Set<SyncModule>
-        get() = activeProfile.enabledModules
-
     fun setShowSyncDialog(show: Boolean, minimized: Boolean = false) {
         _startMinimized.value = minimized
         _showSyncDialog.value = show
@@ -187,8 +176,6 @@ object SyncEngine {
     fun toggleSyncDialog() { _showSyncDialog.value = !_showSyncDialog.value }
 
     // ── Module Enablement & Profile Management ──
-
-    fun isModuleEnabled(module: SyncModule): Boolean = activeProfile.enabledModules.contains(module)
 
     fun setActiveProfile(id: String) {
         _activeProfileId.value = id
@@ -293,7 +280,6 @@ object SyncEngine {
 
     fun resetAllStates() {
         _moduleStates.value = SyncModule.entries.associateWith { ModuleState(status = SyncStatus.IDLE) }
-        syncSessionModules.clear()
         _logLines.value = emptyList()
     }
 
@@ -320,53 +306,6 @@ object SyncEngine {
 
     // ── Sync execution ──
 
-    fun startSync(module: SyncModule, block: suspend () -> ModuleState): Job? {
-        if (activeJobs[module]?.isActive == true) return null
-        if (activeJobs.isEmpty()) {
-            syncSessionModules.clear()
-        }
-        syncSessionModules.add(module)
-        addLog(module, "Starting...", SyncStatus.LOADING)
-        val job = scope.launch {
-            updateModuleState(module, ModuleState(status = SyncStatus.LOADING))
-            addLog(module, "In progress...", SyncStatus.LOADING)
-            try {
-                val result = block()
-                updateModuleState(module, result)
-                val msg = if (result.status == SyncStatus.SUCCESS) "Completed" else (result.error ?: "Failed")
-                addLog(module, msg, result.status)
-            } catch (e: Exception) {
-                val errMsg = e.message ?: "Unknown error"
-                updateModuleState(module, ModuleState(status = SyncStatus.ERROR, error = errMsg))
-                addLog(module, errMsg, SyncStatus.ERROR)
-            } finally {
-                activeJobs.remove(module)
-            }
-        }
-        activeJobs[module] = job
-        return job
-    }
-
-    fun startSyncGroup(vararg modules: SyncModule, block: suspend (SyncModule) -> ModuleState) {
-        modules.forEach { module ->
-            startSync(module) { block(module) }
-        }
-    }
-
-    fun startSyncAll(block: suspend (SyncModule) -> ModuleState) {
-        SyncModule.entries.forEach { module ->
-            if (module.cacheKey != null || module == SyncModule.ALL_SEMESTER_ATTENDANCE || module == SyncModule.CAB_TRIPS) {
-                startSync(module) { block(module) }
-            }
-        }
-    }
-
-    fun cancelSync(module: SyncModule) {
-        activeJobs[module]?.cancel()
-        activeJobs.remove(module)
-        updateModuleState(module, ModuleState())
-    }
-
     fun cancelAll() {
         activeJobs.values.forEach { it.cancel() }
         activeJobs.clear()
@@ -377,7 +316,7 @@ object SyncEngine {
 
     private fun recalculateProgress() {
         val states = _moduleStates.value
-        val targetModules = if (syncSessionModules.isNotEmpty()) syncSessionModules else states.keys.toSet()
+        val targetModules = states.keys.toSet()
         val total = targetModules.size
         val completed = targetModules.count { mod ->
             val s = states[mod]
@@ -394,37 +333,5 @@ object SyncEngine {
             successCount = successCount,
             errorCount = errorCount
         )
-    }
-
-    // ── Save offline (cache all loaded data) ──
-    // This function is called from AppState.saveOffline() which provides the actual data
-    fun logSaveOffline(module: SyncModule, data: Any?) {
-        if (data != null) {
-            addLog(module, "Saved offline", SyncStatus.SUCCESS)
-        } else {
-            addLog(module, "No data to save", SyncStatus.IDLE)
-        }
-    }
-
-    // ── Session refresh tracking ──
-    private val _lastSessionRefresh = MutableStateFlow<Instant?>(null)
-    val lastSessionRefresh: StateFlow<Instant?> = _lastSessionRefresh.asStateFlow()
-
-    fun markSessionRefreshed() {
-        _lastSessionRefresh.value = Clock.System.now()
-    }
-
-    // ── Last synced timestamps (aggregated for display) ──
-    val lastSyncTime: Instant?
-        get() = _moduleStates.value.values
-            .mapNotNull { it.lastSynced }
-            .maxOrNull()
-
-    // ── Sync buttons tracking ──
-    private val _lastSyncButtonTap = MutableStateFlow<Instant?>(null)
-    val lastSyncButtonTap: StateFlow<Instant?> = _lastSyncButtonTap.asStateFlow()
-
-    fun markSyncButtonTapped() {
-        _lastSyncButtonTap.value = Clock.System.now()
     }
 }

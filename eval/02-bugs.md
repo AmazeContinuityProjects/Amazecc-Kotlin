@@ -297,3 +297,13 @@ No `RECEIVE_BOOT_COMPLETED` permission/receiver anywhere (AndroidManifest.xml:4-
 - MEDIUM: 30 (M1-M30)
 - LOW: 58 (L1-L58)
 - **Total: 112 distinct issues** (many with sub-issues).
+
+## Phase 0 Fix Log (2026-08-06) — fixed
+
+- **C1 (demo backdoor)**: fixed 2026-08-06 — `AmazeClient.kt:97` string check removed; 60 downstream `DEMO123` gates neutralized; LoginScreen demo UI removed (see `07-security.md` fix log).
+- **H6 (iOS build broken by MarksSync)**: fixed — `MarksSync.kt`/`MarksSync.android.kt` deleted; `KeyValueStore` interface re-homed into `PastDataSync.kt` (compile still green).
+- **QBank upload 404 (double `/api/`)**: fixed at `AmazeClient.kt:1507`.
+- **`clearPendingNotifications()` cancels nothing (requestCode 0)**: fixed — cancels the real request-code ranges.
+- **Notification ID collisions (`title.hashCode()` with constant title)**: fixed — per-alarm id passed through `EXTRA_NOTIFICATION_ID`.
+- **Cab fake-success paths (4 sites in AppState)**: fixed — honest error results; local-trip persistence removed.
+- **Logout leaves account data behind (caches + flows)**: fixed — 16 additional persisted keys + 2 flows + alarm cancellation (gaps in `AppState.kt:1945` logout).

@@ -1,11 +1,13 @@
 package com.amazecc.app.shared.utils
 
+import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SettingsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.datetime.*
+import kotlinx.serialization.json.Json
 
 expect suspend fun requestNotificationPermissions(): Boolean
 
@@ -24,6 +26,18 @@ expect suspend fun testLocalNotification()
 
 object NotificationsUtils {
 
+    const val CLASS_REMINDER_ID_BASE = 1000
+    const val ASSIGNMENT_REMINDER_ID_BASE = 2000
+    const val TASK_REMINDER_ID_BASE = 4000
+    const val TEST_NOTIFICATION_ID = 9999
+
+    val scheduleableNotificationIds: List<Int> = buildList {
+        addAll(CLASS_REMINDER_ID_BASE until ASSIGNMENT_REMINDER_ID_BASE)
+        addAll(ASSIGNMENT_REMINDER_ID_BASE until TASK_REMINDER_ID_BASE)
+        addAll(TASK_REMINDER_ID_BASE until TEST_NOTIFICATION_ID)
+        add(TEST_NOTIFICATION_ID)
+    }
+
     suspend fun scheduleClassReminders(
         attendance: List<Map<String, Any>>,
         slotMap: Map<String, Map<String, SlotInfo>>,
@@ -39,7 +53,7 @@ object NotificationsUtils {
         val now = Clock.System.now()
         val tz = TimeZone.currentSystemDefault()
         val today = now.toLocalDateTime(tz).date
-        var id = 1000
+        var id = CLASS_REMINDER_ID_BASE
 
         for (i in 0 until 7) {
             val targetDate = today.plus(DatePeriod(days = i))
@@ -77,23 +91,11 @@ object NotificationsUtils {
         createNotificationChannels()
         val now = Clock.System.now()
         val tz = TimeZone.currentSystemDefault()
-        var id = 2000
+        var id = ASSIGNMENT_REMINDER_ID_BASE
 
         for (a in assignments) {
             if (a.status == "Submitted" || a.dueDate.isBlank()) continue
-            val dueInstant = try {
-                val parts = a.dueDate.split(" ")
-                if (parts.size >= 3) {
-                    val dateParts = parts[0].split("-")
-                    val timeParts = parts[1].split(":")
-                    if (dateParts.size == 3 && timeParts.size >= 2) {
-                        LocalDateTime(
-                            dateParts[0].toInt(), dateParts[1].toInt(), dateParts[2].toInt(),
-                            timeParts[0].toInt(), timeParts[1].toInt(), 0, 0
-                        ).toInstant(tz)
-                    } else null
-                } else null
-            } catch (_: Exception) { null } ?: continue
+            val dueInstant = parseDeadlineInstant(a.dueDate, tz) ?: continue
 
             val notifyInstant = dueInstant.minus(offsetMinutes.toLong(), DateTimeUnit.MINUTE)
             if (notifyInstant > now) {
@@ -117,17 +119,14 @@ object NotificationsUtils {
         createNotificationChannels()
         val now = Clock.System.now()
         val tz = TimeZone.currentSystemDefault()
-        var id = 4000
+        var id = TASK_REMINDER_ID_BASE
 
         for (t in tasks) {
             if (t.completed) continue
-            val dueDate = try {
-                val d = t.dueDate.split("-").map { s -> s.toInt() }
-                LocalDate(d[0], d[1], d[2])
-            } catch (_: Exception) { continue }
+            val (y, m, d) = parseDateComponents(t.dueDate) ?: continue
 
-            val dueStart = LocalDateTime(dueDate.year, dueDate.monthNumber, dueDate.dayOfMonth, 7, 0, 0, 0)
-            val notifyInstant = dueStart.toInstant(tz)
+            val dueStart = LocalDateTime(y, m, d, 7, 0, 0, 0)
+            val notifyInstant = dueStart.toInstant(tz).minus(offsetMinutes.toLong(), DateTimeUnit.MINUTE)
             if (notifyInstant > now) {
                 val taskType = if (t.type == "exam") "Exam" else "Task"
                 scheduleLocalNotification(
@@ -138,6 +137,61 @@ object NotificationsUtils {
                 )
             }
         }
+    }
+
+    private fun parseDateComponents(raw: String): Triple<Int, Int, Int>? {
+        val p = raw.trim().substringBefore('T').substringBefore(' ').split("-").map { it.toIntOrNull() ?: return null }
+        if (p.size < 3) return null
+        return if (p[0] in 0..99 && p[2] in 2000..2100) Triple(p[2], p[1], p[0]) else Triple(p[0], p[1], p[2])
+    }
+
+    private fun parseDeadlineInstant(raw: String, tz: TimeZone): Instant? {
+        val (dateStr, timeStr) = raw.trim().let { s ->
+            when {
+                'T' in s -> s.substringBefore('T') to s.substringAfter('T', "")
+                ' ' in s -> s.substringBefore(' ') to s.substringAfter(' ', "")
+                else -> s to ""
+            }
+        }
+        val (y, m, d) = parseDateComponents(dateStr) ?: return null
+        val hm = timeStr.split(":").map { it.toIntOrNull() ?: return null }
+        val (hh, mm) = if (hm.size >= 2) hm[0] to hm[1] else 0 to 0
+        if (y < 1900 || y > 2100 || m !in 1..12 || d !in 1..31 || hh !in 0..23 || mm !in 0..59) return null
+        return try {
+            LocalDateTime(y, m, d, hh, mm, 0, 0).toInstant(tz)
+        } catch (_: Exception) { null }
+    }
+
+    fun buildAttendanceMaps(items: List<AttendanceItem>?): List<Map<String, Any>> =
+        items?.map { item ->
+            mapOf(
+                "courseCode" to item.courseCode,
+                "courseTitle" to item.courseTitle,
+                "courseType" to item.courseType,
+                "faculty" to item.faculty,
+                "slotName" to (item.slotName ?: ""),
+                "attendancePercentage" to item.attendancePercentage,
+                "venue" to (item.slotVenue ?: "")
+            )
+        } ?: emptyList()
+
+    fun typedSlotMap(): Map<String, Map<String, SlotInfo>> =
+        SlotMap.map.mapValues { (_, inner) -> inner.mapValues { (_, time) -> SlotInfo(time) } }
+
+    suspend fun rescheduleFromCache() {
+        if (SettingsManager.getString(SettingsManager.SESSION_AUTHORIZED_ID, "").isBlank()) return
+        val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+        val attendanceItems = SettingsManager.getString(SettingsManager.CACHE_ATTENDANCE, "").let { raw ->
+            if (raw.isBlank()) null else try { json.decodeFromString<AttendanceRes>(raw).attendance } catch (_: Exception) { null }
+        }
+        val assignments = SettingsManager.getString(SettingsManager.CACHE_LMS, "").let { raw ->
+            if (raw.isBlank()) null else try { json.decodeFromString<LMSRes>(raw).assignments } catch (_: Exception) { null }
+        }
+        val tasks = SettingsManager.getString(SettingsManager.CACHE_TASKS, "[]").let { raw ->
+            if (raw.isBlank()) emptyList() else try { json.decodeFromString<List<HomeworkTask>>(raw) } catch (_: Exception) { emptyList() }
+        }
+        if (attendanceItems == null && assignments == null && tasks.isEmpty()) return
+        scheduleAll(attendanceItems?.let { buildAttendanceMaps(it) }, typedSlotMap(), assignments, if (tasks.isEmpty()) null else tasks)
     }
 
     fun scheduleAll(

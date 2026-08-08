@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens
+﻿package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -129,7 +129,7 @@ fun FacultyInfoScreen() {
                             Text(
                                 school.school_name,
                                 style = AmazeTheme.typography.body.copy(
-                                    fontSize = 13.sp,
+                                    fontSize = AmazeTheme.fontSize.base,
                                     fontWeight = FontWeight.Bold,
                                     color = if (isSelected) colors.background else colors.textPrimary
                                 ),

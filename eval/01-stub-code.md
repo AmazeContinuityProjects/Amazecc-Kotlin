@@ -181,3 +181,21 @@ No `FIXME`/`HACK` tokens exist.
 | Dead buttons/onClick | 8 |
 | Shipped placeholder content | 16 |
 | Wired-to-nothing flows/params | 10+ |
+
+## Phase 0 Fix Log (2026-08-06)
+
+- `login()` no longer returns the demo session for `demo`/`DEMO123` (`AmazeClient.kt:97`); the mock branch is now reachable only via the private `useMockData` flag, which no production path sets (UI toggle and demo button removed from `LoginScreen.kt`).
+- All 60 `authorizedID == "DEMO123"` gates replaced with `useMockData` (`AmazeClient.kt:168-1777`) — previously-persisted DEMO123 sessions can no longer activate mocks.
+- The mock data bodies themselves are untouched and remain as dev fixtures (inert in production).
+- Fake-success cab paths (`"Offline mode - saved locally"`, `"Trip saved locally!"`, `"Request saved locally!"`, `"Updated locally!"`) removed from `AppState.kt`; `createLocalCabTrip`/`getLocalCabTrips` deleted from `AmazeClient.kt`.
+
+## Demo Mode Fix Log (2026-08-07)
+
+- Added `DemoData.kt` (`shared/utils/DemoData.kt`): a commonMain loader that reads the bundled `demoData.json` resource (`Res.readBytes("files/demoData.json")`) once and decodes sections with a tolerant JSON config (`ignoreUnknownKeys`, `coerceInputValues`). `suspend fun <T> get(name, serializer): T?` returns `null` on a missing/failed section.
+- `demoData.json` (`shared/src/commonMain/composeResources/files/demoData.json`) restructured into 65 endpoint-keyed sections. Existing rich data was remapped to the Kotlin models: `marks` section fixed (`courses` → `marks`, `credits` int → string, + `semesterId`), `attendance` (`semester` → `semesterId`), `hostel` (→ `HostelDetails`), derived `examSchedule` from the `schedule` subtree, and `calendar`/`calendars` derived from the `calender` (sic) section. 50+ brand-new sections added for the arrear family, cab family, library, buses, transport, LMS, Q-Bank, events, clubs, faculty, profile, and others.
+- ALL `if (useMockData)` branches in `AmazeClient.kt` — **61 sites** (formerly ~70 gated) — now serve from `DemoData.get("<section>", <Type>.serializer()) ?: <empty/safe fallback>` with no inline fixture data left in code. `getAcademicData` composes `attendance` + `marks` sections into `AcademicSyncResult` (`:167`); `searchFacultyDirectory` keeps `if (useMockData) return null` (`:1597`) so the demo directory search falls through to the mocked `getFacultySchools`/`postFacultyScrape`.
+- `AmazeClient.kt` shrank by ~820 lines; the mojibake cab fares (`"â‚¹250"`) and the `LoginResponse` session fabrication were removed with the deleted fixtures.
+- Demo entry is now a first-class user action, not a login backdoor:
+  - `AppState.enterDemoMode(onResult)` (`AppState.kt:554`): loads demo data, sets `AmazeClient.setUseMockData(true)`, seeds an **in-memory** session via new `SessionManager.saveInMemorySession(...)`, navigates HOME/ONBOARDING. No `SettingsManager` writes → demo state dies on logout/app restart ("delete when needed").
+  - `LoginScreen.kt` shows an always-visible **"Explore in Demo Mode"** `TextButton` under the login form; the real-login success path now calls `AmazeClient.setUseMockData(false)` defensively.
+- Build verifies: `:androidApp:compileDebugKotlin` **BUILD SUCCESSFUL** (only pre-existing deprecation warnings).

@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens
+﻿package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -121,7 +121,7 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                             style = AmazeTheme.typography.display.copy(
                                 color = colors.accent,
                                 fontWeight = FontWeight.Black,
-                                fontSize = 24.sp
+                                fontSize = AmazeTheme.fontSize.x2l
                             )
                         )
                     }
@@ -295,8 +295,8 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                                     }
                                     Spacer(Modifier.width(AmazeTheme.spacing.sm))
                                     Column(Modifier.weight(1f)) {
-                                        Text(k, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp))
-                                        Text(v, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium, fontSize = 13.sp))
+                                        Text(k, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+                                        Text(v, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium, fontSize = AmazeTheme.fontSize.base))
                                     }
                                 }
                             }
@@ -352,8 +352,8 @@ private fun ProfileContent(colors: com.amazecc.app.shared.theme.AmazeColors) {
                                     }
                                     Spacer(Modifier.width(AmazeTheme.spacing.sm))
                                     Column(Modifier.weight(1f)) {
-                                        Text(k, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp))
-                                        Text(v, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium, fontSize = 13.sp))
+                                        Text(k, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+                                        Text(v, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium, fontSize = AmazeTheme.fontSize.base))
                                     }
                                 }
                             }

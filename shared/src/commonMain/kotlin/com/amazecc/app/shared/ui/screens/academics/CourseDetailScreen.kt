@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -126,7 +126,7 @@ fun CourseDetailScreen(onBack: () -> Unit) {
     val timetable by AppState.timetable.collectAsState()
     val calendar by AppState.calendar.collectAsState()
 
-    val currentSemesterId = attendanceRes?.semesterId ?: "CH20262701"
+    val currentSemesterId = attendanceRes?.semesterId ?: AppState.DEFAULT_SEMESTER_ID
     val mainSemesterId = semesterId ?: currentSemesterId
 
     val group = remember(courseCode, mainSemesterId, allSemesterMarks, allSemesterAttendance, marksRes, attendanceRes) {
@@ -273,7 +273,7 @@ fun CourseDetailScreen(onBack: () -> Unit) {
                                 tabLabels[tab] ?: tab,
                                 color = if (selected) Color.White else colors.textPrimary,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 12.sp,
+                                fontSize = AmazeTheme.fontSize.sm,
                                 maxLines = 1
                             )
                         }
@@ -337,13 +337,13 @@ private fun OverviewTab(
                 }
 
                 val attItem = if (isEmbedded) theoryAtt else mainAtt
-                val attPct = attItem?.attendancePercentage?.toDoubleOrNull() ?: 0.0
+                val attPct = attItem?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
                 val grade = predictedGrade(0.0)
                 val (healthLabel, healthColor, healthBg) = healthStatus(attPct, grade, isPastSemester, colors)
 
                 AmazeCard(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        Text("Status", fontSize = 10.sp, color = colors.textMuted, fontWeight = FontWeight.Bold)
+                        Text("Status", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(AmazeTheme.spacing.sm))
                         Box(
                             modifier = Modifier
@@ -351,15 +351,15 @@ private fun OverviewTab(
                                 .background(healthBg)
                                 .padding(horizontal = 10.dp, vertical = 6.dp)
                         ) {
-                            Text(healthLabel, color = healthColor, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                            Text(healthLabel, color = healthColor, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
                         }
                         if (isEmbedded && theoryAtt != null && labAtt != null) {
                             Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                            Text("T: ${theoryAtt.attendedClasses}/${theoryAtt.totalClasses}", fontSize = 10.sp, color = colors.accent)
-                            Text("L: ${labAtt.attendedClasses}/${labAtt.totalClasses}", fontSize = 10.sp, color = colors.success)
+                            Text("T: ${theoryAtt.attendedClasses}/${theoryAtt.totalClasses}", fontSize = AmazeTheme.fontSize.micro, color = colors.accent)
+                            Text("L: ${labAtt.attendedClasses}/${labAtt.totalClasses}", fontSize = AmazeTheme.fontSize.micro, color = colors.success)
                         } else if (mainAtt != null) {
                             Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                            Text("${mainAtt.attendedClasses}/${mainAtt.totalClasses} classes", fontSize = 10.sp, color = colors.textSecondary)
+                            Text("${mainAtt.attendedClasses}/${mainAtt.totalClasses} classes", fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary)
                         }
                     }
                 }
@@ -402,9 +402,9 @@ private fun OverviewTab(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("Faculty", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp))
+                                        Text("Faculty", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
                                         Spacer(Modifier.height(2.dp))
-                                        Text(parsedFac.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp))
+                                        Text(parsedFac.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base))
                                     }
                                     if (!parsedFac.school.isNullOrBlank()) {
                                         Box(
@@ -413,7 +413,7 @@ private fun OverviewTab(
                                                 .background(colors.accent.copy(alpha = 0.12f))
                                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                                         ) {
-                                            Text(parsedFac.school, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 10.sp))
+                                            Text(parsedFac.school, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro))
                                         }
                                     }
                                 }
@@ -436,8 +436,8 @@ private fun OverviewTab(
                             Column {
                                 Text("Components", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
                                 Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                group.theory?.let { Text("${it.courseType} — Class #${it.classNbr.takeLast(4)}", fontSize = 12.sp, color = colors.textPrimary, fontWeight = FontWeight.Medium) }
-                                group.lab?.let { Text("${it.courseType} — Class #${it.classNbr.takeLast(4)}", fontSize = 12.sp, color = colors.textPrimary, fontWeight = FontWeight.Medium) }
+                                group.theory?.let { Text("${it.courseType} — Class #${it.classNbr.takeLast(4)}", fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary, fontWeight = FontWeight.Medium) }
+                                group.lab?.let { Text("${it.courseType} — Class #${it.classNbr.takeLast(4)}", fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary, fontWeight = FontWeight.Medium) }
                             }
                         }
                     }
@@ -528,7 +528,7 @@ private fun OverviewTab(
                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     when {
                         qcmLoading -> CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
-                        qcmTables.isEmpty() -> Text("No QCM data available", color = colors.textMuted, fontSize = 12.sp)
+                        qcmTables.isEmpty() -> Text("No QCM data available", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
                         else -> qcmTables.forEach { table ->
                             table.rows.forEach { rowJson ->
                                 val obj = rowJson.jsonObject
@@ -541,17 +541,17 @@ private fun OverviewTab(
                                 ) {
                                     Column {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("QCM ${qcmNo ?: ""}", fontWeight = FontWeight.Bold, color = colors.textSecondary, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                                            Text("QCM ${qcmNo ?: ""}", fontWeight = FontWeight.Bold, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs, modifier = Modifier.weight(1f))
                                             action?.let { AmazeBadge(it, variant = BadgeVariant.INFO) }
                                         }
                                         Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                        suggestions?.let { Text(it, color = colors.textPrimary, fontSize = 12.sp) }
+                                        suggestions?.let { Text(it, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm) }
                                         facultyReply?.let {
                                             Spacer(Modifier.height(AmazeTheme.spacing.xs))
                                             Box(modifier = Modifier.fillMaxWidth().padding(start = 8.dp)) {
                                                 Column {
-                                                    Text("Faculty Reply", fontWeight = FontWeight.Bold, color = colors.success, fontSize = 10.sp)
-                                                    Text(it, color = colors.textSecondary, fontSize = 12.sp)
+                                                    Text("Faculty Reply", fontWeight = FontWeight.Bold, color = colors.success, fontSize = AmazeTheme.fontSize.micro)
+                                                    Text(it, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm)
                                                 }
                                             }
                                         }
@@ -569,7 +569,7 @@ private fun OverviewTab(
 
 @Composable
 private fun CircularAttendCard(label: String, att: AttendanceItem?, accent: Color, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    val pct = att?.attendancePercentage?.toDoubleOrNull() ?: 0.0
+    val pct = att?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
     val animatedPct by animateFloatAsState(targetValue = (pct / 100f).toFloat(), animationSpec = tween(1000))
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
@@ -578,12 +578,12 @@ private fun CircularAttendCard(label: String, att: AttendanceItem?, accent: Colo
                     drawArc(color = Color.LightGray.copy(alpha = 0.3f), startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
                     drawArc(color = accent, startAngle = -90f, sweepAngle = 360f * animatedPct, useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
                 }
-                Text("${pct.toInt()}%", fontWeight = FontWeight.Black, fontSize = 16.sp, color = accent)
+                Text("${pct.toInt()}%", fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = accent)
             }
             Spacer(Modifier.height(AmazeTheme.spacing.xs))
-            Text(label, fontSize = 10.sp, color = colors.textSecondary, fontWeight = FontWeight.Bold)
+            Text(label, fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary, fontWeight = FontWeight.Bold)
             if (att != null) {
-                Text("${att.attendedClasses}/${att.totalClasses}", fontSize = 10.sp, color = colors.textMuted)
+                Text("${att.attendedClasses}/${att.totalClasses}", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
             }
         }
     }
@@ -592,16 +592,16 @@ private fun CircularAttendCard(label: String, att: AttendanceItem?, accent: Colo
 @Composable
 private fun StatItem(label: String, value: String, color: Color, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontWeight = FontWeight.Black, fontSize = 16.sp, color = color)
-        Text(label, fontSize = 10.sp, color = colors.textMuted)
+        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = color)
+        Text(label, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
     }
 }
 
 @Composable
 private fun DetailRow(label: String, value: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, color = colors.textMuted, fontSize = 12.sp)
-        Text(value, fontWeight = FontWeight.SemiBold, color = colors.textPrimary, fontSize = 12.sp)
+        Text(label, color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
+        Text(value, fontWeight = FontWeight.SemiBold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm)
     }
 }
 
@@ -615,15 +615,16 @@ private fun MetricTile(label: String, value: String, colors: com.amazecc.app.sha
             .padding(10.dp)
     ) {
         Column {
-            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 10.sp))
+            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
             Spacer(Modifier.height(2.dp))
-            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 13.sp))
+            Text(value, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base))
         }
     }
 }
 
 @Composable
 private fun GradeHistoryTab(courseCode: String, allGrades: AllGradesRes?, group: CourseGroup, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val semesterMap by AppState.semesterMap.collectAsState()
     val gradeItems = remember(allGrades) {
         val items = mutableListOf<Pair<String, GradeItem?>>()
         allGrades?.grades?.forEach { (semId, semResult) ->
@@ -649,7 +650,7 @@ private fun GradeHistoryTab(courseCode: String, allGrades: AllGradesRes?, group:
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
         itemsIndexed(gradeItems) { index, (semId, grade) ->
-            val semName = AppState.semesterMap[semId] ?: formatSemesterName(semId)
+            val semName = semesterMap[semId] ?: formatSemesterName(semId)
             Row(modifier = Modifier.fillMaxWidth()) {
                 if (index % 2 == 0) {
                     TimelineCard(semName, grade, colors, Modifier.weight(1f))
@@ -667,7 +668,7 @@ private fun GradeHistoryTab(courseCode: String, allGrades: AllGradesRes?, group:
 private fun TimelineCard(semName: String, grade: GradeItem?, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
     AmazeCard(modifier = modifier) {
         Column {
-            Text(semName, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 12.sp)
+            Text(semName, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm)
 
             if (grade != null) {
                 Spacer(Modifier.height(AmazeTheme.spacing.sm))
@@ -677,12 +678,12 @@ private fun TimelineCard(semName: String, grade: GradeItem?, colors: com.amazecc
                         modifier = Modifier.size(40.dp).clip(CircleShape).background(gc.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(grade.grade, fontWeight = FontWeight.Black, fontSize = 18.sp, color = gc)
+                        Text(grade.grade, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl, color = gc)
                     }
                     Spacer(Modifier.width(AmazeTheme.spacing.sm))
                     Column {
-                        Text("Total: ${grade.grandTotal}", fontSize = 12.sp, color = colors.textSecondary)
-                        Text(grade.courseType, fontSize = 10.sp, color = colors.textMuted)
+                        Text("Total: ${grade.grandTotal}", fontSize = AmazeTheme.fontSize.sm, color = colors.textSecondary)
+                        Text(grade.courseType, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
                     }
                 }
 
@@ -696,8 +697,8 @@ private fun TimelineCard(semName: String, grade: GradeItem?, colors: com.amazecc
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(g, fontWeight = FontWeight.Black, fontSize = 10.sp, color = gColor)
-                                    Text(r, fontSize = 7.sp, color = colors.textMuted)
+                                    Text(g, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.micro, color = gColor)
+                                    Text(r, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
                                 }
                             }
                         }
@@ -708,8 +709,8 @@ private fun TimelineCard(semName: String, grade: GradeItem?, colors: com.amazecc
                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
                     details.take(4).forEach { comp ->
                         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(comp.component, fontSize = 10.sp, color = colors.textSecondary, modifier = Modifier.weight(1f))
-                            Text("${comp.scoredMark}/${comp.maxMark}", fontSize = 10.sp, color = colors.textPrimary, fontWeight = FontWeight.Medium)
+                            Text(comp.component, fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary, modifier = Modifier.weight(1f))
+                            Text("${comp.scoredMark}/${comp.maxMark}", fontSize = AmazeTheme.fontSize.micro, color = colors.textPrimary, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -727,13 +728,13 @@ private fun GradeViewCard(grade: GradeItem, label: String, colors: com.amazecc.a
                 modifier = Modifier.size(48.dp).clip(CircleShape).background(gc.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(grade.grade, fontWeight = FontWeight.Black, fontSize = 22.sp, color = gc)
+                Text(grade.grade, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl, color = gc)
             }
             Spacer(Modifier.width(AmazeTheme.spacing.sm))
             Column(modifier = Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text("Grade for $label", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
-                    Text("Total: ${grade.grandTotal}", fontSize = 12.sp, color = colors.textSecondary)
+                    Text("Grade for $label", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.md)
+                    Text("Total: ${grade.grandTotal}", fontSize = AmazeTheme.fontSize.sm, color = colors.textSecondary)
                 }
                 Spacer(Modifier.height(AmazeTheme.spacing.xs))
                 grade.range?.let { range ->
@@ -745,8 +746,8 @@ private fun GradeViewCard(grade: GradeItem, label: String, colors: com.amazecc.a
                                 contentAlignment = Alignment.Center
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(g, fontWeight = FontWeight.Black, fontSize = 10.sp, color = gColor)
-                                    Text(r, fontSize = 7.sp, color = colors.textMuted)
+                                    Text(g, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.micro, color = gColor)
+                                    Text(r, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
                                 }
                             }
                         }
@@ -850,7 +851,7 @@ private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, isR
             Spacer(Modifier.height(AmazeTheme.spacing.xs))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("${asm.scoredMark} / ${asm.maxMark}", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 14.sp)
+                    Text("${asm.scoredMark} / ${asm.maxMark}", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.md)
                 }
                 Box(
                     modifier = Modifier.fillMaxWidth(0.5f).height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.border)
@@ -861,7 +862,7 @@ private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, isR
                     )
                 }
                 Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                Text("${asm.weightageMark} / ${asm.weightagePercent}%", fontWeight = FontWeight.Bold, color = accentColor, fontSize = 11.sp)
+                Text("${asm.weightageMark} / ${asm.weightagePercent}%", fontWeight = FontWeight.Bold, color = accentColor, fontSize = AmazeTheme.fontSize.xs)
             }
 
             AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
@@ -873,11 +874,11 @@ private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, isR
                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
                     if (isRelative) {
-                        Text("Relative Grading (ACE)", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = colors.textSecondary)
-                        Text("Class statistics required for actual grade boundaries.", fontSize = 10.sp, color = colors.textMuted)
+                        Text("Relative Grading (ACE)", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary)
+                        Text("Class statistics required for actual grade boundaries.", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
                     }
 
-                    Text("Grade Placement Preview", fontWeight = FontWeight.Bold, fontSize = 10.sp, color = colors.textMuted)
+                    Text("Grade Placement Preview", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
                     Spacer(Modifier.height(AmazeTheme.spacing.xs))
                     val gradePlacement = predictedGrade(pct)
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
@@ -894,13 +895,13 @@ private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, isR
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(g, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = gColor))
-                                    Text("≥${bound}%", fontSize = 8.sp, color = colors.textMuted)
+                                    Text("≥${bound}%", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
                                 }
                             }
                         }
                     }
                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    Text("Hypothetical Placement: Grade $gradePlacement", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = colors.accent, modifier = Modifier.align(Alignment.CenterHorizontally))
+                    Text("Hypothetical Placement: Grade $gradePlacement", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs, color = colors.accent, modifier = Modifier.align(Alignment.CenterHorizontally))
                 }
             }
         }
@@ -934,19 +935,19 @@ private fun TargetGradeCalculator(
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
             if (isRelative) {
-                Text("Relative (ACE) Grading — Boundaries shift with class average", fontSize = 11.sp, color = colors.textMuted)
+                Text("Relative (ACE) Grading — Boundaries shift with class average", fontSize = AmazeTheme.fontSize.xs, color = colors.textMuted)
             } else {
-                Text("Absolute Grading Enforced", fontSize = 11.sp, color = colors.success, fontWeight = FontWeight.Bold)
+                Text("Absolute Grading Enforced", fontSize = AmazeTheme.fontSize.xs, color = colors.success, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(AmazeTheme.spacing.xs))
                 Box(
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.success.copy(alpha = 0.08f)).padding(8.dp)
                 ) {
-                    Text("Fixed grade boundaries: S≥90, A≥80, B≥70, C≥60, D≥50, E≥40", fontSize = 10.sp, color = colors.success)
+                    Text("Fixed grade boundaries: S≥90, A≥80, B≥70, C≥60, D≥50, E≥40", fontSize = AmazeTheme.fontSize.micro, color = colors.success)
                 }
             }
 
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
-            Text("Target Grade", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = colors.textSecondary)
+            Text("Target Grade", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm, color = colors.textSecondary)
             Spacer(Modifier.height(AmazeTheme.spacing.xs))
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf("S", "A", "B", "C", "D", "E").forEach { g ->
@@ -966,9 +967,9 @@ private fun TargetGradeCalculator(
 
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
             when {
-                needPoints <= 0 -> Text("Target Achieved! 🎯", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = colors.success)
-                needPoints > remainingPct -> Text("Impossible to achieve — need ${(needPoints * 10).toInt() / 10.0}pts but only ${remainingPct.toInt()}pts remaining", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = colors.danger)
-                else -> Text("Need ${(needPoints * 10).toInt() / 10.0} more weightage points out of ${remainingPct.toInt()} remaining", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = colors.accent)
+                needPoints <= 0 -> Text("Target Achieved! 🎯", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.md, color = colors.success)
+                needPoints > remainingPct -> Text("Impossible to achieve — need ${(needPoints * 10).toInt() / 10.0}pts but only ${remainingPct.toInt()}pts remaining", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm, color = colors.danger)
+                else -> Text("Need ${(needPoints * 10).toInt() / 10.0} more weightage points out of ${remainingPct.toInt()} remaining", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm, color = colors.accent)
             }
 
             if (remainingPct > 0 && needPoints > 0 && needPoints <= remainingPct) {
@@ -985,12 +986,12 @@ private fun TargetGradeCalculator(
             Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
                 GradeBoundariesAbsolute.forEach { (g, bound) ->
                     val gc = GradeColors[g] ?: colors.textMuted
-                    Text(g, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = gc)
+                    Text(g, fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold, color = gc)
                 }
             }
             Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
                 GradeBoundariesAbsolute.forEach { (_, bound) ->
-                    Text("≥${bound}%", fontSize = 7.sp, color = colors.textMuted)
+                    Text("≥${bound}%", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
                 }
             }
         }
@@ -1001,8 +1002,8 @@ private fun TargetGradeCalculator(
 private fun StatBox(label: String, value: String, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
     AmazeCard(modifier = modifier) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            Text(value, fontWeight = FontWeight.Black, fontSize = 16.sp, color = colors.accent)
-            Text(label, fontSize = 9.sp, color = colors.textMuted)
+            Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = colors.accent)
+            Text(label, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
         }
     }
 }
@@ -1047,7 +1048,7 @@ private fun AttendanceTab(
                             .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(label, color = if (sel) colors.background else colors.textSecondary, fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium, fontSize = 12.sp)
+                        Text(label, color = if (sel) colors.background else colors.textSecondary, fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium, fontSize = AmazeTheme.fontSize.sm)
                     }
                 }
             }
@@ -1090,7 +1091,7 @@ private fun StatusInsightCard(attPct: Double, totalClasses: Int, attendedClasses
             Spacer(Modifier.width(AmazeTheme.spacing.sm))
             Column(Modifier.weight(1f)) {
                 Text(needed.first, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = needed.third))
-                Text(needed.second, color = colors.textSecondary, fontSize = 11.sp)
+                Text(needed.second, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs)
             }
         }
     }
@@ -1187,13 +1188,13 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
                 listOf("CAT1", "CAT2", "LID").forEach { m ->
                     val sel = mode == m
                     Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (sel) colors.accent else colors.surface).clickable { mode = m }.padding(horizontal = 12.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
-                        Text(m, color = if (sel) Color.White else colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        Text(m, color = if (sel) Color.White else colors.textPrimary, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs)
                     }
                 }
             }
 
             Spacer(Modifier.height(AmazeTheme.spacing.md))
-            Text("Future classes before ${mode}: ${futureClassDates.size}", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = 12.sp)
+            Text("Future classes before ${mode}: ${futureClassDates.size}", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm)
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
             futureClassDates.take(10).forEach { (y, m, d) ->
@@ -1204,15 +1205,15 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
                         .clickable { skipDates = if (key in skipDates) skipDates - key else skipDates + key }.padding(horizontal = 12.dp, vertical = 10.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("$m/$d", fontSize = 12.sp, color = colors.textPrimary, modifier = Modifier.weight(1f))
-                        if (skipped) Text("SKIP", color = colors.danger, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        else Text("ATTEND", color = colors.success, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("$m/$d", fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary, modifier = Modifier.weight(1f))
+                        if (skipped) Text("SKIP", color = colors.danger, fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
+                        else Text("ATTEND", color = colors.success, fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
                     }
                 }
             }
 
             if (futureClassDates.size > 10) {
-                Text("+${futureClassDates.size - 10} more...", fontSize = 10.sp, color = colors.textMuted)
+                Text("+${futureClassDates.size - 10} more...", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
             }
 
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
@@ -1220,10 +1221,10 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
-                    Text("Projected", fontSize = 11.sp, color = colors.textMuted)
+                    Text("Projected", fontSize = AmazeTheme.fontSize.xs, color = colors.textMuted)
                     Text("$predictedAttended / $predictedTotal", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
-                Text("${predictedPct.toInt()}%", fontWeight = FontWeight.Black, fontSize = 24.sp, color = when { predictedPct >= 85 -> colors.success; predictedPct >= 75 -> colors.warning; else -> colors.danger })
+                Text("${predictedPct.toInt()}%", fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.x2l, color = when { predictedPct >= 85 -> colors.success; predictedPct >= 75 -> colors.warning; else -> colors.danger })
             }
         }
     }
@@ -1232,8 +1233,8 @@ private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, col
 @Composable
 private fun StatChip(label: String, value: String, color: Color, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = color)
-        Text(label, fontSize = 10.sp, color = colors.textSecondary)
+        Text(value, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xl, color = color)
+        Text(label, fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary)
     }
 }
 
@@ -1274,7 +1275,7 @@ private fun CoursePlanTab(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("Course Syllabus", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                            Text(courseCode, fontSize = 11.sp, color = colors.textMuted)
+                            Text(courseCode, fontSize = AmazeTheme.fontSize.xs, color = colors.textMuted)
                         }
                         val sb = syllabusFile
                         val se = syllabusError
@@ -1293,10 +1294,10 @@ private fun CoursePlanTab(
                                     Icon(Icons.Rounded.Download, "Download Syllabus", tint = colors.accent)
                                 }
                                 downloadMsg?.let {
-                                    Text(it, fontSize = 10.sp, color = if (it == "Saved!") colors.success else colors.danger)
+                                    Text(it, fontSize = AmazeTheme.fontSize.micro, color = if (it == "Saved!") colors.success else colors.danger)
                                 }
                             }
-                            se != null -> Text(se, fontSize = 10.sp, color = colors.danger)
+                            se != null -> Text(se, fontSize = AmazeTheme.fontSize.micro, color = colors.danger)
                         }
                     }
                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
@@ -1304,11 +1305,11 @@ private fun CoursePlanTab(
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.08f)).padding(12.dp)
                     ) {
                         Column {
-                            Text("Course Info", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = colors.accent)
+                            Text("Course Info", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs, color = colors.accent)
                             Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                            theory?.let { Text("Theory: ${it.courseType} — ${it.slot}", fontSize = 11.sp, color = colors.textSecondary) }
-                            lab?.let { Text("Lab: ${lab.courseType} — ${lab.slot}", fontSize = 11.sp, color = colors.textSecondary) }
-                            mainAtt?.let { Text("Slot: ${it.slotName}", fontSize = 11.sp, color = colors.textSecondary) }
+                            theory?.let { Text("Theory: ${it.courseType} — ${it.slot}", fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary) }
+                            lab?.let { Text("Lab: ${lab.courseType} — ${lab.slot}", fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary) }
+                            mainAtt?.let { Text("Slot: ${it.slotName}", fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary) }
                         }
                     }
                 }
@@ -1336,10 +1337,10 @@ private fun CoursePlanTab(
                                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.surface).padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(day, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = colors.accent, modifier = Modifier.width(40.dp))
-                                Text(mainAtt?.slotName?.take(4) ?: "-", fontSize = 10.sp, color = colors.textSecondary)
+                                Text(day, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro, color = colors.accent, modifier = Modifier.width(40.dp))
+                                Text(mainAtt?.slotName?.take(4) ?: "-", fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary)
                                 Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                                Text(mainAtt?.slotVenue ?: "-", fontSize = 10.sp, color = colors.textMuted)
+                                Text(mainAtt?.slotVenue ?: "-", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
                             }
                             Spacer(Modifier.height(AmazeTheme.spacing.xs))
                         }
@@ -1375,6 +1376,7 @@ private fun CoursePlanTab(
 @Composable
 private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
     val scope = rememberCoroutineScope()
+    val semesterMap by AppState.semesterMap.collectAsState()
     var qbTab by remember { mutableStateOf("questions") }
     var questions by remember { mutableStateOf<List<QBankQuestion>>(emptyList()) }
     var questionsLoading by remember { mutableStateOf(true) }
@@ -1397,7 +1399,7 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
                     modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (sel) colors.accent else colors.surface)
                         .clickable { qbTab = key }.padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
-                    Text(label, color = if (sel) colors.background else colors.textSecondary, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal, fontSize = 12.sp)
+                    Text(label, color = if (sel) colors.background else colors.textSecondary, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal, fontSize = AmazeTheme.fontSize.sm)
                 }
             }
         }
@@ -1446,7 +1448,7 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
                                         colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = colors.surface, unfocusedContainerColor = colors.surface, focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
                                     )
                                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                                    Text("Paper Type", fontSize = 11.sp, color = colors.textSecondary)
+                                    Text("Paper Type", fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary)
                                     Spacer(Modifier.height(AmazeTheme.spacing.xs))
                                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                         listOf("CAT 1", "CAT 2", "FAT", "Quiz", "Assignment").forEach { t ->
@@ -1457,7 +1459,7 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
                                                     .clickable { paperType = t }.padding(vertical = 6.dp),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Text(t, color = if (sel) Color.White else colors.textPrimary, fontSize = 9.sp, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
+                                                Text(t, color = if (sel) Color.White else colors.textPrimary, fontSize = AmazeTheme.fontSize.micro, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
                                             }
                                         }
                                     }
@@ -1487,7 +1489,7 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
                                                 null, tint = if (isSuccess) colors.success else colors.danger, modifier = Modifier.size(16.dp)
                                             )
                                             Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                                            Text(it, color = if (isSuccess) colors.success else colors.danger, fontSize = 11.sp)
+                                            Text(it, color = if (isSuccess) colors.success else colors.danger, fontSize = AmazeTheme.fontSize.xs)
                                         }
                                     }
                                 }
@@ -1496,7 +1498,7 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
                     }
 
                     item {
-                        Text("No papers available yet.", color = colors.textMuted, fontSize = 12.sp)
+                        Text("No papers available yet.", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
                     }
                 }
             }
@@ -1514,7 +1516,7 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
                                         Text(q.question_text, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                         q.topic_name?.let {
                                             Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                            Text("Topic: $it", color = colors.textSecondary, fontSize = 12.sp)
+                                            Text("Topic: $it", color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm)
                                         }
                                         Spacer(Modifier.height(AmazeTheme.spacing.xs))
                                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1552,7 +1554,7 @@ private fun findCourseGroup(
     val labA = currentAttList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && it.courseType.lowercase().contains("lab") }
 
     if (theoryM != null || labM != null || theoryA != null || labA != null) {
-        val semName = AppState.semesterMap[semesterId] ?: semesterId
+        val semName = AppState.semesterMap.value[semesterId] ?: semesterId
         return CourseGroup(cleanCode, (theoryM?.courseTitle ?: labM?.courseTitle ?: theoryA?.courseTitle ?: labA?.courseTitle ?: cleanCode), semesterId, semName, theoryM, labM, theoryA, labA)
     }
 
@@ -1563,7 +1565,7 @@ private fun findCourseGroup(
         val tA = attList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && !it.courseType.lowercase().contains("lab") }
         val lA = attList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && it.courseType.lowercase().contains("lab") }
         if (tM != null || lM != null || tA != null || lA != null) {
-            val semName = AppState.semesterMap[semId] ?: semId
+            val semName = AppState.semesterMap.value[semId] ?: semId
             return CourseGroup(cleanCode, (tM?.courseTitle ?: lM?.courseTitle ?: tA?.courseTitle ?: lA?.courseTitle ?: cleanCode), semId, semName, tM, lM, tA, lA)
         }
     }
@@ -1575,7 +1577,7 @@ private fun findCourseGroup(
         val tA = attList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && !it.courseType.lowercase().contains("lab") }
         val lA = attList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && it.courseType.lowercase().contains("lab") }
         if (tA != null || lA != null) {
-            val semName = AppState.semesterMap[semId] ?: semId
+            val semName = AppState.semesterMap.value[semId] ?: semId
             return CourseGroup(cleanCode, (tA?.courseTitle ?: lA?.courseTitle ?: cleanCode), semId, semName, theoryAtt = tA, labAtt = lA)
         }
     }
@@ -1588,7 +1590,7 @@ private fun findCourseGroup(
             semResult?.grades?.forEach { grade ->
                 val gCleanCode = grade.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
                 if (gCleanCode == cleanCode) {
-                    val semName = AppState.semesterMap[semId] ?: semId
+                    val semName = AppState.semesterMap.value[semId] ?: semId
                     // Check if this semester has marks/attendance available in the maps
                     val semMarks = allSemesterMarks[semId]?.marks ?: emptyList()
                     val semAtt = allSemesterAttendance[semId]?.attendance ?: emptyList()

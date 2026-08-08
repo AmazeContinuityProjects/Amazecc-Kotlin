@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.components
+﻿package com.amazecc.app.shared.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -45,13 +45,13 @@ fun PushPromptModal(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF3B82F6).copy(alpha = 0.15f)),
+                        .background(colors.info.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Rounded.Notifications,
                         contentDescription = null,
-                        tint = Color(0xFF3B82F6),
+                        tint = colors.info,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -60,7 +60,7 @@ fun PushPromptModal(
                     Text(
                         "Never Miss a Class!",
                         style = AmazeTheme.typography.heading.copy(
-                            fontSize = 20.sp,
+                            fontSize = AmazeTheme.fontSize.xl,
                             fontWeight = FontWeight.Bold,
                             color = colors.textPrimary
                         )
@@ -71,7 +71,7 @@ fun PushPromptModal(
             Text(
                 "AmazeCC can send you push notifications for your weekly VITOL classes directly to this device.",
                 style = AmazeTheme.typography.body.copy(
-                    fontSize = 15.sp,
+                    fontSize = AmazeTheme.fontSize.lg,
                     color = colors.textSecondary
                 ),
                 modifier = Modifier.padding(bottom = 24.dp)

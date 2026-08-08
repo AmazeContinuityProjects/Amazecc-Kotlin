@@ -30,10 +30,16 @@ actual suspend fun requestNotificationPermissions(): Boolean {
 
 actual suspend fun scheduleLocalNotification(id: Int, title: String, body: String, triggerTimeMs: Long) {
     val context = AndroidApp.context ?: return
+    val channelId = when {
+        id in NotificationsUtils.ASSIGNMENT_REMINDER_ID_BASE until NotificationsUtils.TASK_REMINDER_ID_BASE -> AlarmReceiver.CHANNEL_ASSIGNMENTS
+        id in NotificationsUtils.TASK_REMINDER_ID_BASE until NotificationsUtils.TEST_NOTIFICATION_ID -> AlarmReceiver.CHANNEL_TASKS
+        else -> AlarmReceiver.CHANNEL_CLASSES
+    }
     val intent = Intent(context, AlarmReceiver::class.java).apply {
         putExtra(AlarmReceiver.EXTRA_TITLE, title)
         putExtra(AlarmReceiver.EXTRA_BODY, body)
-        putExtra(AlarmReceiver.EXTRA_CHANNEL_ID, AlarmReceiver.CHANNEL_CLASSES)
+        putExtra(AlarmReceiver.EXTRA_CHANNEL_ID, channelId)
+        putExtra(AlarmReceiver.EXTRA_NOTIFICATION_ID, id)
     }
     val pendingIntent = PendingIntent.getBroadcast(
         context, id, intent,
@@ -54,19 +60,21 @@ actual suspend fun scheduleLocalNotification(id: Int, title: String, body: Strin
 actual suspend fun clearPendingNotifications() {
     val context = AndroidApp.context ?: return
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    val intent = Intent(context, AlarmReceiver::class.java)
-    val pendingIntent = PendingIntent.getBroadcast(
-        context, 0, intent,
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-    )
-    alarmManager.cancel(pendingIntent)
+    for (id in NotificationsUtils.scheduleableNotificationIds) {
+        val intent = Intent(context, AlarmReceiver::class.java)
+        val pendingIntent = PendingIntent.getBroadcast(
+            context, id, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        alarmManager.cancel(pendingIntent)
+    }
 }
 
 actual suspend fun testLocalNotification() {
     createNotificationChannels()
     val triggerTimeMs = kotlinx.datetime.Clock.System.now().toEpochMilliseconds() + 5_000L
     scheduleLocalNotification(
-        id = 9999,
+        id = NotificationsUtils.TEST_NOTIFICATION_ID,
         title = "Test Notification",
         body = "If you see this, notifications are working!",
         triggerTimeMs = triggerTimeMs

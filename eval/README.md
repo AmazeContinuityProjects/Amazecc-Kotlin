@@ -41,3 +41,11 @@
 - **UI components:** 14 dead components; infinite animations in ScreenHeader; pinning FFCS/Free-Classrooms to tabs renders a blank page; two palettes are wired but untriggerable.
 - **Screens:** 4 empty stub files; 6 dead buttons; fake data shipped (Hall of Fame names, Hostel advisor, mess menu); duplicated `KPICard` ×5; ~100 `fontSize` overrides and ~36 hardcoded colors after "58/58 fixed".
 - **Platform:** NFC feature fully dead (no UI caller, no-op sharing, unguarded tag I/O); notifications: `clearPendingNotifications()` cancels nothing, ID collisions, no boot restore; widgets never push-updated; R8 release has zero keep rules.
+
+## Phase 0 executed (2026-08-06)
+
+All 10 security/data-integrity fixes from `08-roadmap.md` are implemented, compile-verified, and logged per-report: demo backdoor (C1) removed, credentials encrypted (Android Keystore AES-GCM; iOS fallback documented), logout wipe expanded, QBank upload path fixed, `MarksSync` deleted (iOS restored), keystore-secrets claim corrected (never committed), notification IDs fixed, cab fake-success killed, HTTP timeouts added. See fix-log sections in each report; build: `.\gradlew.bat :androidApp:compileDebugKotlin` → BUILD SUCCESSFUL.
+
+## Demo Mode executed (2026-08-07)
+
+The always-visible "Explore in Demo Mode" entry now drives every `if (useMockData)` branch in `AmazeClient.kt` (61 sites) from a single bundled `demoData.json` (65 endpoint-keyed sections) through the new `DemoData` loader (commonMain, `Res.readBytes`). No inline mock fixtures remain in compiled code (AmazeClient shrank ~820 lines). Demo session is in-memory only — wiped on logout/app restart. Build: `.\gradlew.bat :androidApp:compileDebugKotlin` +> BUILD SUCCESSFUL. See Demo Mode Fix Logs in 01-stub-code.md and 07-security.md.

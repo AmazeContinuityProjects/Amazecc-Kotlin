@@ -241,45 +241,14 @@ object AttendanceTimetable {
         return resultMap
     }
 
-    fun getTodayAttendanceClasses(
-        attendance: List<Map<String, Any>> = emptyList(),
-        slotMap: Map<String, Map<String, SlotInfo>> = emptyMap(),
-        calendar: com.amazecc.app.shared.model.CalendarRes? = null
-    ): List<CourseAttendanceInfo> {
-        val dayCardsMap = buildAttendanceDayCardsMap(attendance, slotMap)
-        return dayCardsMap[getTodayAttendanceDay(calendar)] ?: emptyList()
-    }
-
     fun currentTimeInMinutes(): Int {
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         return now.hour * 60 + now.minute
-    }
-
-    fun findCurrentClass(classes: List<CourseAttendanceInfo>): CourseAttendanceInfo? {
-        val now = currentTimeInMinutes()
-        return classes.firstOrNull { cls ->
-            val range = getAttendanceTimeRange(cls.time)
-            now in range.start until range.end
-        }
-    }
-
-    fun findNextClass(classes: List<CourseAttendanceInfo>): CourseAttendanceInfo? {
-        val now = currentTimeInMinutes()
-        return classes.firstOrNull { cls ->
-            val range = getAttendanceTimeRange(cls.time)
-            range.start > now
-        }
     }
 
     fun remainingMinutes(timeRange: String): Int {
         val now = currentTimeInMinutes()
         val range = getAttendanceTimeRange(timeRange)
         return (range.end - now).coerceAtLeast(0)
-    }
-
-    fun minutesUntil(timeRange: String): Int {
-        val now = currentTimeInMinutes()
-        val range = getAttendanceTimeRange(timeRange)
-        return (range.start - now).coerceAtLeast(0)
     }
 }

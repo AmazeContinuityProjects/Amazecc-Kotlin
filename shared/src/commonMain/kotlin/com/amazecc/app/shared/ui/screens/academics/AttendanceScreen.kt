@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
@@ -266,7 +266,7 @@ fun OverallPredictorScreen() {
                             else -> colors.chart5
                         },
                         fontWeight = FontWeight.Black,
-                        fontSize = 40.sp
+                        fontSize = AmazeTheme.fontSize.display
                     )
                 )
                 Text(
@@ -318,7 +318,7 @@ fun OverallPredictorScreen() {
                         displayLabel,
                         color = if (isSelected) colors.background else colors.textPrimary,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
+                        fontSize = AmazeTheme.fontSize.xs,
                         maxLines = 1
                     )
                 }
@@ -587,7 +587,7 @@ private fun ExpandedCoursePredictorCard(
                             Text(
                                 if (isSkipped) "SKIP" else "ATTEND",
                                 color = if (isSkipped) colors.chart5 else colors.chart1,
-                                fontSize = 11.sp,
+                                fontSize = AmazeTheme.fontSize.xs,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -907,7 +907,7 @@ fun TimetableGridScreen() {
                         if (overrideForDay != null) "${day.take(3)}⚡" else day.take(3),
                         color = if (isSelected) Color.White else if (overrideForDay != null) colors.accent else colors.textPrimary,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        fontSize = AmazeTheme.fontSize.xs
                     )
                 }
             }
@@ -1064,7 +1064,7 @@ fun TimetableGridScreen() {
                                             (course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0) >= 75 -> colors.chart3
                                             else -> colors.chart5
                                         },
-                                        fontSize = 11.sp,
+                                        fontSize = AmazeTheme.fontSize.xs,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -1084,7 +1084,6 @@ fun TimetableGridScreen() {
     if (showTimetableDialog) {
         TimetableDialog(
             attendanceCourses = courses,
-            timetableCourses = timetableRes?.courseInfo ?: emptyList(),
             onDismiss = { showTimetableDialog = false }
         )
     }

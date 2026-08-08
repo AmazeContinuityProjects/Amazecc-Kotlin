@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.components
+﻿package com.amazecc.app.shared.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -143,7 +143,7 @@ enum class ButtonVariant {
 // ── CARDS ──
 
 enum class CardVariant {
-    DEFAULT, ACCENT, SUCCESS, WARNING, DANGER, INFO, ACCENT_SURFACE, GLASS
+    DEFAULT, ACCENT, ACCENT_SURFACE
 }
 
 @Composable
@@ -171,12 +171,7 @@ fun AmazeCard(
     val (bgColor, borderColor) = when (variant) {
         CardVariant.DEFAULT -> (backgroundColor ?: colors.surface) to colors.textMuted.copy(alpha = borderAlpha)
         CardVariant.ACCENT -> (backgroundColor ?: colors.accentSurface) to colors.accent.copy(alpha = borderAlpha)
-        CardVariant.SUCCESS -> (backgroundColor ?: colors.successSurface) to colors.success.copy(alpha = borderAlpha)
-        CardVariant.WARNING -> (backgroundColor ?: colors.warningSurface) to colors.warning.copy(alpha = borderAlpha)
-        CardVariant.DANGER -> (backgroundColor ?: colors.dangerSurface) to colors.danger.copy(alpha = borderAlpha)
-        CardVariant.INFO -> (backgroundColor ?: colors.infoSurface) to colors.info.copy(alpha = borderAlpha)
         CardVariant.ACCENT_SURFACE -> (backgroundColor ?: colors.accentContainer) to colors.accent.copy(alpha = 0.45f)
-        CardVariant.GLASS -> (backgroundColor ?: colors.glassSurface) to colors.glassBorder
     }
 
     val spacing = AmazeTheme.spacing
@@ -188,7 +183,7 @@ fun AmazeCard(
                 scaleY = scale
             }
             .clipToBounds()
-            .shadow(if (variant == CardVariant.GLASS) 6.dp else 1.dp, RoundedCornerShape(radius.medium), clip = false)
+            .shadow(1.dp, RoundedCornerShape(radius.medium), clip = false)
             .clip(RoundedCornerShape(radius.medium))
             .background(bgColor)
             .border(1.dp, borderColor, RoundedCornerShape(radius.medium))
@@ -197,13 +192,7 @@ fun AmazeCard(
                     Modifier.drawBehind {
                         val stripWidth = 4.dp.toPx()
                         drawRoundRect(
-                            color = when (variant) {
-                                CardVariant.SUCCESS -> colors.success
-                                CardVariant.WARNING -> colors.warning
-                                CardVariant.DANGER -> colors.danger
-                                CardVariant.INFO -> colors.info
-                                else -> colors.accent
-                            },
+                            color = colors.accent,
                             topLeft = Offset(0f, 0f),
                             size = androidx.compose.ui.geometry.Size(stripWidth, size.height)
                         )
@@ -227,172 +216,6 @@ fun AmazeCard(
             .padding(spacing.cardPadding),
         content = content
     )
-}
-
-// ── GLASS CARD ──
-
-@Composable
-fun AmazeGlassCard(
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val colors = AmazeTheme.colors
-    val radius = AmazeTheme.radius
-    val spacing = AmazeTheme.spacing
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(radius.large))
-            .background(colors.glassSurface)
-            .border(1.dp, colors.glassBorder, RoundedCornerShape(radius.large))
-            .shadow(6.dp, RoundedCornerShape(radius.large), clip = false)
-            .then(
-                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
-            )
-            .padding(spacing.lg),
-        content = content
-    )
-}
-
-@Composable
-fun MetricCard(
-    title: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    caption: String? = null,
-    statusText: String? = null,
-    statusColor: Color? = null,
-    circleColor: Color? = null,
-    onClick: (() -> Unit)? = null
-) {
-    val colors = AmazeTheme.colors
-    AmazeCard(
-        modifier = modifier.defaultMinSize(minWidth = 140.dp, minHeight = 115.dp),
-        onClick = onClick,
-        backgroundColor = colors.surface
-    ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(end = if (circleColor != null) 16.dp else 0.dp)) {
-                Text(
-                    text = title.uppercase(),
-                    style = AmazeTheme.typography.categoryLabel.copy(
-                        color = colors.textMuted
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                Row(
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = value,
-                        style = AmazeTheme.typography.display.copy(
-                            color = colors.accent,
-                            fontWeight = FontWeight.Black
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (statusText != null) {
-                        Text(
-                            text = statusText,
-                            style = AmazeTheme.typography.smallLabel.copy(
-                                color = statusColor ?: colors.textSecondary,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            modifier = Modifier.padding(bottom = 4.dp),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                if (caption != null) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = caption,
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            if (circleColor != null) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(circleColor)
-                        .align(Alignment.TopEnd)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ActionCard(
-    title: String,
-    description: String,
-    icon: ImageVector,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    variant: CardVariant = CardVariant.ACCENT_SURFACE
-) {
-    val colors = AmazeTheme.colors
-    AmazeCard(
-        modifier = modifier,
-        onClick = onClick,
-        variant = variant,
-        accentStrip = true
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(colors.accentSurface),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = colors.accent,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Spacer(modifier = Modifier.width(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                text = title,
-                style = AmazeTheme.typography.subheading.copy(
-                    fontSize = 15.sp,
-                    color = colors.textPrimary,
-                    fontWeight = FontWeight.Bold
-                )
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = description,
-                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
-                contentDescription = null,
-                tint = colors.accent,
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
 }
 
 // ── BADGES ──
@@ -425,7 +248,7 @@ fun AmazeBadge(
             style = AmazeTheme.typography.smallLabel.copy(
                 color = textColor,
                 fontWeight = FontWeight.Bold,
-                fontSize = 11.sp
+                fontSize = AmazeTheme.fontSize.xs
             ),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -509,125 +332,3 @@ fun AmazeTextField(
     }
 }
 
-// ── DROPDOWN SELECT ──
-
-@Composable
-fun AmazeDropdown(
-    options: List<String>,
-    selectedOption: String,
-    onOptionSelected: (String) -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-    displayMapper: (String) -> String = { it }
-) {
-    val colors = AmazeTheme.colors
-    val radius = AmazeTheme.radius
-    var expanded by remember { mutableStateOf(false) }
-
-    Column(modifier = modifier) {
-        if (label.isNotEmpty()) {
-            Text(
-                text = label,
-                style = AmazeTheme.typography.smallLabel.copy(
-                    color = colors.textSecondary,
-                    fontWeight = FontWeight.Bold
-                ),
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
-        }
-        
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
-                .clip(RoundedCornerShape(radius.small))
-                .background(colors.surface)
-                .border(1.dp, colors.border, RoundedCornerShape(radius.small))
-                .clickable { expanded = !expanded }
-                .padding(horizontal = 16.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = displayMapper(selectedOption),
-                    style = AmazeTheme.typography.body.copy(color = colors.textPrimary)
-                )
-                Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = colors.textSecondary)
-            }
-        }
-        
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            modifier = Modifier.background(colors.surface)
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(displayMapper(option), style = AmazeTheme.typography.body.copy(color = colors.textPrimary)) },
-                    onClick = {
-                        onOptionSelected(option)
-                        expanded = false
-                    }
-                )
-            }
-        }
-    }
-}
-
-// ── PAGE HEADER CONTAINER ──
-
-@Composable
-fun PageHeaderContainer(
-    title: String,
-    description: String,
-    modifier: Modifier = Modifier,
-    actions: @Composable (RowScope.() -> Unit)? = null
-) {
-    val colors = AmazeTheme.colors
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)) // Semi-Pill top format rounded-b-2xl
-            .background(colors.surface)
-            .border(1.dp, colors.border, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
-            .padding(top = 18.dp, bottom = 18.dp, start = 24.dp, end = 24.dp)
-    ) {
-        Column {
-            Row(
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = AmazeTheme.typography.display.copy(
-                            color = colors.textPrimary,
-                            fontWeight = FontWeight.Black
-                        )
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = description,
-                        style = AmazeTheme.typography.body.copy(
-                            color = colors.textSecondary
-                        )
-                    )
-                }
-                if (actions != null) {
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.End,
-                        content = actions
-                    )
-                }
-            }
-        }
-    }
-}

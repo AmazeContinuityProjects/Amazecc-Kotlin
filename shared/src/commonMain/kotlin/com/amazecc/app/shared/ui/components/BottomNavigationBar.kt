@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.components
+﻿package com.amazecc.app.shared.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -106,6 +106,9 @@ fun getScreenIconAndLabel(screen: Screen): Pair<ImageVector, String> {
         Screen.SOCIAL -> Icons.Rounded.People to "Social"
         Screen.FFCS_PLANNER -> Icons.Rounded.ViewTimeline to "FFCS"
         Screen.FREE_CLASSROOMS -> Icons.Rounded.MeetingRoom to "Classes"
+        Screen.CALENDAR -> Icons.Rounded.CalendarMonth to "Calendar"
+        Screen.PROJECTS -> Icons.Rounded.Folder to "Projects"
+        Screen.WISHLIST -> Icons.Rounded.FavoriteBorder to "Wishlist"
         else -> Icons.Rounded.Circle to "Unknown"
     }
 }
@@ -179,7 +182,7 @@ fun BottomNavItem(
                         style = AmazeTheme.typography.smallLabel.copy(
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
+                            fontSize = AmazeTheme.fontSize.sm
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

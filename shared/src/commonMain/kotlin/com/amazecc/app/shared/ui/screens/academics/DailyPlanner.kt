@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -262,7 +262,7 @@ fun DailyPlannerScreen() {
                             style = AmazeTheme.typography.smallLabel.copy(
                                 color = if (isSelected) colors.background.copy(alpha = 0.8f) else if (wd.dayOrderOverride != null) colors.accent else colors.textSecondary,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp
+                                fontSize = AmazeTheme.fontSize.micro
                             )
                         )
                         Text(
@@ -270,7 +270,7 @@ fun DailyPlannerScreen() {
                             style = AmazeTheme.typography.subheading.copy(
                                 color = if (isSelected) colors.background else colors.textPrimary,
                                 fontWeight = if (wd.isToday) FontWeight.Black else FontWeight.Bold,
-                                fontSize = if (wd.isToday) 18.sp else 16.sp
+                                fontSize = if (wd.isToday) AmazeTheme.fontSize.xl else AmazeTheme.fontSize.lg
                             )
                         )
                     if (isHoliday) {
@@ -279,7 +279,7 @@ fun DailyPlannerScreen() {
                             style = AmazeTheme.typography.smallLabel.copy(
                                 color = colors.chart5,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 8.sp
+                                fontSize = AmazeTheme.fontSize.micro
                             )
                         )
                     } else if (classCount > 0) {
@@ -287,7 +287,7 @@ fun DailyPlannerScreen() {
                             "$classCount class${if (classCount != 1) "es" else ""}",
                             style = AmazeTheme.typography.smallLabel.copy(
                                 color = if (isSelected) Color.White.copy(alpha=0.7f) else colors.textMuted,
-                                fontSize = 8.sp
+                                fontSize = AmazeTheme.fontSize.micro
                             )
                         )
                     } else {
@@ -295,7 +295,7 @@ fun DailyPlannerScreen() {
                             "Off",
                             style = AmazeTheme.typography.smallLabel.copy(
                                 color = if (isSelected) Color.White.copy(alpha=0.5f) else colors.textMuted.copy(alpha=0.5f),
-                                fontSize = 8.sp
+                                fontSize = AmazeTheme.fontSize.micro
                             )
                         )
                     }
@@ -332,7 +332,7 @@ fun DailyPlannerScreen() {
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🎉", fontSize = 48.sp)
+                    Text("🎉", fontSize = AmazeTheme.fontSize.hero)
                     Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                     Text("No Classes Scheduled", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                     Text("Enjoy your day off!", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))

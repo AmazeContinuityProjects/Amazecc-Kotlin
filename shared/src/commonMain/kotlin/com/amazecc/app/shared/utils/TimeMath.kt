@@ -48,9 +48,4 @@ object TimeMath {
         }
         return out.toString()
     }
-
-    fun getTodayDayIndex(): Int {
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-        return now.dayOfWeek.ordinal
-    }
 }

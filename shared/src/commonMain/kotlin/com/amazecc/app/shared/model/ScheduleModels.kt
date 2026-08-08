@@ -6,15 +6,9 @@ import kotlinx.serialization.Serializable
 data class ExamItem(
     val courseCode: String = "",
     val courseTitle: String = "",
-    val classId: String = "",
     val slot: String = "",
     val examDate: String = "",
-    val examSession: String = "",
-    val reportingTime: String = "",
     val examTime: String = "",
     val venue: String = "",
-    val seatLocation: String = "",
     val seatNo: String = ""
 )
-
-typealias Schedule = Map<String, List<ExamItem>>

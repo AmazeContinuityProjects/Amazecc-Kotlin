@@ -6,6 +6,8 @@ Everything verified (cross-grep) to have zero callers, or to be structurally dea
 
 ## 1. Whole files — safe to delete
 
+> **STATUS: ALL DELETED** (re-verified zero references by grep on 2026-08-07; final build green). Inventory kept for history.
+
 | File | Size | Notes |
 |---|---|---|
 | `ui/screens/academics/AcademicsHub.kt` | 3 ln | "kept for backward compatibility" — nothing left |
@@ -92,8 +94,8 @@ Everything verified (cross-grep) to have zero callers, or to be structurally dea
 | `CampusSchemas.AP_JSON`, `BHOPAL_JSON` (CampusSchemas.kt:277-568) | dead — only `CHENNAI_JSON` consumed (FreeClassroomsScreen:120) |
 | `composeResources/font/outfit_black.ttf`, `geist_black.ttf` | bundled, never referenced (Type.kt registers only regular/bold) |
 | `qrcode-kotlin` library (libs.versions.toml:20,35) | declared, unused — hand-rolled `QRCodeGenerator` used instead (either delete the lib or adopt it to fix H18) |
-| Root `version.properties` (2.0.0/16) vs committed shared copy (2.0.2/18) | drift — pick one source of truth (build task already overwrites) |
-| `hs_err_pid31392.log`, `error.jpg`, `free_lines.txt`, `patch_predictor.py`, `add_imports.py`, `keystore_base64.txt`, `events.json`, `release.keystore` | repo-root clutter; **`keystore_base64.txt` + `release.keystore` + `local.properties` should be gitignored/removed** (credentials in repo!) |
+| Root `version.properties` (2.0.0/16) vs committed shared copy (2.0.2/18) | drift — pick one source of truth (build task already overwrites) — **verified 2026-08-07: no drift** |
+| `hs_err_pid31392.log`, `error.jpg`, `free_lines.txt`, `patch_predictor.py`, `add_imports.py`, `keystore_base64.txt`, `events.json`, `release.keystore` | repo-root clutter — **`keystore_base64.txt` + `release.keystore` removed 2026-08-07 (untracked; release signing runs from GH Actions secrets); `*.keystore`/`local.properties` already gitignored** |
 
 ## 5. Dead strings / UI copy
 
@@ -120,3 +122,26 @@ Everything verified (cross-grep) to have zero callers, or to be structurally dea
 | **Total** | | **~5,000+ LOC (≈25% of codebase)** |
 
 All safe to remove; re-grep each symbol before/after removal to confirm zero references. The single highest-value deletion: `MarksSync.kt` (unbreaks iOS).
+
+## Phase 0 Fix Log (2026-08-06) — deletions executed
+
+- `utils/MarksSync.kt` + `androidMain/.../MarksSync.android.kt` — **deleted** (iOS build restored). **Caveat found during compile:** `PastDataSync.kt` imported the `KeyValueStore` interface that lived in `MarksSync.kt` — the interface was re-defined inside `PastDataSync.kt` to keep it compiling. `PastDataSync.kt` remains on the Phase-4 delete list.
+- `AmazeClient.createLocalCabTrip()` + `getLocalCabTrips()` — **deleted** (only callers were the cab fake-success branches removed in 0.8; `CACHE_CAB_LOCAL_TRIPS` writes had no readers).
+- LoginScreen demo-mode UI (~50 lines) — **deleted**.
+- Remaining inventory unchanged and still valid for Phase 4.
+
+## Phase 2 Fix Log (2026-08-07) — deletion waves, build verified green after each
+
+Every row re-grepped before deletion. `:androidApp:compileDebugKotlin` EXIT=0 after each batch and a final full pass. The commonTest suite can't run on this repo (`:shared:testDebugUnitTest` and `compileTestKotlinAndroid` don't exist — tests only wire to iOS targets), so test sources were verified by symbol availability; `AmazeTests` no longer references `Screen.DASHBOARD` (the enum's `HOME` covers it).
+
+- **Models (§2 fields/classes):** AttendanceModels (`AttendanceItem.slNo/registrationDate/attendanceDate/classId`, `CourseItem`, `DetailedAttendance`), MiscModels (old cab family + `CabShareSeatOptions`, `HostelLeaveRes`, `PromoteRes`, `TimetableRes.courseInfo`, `BusPlacement`/`BusRoute.placements`, pass-response rows, `QBankPaper.paper_id`, `QBankQuestion.exam_year/image_url`, `ClubItem.recruitmentLink`, `CGPAResult` rows, `ProfileImagesCredential` rows, `BookItem.issueDate`, `CabShareTrip` field trims, `CabShareUser.local_only`), GradesModels (6 dead classes + `GradeItem/GradeBreakdown.slNo`), MarksModels (`AssessmentItem.slNo`, `MarksCourseItem.slNo/credits/courseMode`), SemTTModels (`HolidayEvent`/`CalendarRequestBody`/`CalendarInput`), ScheduleModels (`ExamItem` rows + `Schedule` typealias), HostelModels (`LeaveItem.leaveId/remarks`), TaskModels (`referenceUrl`), UpdateModels (`publishedAt`), EventHubModels (`orderId/paymentStatus/receipt/certificate/payNow/payLater`).
+- **API/state (§3 functions/state):** removed 7 legacy `cab/*` client fns + the AppState old-cab flows (cabTrips/myCabTrips/cabJoinRequests + their functions), `getAttendance` wrapper, `getVtopStudentPhoto`, `getMakeupExam/getMakeupSchedule/getCompreInfo`, `getFFCSReport`, `promoteFeedPost`; dead AppState states (`calendarView` + enum, `showSearch`, `decimalValues`, `friendlyName`, `removeCache`); SyncEngine group (CAB_TRIPS entry, `startSync/startSyncGroup/startSyncAll/cancelSync`, `logSaveOffline`, session-refresh + last-sync tracking, `enabledModules/isModuleEnabled`, `syncSessionModules`, orphan imports/scope).
+- **Live-but-not-listed** (re-verified, KEPT): `FeedPost.has_promoted/promote_count` (ClubHubScreen:300-301), `AttendanceItem.viewLinkRaw` (CourseAttendanceScreen/WidgetDataUtils/ODTracker), `CabShareTrip.from_hub_name` (CabShareScreen:307,551,612), `AmazeClient.getCalendars` (live adapter), `getFreeClassroomsSample` (FreeClassroomsWidgetProvider), `ApiMessage`, `DirectoryCCProfile`, `CourseOffering.toKey()`, `SessionManager.currentTheme/currentAccent` (App.kt), `AttendanceTimetable.remainingMinutes/currentTimeInMinutes` (ScreenHeader:297), `SyncProgressPopup.onSaveOffline` (App.kt). The two feed/cab fields were restored after the first compile surfaced them.
+- **FFCS residuals:** removed `ParsedCourse.batch/originalCode/linkId`, `AddedCourse.batch`, `TimetableState.variants`, `CourseLock.offerings` (+ both `offs.map { it.toKey() }` inits), `FfcsConstants.DAYS/TYPE_LABELS/getTypeLabel`, `FfcsTimetableGrid.getCoursesForDayPeriod`, `FfcsViewModel.initFromParsedCourses/setLock` + the 4 public uncollected flows.
+- **UI dead slots & components:** `DashboardScreen` update-result/command-palette/add-task dead slots + `UpdateResultDialog` (deleted) + `onCheckAgain` param; `AmazeGlassCard`/`MetricCard`/`ActionCard`/`AmazeDropdown`/`PageHeaderContainer`; `bouncyClick`/`subtleGlow`/`courseColor`; `CardVariant` trimmed to DEFAULT/ACCENT/ACCENT_SURFACE.
+- **Small residuals:** `TimeMath.getTodayDayIndex`, `SettingsManager.KEY_APP_ICON` + legacy `CACHE_TRANSPORT/_ROUTES/_PASS` (and their logout lines), `FacultyFreeSlotsUtil.formatFreeSlotSummary/getDayLabel/dayLabels`, `AttendanceTimetable.getTodayAttendanceClasses/findCurrentClass/findNextClass/minutesUntil`.
+- **§4 resources:** deleted `files/campus/*`, `files/{changelog,dayscholar_buses,ffcsReport,quickLinks,team}` (only `demoData.json` + `version.properties` are read), fonts `geist_black/outfit_black`; `CampusSchemas.AP_JSON/BHOPAL_JSON`; `qrcode-kotlin` removed from `libs.versions.toml` (never wired); root junk (`hs_err_*.log`, `error.jpg`, `events.json`, `free_lines.txt`, `*.py`). Two `fallbackHubs` collapsed into `fallbackCabHubs` (MiscModels) — `AmazeClient.getCabHubs` + `AppState.fetchCabHubs` now use it.
+- **§5:** `Strings.kt` cut from 101 → 19 live keys; changelog list deduped via `changelogEntries` (AboutScreen imports the ChangelogScreen source). About/Changelog now single-source.
+- **version.properties:** root and committed copy both 2.0.2/18 — no drift, no action.
+- **Deferred (this pass intentionally skipped):** 2.2 duplication merges (KPICard×5, SelectHub/SelectField, Projects/Wishlist/Documents/CourseMgmt), `clearHeaderBackOverride` (needs the H14 leak fix first).
+- **Post-sweep (2026-08-07, Phase 2 finish):** 2.3 fontSize sweep done — `AmazeFontSize` scale (11 tokens), all 333 `fontSize = N.sp` overrides tokenized, sub-10sp cluster raised to 10sp with layout fixes (see `eval/03` H12). 2.4 single-source done — SlotMap day constants (`days`/`weekdays`/`dayLabels`, deduped from FfcsEngine×2/FfcsMetrics×3/FfcsTimetableGrid×2), CGPA extraction (`MarksRes.displayCgpa`/`displayCreditsEarned`, deduped from Academics/GPAPredictor/MetricCards), `semesterMap` seeded from `/api/all-grades` keys (StateFlow, derivation fallback, 10 UI consumers via `collectAsState`), `getCalendars` fetches all 8 calendar types concurrently (no content dedup — all fetched types exposed; Settings "Academic Calendar" lists the 8 fixed types). **Web-parity calendar UX (2026-08-07):** calendar page is by class-group type only (type chips restored from saved preference); semester chips removed from CalendarScreen and relocated to a new Settings "Semester" section wired to `selectSemester` (refreshes attendance/marks/exams/calendars) — matching the web app where `calendarType` and `currSemesterID` are both settings entries.

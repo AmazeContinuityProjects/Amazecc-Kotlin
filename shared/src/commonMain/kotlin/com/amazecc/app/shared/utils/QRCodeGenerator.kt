@@ -44,20 +44,26 @@ object QRCodeGenerator {
             padByte = if (padByte == 0b1110_1100) 0b0001_0001 else 0b1110_1100
         }
 
-        val ecBytes = ecBytesPerBlock(version)
         val blocks = blockCount(version)
-        val ecData = rsEncode(encoded, ecBytes)
-        val interleaved = interleave(encoded, ecData, blocks)
+        val ecPerBlock = ecBytesPerBlock(version)
+        val dataPerBlock = encoded.size / blocks
+        val ecStream = rsEncodePerBlock(encoded, dataPerBlock, blocks, ecPerBlock)
+        val sequence = interleave(encoded, ecStream, blocks, dataPerBlock, ecPerBlock)
 
         val size = version * 4 + 17
         val matrix = Array(size) { BooleanArray(size) }
+        val function = mutableSetOf<Long>()
 
-        placeFinderPatterns(matrix, size)
-        placeTimingPatterns(matrix, size)
+        placeFinderPatterns(matrix, size, function)
+        placeTimingPatterns(matrix, size, function)
+        placeAlignmentPatterns(matrix, version, size, function)
         matrix[size - 8][8] = true
-        placeData(matrix, interleaved, version, size)
-        applyMask(matrix, size)
-        placeFormatInfo(matrix, size, 0b010)
+        function.add((size - 8).toLong() * size + 8)
+
+        placeFormatInfo(matrix, size, 0b010, function)
+        placeData(matrix, sequence, size, function)
+        applyMask(matrix, size, function)
+        placeFormatBits(matrix, size, 0b010)
 
         return matrix.map { it.clone() }
     }
@@ -76,76 +82,101 @@ object QRCodeGenerator {
     }
 
     private fun blockCount(version: Int): Int = when (version) {
-        1, 2, 3, 6 -> 1; 4, 5 -> 2; else -> 1
+        1, 2, 3 -> 1; 4, 5 -> 2; else -> 4
     }
 
     private fun totalDataCodewords(version: Int): Int = when (version) {
         1 -> 16; 2 -> 28; 3 -> 44; 4 -> 64; 5 -> 86; else -> 108
     }
 
-    private fun rsEncode(data: IntArray, ecBytes: Int): IntArray {
-        val rs = ReedSolomon(ecBytes)
-        return rs.encode(data)
+    private fun rsEncodePerBlock(data: IntArray, dataPerBlock: Int, blocks: Int, ecPerBlock: Int): List<IntArray> {
+        val result = mutableListOf<IntArray>()
+        for (blk in 0 until blocks) {
+            val block = data.copyOfRange(blk * dataPerBlock, (blk + 1) * dataPerBlock)
+            result.add(ReedSolomon(ecPerBlock).encode(block))
+        }
+        return result
     }
 
-    private fun interleave(data: IntArray, ec: IntArray, blocks: Int): IntArray {
-        val total = data.size + ec.size
-        val result = IntArray(total)
-        val blockSize = data.size / blocks
-        val ecBlockSize = ec.size / blocks
+    private fun interleave(data: IntArray, ecBlocks: List<IntArray>, blocks: Int, dataSize: Int, ecSize: Int): IntArray {
+        val result = IntArray(dataSize * blocks + ecSize * blocks)
         var pos = 0
-        for (b in 0 until blockSize) {
+        for (b in 0 until dataSize) {
             for (blk in 0 until blocks) {
-                result[pos++] = data[blk * blockSize + b]
+                result[pos++] = data[blk * dataSize + b]
             }
         }
-        for (b in 0 until ecBlockSize) {
+        for (b in 0 until ecSize) {
             for (blk in 0 until blocks) {
-                result[pos++] = ec[blk * ecBlockSize + b]
+                result[pos++] = ecBlocks[blk][b]
             }
         }
         return result
     }
 
-    private fun placeFinderPatterns(matrix: Array<BooleanArray>, size: Int) {
-        for (fx in 0..size - 1 step size - 7) {
-            val fy = 0
+    private fun placeFinderPatterns(matrix: Array<BooleanArray>, size: Int, fn: MutableSet<Long>) {
+        fun drawPattern(tx: Int, ty: Int) {
             for (i in -1..7) for (j in -1..7) {
-                val x = fx + i; val y = fy + j
+                val x = tx + i; val y = ty + j
                 if (x < 0 || x >= size || y < 0 || y >= size) continue
                 matrix[x][y] = when {
                     i == -1 || i == 7 || j == -1 || j == 7 -> true
                     i in 1..5 && j in 1..5 -> false
                     else -> true
                 }
+                fn.add(x.toLong() * size + y)
             }
         }
-        for (i in -1..7) for (j in -1..7) {
-            val x = i; val y = size - 7 + j
-            if (x < 0 || x >= size || y < 0 || y >= size) continue
-            matrix[x][y] = when {
-                i == -1 || i == 7 || j == -1 || j == 7 -> true
-                i in 1..5 && j in 1..5 -> false
-                else -> true
+        drawPattern(0, 0)
+        drawPattern(size - 7, 0)
+        drawPattern(0, size - 7)
+        for (i in 0 until 8) {
+            if (i < size) {
+                matrix[7][i] = false; matrix[i][7] = false
+                fn.add(7L * size + i); fn.add(i.toLong() * size + 7)
+            }
+            if (size - 1 - i >= 0) {
+                matrix[7][size - 1 - i] = false
+                matrix[size - 1 - i][7] = false
+                fn.add(7L * size + (size - 1 - i))
+                fn.add((size - 1 - i).toLong() * size + 7)
             }
         }
         for (i in 0 until 8) {
-            if (i < size) { matrix[7][i] = false; matrix[i][7] = false }
-            if (size - 1 - i >= 0) { matrix[7][size - 1 - i] = false; matrix[size - 1 - i][7] = false }
-        }
-        for (i in 0 until 8) {
-            if (size - 1 - i >= 0) matrix[size - 1 - i][size - 1 - 7] = false
+            if (size - 1 - i >= 0) {
+                matrix[size - 1 - i][size - 1 - 7] = false
+                fn.add((size - 1 - i).toLong() * size + (size - 1 - 7))
+            }
         }
     }
 
-    private fun placeTimingPatterns(matrix: Array<BooleanArray>, size: Int) {
+    private fun placeTimingPatterns(matrix: Array<BooleanArray>, size: Int, fn: MutableSet<Long>) {
         for (i in 8 until size - 8) {
             matrix[i][6] = i % 2 == 0
             matrix[6][i] = i % 2 == 0
+            fn.add(i.toLong() * size + 6)
+            fn.add(6L * size + i)
         }
     }
 
-    private fun placeData(matrix: Array<BooleanArray>, data: IntArray, version: Int, size: Int) {
+    private fun placeAlignmentPatterns(matrix: Array<BooleanArray>, version: Int, size: Int, fn: MutableSet<Long>) {
+        if (version == 1) return
+        val last = 4 * version + 10
+        val coords = listOf(6, last)
+        fun overlapsFinder(r: Int, c: Int): Boolean =
+            (r in 0..8 && c in 0..8) || (r in 0..8 && c in (size - 9) until size) || (r in (size - 9) until size && c in 0..8)
+        for (r in coords) for (c in coords) {
+            if (overlapsFinder(r, c)) continue
+            for (dr in -2..2) for (dc in -2..2) {
+                val x = r + dr; val y = c + dc
+                if (x < 0 || x >= size || y < 0 || y >= size) continue
+                matrix[x][y] = (abs(dr) == 2 || abs(dc) == 2) || (dr == 0 && dc == 0)
+                fn.add(x.toLong() * size + y)
+            }
+        }
+    }
+
+    private fun placeData(matrix: Array<BooleanArray>, data: IntArray, size: Int, fn: MutableSet<Long>) {
         var bitIdx = 0
         var col = size - 1
         var direction = -1
@@ -156,12 +187,10 @@ object QRCodeGenerator {
             for (row in rows) {
                 for (offset in 0..1) {
                     val cx = col - offset
-                    if (cx < 0 || isFunctionModule(matrix, row, cx, size)) continue
+                    if (cx < 0 || fn.contains(row.toLong() * size + cx)) continue
                     val bitVal = (data[bitIdx / 8] shr (7 - (bitIdx % 8))) and 1 == 1
-                    if (bitIdx < data.size * 8) {
-                        matrix[row][cx] = bitVal
-                        bitIdx++
-                    }
+                    matrix[row][cx] = bitVal
+                    bitIdx++
                 }
             }
             col -= 2
@@ -169,22 +198,14 @@ object QRCodeGenerator {
         }
     }
 
-    private fun isFunctionModule(matrix: Array<BooleanArray>, row: Int, col: Int, size: Int): Boolean {
-        if (row < 9 && col < 9) return true
-        if (row < 9 && col >= size - 8) return true
-        if (row >= size - 8 && col < 9) return true
-        if (row == 6 || col == 6) return true
-        return false
-    }
-
-    private fun applyMask(matrix: Array<BooleanArray>, size: Int) {
+    private fun applyMask(matrix: Array<BooleanArray>, size: Int, fn: MutableSet<Long>) {
         for (i in 0 until size) for (j in 0 until size) {
-            if (isFunctionModule(matrix, i, j, size)) continue
+            if (fn.contains(i.toLong() * size + j)) continue
             if ((i + j) % 2 == 0) matrix[i][j] = !matrix[i][j]
         }
     }
 
-    private fun placeFormatInfo(matrix: Array<BooleanArray>, size: Int, maskPattern: Int) {
+    private fun formatBits(maskPattern: Int): Int {
         val ecBits = 0b00 // M
         val dataBits = (ecBits shl 3) or (maskPattern and 0b111)
         var codeword = dataBits shl 10
@@ -194,14 +215,50 @@ object QRCodeGenerator {
                 codeword = codeword xor (generator shl (i - 10))
             }
         }
-        val formatVal = ((dataBits shl 10) or (codeword and 0x3FF)) xor 0b101010000010010
+        return ((dataBits shl 10) or (codeword and 0x3FF)) xor 0b101010000010010
+    }
+
+    private fun placeFormatInfo(matrix: Array<BooleanArray>, size: Int, maskPattern: Int, fn: MutableSet<Long>) {
+        val formatVal = formatBits(maskPattern)
         val bits = BooleanArray(15) { ((formatVal shr (14 - it)) and 1) == 1 }
 
-        for (i in 0..5) { matrix[8][i] = bits[i]; matrix[size - 1 - i][8] = bits[i] }
-        matrix[8][7] = bits[6]; matrix[8][8] = bits[7]; matrix[7][8] = bits[8]
-        for (i in 9..14) { matrix[14 - i][8] = bits[i] }
+        for (i in 0..5) {
+            matrix[8][i] = bits[i]; fn.add(8L * size + i)
+            matrix[size - 1 - i][8] = bits[i]; fn.add((size - 1 - i).toLong() * size + 8)
+        }
+        matrix[8][7] = bits[6]; fn.add(8L * size + 7)
+        matrix[8][8] = bits[7]; fn.add(8L * size + 8)
+        matrix[7][8] = bits[8]; fn.add(7L * size + 8)
+        for (i in 9..14) {
+            matrix[14 - i][8] = bits[i]
+            fn.add((14 - i).toLong() * size + 8)
+        }
         matrix[8][size - 8] = true
-        for (i in 0..6) { matrix[8][size - 7 + i] = bits[14 - i] }
+        fn.add(8L * size + (size - 8))
+        for (i in 0..6) {
+            matrix[8][size - 7 + i] = bits[14 - i]
+            fn.add(8L * size + (size - 7 + i))
+        }
+    }
+
+    private fun placeFormatBits(matrix: Array<BooleanArray>, size: Int, maskPattern: Int) {
+        val formatVal = formatBits(maskPattern)
+        val bits = BooleanArray(15) { ((formatVal shr (14 - it)) and 1) == 1 }
+
+        for (i in 0..5) {
+            matrix[8][i] = bits[i]
+            matrix[size - 1 - i][8] = bits[i]
+        }
+        matrix[8][7] = bits[6]
+        matrix[8][8] = bits[7]
+        matrix[7][8] = bits[8]
+        for (i in 9..14) {
+            matrix[14 - i][8] = bits[i]
+        }
+        matrix[8][size - 8] = true
+        for (i in 0..6) {
+            matrix[8][size - 7 + i] = bits[14 - i]
+        }
     }
 }
 
@@ -213,7 +270,10 @@ private class ReedSolomon(private val ecBytes: Int) {
             if (result[i] != 0) {
                 val factor = gfLog(result[i])
                 for (j in generator.indices) {
-                    result[i + j] = result[i + j] xor gfExp((factor + generator[j]) % 255)
+                    val coeffLog = if (generator[j] != 0) gfLog(generator[j]) else -1
+                    if (coeffLog >= 0) {
+                        result[i + j] = result[i + j] xor gfExp((factor + coeffLog) % 255)
+                    }
                 }
             }
         }

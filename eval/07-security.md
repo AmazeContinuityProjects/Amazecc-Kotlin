@@ -81,3 +81,19 @@ if (useMockData || username.lowercase() == "demo" || username.uppercase() == "DE
 4. Sanitize `$latex` input before injecting into the WebView; bundle MathJax locally.
 5. Remove keystore/secrets from git; rotate the keystore.
 6. Add `HttpTimeout`/`expectSuccess`; remove `usesCleartextTraffic` or scope it.
+
+## Phase 0 Fix Log (2026-08-06)
+
+**0.1 — Demo backdoor (C1) removed.** `AmazeClient.kt:97` no longer accepts `demo`/`DEMO123` usernames; the `"Explore in Demo Mode"` button (`LoginScreen.kt:358-392`) and the post-login mock toggle (`:329-333`) are deleted. All 60 `SessionManager.authorizedID.value == "DEMO123"` gates replaced with `useMockData` only — mocks are now unreachable from any production path (`setUseMockData` has no callers besides the defensive reset at `AppState.kt:550`). The fake-session payload remains only inside the inert mock branch.
+
+**0.2 — Credential storage encrypted.** New `security/Encryption.kt` (commonMain): `expect advancedEncrypt/advancedDecrypt` + `Encryption.encryptOrPlain/decryptOrPlain` (fail-open wrapper so old plaintext values and missing keys never brick login). Android actual: Android Keystore AES-256-GCM, alias `amazecc_credentials_v1`, randomized IV prefixed to ciphertext (Base64). iOS actual: plain passthrough — **documented trade-off** until Keychain cinterop lands (roadmap Phase 2). `SettingsManager` now encrypts at the accessor level: VTOP password (username kept plain — read directly at `SettingsScreen.kt:299`), library pair, moodle pair. Session cookies intentionally left plaintext for now (12+ direct `setString` call sites; rotated every login, cleared on logout) — deferred to Phase 2.
+
+**0.3 — Logout wipe expanded** (see `02-bugs.md`): +16 persisted cache keys, `_studentProfile`/`_vtopPhotoBase64` flows, pending alarms cancelled. Known residual: `course_note_*` keys cannot be enumerated (multiplatform-settings 1.1.1 removed `getKeys()`).
+
+**0.6 — Secrets in git: claim corrected.** `git ls-files` + `git log --all` show `release.keystore`, `keystore_base64.txt`, `keystore.properties`, `local.properties` were **never committed** (only exist on disk). `.gitignore` lines 6, 9-11 already cover all four. No rotation strictly required by repo history; recommend rotating `release.keystore` anyway since it has shipped inside past APKs.
+
+## Demo Mode Fix Log (2026-08-07)
+
+- Demo entry is now an explicit first user action, not a login backdoor: an always-visible "Explore in Demo Mode" button on `LoginScreen.kt` calls `AppState.enterDemoMode()` (`AppState.kt:554`), which sets `AmazeClient.setUseMockData(true)` and seeds an **in-memory-only** session (`SessionManager.saveInMemorySession`, no `SettingsManager` writes). Demo state is wiped on logout/app restart; nothing persisted can ever re-enter demo mode.
+- `login()` remains strict; the mock branch serves data from the bundled `demoData.json`, which is fictional fixture data only — never real credentials/cookies.
+- All 61 mock branches now load from `demoData.json` (JSON-driven, see 01-stub-code.md). No mock fixtures remain in compiled code, removing the previously-shipped synthetic cookies/mojibake bytes from the binary.

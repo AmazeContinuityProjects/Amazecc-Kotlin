@@ -21,14 +21,8 @@ data class EventHubRegisteredEvent(
     val eid: String,
     @SerialName("name") val title: String,
     @SerialName("venue") val location: String,
-    val orderId: String? = null,
     val date: String? = null,
-    val time: String? = null,
-    val paymentStatus: String? = null,
-    val receiptLink: String? = null,
-    val certificateLink: String? = null,
-    val payNowLink: String? = null,
-    val payLaterLink: String? = null
+    val time: String? = null
 )
 
 @Serializable

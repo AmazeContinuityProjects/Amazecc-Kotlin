@@ -10,7 +10,6 @@ serialization = "1.6.3"
 androidx-activity = "1.9.0"
 androidx-appcompat = "1.6.1"
 datetime = "0.6.0"
-qrcode-kotlin = "3.3.0"
 
 [libraries]
 kamel-image = { module = "media.kamel:kamel-image", version.ref = "kamel" }
@@ -21,7 +20,6 @@ kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-c
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
-qrcode-kotlin = { module = "io.github.g0dkar:qrcode-kotlin", version.ref = "qrcode-kotlin" }
 
 # Ktor HTTP Client
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }

@@ -21,10 +21,6 @@ data class FacultyFreeSlotsResult(
 object FacultyFreeSlotsUtil {
 
     private val dayOrder = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")
-    private val dayLabels = mapOf(
-        "MON" to "Monday", "TUE" to "Tuesday", "WED" to "Wednesday",
-        "THU" to "Thursday", "FRI" to "Friday", "SAT" to "Saturday", "SUN" to "Sunday"
-    )
 
     val workingDays = listOf("MON", "TUE", "WED", "THU", "FRI")
 
@@ -162,11 +158,4 @@ object FacultyFreeSlotsUtil {
 
         return result
     }
-
-    fun formatFreeSlotSummary(day: String, times: List<String>): String {
-        if (times.isEmpty()) return "No free slots"
-        return times.joinToString(", ")
-    }
-
-    fun getDayLabel(day: String): String = dayLabels[day] ?: day
 }

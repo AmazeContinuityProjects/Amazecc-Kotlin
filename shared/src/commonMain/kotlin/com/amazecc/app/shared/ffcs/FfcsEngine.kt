@@ -22,7 +22,7 @@ object FfcsEngine {
     fun getPeriodsForSlot(slotStr: String): List<Period> {
         val periods = mutableListOf<Period>()
         val slots = slotStr.split("+").map { it.trim() }.filter { it.isNotEmpty() }
-        for (day in listOf("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN")) {
+        for (day in SlotMap.days) {
             val dayMap = SlotMap.map[day] ?: emptyMap()
             for (s in slots) {
                 val time = dayMap[s] ?: continue
@@ -48,10 +48,9 @@ object FfcsEngine {
 
     private fun slotInBlockedList(slotStr: String, blockedSlots: Set<String>): Boolean {
         val slots = slotStr.split("+").map { it.trim() }
-        for (day in listOf("MON", "TUE", "WED", "THU", "FRI")) {
+        for (day in SlotMap.days) {
             for (s in slots) {
-                val time = SlotMap.map[day]?.get(s) ?: continue
-                if (blockedSlots.contains("$day|$time")) return true
+                if (blockedSlots.contains("$day|$s")) return true
             }
         }
         return false
@@ -76,13 +75,8 @@ object FfcsEngine {
             val lock = lockMap[code]
             var opts = courseOptions
 
-            if (lock != null) {
-                if (lock.allowedFaculty.isNotEmpty()) {
-                    opts = opts.filter { it.faculty in lock.allowedFaculty }
-                }
-                if (lock.allowedSlots.isNotEmpty()) {
-                    opts = opts.filter { it.slot in lock.allowedSlots }
-                }
+            if (lock != null && lock.allowedOfferings.isNotEmpty()) {
+                opts = opts.filter { it.offeringKey() in lock.allowedOfferings }
             }
 
             if (blockedSlots.isNotEmpty()) {
@@ -141,7 +135,7 @@ object FfcsEngine {
         results.mapIndexed { idx, combo ->
             val mappedCourses = combo.mapIndexed { i, c ->
                 AddedCourse(
-                    id = "id_${c.code}_${i}",
+                    id = "tt${idx}_${c.code}_$i",
                     code = c.code,
                     title = c.title,
                     slots = c.slot.split("+").map { it.trim() },

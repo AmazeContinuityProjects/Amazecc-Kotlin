@@ -35,6 +35,13 @@ object SessionManager {
         if (clubToken != null) SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, clubToken)
     }
 
+    fun saveInMemorySession(cookies: String, csrf: String, authorizedID: String, clubToken: String? = null) {
+        _cookies.value = cookies
+        _csrf.value = csrf
+        _authorizedID.value = authorizedID
+        _clubToken.value = clubToken
+    }
+
     fun saveEventHubSession(jsessionid: String) {
         _clubToken.value = jsessionid
         SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, jsessionid)
