@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.libraries
+package com.amazecc.app.shared.ui.screens.libraries
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -32,7 +32,6 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -51,15 +50,6 @@ fun LibrariesScreen() {
     Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Library",
-            description = if (issuedBooks.isNotEmpty()) "${issuedBooks.size} book${if (issuedBooks.size != 1) "s" else ""} issued"
-            else if (loginRequired) "Sign in for issued books"
-            else "Search catalog & manage books",
-            showBackButton = false,
-            showSyncButton = true,
-            onRefresh = { AppState.syncLibrary() }
-        )
 
         Column(modifier = Modifier.fillMaxSize()) {
             HeaderSpacer()

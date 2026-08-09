@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -30,7 +30,6 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.MoodleLoginModal
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -370,17 +369,6 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (showHeader) {
-            ScreenHeader(
-                title = "Academic Calendar",
-                description = "Schedule, exams & assignments",
-                showBackButton = true,
-                showSyncButton = true,
-                onRefresh = { AppState.refreshCalendarsList() },
-                onBackOverride = onBack
-            )
-        }
-
         when {
             loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

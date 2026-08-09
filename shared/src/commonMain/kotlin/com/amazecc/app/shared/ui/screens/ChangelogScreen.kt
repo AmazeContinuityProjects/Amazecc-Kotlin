@@ -20,7 +20,6 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
-import com.amazecc.app.shared.ui.components.ScreenHeader
 
 val changelogEntries = listOf(
     "Phase 3: 15 new features including QBank, Faculty Info, Course Management, Projects, Wishlist, Feedback, Documents, Activity Tree, Spotlight Search, and more",
@@ -40,12 +39,6 @@ fun ChangelogScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Changelog",
-            description = "What's new in AmazeCC",
-            showBackButton = true,
-            showSyncButton = false
-        )
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(16.dp),

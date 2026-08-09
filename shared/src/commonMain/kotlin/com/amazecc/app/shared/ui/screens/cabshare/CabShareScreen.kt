@@ -66,12 +66,6 @@ fun CabShareAuthGate() {
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         Column(modifier = Modifier.fillMaxSize()) {
-            ScreenHeader(
-                title = "Cab Share",
-                description = "Verify VTOP + phone to get started",
-                showBackButton = false,
-                showSyncButton = false
-            )
             HeaderSpacer()
             Column(
                 modifier = Modifier.fillMaxSize().padding(18.dp).verticalScroll(rememberScrollState()),
@@ -142,13 +136,6 @@ fun CabShareContent() {
     }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(
-            title = "Cab Share",
-            description = "Find or offer rides",
-            showBackButton = false,
-            showSyncButton = true,
-            onRefresh = { AppState.cabRefreshMyTripsNew() }
-        )
 
         Column(modifier = Modifier.fillMaxSize()) {
             HeaderSpacer()

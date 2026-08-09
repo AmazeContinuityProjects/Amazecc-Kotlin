@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.more
+package com.amazecc.app.shared.ui.screens.more
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -81,12 +81,6 @@ fun ClubHubScreen() {
         }
         }
 
-        ScreenHeader(
-            title = "Club Hub",
-            description = "Explore clubs and community feed",
-            showBackButton = true,
-            showSyncButton = false
-        )
     }
 }
 

@@ -25,6 +25,7 @@ import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -76,7 +77,8 @@ fun CourseAttendanceScreen() {
             title = course.courseTitle,
             description = "${course.courseCode} • ${course.slotName ?: ""}",
             showBackButton = true,
-            showSyncButton = false
+            showSyncButton = false,
+            enabledScreens = setOf(Screen.COURSE_ATTENDANCE)
         )
 
         HeaderSpacer()

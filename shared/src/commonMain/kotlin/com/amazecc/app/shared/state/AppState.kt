@@ -63,14 +63,10 @@ object AppState {
     private val _currentScreen = MutableStateFlow(Screen.SPLASH)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
     
-    // Floating Header State
-    val headerTitle = MutableStateFlow("")
-    val headerDescription = MutableStateFlow("")
-    val headerShowBack = MutableStateFlow(true)
-    val headerShowSync = MutableStateFlow(true)
-    val headerOnRefresh = MutableStateFlow<(() -> Unit)?>(null)
-    val headerSyncModules = MutableStateFlow<Set<SyncModule>>(emptySet())
-    val headerBackOverride = MutableStateFlow<(() -> Unit)?>(null)
+    // Floating Header State — single source of truth is HeaderConfigs.headerConfigFor(currentScreen);
+    // overrides are published only by dynamic (non-static) screens and are cleared on navigation.
+    val headerOverride = MutableStateFlow<com.amazecc.app.shared.ui.components.HeaderConfig?>(null)
+    private val _headerOverrideOwner = MutableStateFlow<Set<Screen>?>(null)
     
     private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
@@ -702,6 +698,8 @@ object AppState {
             return
         }
         _isAppLibraryOpen.value = false
+        headerOverride.value = null
+        _headerOverrideOwner.value = null
         if (_currentScreen.value != screen) {
             backstack.add(_currentScreen.value)
             _currentScreen.value = screen
@@ -2736,26 +2734,29 @@ fun updateMoodleData(data: MoodleRes?) {
         SettingsManager.setString(SettingsManager.KEY_DASHBOARD_WIDGETS, raw)
     }
 
-    fun setHeader(
-        title: String,
-        description: String? = null,
-        showBackButton: Boolean = false,
-        showSyncButton: Boolean = true,
-        onRefresh: (() -> Unit)? = null,
-        syncModules: List<SyncModule> = emptyList(),
-        onBackOverride: (() -> Unit)? = null
+    fun setHeaderOverride(
+        config: com.amazecc.app.shared.ui.components.HeaderConfig,
+        enabledScreens: Set<Screen>? = null
     ) {
-        headerTitle.value = title
-        headerDescription.value = description ?: ""
-        headerShowBack.value = showBackButton
-        headerShowSync.value = showSyncButton
-        headerOnRefresh.value = onRefresh
-        headerSyncModules.value = syncModules.toSet()
-        headerBackOverride.value = onBackOverride
+        // Only screens that opt in via enabledScreens may override the static config;
+        // this keeps the header deterministic (pager neighbors / crossfades cannot corrupt it).
+        if (enabledScreens == null || _currentScreen.value !in enabledScreens) return
+        headerOverride.value = config
+        _headerOverrideOwner.value = enabledScreens
     }
 
-    fun clearHeaderBackOverride() {
-        headerBackOverride.value = null
+    fun clearHeaderOverride(owner: Set<Screen>? = null) {
+        if (_headerOverrideOwner.value == owner) {
+            headerOverride.value = null
+            _headerOverrideOwner.value = null
+        }
+    }
+
+    fun refreshEventsAndClubs() {
+        scope.launch {
+            syncEventsAndClubs()
+            try { AmazeClient.eventLogin() } catch (_: Exception) { }
+        }
     }
 }
 

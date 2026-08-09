@@ -52,10 +52,6 @@ fun FfcsPlannerScreen() {
     }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(
-            title = "FFCS Planner",
-            description = "Select courses, generate timetables"
-        )
 
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             HeaderSpacer()

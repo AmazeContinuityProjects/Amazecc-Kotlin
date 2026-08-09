@@ -17,7 +17,6 @@ import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.AmazeBadge
 import com.amazecc.app.shared.ui.components.BadgeVariant
 
@@ -32,12 +31,6 @@ fun ArrearTabScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Arrear Management",
-            description = "Track backlogs and exams",
-            showBackButton = true,
-            showSyncButton = true
-        )
 
         Column(modifier = Modifier.fillMaxSize()) {
             com.amazecc.app.shared.ui.components.HeaderSpacer()

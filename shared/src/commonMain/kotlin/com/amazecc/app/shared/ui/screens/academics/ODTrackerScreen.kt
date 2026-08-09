@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,7 +37,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeCard
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.utils.parseViewLink
 import kotlinx.serialization.builtins.MapSerializer
@@ -233,12 +232,6 @@ fun ODTrackerScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "OD Tracker",
-            description = "Track on-duty hours",
-            showBackButton = true,
-            showSyncButton = true
-        )
 
         HeaderSpacer()
 

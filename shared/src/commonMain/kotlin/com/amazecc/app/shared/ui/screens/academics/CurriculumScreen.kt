@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -36,7 +36,6 @@ import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.ui.components.AmazeTextField
 import com.amazecc.app.shared.ui.components.ButtonVariant
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.utils.rememberFileSaver
@@ -141,13 +140,6 @@ fun CurriculumScreen() {
     val saveFile = rememberFileSaver()
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(
-            title = "Curriculum",
-            description = "Track your degree requirements",
-            showBackButton = true,
-            showSyncButton = true,
-            syncModules = setOf(SyncModule.CURRICULUM)
-        )
 
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 88.dp),

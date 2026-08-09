@@ -41,6 +41,7 @@ import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.strings.Strings
@@ -216,7 +217,8 @@ fun CourseDetailScreen(onBack: () -> Unit) {
             title = group.courseCode,
             description = group.courseTitle,
             showBackButton = true,
-            showSyncButton = false
+            showSyncButton = false,
+            enabledScreens = setOf(Screen.COURSE_DETAIL)
         )
 
         Column(modifier = Modifier.fillMaxSize()) {

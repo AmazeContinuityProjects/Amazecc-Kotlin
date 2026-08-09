@@ -25,6 +25,7 @@ import com.amazecc.app.shared.model.FeedbackSemester
 import com.amazecc.app.shared.model.FeedbackTableRow
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import kotlinx.coroutines.async
@@ -61,6 +62,7 @@ fun FeedbackStatusScreen() {
             description = "Course feedback status",
             showBackButton = true,
             showSyncButton = true,
+            enabledScreens = setOf(Screen.FEEDBACK_STATUS),
             onRefresh = {
                 scope.launch {
                     loading = true

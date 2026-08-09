@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -200,25 +201,61 @@ fun App() {
                     }
                     }
 
-                    // Floating top header overlay
-                    if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH && currentScreen != Screen.HOME) {
-                        val headerTitle by AppState.headerTitle.collectAsState()
-                        if (headerTitle.isNotEmpty()) {
-                            val headerDesc by AppState.headerDescription.collectAsState()
-                            val headerBack by AppState.headerShowBack.collectAsState()
-                            val headerSync by AppState.headerShowSync.collectAsState()
-                            val headerRefresh by AppState.headerOnRefresh.collectAsState()
-                            val headerModules by AppState.headerSyncModules.collectAsState()
-                            com.amazecc.app.shared.ui.components.FloatingScreenHeader(
-                                title = headerTitle,
-                                description = headerDesc,
-                                showBackButton = headerBack,
-                                showSyncButton = headerSync,
-                                onRefresh = headerRefresh,
-                                syncModules = headerModules,
-                                modifier = Modifier.align(Alignment.TopCenter)
-                            )
+                    // Floating top header overlay — single source of truth from currentScreen
+                    val isAppLibraryOpen by AppState.isAppLibraryOpen.collectAsState()
+                    val headerOverride by AppState.headerOverride.collectAsState()
+                    val libraryRes by AppState.library.collectAsState()
+                    val libraryLoginRequired by AppState.libraryLoginRequired.collectAsState()
+                    val cabShareUser by AppState.cabShareUser.collectAsState()
+                    val transportData by AppState.transportData.collectAsState()
+                    val busesRes by AppState.buses.collectAsState()
+
+                    val headerConfig = remember(
+                        currentScreen, headerOverride, isAppLibraryOpen,
+                        libraryRes, libraryLoginRequired, cabShareUser, transportData, busesRes
+                    ) {
+                        val base = com.amazecc.app.shared.ui.components.headerConfigFor(currentScreen)
+                            ?: return@remember null
+                        val dynamic = when (currentScreen) {
+                            Screen.LIBRARIES -> {
+                                val issued = libraryRes?.booksIssued ?: emptyList()
+                                val desc = when {
+                                    issued.isNotEmpty() ->
+                                        "${issued.size} book${if (issued.size != 1) "s" else ""} issued"
+                                    libraryLoginRequired -> "Sign in for issued books"
+                                    else -> base.description
+                                }
+                                base.copy(description = desc)
+                            }
+                            Screen.CABSHARE -> if (cabShareUser == null) {
+                                base.copy(description = "Verify VTOP + phone to get started", showSyncButton = false)
+                            } else {
+                                base.copy(
+                                    description = "Find or offer rides",
+                                    showSyncButton = true,
+                                    onRefresh = { AppState.cabRefreshMyTripsNew() }
+                                )
+                            }
+                            Screen.TRANSPORT -> {
+                                val routes = busesRes?.buses ?: emptyList()
+                                val desc = when {
+transportData?.hasRegistration == true ->
+                        "${transportData?.busRouteId ?: ""} - Pass Active"
+                                    routes.isNotEmpty() -> "${routes.size} routes available"
+                                    else -> "Search and explore bus routes"
+                                }
+                                base.copy(description = desc)
+                            }
+                            else -> base
                         }
+                        headerOverride ?: dynamic
+                    }
+
+                    if (headerConfig != null && !isAppLibraryOpen) {
+                        com.amazecc.app.shared.ui.components.FloatingScreenHeader(
+                            config = headerConfig,
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        )
                     }
 
                     // Floating nav bar overlay
@@ -234,7 +271,6 @@ fun App() {
                         }
                     }
 
-                    val isAppLibraryOpen by AppState.isAppLibraryOpen.collectAsState()
                     if (isAppLibraryOpen) {
                         com.amazecc.app.shared.ui.screens.more.MoreScreen()
                     }

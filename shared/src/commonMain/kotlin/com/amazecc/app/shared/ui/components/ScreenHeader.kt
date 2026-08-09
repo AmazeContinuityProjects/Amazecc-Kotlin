@@ -55,17 +55,29 @@ fun ScreenHeader(
     onRefresh: (() -> Unit)? = null,
     syncModules: Set<SyncModule> = emptySet(),
     onBackOverride: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabledScreens: Set<Screen>? = null
 ) {
-    val currentScreen by AppState.currentScreen.collectAsState()
-
-    LaunchedEffect(currentScreen, title, description, showBackButton, showSyncButton, onRefresh, syncModules, onBackOverride) {
-        AppState.setHeader(title, description, showBackButton, showSyncButton, onRefresh, syncModules.toList(), onBackOverride)
+    val config = remember(title, description, showBackButton, showSyncButton, onRefresh, syncModules, onBackOverride) {
+        HeaderConfig(
+            title = title,
+            description = description,
+            showBackButton = showBackButton,
+            showSyncButton = showSyncButton,
+            onRefresh = onRefresh,
+            syncModules = syncModules,
+            onBackOverride = onBackOverride
+        )
     }
 
-    DisposableEffect(currentScreen) {
-        AppState.setHeader(title, description, showBackButton, showSyncButton, onRefresh, syncModules.toList(), onBackOverride)
-        onDispose { }
+    SideEffect {
+        AppState.setHeaderOverride(config, enabledScreens)
+    }
+
+    if (enabledScreens != null) {
+        DisposableEffect(enabledScreens) {
+            onDispose { AppState.clearHeaderOverride(enabledScreens) }
+        }
     }
 }
 
@@ -84,21 +96,13 @@ fun HeaderSpacer(
 
 @Composable
 fun FloatingScreenHeader(
-    title: String,
-    description: String,
-    showBackButton: Boolean = true,
-    showSyncButton: Boolean = true,
+    config: HeaderConfig,
     isScrolled: Boolean = false,
-    onRefresh: (() -> Unit)? = null,
-    syncModules: Set<SyncModule> = emptySet(),
     modifier: Modifier = Modifier
 ) {
     val colors = AmazeTheme.colors
     val isLoading by AppState.isLoading.collectAsState()
-    val syncStatus by AppState.syncStatus.collectAsState()
     val moduleStates by SyncEngine.moduleStates.collectAsState()
-    val appHeaderRefresh by AppState.headerOnRefresh.collectAsState()
-    val headerBackOverride by AppState.headerBackOverride.collectAsState()
 
     val headerElevation by androidx.compose.animation.core.animateDpAsState(
         targetValue = if (isScrolled) 20.dp else 10.dp,
@@ -113,31 +117,23 @@ fun FloatingScreenHeader(
         animationSpec = bouncySpring()
     )
 
-    val effectiveModules = remember(syncModules) {
-        if (syncModules.isNotEmpty()) syncModules
-        else AppState.headerSyncModules.value
-    }
+    val effectiveModules = config.syncModules
 
     val isModuleLoading = remember(effectiveModules, moduleStates, isLoading) {
         if (effectiveModules.isEmpty()) isLoading
         else isLoading || effectiveModules.any { moduleStates[it]?.status == SyncStatus.LOADING }
     }
 
-    val moduleSyncText = remember(effectiveModules, moduleStates) {
-        effectiveModules.firstOrNull { moduleStates[it]?.status == SyncStatus.LOADING }
-            ?.let { moduleStates[it]?.let { "Syncing ${it.status.name}..." } }
+    val syncAction: () -> Unit = {
+        if (config.onRefresh != null) {
+            config.onRefresh()
+        } else if (effectiveModules.isNotEmpty()) {
+            SyncEngine.setShowSyncDialog(true, minimized = true)
+            AppState.loadAllData()
+        } else {
+            AppState.loadAllData()
+        }
     }
-
-    val effectiveRefresh = onRefresh ?: appHeaderRefresh
-
-    val infiniteTransition = androidx.compose.animation.core.rememberInfiniteTransition()
-    val rotationAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            animation = androidx.compose.animation.core.tween(1000, easing = androidx.compose.animation.core.LinearEasing)
-        )
-    )
 
     Box(
         modifier = modifier
@@ -147,7 +143,7 @@ fun FloatingScreenHeader(
             .clip(RoundedCornerShape(26.dp))
             .background(colors.navBackground.copy(alpha = bgAlpha))
             .border(1.dp, colors.accent.copy(alpha = borderAlpha), RoundedCornerShape(26.dp))
-            .padding(vertical = 12.dp, horizontal = 14.dp)
+            .padding(vertical = 10.dp, horizontal = 12.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
@@ -155,136 +151,114 @@ fun FloatingScreenHeader(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 modifier = Modifier.fillMaxWidth()
             ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                if (showBackButton) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                    if (config.showBackButton) {
+                        IconButton(
+                            onClick = { config.onBackOverride?.invoke() ?: AppState.navigateBack() },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(colors.accent.copy(alpha = 0.12f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back",
+                                tint = colors.textPrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                    } else {
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = config.title,
+                            style = AmazeTheme.typography.display.copy(
+                                color = colors.textPrimary,
+                                fontSize = AmazeTheme.fontSize.xl,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (config.description.isNotEmpty()) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = config.description,
+                                style = AmazeTheme.typography.caption.copy(
+                                    color = colors.textSecondary,
+                                    fontSize = AmazeTheme.fontSize.sm
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
-                        onClick = { headerBackOverride?.invoke() ?: AppState.navigateBack() },
+                        onClick = { AppState.openCommandPalette() },
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(36.dp)
                             .background(colors.accent.copy(alpha = 0.12f), CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = "Back",
-                            tint = colors.textPrimary,
-                            modifier = Modifier.size(20.dp)
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = "Search App",
+                            tint = colors.accent,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                } else {
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = AmazeTheme.typography.display.copy(
-                            color = colors.textPrimary,
-                            fontSize = AmazeTheme.fontSize.xl,
-                            fontWeight = FontWeight.Bold
-                        ),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (description.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = description,
-                            style = AmazeTheme.typography.caption.copy(
-                                color = colors.textSecondary,
-                                fontSize = AmazeTheme.fontSize.sm
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (isModuleLoading && (moduleSyncText ?: syncStatus) != null) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = moduleSyncText ?: syncStatus ?: "",
-                            style = AmazeTheme.typography.smallLabel.copy(
-                                color = colors.accent,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = AmazeTheme.fontSize.xs
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
 
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = { AppState.openCommandPalette() },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(colors.accent.copy(alpha = 0.12f), CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = "Search App",
-                        tint = colors.accent,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-
-                if (showSyncButton) {
-                    Spacer(modifier = Modifier.width(8.dp))
-                    val syncAction: () -> Unit = {
-                        if (effectiveRefresh != null) {
-                            effectiveRefresh()
-                        } else if (effectiveModules.isNotEmpty()) {
-                            SyncEngine.setShowSyncDialog(true, minimized = true)
-                            AppState.loadAllData()
-                        } else {
-                            AppState.loadAllData()
+                    if (config.showSyncButton) {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(colors.accent.copy(alpha = if (isModuleLoading) 0.20f else 0.12f), CircleShape)
+                                .clickable(enabled = !isModuleLoading, onClick = syncAction),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isModuleLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = colors.accent,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Rounded.Refresh,
+                                    contentDescription = "Sync Data",
+                                    tint = colors.accent,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     }
-                    IconButton(
-                        onClick = syncAction,
-                        enabled = !isModuleLoading,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(colors.accent.copy(alpha = if (isModuleLoading) 0.20f else 0.12f), CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Sync Data",
-                            tint = colors.accent,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .graphicsLayer {
-                                    if (isModuleLoading) {
-                                        rotationZ = rotationAngle
-                                    }
-                                }
-                        )
-                    }
                 }
             }
 
+            val currentLiveClass by AppState.currentLiveClass.collectAsState()
+            val tick by AppState.liveClassTick.collectAsState()
 
-        }
-        
-        val currentLiveClass by AppState.currentLiveClass.collectAsState()
-        val tick by AppState.liveClassTick.collectAsState()
-        
-        androidx.compose.animation.AnimatedVisibility(
-            visible = currentLiveClass != null,
-            enter = androidx.compose.animation.slideInVertically(initialOffsetY = { -it }) + androidx.compose.animation.fadeIn(),
-        ) {
-            currentLiveClass?.let { cls ->
-                Spacer(modifier = Modifier.height(14.dp))
-                DynamicIslandLiveClass(
-                    cls = cls,
-                    tick = tick,
-                    colors = colors
-                )
+            androidx.compose.animation.AnimatedVisibility(
+                visible = currentLiveClass != null,
+                enter = androidx.compose.animation.slideInVertically(initialOffsetY = { -it }) + androidx.compose.animation.fadeIn(),
+            ) {
+                currentLiveClass?.let { cls ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    DynamicIslandLiveClass(
+                        cls = cls,
+                        tick = tick,
+                        colors = colors
+                    )
+                }
             }
         }
-        } // Closing for Column
     }
 }
 
@@ -371,4 +345,3 @@ fun DynamicIslandLiveClass(
         }
     }
 }
-

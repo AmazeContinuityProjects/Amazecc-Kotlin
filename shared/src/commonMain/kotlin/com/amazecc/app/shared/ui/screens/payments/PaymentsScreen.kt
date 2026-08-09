@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.payments
+package com.amazecc.app.shared.ui.screens.payments
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,7 +27,6 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeBadge
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.BadgeVariant
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.model.PaymentItem
@@ -47,13 +46,6 @@ fun PaymentsScreen() {
     }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(
-            title = "Payments",
-            description = "View dues and transaction history",
-            showBackButton = false,
-            showSyncButton = true,
-            onRefresh = AppState::refreshPayments
-        )
 
         Column(modifier = Modifier.fillMaxSize()) {
             com.amazecc.app.shared.ui.components.HeaderSpacer()

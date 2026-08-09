@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -30,7 +30,6 @@ import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.strings.Strings
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import kotlinx.coroutines.launch
 
 @Composable
@@ -54,12 +53,6 @@ fun CircularsScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Circulars",
-            description = "Academic notices and circulars",
-            showBackButton = true,
-            showSyncButton = false
-        )
 
         if (loading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

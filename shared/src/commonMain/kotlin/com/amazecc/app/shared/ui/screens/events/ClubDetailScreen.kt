@@ -42,7 +42,7 @@ fun ClubDetailScreen() {
 
     if (club == null) {
         Column(modifier = Modifier.fillMaxSize()) {
-            ScreenHeader(title = "Club Details", description = "Club not found", showBackButton = true, showSyncButton = false)
+            ScreenHeader(title = "Club Details", description = "Club not found", showBackButton = true, showSyncButton = false, enabledScreens = setOf(Screen.CLUB_DETAIL))
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Club not found", color = colors.textMuted)
             }
@@ -181,6 +181,6 @@ fun ClubDetailScreen() {
             }
         }
         
-        ScreenHeader(title = club.name ?: "Club Details", description = "Club Information", showBackButton = true, showSyncButton = false)
+        ScreenHeader(title = club.name ?: "Club Details", description = "Club Information", showBackButton = true, showSyncButton = false, enabledScreens = setOf(Screen.CLUB_DETAIL))
     }
 }

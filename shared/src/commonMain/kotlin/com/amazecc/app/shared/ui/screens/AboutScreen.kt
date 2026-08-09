@@ -32,7 +32,6 @@ fun AboutScreen() {
     val changes = changelogEntries
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(title = Strings.about, description = "AmazeCC Student Companion", showBackButton = true)
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),

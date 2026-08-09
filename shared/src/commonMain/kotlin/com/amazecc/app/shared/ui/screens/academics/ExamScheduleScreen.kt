@@ -25,7 +25,6 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 
 @Composable
@@ -52,13 +51,6 @@ fun ExamScheduleScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Exam Schedule",
-            description = "Upcoming exams, seating, and venue",
-            showBackButton = true,
-            showSyncButton = true,
-            onRefresh = AppState::refreshExamSchedule
-        )
 
         HeaderSpacer()
 

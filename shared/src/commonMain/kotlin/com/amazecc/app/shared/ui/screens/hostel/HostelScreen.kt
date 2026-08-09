@@ -39,13 +39,6 @@ fun HostelScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Hostel Hub",
-            description = "Manage mess, outings, laundry & counseling",
-            showBackButton = false,
-            showSyncButton = true,
-            onRefresh = AppState::refreshHostel
-        )
 
         Column(modifier = Modifier.fillMaxSize()) {
             com.amazecc.app.shared.ui.components.HeaderSpacer()

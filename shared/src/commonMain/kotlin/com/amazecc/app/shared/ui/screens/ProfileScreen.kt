@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens
+package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -44,13 +44,6 @@ fun ProfileScreen() {
     Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
     ) {
-        ScreenHeader(
-            title = Strings.profile,
-            description = "Your personal information",
-            showBackButton = false,
-            showSyncButton = true,
-            onRefresh = AppState::refreshProfile
-        )
 
         ProfileContent(colors)
     }

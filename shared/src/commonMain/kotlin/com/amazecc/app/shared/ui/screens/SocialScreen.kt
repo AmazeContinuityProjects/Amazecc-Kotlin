@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens
+package com.amazecc.app.shared.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -57,13 +57,6 @@ fun SocialScreen() {
     Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Social & Friends",
-            description = "Find friends and match timetables",
-            showBackButton = false,
-            showSyncButton = true,
-            onRefresh = AppState::refreshCurrentSemester
-        )
 
         Column(modifier = Modifier.fillMaxSize()) {
             com.amazecc.app.shared.ui.components.HeaderSpacer()

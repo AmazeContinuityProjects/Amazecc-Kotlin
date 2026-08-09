@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
@@ -46,7 +46,6 @@ import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.HeaderSpacer
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.bouncySpring
 import kotlinx.coroutines.delay
 import kotlinx.datetime.*
@@ -128,7 +127,6 @@ fun TasksScreen() {
     } else "0m"
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(title = "Tasks & Study Planner", description = "Workload, subtasks, focus sessions & Kanban", showBackButton = true)
 
         Column(modifier = Modifier.fillMaxSize()) {
             HeaderSpacer()

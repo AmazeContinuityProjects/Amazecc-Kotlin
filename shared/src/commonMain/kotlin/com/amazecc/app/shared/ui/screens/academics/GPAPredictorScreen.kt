@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,7 +33,6 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.model.displayCgpa
 import com.amazecc.app.shared.model.displayCreditsEarned
 import com.amazecc.app.shared.ui.components.HeaderSpacer
@@ -89,12 +88,6 @@ fun GPAPredictorScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "CGPA Predictor",
-            description = "Project your CGPA or find the grade you need",
-            showBackButton = true,
-            showSyncButton = false
-        )
 
         Column(
             modifier = Modifier

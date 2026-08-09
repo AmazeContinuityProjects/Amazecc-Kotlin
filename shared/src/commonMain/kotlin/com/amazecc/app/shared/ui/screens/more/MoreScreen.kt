@@ -113,8 +113,7 @@ fun MoreScreen() {
 
             // ACCOUNT & SETTINGS
             AppLibraryItem("My Info", "Registration details & academic bio", Icons.Rounded.Person, "Account", targetScreen = Screen.PROFILE, pinnableScreen = null),
-            AppLibraryItem("Credentials", "Saved VTOP, Moodle & Library logins", Icons.Rounded.Lock, "Account", targetScreen = Screen.SETTINGS, pinnableScreen = null),
-            AppLibraryItem("Settings", "App theme, bottom bar & alerts", Icons.Rounded.Settings, "Account", targetScreen = Screen.SETTINGS, pinnableScreen = null),
+            AppLibraryItem("Settings", "App theme, bottom bar, alerts & credentials", Icons.Rounded.Settings, "Account", targetScreen = Screen.SETTINGS, pinnableScreen = null),
             AppLibraryItem("About & Resources", "Version info, open source & legal", Icons.Rounded.Info, "Account", targetScreen = Screen.ABOUT, pinnableScreen = null),
             AppLibraryItem("Fresher's Welcome", "Orientation guide & starter kit", Icons.Rounded.Star, "Account", targetScreen = Screen.FRESHER_WELCOME, pinnableScreen = null),
             AppLibraryItem("Log Out", "Log out active student session", Icons.Rounded.Logout, "Account", onClickOverride = { showLogoutConfirm = true }, pinnableScreen = null)

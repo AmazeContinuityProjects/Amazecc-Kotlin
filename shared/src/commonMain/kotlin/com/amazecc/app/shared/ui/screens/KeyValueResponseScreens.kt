@@ -39,7 +39,6 @@ import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.DataTableCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.KPICard
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import kotlinx.coroutines.launch
 
 @Composable
@@ -67,12 +66,6 @@ fun KeyValueResponseScreen(
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = title,
-            description = description,
-            showBackButton = true,
-            showSyncButton = false
-        )
 
         if (loading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -161,12 +154,6 @@ fun TabbedKeyValueScreen(
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = title,
-            description = description,
-            showBackButton = true,
-            showSyncButton = false
-        )
 
         TabRow(
             selectedTabIndex = activeTab,

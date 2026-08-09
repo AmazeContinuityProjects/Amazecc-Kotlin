@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -316,13 +316,6 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
     val isCurrentSlotSelected = selectedDay == currentDayKey && selectedTime == currentSlotPeriod
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(
-            title = "Free Classrooms",
-            description = "Find live available empty rooms on campus",
-            showBackButton = true,
-            showSyncButton = false,
-            onBackOverride = onBack
-        )
 
         // Single Top-Level LazyVerticalGrid for FULL PAGE SCROLLING
         LazyVerticalGrid(

@@ -51,7 +51,8 @@ fun MoodleScreen() {
             description = "Track your assignments and coursework",
             showBackButton = true,
             showSyncButton = !showLogin,
-            onRefresh = { showLogin = true }
+            onRefresh = { showLogin = true },
+            enabledScreens = setOf(Screen.MOODLE)
         )
 
         if (showLogin) {

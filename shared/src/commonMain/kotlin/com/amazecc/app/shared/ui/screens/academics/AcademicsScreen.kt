@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -31,7 +31,6 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.CardVariant
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
@@ -90,13 +89,6 @@ fun AcademicsScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Academics Hub",
-            description = "Student OS",
-            showBackButton = false,
-            showSyncButton = true,
-            onRefresh = AppState::refreshCurrentSemester
-        )
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

@@ -19,7 +19,6 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
-import com.amazecc.app.shared.ui.components.ScreenHeader
 
 @Composable
 fun HallOfFameScreen() {
@@ -37,12 +36,6 @@ fun HallOfFameScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Hall of Fame",
-            description = "Contributors who made this possible",
-            showBackButton = true,
-            showSyncButton = false
-        )
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(16.dp),

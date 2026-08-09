@@ -238,8 +238,6 @@ fun FacultyInfoScreen() {
                 }
             }
         }
-        
-        ScreenHeader(title = "Faculty Info", description = "Global Faculty Directory", showBackButton = true)
     }
 }
 
@@ -329,14 +327,9 @@ fun FacultyDetailScreen(
         description = faculty.designation,
         showBackButton = true,
         showSyncButton = false,
-        onBackOverride = onBack
+        onBackOverride = onBack,
+        enabledScreens = setOf(com.amazecc.app.shared.state.Screen.FACULTY_INFO)
     )
-
-    DisposableEffect(Unit) {
-        onDispose {
-            AppState.clearHeaderBackOverride()
-        }
-    }
 
     val schedule = remember(faculty) {
         FacultyFreeSlotsUtil.getFacultySchedule(faculty)

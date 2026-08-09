@@ -92,7 +92,6 @@ fun QBankScreen() {
                 }
             }
         } else {
-            ScreenHeader(title = "Exam Prep Hub & QBank", description = "Targeted practice papers and exam preparation", showBackButton = true)
         }
 
         if (loading) {

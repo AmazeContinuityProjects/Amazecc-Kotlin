@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.events
+package com.amazecc.app.shared.ui.screens.events
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.Image
@@ -54,15 +54,6 @@ fun EventHubScreen() {
     }
 
     Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(
-            title = "Events",
-            description = "Discover tech fests and meetups",
-            showBackButton = false,
-            showSyncButton = true,
-            onRefresh = {
-                scope.launch { AppState.syncEventsAndClubs(); AmazeClient.eventLogin() }
-            }
-        )
         Column(modifier = Modifier.fillMaxSize()) {
             HeaderSpacer()
             Box(modifier = Modifier.weight(1f).padding(horizontal = 16.dp)) {

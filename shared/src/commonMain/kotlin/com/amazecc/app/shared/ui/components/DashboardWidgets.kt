@@ -447,7 +447,6 @@ private fun ManageWidgetsDialog(
     onDismiss: () -> Unit
 ) {
     val colors = AmazeTheme.colors
-    val widgetOrder by AppState.widgetOrder.collectAsState()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -486,80 +485,7 @@ private fun ManageWidgetsDialog(
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
 
-                DashboardWidget.entries.forEach { widget ->
-                    val isEnabled = widget in widgetOrder
-                    val index = widgetOrder.indexOf(widget)
-
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = if (isEnabled) colors.accentSurface.copy(alpha = 0.2f) else colors.surface
-                        ),
-                        shape = RoundedCornerShape(AmazeTheme.radius.medium),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Switch(
-                                checked = isEnabled,
-                                onCheckedChange = { AppState.setWidgetEnabled(widget, it) },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color.White,
-                                    checkedTrackColor = colors.accent,
-                                    uncheckedThumbColor = colors.textMuted,
-                                    uncheckedTrackColor = colors.border
-                                )
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    getWidgetTitle(widget),
-                                    style = AmazeTheme.typography.body.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isEnabled) colors.textPrimary else colors.textMuted
-                                    )
-                                )
-                                Text(
-                                    getWidgetDescription(widget),
-                                    style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            if (isEnabled) {
-                                Column {
-                                    IconButton(
-                                        onClick = { AppState.moveWidgetUp(widget) },
-                                        enabled = index > 0,
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Rounded.KeyboardArrowUp,
-                                            "Move Up",
-                                            tint = if (index > 0) colors.textPrimary else colors.textMuted.copy(alpha = 0.3f),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                    IconButton(
-                                        onClick = { AppState.moveWidgetDown(widget) },
-                                        enabled = index >= 0 && index < widgetOrder.lastIndex,
-                                        modifier = Modifier.size(28.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Rounded.KeyboardArrowDown,
-                                            "Move Down",
-                                            tint = if (index >= 0 && index < widgetOrder.lastIndex) colors.textPrimary else colors.textMuted.copy(alpha = 0.3f),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                DashboardWidgetRows()
             }
         },
         containerColor = colors.surface,
@@ -567,7 +493,88 @@ private fun ManageWidgetsDialog(
     )
 }
 
-private fun getWidgetTitle(widget: DashboardWidget): String = when (widget) {
+@Composable
+internal fun DashboardWidgetRows() {
+    val colors = AmazeTheme.colors
+    val widgetOrder by AppState.widgetOrder.collectAsState()
+
+    DashboardWidget.entries.forEach { widget ->
+        val isEnabled = widget in widgetOrder
+        val index = widgetOrder.indexOf(widget)
+
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (isEnabled) colors.accentSurface.copy(alpha = 0.2f) else colors.surface
+            ),
+            shape = RoundedCornerShape(AmazeTheme.radius.medium),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Switch(
+                    checked = isEnabled,
+                    onCheckedChange = { AppState.setWidgetEnabled(widget, it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = colors.accent,
+                        uncheckedThumbColor = colors.textMuted,
+                        uncheckedTrackColor = colors.border
+                    )
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        getWidgetTitle(widget),
+                        style = AmazeTheme.typography.body.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = if (isEnabled) colors.textPrimary else colors.textMuted
+                        )
+                    )
+                    Text(
+                        getWidgetDescription(widget),
+                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (isEnabled) {
+                    Column {
+                        IconButton(
+                            onClick = { AppState.moveWidgetUp(widget) },
+                            enabled = index > 0,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.KeyboardArrowUp,
+                                "Move Up",
+                                tint = if (index > 0) colors.textPrimary else colors.textMuted.copy(alpha = 0.3f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = { AppState.moveWidgetDown(widget) },
+                            enabled = index >= 0 && index < widgetOrder.lastIndex,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.KeyboardArrowDown,
+                                "Move Down",
+                                tint = if (index >= 0 && index < widgetOrder.lastIndex) colors.textPrimary else colors.textMuted.copy(alpha = 0.3f),
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun getWidgetTitle(widget: DashboardWidget): String = when (widget) {
     DashboardWidget.PROFILE_HEADER -> "Profile Header & Actions"
     DashboardWidget.METRIC_CARDS -> "Quick Stats (CGPA & Credits)"
     DashboardWidget.CURRENT_NEXT_CLASS -> "Current & Next Class Tracker"
@@ -578,7 +585,7 @@ private fun getWidgetTitle(widget: DashboardWidget): String = when (widget) {
     DashboardWidget.FREE_CLASSROOMS -> "Free Classrooms Finder"
 }
 
-private fun getWidgetDescription(widget: DashboardWidget): String = when (widget) {
+internal fun getWidgetDescription(widget: DashboardWidget): String = when (widget) {
     DashboardWidget.PROFILE_HEADER -> "Greeting, avatar, sync status & search"
     DashboardWidget.METRIC_CARDS -> "CGPA, earned credits & active ODs"
     DashboardWidget.CURRENT_NEXT_CLASS -> "Compact view showing ongoing & upcoming class"

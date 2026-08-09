@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
@@ -39,7 +39,6 @@ import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.AmazeCard
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.utils.AttendanceDay
 import com.amazecc.app.shared.utils.AttendanceTimetable
@@ -68,13 +67,6 @@ fun AttendanceScreen() {
             .fillMaxSize()
             .background(colors.background)
     ) {
-        ScreenHeader(
-            title = "Attendance Hub",
-            description = "Track your attendance, view timelines and predict shortfalls",
-            showBackButton = true,
-            showSyncButton = true,
-            onRefresh = AppState::refreshCurrentSemester
-        )
         HeaderSpacer()
 
         Row(

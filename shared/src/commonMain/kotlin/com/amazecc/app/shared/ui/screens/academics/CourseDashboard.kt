@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.theme.AmazeTheme
 import androidx.compose.animation.core.animateFloatAsState
@@ -77,7 +78,8 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
             showBackButton = true,
             showSyncButton = true,
             onRefresh = AppState::refreshAllAcademic,
-            onBackOverride = onBack
+            onBackOverride = onBack,
+            enabledScreens = setOf(Screen.ACADEMICS, Screen.COURSE_DASHBOARD)
         )
 
         LazyColumn(

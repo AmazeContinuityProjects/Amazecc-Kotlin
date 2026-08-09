@@ -18,6 +18,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -30,7 +32,6 @@ import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import androidx.compose.ui.platform.LocalUriHandler
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -70,18 +71,6 @@ fun TransportScreen() {
             contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
         ) {
             item {
-                ScreenHeader(
-                    title = "Dayscholar Bus Hub",
-                    description = if (transportData?.hasRegistration == true) {
-                        "${transportData.busRouteId ?: ""} - Pass Active"
-                    } else if (routes.isNotEmpty()) {
-                        "${routes.size} routes available"
-                    } else {
-                        "Search and explore bus routes"
-                    },
-                    showSyncButton = true,
-                    onRefresh = { AppState.refreshTransport() }
-                )
                 com.amazecc.app.shared.ui.components.HeaderSpacer()
             }
             
@@ -567,11 +556,6 @@ private fun BusRouteCard(
     val themeColor = if (isAC) colors.chart2 else colors.chart1
 
     val cardBgGradient = remember(gradientColors) { Brush.linearGradient(gradientColors) }
-    val blobGradient = remember(themeColor) {
-        Brush.radialGradient(
-            colors = listOf(themeColor.copy(alpha = 0.3f), Color.Transparent)
-        )
-    }
 
     Box(
         modifier = Modifier
@@ -581,17 +565,20 @@ private fun BusRouteCard(
             .background(cardBgGradient)
             .background(colors.surface.copy(alpha = 0.85f))
             .border(1.dp, themeColor.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.large))
+            .drawBehind {
+                val blobCenter = Offset(30.dp.toPx(), size.height - 30.dp.toPx())
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(themeColor.copy(alpha = 0.3f), Color.Transparent),
+                        center = blobCenter,
+                        radius = 60.dp.toPx()
+                    ),
+                    radius = 60.dp.toPx(),
+                    center = blobCenter
+                )
+            }
             .clickable(onClick = onClick)
     ) {
-        // Blob effect
-        Box(
-            modifier = Modifier
-                .size(120.dp)
-                .align(Alignment.BottomStart)
-                .offset(x = (-30).dp, y = 30.dp)
-                .background(blobGradient, shape = CircleShape)
-        )
-
         Column(
             modifier = Modifier.padding(
                 start = 14.dp,

@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.GradeItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.components.ScreenHeader
 import kotlin.math.*
 
 private val gradeColorIndex = mapOf(
@@ -67,12 +66,6 @@ fun GradesScreen() {
     val gradeList = selectedSemester?.grades ?: emptyList()
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(
-            title = "Grade History",
-            description = "All semesters — GPA and course grades",
-            showBackButton = true,
-            showSyncButton = false
-        )
         com.amazecc.app.shared.ui.components.HeaderSpacer()
 
         Column(
