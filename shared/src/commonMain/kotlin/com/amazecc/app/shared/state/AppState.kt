@@ -75,8 +75,19 @@ object AppState {
     private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
 
+    private val _isAppLibraryOpen = MutableStateFlow(false)
+    val isAppLibraryOpen: StateFlow<Boolean> = _isAppLibraryOpen.asStateFlow()
+
+    fun openAppLibrary() {
+        _isAppLibraryOpen.value = true
+    }
+
+    fun closeAppLibrary() {
+        _isAppLibraryOpen.value = false
+    }
+
     val tabScreens: List<Screen>
-        get() = listOf(Screen.HOME) + _pinnedNavTabs.value + Screen.MORE
+        get() = listOf(Screen.HOME) + _pinnedNavTabs.value
 
     // Sync Notifications
     private val notificationService = com.amazecc.app.shared.services.NotificationService()
@@ -686,6 +697,11 @@ object AppState {
         }
 
     fun navigateTo(screen: Screen) {
+        if (screen == Screen.MORE) {
+            _isAppLibraryOpen.value = true
+            return
+        }
+        _isAppLibraryOpen.value = false
         if (_currentScreen.value != screen) {
             backstack.add(_currentScreen.value)
             _currentScreen.value = screen

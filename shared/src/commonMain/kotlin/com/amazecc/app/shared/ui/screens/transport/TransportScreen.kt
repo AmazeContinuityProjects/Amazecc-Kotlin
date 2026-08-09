@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.transport
+package com.amazecc.app.shared.ui.screens.transport
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
@@ -162,6 +162,8 @@ private fun TransportRegistrationCard(
     onApplyClick: () -> Unit
 ) {
     val isActive = transportData?.hasRegistration == true
+    var showHeroDetails by remember { mutableStateOf(false) }
+
 
     val cardGradient = remember(isActive, colors) {
         Brush.linearGradient(
@@ -297,16 +299,7 @@ private fun TransportRegistrationCard(
                                 Text(it, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.SemiBold))
                             }
                             transportData?.busRouteId?.let {
-                                Text("Bus $it", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                            }
-                        }
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                "REG. NO.",
-                                style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
-                            )
-                            transportData?.registerNumber?.let {
-                                Text(it, style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontWeight = FontWeight.SemiBold))
+                                Text("Bus Pass No: $it", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
                             }
                         }
                     }
@@ -314,20 +307,37 @@ private fun TransportRegistrationCard(
                     Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
                     
                     Button(
-                        onClick = { /* TODO: Implement tracking or open VTOP */ },
+                        onClick = { showHeroDetails = !showHeroDetails },
                         shape = RoundedCornerShape(AmazeTheme.radius.small),
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = colors.accent)
                     ) {
-                        Icon(Icons.Rounded.LocationOn, null, modifier = Modifier.size(18.dp))
+                        Icon(if (showHeroDetails) Icons.Rounded.ExpandLess else Icons.Rounded.Visibility, null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                        Text("Track Bus", fontWeight = FontWeight.Bold)
+                        Text(if (showHeroDetails) "Hide Details" else "Show Details", fontWeight = FontWeight.Bold)
+                    }
+
+                    if (showHeroDetails) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Pass & Route Details", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.Bold))
+                            if (!transportData?.busRouteId.isNullOrBlank()) {
+                                Text("Bus Pass Number: ${transportData?.busRouteId}", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary))
+                            }
+                            if (!transportData?.routeSelected.isNullOrBlank()) {
+                                Text("Assigned Route: ${transportData?.routeSelected}", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary))
+                            }
+                            Text("Registration Status: Active", style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                        }
                     }
                 }
             }
         }
     }
 }
+
 
 @Composable
 private fun RegistrationDialog(
@@ -582,7 +592,15 @@ private fun BusRouteCard(
                 .background(blobGradient, shape = CircleShape)
         )
 
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier.padding(
+                start = 14.dp,
+                end = 14.dp,
+                top = 14.dp,
+                bottom = if (isExpanded) 14.dp else 12.dp
+            )
+        ) {
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -591,7 +609,7 @@ private fun BusRouteCard(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
+                            .size(44.dp)
                             .clip(RoundedCornerShape(AmazeTheme.radius.small))
                             .background(themeColor.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
@@ -601,14 +619,14 @@ private fun BusRouteCard(
                             style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = themeColor)
                         )
                     }
-                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
                             route.route,
                             style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
                             maxLines = 1
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
                             if (route.type.isNotBlank()) {
                                 Box(
                                     modifier = Modifier
@@ -623,10 +641,10 @@ private fun BusRouteCard(
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
+                                Spacer(modifier = Modifier.width(6.dp))
                             }
                             Icon(Icons.Rounded.Map, null, tint = colors.textMuted, modifier = Modifier.size(12.dp))
-                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 "${route.stops?.size ?: 0} stops",
                                 style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary)
@@ -635,15 +653,18 @@ private fun BusRouteCard(
                     }
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        route.busLocation.ifBlank { "N/A" },
-                        style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent)
-                    )
-                    Text(
-                        "Location",
-                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
-                    )
-                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
+                    val hasLocation = route.busLocation.isNotBlank() && route.busLocation != "N/A"
+                    if (hasLocation) {
+                        Text(
+                            route.busLocation,
+                            style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent)
+                        )
+                        Text(
+                            "Location",
+                            style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                    }
                     Icon(
                         if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                         null,
@@ -652,6 +673,7 @@ private fun BusRouteCard(
                     )
                 }
             }
+
 
             if (isExpanded) {
                 Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))

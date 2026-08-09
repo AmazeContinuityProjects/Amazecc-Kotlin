@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.components
+package com.amazecc.app.shared.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -57,8 +57,15 @@ fun ScreenHeader(
     onBackOverride: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    LaunchedEffect(title, description, showBackButton, showSyncButton, onRefresh, syncModules, onBackOverride) {
+    val currentScreen by AppState.currentScreen.collectAsState()
+
+    LaunchedEffect(currentScreen, title, description, showBackButton, showSyncButton, onRefresh, syncModules, onBackOverride) {
         AppState.setHeader(title, description, showBackButton, showSyncButton, onRefresh, syncModules.toList(), onBackOverride)
+    }
+
+    DisposableEffect(currentScreen) {
+        AppState.setHeader(title, description, showBackButton, showSyncButton, onRefresh, syncModules.toList(), onBackOverride)
+        onDispose { }
     }
 }
 
@@ -206,6 +213,8 @@ fun FloatingScreenHeader(
                 }
             }
 
+            Spacer(modifier = Modifier.width(8.dp))
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
                     onClick = { AppState.openCommandPalette() },
@@ -255,6 +264,8 @@ fun FloatingScreenHeader(
                     }
                 }
             }
+
+
         }
         
         val currentLiveClass by AppState.currentLiveClass.collectAsState()

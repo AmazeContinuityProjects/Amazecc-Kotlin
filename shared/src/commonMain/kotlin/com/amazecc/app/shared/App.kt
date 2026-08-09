@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared
+package com.amazecc.app.shared
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
@@ -233,6 +233,12 @@ fun App() {
                             com.amazecc.app.shared.ui.components.BottomNavigationBar()
                         }
                     }
+
+                    val isAppLibraryOpen by AppState.isAppLibraryOpen.collectAsState()
+                    if (isAppLibraryOpen) {
+                        com.amazecc.app.shared.ui.screens.more.MoreScreen()
+                    }
+
 
                     if (!isLoading && syncError != null && currentScreen != Screen.LOGIN) {
                         AlertDialog(

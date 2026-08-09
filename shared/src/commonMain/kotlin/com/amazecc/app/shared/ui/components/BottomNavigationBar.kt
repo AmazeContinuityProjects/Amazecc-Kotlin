@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.components
+package com.amazecc.app.shared.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -80,14 +80,17 @@ fun BottomNavigationBar() {
             )
         }
 
+        val isAppLibraryOpen by AppState.isAppLibraryOpen.collectAsState()
+
         BottomNavItem(
             icon = Icons.Rounded.Apps,
             contentDesc = "More",
-            isSelected = currentScreen == Screen.MORE,
-            onClick = { AppState.navigateTo(Screen.MORE) }
+            isSelected = isAppLibraryOpen,
+            onClick = { AppState.openAppLibrary() }
         )
     }
 }
+
 
 fun getScreenIconAndLabel(screen: Screen): Pair<ImageVector, String> {
     return when (screen) {
