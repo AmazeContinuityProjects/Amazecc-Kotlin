@@ -1513,7 +1513,10 @@ private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.Am
                         questions.isEmpty() -> Text("No questions available for $courseCode", color = colors.textMuted, modifier = Modifier.align(Alignment.Center))
                         else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
                             items(questions) { q ->
-                                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                                AmazeCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = { AppState.openQBankCourse(courseCode) }
+                                ) {
                                     Column {
                                         Text(q.question_text, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                         q.topic_name?.let {

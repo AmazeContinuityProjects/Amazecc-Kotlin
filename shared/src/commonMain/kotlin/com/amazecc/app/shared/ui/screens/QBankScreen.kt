@@ -81,7 +81,7 @@ fun QBankScreen() {
             loading = true
             try {
                 val qRes = AmazeClient.getQBankQuestions(course.courseCode)
-                if (qRes.success) questions = qRes.data else error = qRes.message
+                if (qRes.success) questions = qRes.data.distinctBy { it.question_id } else error = qRes.message
                 val pRes = AmazeClient.getQBankPapers(course.courseCode)
                 if (pRes.success) papers = pRes.data
             } catch (e: Exception) { error = e.message }
@@ -94,7 +94,7 @@ fun QBankScreen() {
             loading = true
             try {
                 val res = AmazeClient.getQBankCourses()
-                if (res.success) courses = res.courses else error = res.message
+                if (res.success) courses = res.courses.distinctBy { it.courseCode } else error = res.message
             } catch (e: Exception) { error = e.message }
             loading = false
         }
@@ -104,7 +104,7 @@ fun QBankScreen() {
         loading = true
         try {
             val res = AmazeClient.getQBankCourses()
-            if (res.success) courses = res.courses else error = res.message
+            if (res.success) courses = res.courses.distinctBy { it.courseCode } else error = res.message
         } catch (e: Exception) { error = e.message }
         loading = false
     }
@@ -115,13 +115,17 @@ fun QBankScreen() {
         val match = courses.firstOrNull { it.courseCode.equals(code, ignoreCase = true) }
         if (match != null) {
             loadQuestionSet(match)
+            activeQuestionIndex = 0
         } else {
             loading = true
             try {
                 val res = AmazeClient.getQBankCourses()
                 if (res.success) {
-                    courses = res.courses
-                    courses.firstOrNull { it.courseCode.equals(code, ignoreCase = true) }?.let { loadQuestionSet(it) }
+                    courses = res.courses.distinctBy { it.courseCode }
+                    courses.firstOrNull { it.courseCode.equals(code, ignoreCase = true) }?.let {
+                        loadQuestionSet(it)
+                        activeQuestionIndex = 0
+                    }
                 } else error = res.message
             } catch (e: Exception) { error = e.message }
             loading = false
@@ -471,7 +475,7 @@ fun QBankScreen() {
                                 }
                             }
                         } else {
-                            items(papers, key = { it.link }) { paper ->
+                            itemsIndexed(papers, key = { _, p -> "${p.type}-${p.title}-${p.link}" }) { _, paper ->
                                 AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = { uriHandler.openUri(paper.link) }) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
