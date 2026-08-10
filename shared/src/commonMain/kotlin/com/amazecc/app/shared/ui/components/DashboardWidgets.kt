@@ -53,6 +53,7 @@ import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.ui.screens.academics.AddTaskDialog
 import com.amazecc.app.shared.ui.strings.Strings
 import io.ktor.util.decodeBase64Bytes
+import com.amazecc.app.shared.utils.toFixed
 import com.amazecc.app.shared.utils.toImageBitmap
 import com.amazecc.app.shared.utils.WidgetDataUtils
 import com.amazecc.app.shared.model.displayCgpa
@@ -762,7 +763,7 @@ private fun MetricCardsWidget() {
         marksRes.displayCgpa
     }
     val cgpaDisplay = remember(cgpa, isCgpaHidden) {
-        if (isCgpaHidden) "\u2022\u2022\u2022" else "%.2f".format(cgpa)
+        if (isCgpaHidden) "\u2022\u2022\u2022" else cgpa.toFixed(2)
     }
     val credits = remember(marksRes) {
         marksRes.displayCreditsEarned
@@ -1437,7 +1438,7 @@ private fun CourseAttendanceWidget() {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     StatChip(value = stats.crit.toString(), label = "Critical (<50%)", color = colors.chart5, modifier = Modifier.weight(1f))
-                    StatChip(value = "%.1f%%".format(stats.avgPct), label = "Overall Avg", color = colors.chart2, modifier = Modifier.weight(1f))
+                    StatChip(value = stats.avgPct.toFixed(1, "%"), label = "Overall Avg", color = colors.chart2, modifier = Modifier.weight(1f))
                 }
             }
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
@@ -1560,7 +1561,7 @@ private fun ModernCourseCardWidget(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    "%.0f".format(pct),
+                    pct.toFixed(0),
                     style = AmazeTheme.typography.smallLabel.copy(
                         fontWeight = FontWeight.Bold,
                         color = pctColor,

@@ -20,6 +20,7 @@ import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.*
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import androidx.compose.runtime.collectAsState
 
 @Composable
 fun SettingsScreen() {
@@ -27,10 +28,19 @@ fun SettingsScreen() {
     val snackbarHostState = remember { SnackbarHostState() }
 
     var currentSubScreen by remember { mutableStateOf<SettingsSubScreen?>(null) }
-    var searchQuery by remember { mutableStateOf("") }
 
     var showLogoutConfirm by remember { mutableStateOf(false) }
     var showClearCacheConfirm by remember { mutableStateOf(false) }
+
+    // Deep link from the command palette: apply the requested settings section
+    val settingsSectionTarget by AppState.settingsSectionTarget.collectAsState()
+
+    LaunchedEffect(settingsSectionTarget) {
+        if (settingsSectionTarget != null) {
+            currentSubScreen = SettingsSubScreen.entries.firstOrNull { it.name == settingsSectionTarget }
+            AppState.consumeSettingsSectionTarget()
+        }
+    }
 
     val notifPermissionManager = LocalNotificationPermissionManager.current
     val pendingToggleAction = remember { mutableStateOf<((Boolean) -> Unit)?>(null) }
@@ -54,7 +64,8 @@ fun SettingsScreen() {
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        containerColor = colors.background
+        containerColor = colors.background,
+        contentWindowInsets = WindowInsets(0.dp)
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -96,8 +107,6 @@ fun SettingsScreen() {
                 ) { sub ->
                     if (sub == null) {
                         SettingsHub(
-                            searchQuery = searchQuery,
-                            onSearchQueryChange = { searchQuery = it },
                             onOpenSubScreen = { currentSubScreen = it }
                         )
                     } else {

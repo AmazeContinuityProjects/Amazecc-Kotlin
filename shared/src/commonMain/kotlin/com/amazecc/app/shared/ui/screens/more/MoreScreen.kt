@@ -23,7 +23,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -35,24 +34,6 @@ import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 
-enum class LibraryPanel {
-    PRIMARY,
-    ACADEMICS,
-    HOSTEL
-}
-
-data class AppLibraryItem(
-    val label: String,
-    val subLabel: String,
-    val icon: ImageVector,
-    val groupName: String,
-    val type: String = "link", // "link" or "panel"
-    val targetScreen: Screen? = null,
-    val panelTarget: LibraryPanel? = null,
-    val onClickOverride: (() -> Unit)? = null,
-    val pinnableScreen: Screen? = targetScreen
-)
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoreScreen() {
@@ -60,7 +41,6 @@ fun MoreScreen() {
     var showLogoutConfirm by remember { mutableStateOf(false) }
 
     var currentPanel by remember { mutableStateOf(LibraryPanel.PRIMARY) }
-    var searchQuery by remember { mutableStateOf("") }
 
     val pinnedNavTabs by AppState.pinnedNavTabs.collectAsState()
     val selectedSemester by AppState.selectedSemester.collectAsState()
@@ -73,52 +53,8 @@ fun MoreScreen() {
         AppState.closeAppLibrary()
     }
 
-    // Reset search on panel change
-    LaunchedEffect(currentPanel) {
-        searchQuery = ""
-    }
-
-    // All searchable items (matching AmazeCC AppLibraryPortal)
-    val allSearchableItems = remember {
-        listOf(
-            // STUDY
-            AppLibraryItem("Attendance", "Class attendance & slot tracker", Icons.Rounded.EventAvailable, "Study", targetScreen = Screen.ATTENDANCE),
-            AppLibraryItem("Timetable Calendar", "Daily schedule & exam calendar", Icons.Rounded.CalendarMonth, "Study", targetScreen = Screen.CALENDAR),
-            AppLibraryItem("Academics Hub", "Academic sub-panel & grade tools", Icons.Rounded.School, "Study", type = "panel", panelTarget = LibraryPanel.ACADEMICS, pinnableScreen = null),
-            AppLibraryItem("Course Dashboard", "Attendance & marks per course", Icons.Rounded.Book, "Academics", targetScreen = Screen.ATTENDANCE),
-            AppLibraryItem("Grade History", "Semester SGPA & grade breakdown", Icons.Rounded.School, "Academics", targetScreen = Screen.ACADEMICS),
-            AppLibraryItem("Question Bank", "CAT & FAT previous year papers", Icons.Rounded.Topic, "Academics", targetScreen = Screen.QBANK),
-            AppLibraryItem("FFCS Planner", "Timetable builder & clash finder", Icons.Rounded.ViewTimeline, "Academics", targetScreen = Screen.FFCS_PLANNER),
-            AppLibraryItem("Free Classrooms", "Empty classroom locator", Icons.Rounded.MeetingRoom, "Academics", targetScreen = Screen.FREE_CLASSROOMS),
-            AppLibraryItem("Faculty Directory", "Faculty cabin & ratings", Icons.Rounded.People, "Academics", targetScreen = Screen.FACULTY_INFO),
-            AppLibraryItem("Moodle LMS", "Course materials & assignments", Icons.AutoMirrored.Rounded.MenuBook, "Academics", targetScreen = Screen.MOODLE),
-            AppLibraryItem("Projects", "Academic projects & lab progress", Icons.Rounded.AccountTree, "Academics", targetScreen = Screen.PROJECTS),
-            AppLibraryItem("Wishlist", "Saved target courses & wishlist", Icons.Rounded.Bookmark, "Academics", targetScreen = Screen.WISHLIST),
-            AppLibraryItem("Feedback Status", "VTOP faculty feedback status", Icons.Rounded.RateReview, "Academics", targetScreen = Screen.FEEDBACK_STATUS),
-
-            // CAMPUS
-            AppLibraryItem("Cab Share", "Ride sharing & split fare hub", Icons.Rounded.DirectionsCar, "Campus", targetScreen = Screen.CABSHARE),
-            AppLibraryItem("Payments", "Hostel & academic fee receipts", Icons.Rounded.CreditCard, "Campus", targetScreen = Screen.PAYMENTS),
-            AppLibraryItem("Libraries", "Book search & digital library", Icons.AutoMirrored.Rounded.LibraryBooks, "Campus", targetScreen = Screen.LIBRARIES),
-            AppLibraryItem("Hostel Hub", "Mess menu, laundry & gatepass", Icons.Rounded.Apartment, "Campus", type = "panel", panelTarget = LibraryPanel.HOSTEL, pinnableScreen = Screen.HOSTEL),
-            AppLibraryItem("Transport", "Shuttle bus routes & mobility", Icons.Rounded.DirectionsBus, "Campus", targetScreen = Screen.TRANSPORT),
-            AppLibraryItem("Mess Menu", "Daily mess menu & food schedule", Icons.Rounded.Restaurant, "Hostel", targetScreen = Screen.HOSTEL),
-            AppLibraryItem("Laundry", "Laundry token & wash status", Icons.Rounded.LocalLaundryService, "Hostel", targetScreen = Screen.HOSTEL),
-            AppLibraryItem("Leave / Gatepass", "Hostel leave & gatepass QR", Icons.Rounded.ExitToApp, "Hostel", targetScreen = Screen.HOSTEL),
-
-            // TOOLS & UTILITIES
-            AppLibraryItem("Social Feed", "Anonymous campus discussion feed", Icons.Rounded.Public, "Tools", targetScreen = Screen.SOCIAL),
-            AppLibraryItem("Event Hub", "Campus fests, hackathons & events", Icons.Rounded.Event, "Tools", targetScreen = Screen.EVENTS),
-            AppLibraryItem("Club Hub", "Student clubs, chapters & teams", Icons.Rounded.Groups, "Tools", targetScreen = Screen.CLUB_HUB, onClickOverride = { AppState.openClubHub("Directory") }),
-
-            // ACCOUNT & SETTINGS
-            AppLibraryItem("My Info", "Registration details & academic bio", Icons.Rounded.Person, "Account", targetScreen = Screen.PROFILE, pinnableScreen = null),
-            AppLibraryItem("Settings", "App theme, bottom bar, alerts & credentials", Icons.Rounded.Settings, "Account", targetScreen = Screen.SETTINGS, pinnableScreen = null),
-            AppLibraryItem("About & Resources", "Version info, open source & legal", Icons.Rounded.Info, "Account", targetScreen = Screen.ABOUT, pinnableScreen = null),
-            AppLibraryItem("Fresher's Welcome", "Orientation guide & starter kit", Icons.Rounded.Star, "Account", targetScreen = Screen.FRESHER_WELCOME, pinnableScreen = null),
-            AppLibraryItem("Log Out", "Log out active student session", Icons.Rounded.Logout, "Account", onClickOverride = { showLogoutConfirm = true }, pinnableScreen = null)
-        )
-    }
+    // All searchable items — single shared source (also consumed by the global palette)
+    val allSearchableItems = remember { appLibraryItems }
 
     val primaryStudyItems = remember(allSearchableItems) { allSearchableItems.filter { it.groupName == "Study" } }
     val primaryCampusItems = remember(allSearchableItems) { allSearchableItems.filter { it.groupName == "Campus" } }
@@ -127,14 +63,6 @@ fun MoreScreen() {
 
     val academicsSubItems = remember(allSearchableItems) { allSearchableItems.filter { it.groupName == "Academics" } }
     val hostelSubItems = remember(allSearchableItems) { allSearchableItems.filter { it.groupName == "Hostel" } }
-
-    val filteredSearchResults = remember(searchQuery, allSearchableItems) {
-        if (searchQuery.isBlank()) emptyList()
-        else allSearchableItems.filter {
-            it.label.contains(searchQuery, ignoreCase = true) ||
-                    it.subLabel.contains(searchQuery, ignoreCase = true)
-        }
-    }
 
     ModalBottomSheet(
         onDismissRequest = onDismissSheet,
@@ -251,13 +179,6 @@ fun MoreScreen() {
                 }
 
                 Spacer(Modifier.height(12.dp))
-
-                // Line 3: Search Input
-                AmazeSearchInput(
-                    query = searchQuery,
-                    onQueryChange = { searchQuery = it },
-                    placeholder = "Search modules (e.g. Attendance, Hostel, Moodle)..."
-                )
             }
 
             Spacer(Modifier.height(8.dp))
@@ -271,27 +192,7 @@ fun MoreScreen() {
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                if (searchQuery.isNotBlank()) {
-                    SectionHeader("SEARCH RESULTS")
-                    if (filteredSearchResults.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp), contentAlignment = Alignment.Center) {
-                            Text("No modules found matching \"$searchQuery\"", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
-                        }
-                    } else {
-                        DualRowGrid(
-                            items = filteredSearchResults,
-                            pinnedTabs = pinnedNavTabs,
-                            onItemClick = { item ->
-                                AppState.closeAppLibrary()
-                                if (item.onClickOverride != null) item.onClickOverride.invoke()
-                                else if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
-                            },
-                            onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
-                            colors = colors
-                        )
-                    }
-                } else {
-                    AnimatedContent(
+                AnimatedContent(
                         targetState = currentPanel,
                         transitionSpec = { fadeIn() togetherWith fadeOut() }
                     ) { panel ->
@@ -348,6 +249,10 @@ fun MoreScreen() {
                                         items = primaryAccountItems,
                                         pinnedTabs = pinnedNavTabs,
                                         onItemClick = { item ->
+                                            if (item.label == "Log Out") {
+                                                showLogoutConfirm = true
+                                                return@DualRowGrid
+                                            }
                                             AppState.closeAppLibrary()
                                             if (item.onClickOverride != null) item.onClickOverride.invoke()
                                             else if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
@@ -390,33 +295,32 @@ fun MoreScreen() {
                                 }
                             }
                         }
-                    }
                 }
+            }
 
                 Spacer(Modifier.height(16.dp))
             }
+
+            if (showLogoutConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showLogoutConfirm = false },
+                    title = { Text("Log Out Session?", color = colors.textPrimary, fontWeight = FontWeight.Bold) },
+                    text = { Text("Are you sure you want to log out of your session?", color = colors.textSecondary) },
+                    confirmButton = {
+                        TextButton(onClick = { AppState.logout(); showLogoutConfirm = false }) {
+                            Text("Log Out", color = colors.danger, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showLogoutConfirm = false }) {
+                            Text("Cancel", color = colors.textSecondary)
+                        }
+                    },
+                    containerColor = colors.surface
+                )
+            }
         }
     }
-
-    if (showLogoutConfirm) {
-        AlertDialog(
-            onDismissRequest = { showLogoutConfirm = false },
-            title = { Text("Log Out Session?", color = colors.textPrimary, fontWeight = FontWeight.Bold) },
-            text = { Text("Are you sure you want to log out of your session?", color = colors.textSecondary) },
-            confirmButton = {
-                TextButton(onClick = { AppState.logout(); showLogoutConfirm = false }) {
-                    Text("Log Out", color = colors.danger, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLogoutConfirm = false }) {
-                    Text("Cancel", color = colors.textSecondary)
-                }
-            },
-            containerColor = colors.surface
-        )
-    }
-}
 
 @Composable
 private fun SectionHeader(title: String) {

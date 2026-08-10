@@ -1,5 +1,10 @@
 ﻿package com.amazecc.app.shared.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,12 +23,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.model.*
@@ -46,6 +60,20 @@ fun FacultyInfoScreen() {
     var searchTerm by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+
+    // Hidden search activated via the header search icon
+    val localSearchTick by AppState.localSearchTick.collectAsState()
+    var searchActive by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(localSearchTick) {
+        if (localSearchTick > 0) {
+            searchActive = true
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     LaunchedEffect(Unit) {
         error = null
@@ -153,22 +181,41 @@ fun FacultyInfoScreen() {
 
                 // Search
                 if (selectedSchoolId != null) {
-                    OutlinedTextField(
-                        value = searchTerm,
-                        onValueChange = { searchTerm = it },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        placeholder = { Text("Search by name, ID, email...", style = AmazeTheme.typography.body.copy(color = colors.textMuted)) },
-                        leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(AmazeTheme.radius.small),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = colors.accent.copy(alpha = 0.5f),
-                            unfocusedBorderColor = colors.border,
-                            focusedTextColor = colors.textPrimary,
-                            unfocusedTextColor = colors.textPrimary,
-                            cursorColor = colors.accent
+                    AnimatedVisibility(
+                        visible = searchActive,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut(),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = searchTerm,
+                            onValueChange = { searchTerm = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                                .focusRequester(searchFocusRequester)
+                                .onPreviewKeyEvent { event ->
+                                    if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                                        searchActive = false
+                                        keyboardController?.hide()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                },
+                            placeholder = { Text("Search by name, ID, email...", style = AmazeTheme.typography.body.copy(color = colors.textMuted)) },
+                            leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(AmazeTheme.radius.small),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = colors.accent.copy(alpha = 0.5f),
+                                unfocusedBorderColor = colors.border,
+                                focusedTextColor = colors.textPrimary,
+                                unfocusedTextColor = colors.textPrimary,
+                                cursorColor = colors.accent
+                            )
                         )
-                    )
+                    }
                 }
 
                 // Faculty list

@@ -248,7 +248,12 @@ transportData?.hasRegistration == true ->
                             }
                             else -> base
                         }
-                        headerOverride ?: dynamic
+                        val configured = headerOverride ?: dynamic
+                        if (currentScreen in AppState.localSearchScreens) {
+                            configured.copy(searchAction = { AppState.requestLocalSearch() })
+                        } else {
+                            configured
+                        }
                     }
 
                     if (headerConfig != null && !isAppLibraryOpen) {

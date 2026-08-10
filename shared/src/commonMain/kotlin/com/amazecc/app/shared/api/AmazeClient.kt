@@ -828,7 +828,28 @@ if (useMockData) return DemoData.get("qbankUpload", QBankSubmitRes.serializer())
 
     suspend fun getQBankCourses(): QBankCoursesRes {
 if (useMockData) return DemoData.get("qbankCourses", QBankCoursesRes.serializer()) ?: QBankCoursesRes()
-        return postAuthorized<QBankCoursesRes>("qbank/courses") ?: QBankCoursesRes(success = false, message = "Empty response")
+        return try {
+            // The API exposes a GET-only endpoint returning { data: [{ code, title }] }.
+            // The demo payload uses { courses: [{ courseCode, courseTitle }] } — accept both.
+            val response: HttpResponse = httpClient.get("$baseUrl/api/qbank/courses")
+            if (response.status == HttpStatusCode.OK) {
+                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
+                val json = element.jsonObject
+                val courses = when {
+                    json["data"] is JsonArray ->
+                        jsonConfig.decodeFromJsonElement<List<QBankCourseRaw>>(json["data"] as JsonArray)
+                            .map { QBankCourse(courseCode = it.code, courseTitle = it.title) }
+                    json["courses"] is JsonArray ->
+                        jsonConfig.decodeFromJsonElement<List<QBankCourse>>(json["courses"] as JsonArray)
+                    else -> emptyList()
+                }
+                QBankCoursesRes(success = true, courses = courses)
+            } else {
+                QBankCoursesRes(success = false, message = "HTTP ${response.status}")
+            }
+        } catch (e: Exception) {
+            QBankCoursesRes(success = false, message = e.message, error = e.toString())
+        }
     }
 
     suspend fun getFacultySchools(): FacultySchoolsRes {

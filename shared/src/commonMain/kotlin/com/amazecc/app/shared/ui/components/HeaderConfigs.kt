@@ -12,7 +12,9 @@ data class HeaderConfig(
     val showSyncButton: Boolean = true,
     val onRefresh: (() -> Unit)? = null,
     val syncModules: Set<SyncModule> = emptySet(),
-    val onBackOverride: (() -> Unit)? = null
+    val onBackOverride: (() -> Unit)? = null,
+    /** When set, the header search icon invokes this (e.g. reveal the screen's local search field). */
+    val searchAction: (() -> Unit)? = null
 )
 
 fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {

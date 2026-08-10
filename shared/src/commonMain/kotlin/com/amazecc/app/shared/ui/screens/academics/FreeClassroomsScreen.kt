@@ -1,6 +1,11 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,15 +34,25 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
 import com.amazecc.app.shared.data.CampusSchemas
 import com.amazecc.app.shared.data.FfcsReportData
 import com.amazecc.app.shared.model.CampusSchema
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.strings.Strings
@@ -174,6 +189,20 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
     var searchRoomQuery by remember { mutableStateOf("") }
     var selectedTypeFilter by remember { mutableStateOf("ALL") } // ALL, Theory, Lab
     var selectedBlock by remember { mutableStateOf("ALL") }
+
+    // Hidden search activated via the header search icon
+    val localSearchTick by AppState.localSearchTick.collectAsState()
+    var searchActive by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(localSearchTick) {
+        if (localSearchTick > 0) {
+            searchActive = true
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     var courses by remember { mutableStateOf<List<SimpleParsedCourse>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -331,7 +360,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 HeaderSpacer()
             }
 
-            // ── Live Status Banner ──
+            // â”€â”€ Live Status Banner â”€â”€
             item(span = { GridItemSpan(maxLineSpan) }) {
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
@@ -380,7 +409,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                                 style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                             )
                             Text(
-                                text = "${days.find { it.first == selectedDay }?.second ?: "Monday"} · $selectedTime",
+                                text = "${days.find { it.first == selectedDay }?.second ?: "Monday"} Â· $selectedTime",
                                 style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                             )
                         }
@@ -410,7 +439,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // ── Day Selector Bar (Segmented Tabs) ──
+            // â”€â”€ Day Selector Bar (Segmented Tabs) â”€â”€
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier
@@ -474,7 +503,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // ── Time Slot Chips (Horizontal Scrollable) ──
+            // â”€â”€ Time Slot Chips (Horizontal Scrollable) â”€â”€
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier
@@ -540,36 +569,52 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // ── Search & Type Segmented Filters ──
+            // â”€â”€ Search & Type Segmented Filters â”€â”€
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                AnimatedVisibility(
+                    visible = searchActive,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
                 ) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        AmazeTextField(
-                            value = searchRoomQuery,
-                            onValueChange = { searchRoomQuery = it },
-                            label = "",
-                            placeholder = "Search room (e.g. 101, AB1)...",
-                            leadingIcon = {
-                                Icon(Icons.Rounded.Search, contentDescription = null, tint = colors.accent, modifier = Modifier.size(18.dp))
-                            },
-                            trailingIcon = if (searchRoomQuery.isNotEmpty()) {
-                                {
-                                    Icon(
-                                        Icons.Rounded.Clear,
-                                        contentDescription = "Clear",
-                                        tint = colors.textMuted,
-                                        modifier = Modifier.size(16.dp).clickable { searchRoomQuery = "" }
-                                    )
-                                }
-                            } else null
-                        )
-                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            AmazeTextField(
+                                value = searchRoomQuery,
+                                onValueChange = { searchRoomQuery = it },
+                                label = "",
+                                placeholder = "Search room (e.g. 101, AB1)...",
+                                modifier = Modifier
+                                    .focusRequester(searchFocusRequester)
+                                    .onPreviewKeyEvent { event ->
+                                        if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                                            searchActive = false
+                                            keyboardController?.hide()
+                                            true
+                                        } else {
+                                            false
+                                        }
+                                    },
+                                leadingIcon = {
+                                    Icon(Icons.Rounded.Search, contentDescription = null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                                },
+                                trailingIcon = if (searchRoomQuery.isNotEmpty()) {
+                                    {
+                                        Icon(
+                                            Icons.Rounded.Clear,
+                                            contentDescription = "Clear",
+                                            tint = colors.textMuted,
+                                            modifier = Modifier.size(16.dp).clickable { searchRoomQuery = "" }
+                                        )
+                                    }
+                                } else null
+                            )
+                        }
 
                     // Type selector chips (ALL, Theory, Lab)
                     Row(
@@ -603,8 +648,9 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                     }
                 }
             }
+            }
 
-            // ── Building Block Pills ──
+            // â”€â”€ Building Block Pills â”€â”€
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier
@@ -655,7 +701,7 @@ fun FreeClassroomsScreen(onBack: () -> Unit) {
                 }
             }
 
-            // ── Results Summary Header ──
+            // â”€â”€ Results Summary Header â”€â”€
             item(span = { GridItemSpan(maxLineSpan) }) {
                 if (loading) {
                     Box(modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp), contentAlignment = Alignment.Center) {

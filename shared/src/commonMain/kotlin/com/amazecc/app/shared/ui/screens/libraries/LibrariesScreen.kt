@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.libraries
+﻿package com.amazecc.app.shared.ui.screens.libraries
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,7 +45,7 @@ fun LibrariesScreen() {
     val loginRequired by AppState.libraryLoginRequired.collectAsState()
     val issuedBooks = libraryRes?.booksIssued ?: emptyList()
     var activeTab by remember { mutableStateOf("My Books") }
-    val tabs = listOf("My Books", "Catalog Search")
+    val tabs = listOf("My Books")
 
     Box(
         modifier = Modifier.fillMaxSize().background(colors.background)
@@ -81,18 +81,15 @@ fun LibrariesScreen() {
             }
 
             Box(modifier = Modifier.weight(1f)) {
-                when (activeTab) {
-                    "My Books" -> IssuedBooksContent(issuedBooks, loginRequired)
-                    "Catalog Search" -> CatalogSearchContent()
-                }
+                IssuedBooksContent(issuedBooks, loginRequired)
             }
         }
     }
 }
 
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  Inline Library Login Card
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @Composable
 private fun InlineLibraryLoginCard(onLoginSuccess: () -> Unit) {
@@ -193,9 +190,9 @@ private fun InlineLibraryLoginCard(onLoginSuccess: () -> Unit) {
     }
 }
 
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 //  Issued Books Content
-// ═══════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 @Composable
 private fun IssuedBooksContent(
@@ -286,7 +283,7 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.CalendarToday, null, tint = dueColor, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
-                    Text("Due: ${book.dueDate ?: "—"}", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold, color = dueColor))
+                    Text("Due: ${book.dueDate ?: "â€”"}", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.SemiBold, color = dueColor))
                 }
                 if (book.fineAmount != null) {
                     Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
@@ -323,143 +320,3 @@ private fun IssuedBookCard(book: BookItem, colors: com.amazecc.app.shared.theme.
     }
 }
 
-// ═══════════════════════════════════════════
-//  Catalog Search Content
-// ═══════════════════════════════════════════
-
-@Composable
-private fun CatalogSearchContent() {
-    val colors = AmazeTheme.colors
-    var searchQuery by remember { mutableStateOf("") }
-    var searchResults by remember { mutableStateOf<List<BookItem>>(emptyList()) }
-    var isSearching by remember { mutableStateOf(false) }
-    var hasSearched by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 88.dp)
-    ) {
-        item {
-            OutlinedTextField(
-                value = searchQuery, onValueChange = { searchQuery = it },
-                placeholder = { Text("Title, Author, or ISBN...", color = colors.textMuted) },
-                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
-                trailingIcon = {
-                    if (searchQuery.isNotBlank()) {
-                        IconButton(onClick = { searchQuery = ""; searchResults = emptyList(); hasSearched = false; errorMessage = null }) { Icon(Icons.Rounded.Clear, null, tint = colors.textMuted) }
-                    }
-                },
-                singleLine = true, shape = RoundedCornerShape(AmazeTheme.radius.medium), modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent)
-            )
-        }
-
-        item {
-            Button(
-                onClick = {
-                    if (searchQuery.isNotBlank()) {
-                        scope.launch {
-                            isSearching = true; hasSearched = true; errorMessage = null
-                            try {
-                                val res = AmazeClient.searchLibrary(searchQuery)
-                                searchResults = res.searchResults
-                                if (res.error != null) errorMessage = res.error
-                            } catch (e: Exception) { errorMessage = e.message ?: "Search failed" }
-                            isSearching = false
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(AmazeTheme.radius.medium),
-                colors = ButtonDefaults.buttonColors(containerColor = colors.accent, disabledContainerColor = colors.border),
-                enabled = searchQuery.isNotBlank() && !isSearching
-            ) {
-                if (isSearching) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                    Text("Searching...", fontWeight = FontWeight.Bold)
-                } else {
-                    Icon(Icons.Rounded.Search, null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                    Text("Search Catalog", fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        if (isSearching) {
-            item {
-                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 60.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.accent) }
-            }
-        } else if (errorMessage != null) {
-            item {
-                Box(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                        .background(colors.chart5.copy(alpha = 0.06f)).border(1.dp, colors.chart5.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium)).padding(16.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Error, null, tint = colors.chart5, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                        Text(errorMessage ?: "An error occurred", color = colors.chart5, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
-                    }
-                }
-            }
-        } else if (hasSearched && searchResults.isEmpty()) {
-            item {
-                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 60.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.SearchOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                        Text("No results found", style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
-                        Text("Try a different search term", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
-                    }
-                }
-            }
-        } else if (!hasSearched) {
-            item {
-                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 60.dp), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                        Text("Search the library catalog", style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
-                        Text("Find books by title, author, or ISBN", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
-                    }
-                }
-            }
-        } else {
-            item {
-                Text("${searchResults.size} result${if (searchResults.size != 1) "s" else ""} found", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium))
-            }
-            items(searchResults, key = { it.bookId }) { book ->
-                SearchResultCard(book, colors)
-            }
-        }
-    }
-}
-
-@Composable
-private fun SearchResultCard(book: BookItem, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    val index = book.bookId.hashCode().let { abs(it) % bookColors.size }
-    val cardColor = when (bookColors[index]) { 1 -> colors.chart1; 2 -> colors.chart2; 3 -> colors.chart3; 4 -> colors.chart4; else -> colors.chart5 }
-
-    AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.Top) {
-            Box(
-                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(cardColor.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) { Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = cardColor, modifier = Modifier.size(24.dp)) }
-            Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(book.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 2)
-                if (book.author != null) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(book.author, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                }
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
-                Text("ID: ${book.bookId}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-            }
-        }
-    }
-}

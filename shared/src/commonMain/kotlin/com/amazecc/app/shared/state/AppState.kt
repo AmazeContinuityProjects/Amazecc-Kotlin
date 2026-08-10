@@ -238,11 +238,26 @@ object AppState {
     val onboardingSyncSteps: StateFlow<List<SyncStep>> = _onboardingSyncSteps.asStateFlow()
     
     // Command Palettes
-    private val _commandPaletteOpen = MutableStateFlow(false)
+private val _commandPaletteOpen = MutableStateFlow(false)
     val commandPaletteOpen: StateFlow<Boolean> = _commandPaletteOpen.asStateFlow()
-    
+
     fun openCommandPalette() { _commandPaletteOpen.value = true }
     fun closeCommandPalette() { _commandPaletteOpen.value = false }
+
+    // Screens whose header search icon reveals their in-page search instead of the palette.
+    val localSearchScreens: Set<Screen> = setOf(
+        Screen.TRANSPORT,
+        Screen.FFCS_PLANNER,
+        Screen.FREE_CLASSROOMS,
+        Screen.CURRICULUM,
+        Screen.FACULTY_INFO
+    )
+
+    private val _localSearchTick = MutableStateFlow(0)
+    val localSearchTick: StateFlow<Int> = _localSearchTick.asStateFlow()
+
+    /** Header search icon tapped on a local-search screen: bump the tick so the active screen reveals its search. */
+    fun requestLocalSearch() { _localSearchTick.value++ }
 
     // Cached Data
     private val _attendance = MutableStateFlow<AttendanceRes?>(null)
@@ -592,6 +607,98 @@ object AppState {
     fun openClubHub(initialTab: String = "Directory") {
         _clubHubInitialTab.value = initialTab
         navigateTo(Screen.CLUB_HUB)
+    }
+
+    // ── Search deep-link targets (consumed once by the target screen) ──
+
+    /** Settings sub-section name to open (SettingsSubScreen.name) */
+    private val _settingsSectionTarget = MutableStateFlow<String?>(null)
+    val settingsSectionTarget: StateFlow<String?> = _settingsSectionTarget.asStateFlow()
+
+    /** Bus route id to preselect / expand on Transport */
+    private val _transportRouteTarget = MutableStateFlow<String?>(null)
+    val transportRouteTarget: StateFlow<String?> = _transportRouteTarget.asStateFlow()
+
+    /** Room query to prefill the Free Classrooms search */
+    private val _freeRoomTarget = MutableStateFlow<String?>(null)
+    val freeRoomTarget: StateFlow<String?> = _freeRoomTarget.asStateFlow()
+
+    /** Faculty deep-link: school id then employee id */
+    private val _facultySchoolTarget = MutableStateFlow<String?>(null)
+    val facultySchoolTarget: StateFlow<String?> = _facultySchoolTarget.asStateFlow()
+    private val _facultyEmployeeTarget = MutableStateFlow<String?>(null)
+    val facultyEmployeeTarget: StateFlow<String?> = _facultyEmployeeTarget.asStateFlow()
+
+    /** Course code to preselect / prefill on FFCS Planner and Curriculum */
+    private val _ffcsCourseTarget = MutableStateFlow<String?>(null)
+    val ffcsCourseTarget: StateFlow<String?> = _ffcsCourseTarget.asStateFlow()
+    private val _curriculumCourseTarget = MutableStateFlow<String?>(null)
+    val curriculumCourseTarget: StateFlow<String?> = _curriculumCourseTarget.asStateFlow()
+
+    /** Course code to auto-open on QBank */
+    private val _qbankCourseTarget = MutableStateFlow<String?>(null)
+    val qbankCourseTarget: StateFlow<String?> = _qbankCourseTarget.asStateFlow()
+
+    private fun clearTargets() {
+        _settingsSectionTarget.value = null
+        _transportRouteTarget.value = null
+        _freeRoomTarget.value = null
+        _facultySchoolTarget.value = null
+        _facultyEmployeeTarget.value = null
+        _ffcsCourseTarget.value = null
+        _curriculumCourseTarget.value = null
+        _qbankCourseTarget.value = null
+    }
+
+    fun openSettingsSection(sectionName: String) {
+        clearTargets()
+        _settingsSectionTarget.value = sectionName
+        navigateTo(Screen.SETTINGS)
+    }
+
+    fun consumeSettingsSectionTarget() {
+        _settingsSectionTarget.value = null
+    }
+
+    fun openTransportRoute(routeId: String) {
+        clearTargets()
+        _transportRouteTarget.value = routeId
+        navigateTo(Screen.TRANSPORT)
+    }
+
+    fun openFreeRoom(roomQuery: String) {
+        clearTargets()
+        _freeRoomTarget.value = roomQuery
+        navigateTo(Screen.FREE_CLASSROOMS)
+    }
+
+    fun openFaculty(schoolId: String, employeeId: String) {
+        clearTargets()
+        _facultySchoolTarget.value = schoolId
+        _facultyEmployeeTarget.value = employeeId
+        navigateTo(Screen.FACULTY_INFO)
+    }
+
+    fun openFfcsCourse(courseCode: String) {
+        clearTargets()
+        _ffcsCourseTarget.value = courseCode
+        navigateTo(Screen.FFCS_PLANNER)
+    }
+
+    fun openCurriculumCourse(courseCode: String) {
+        clearTargets()
+        _curriculumCourseTarget.value = courseCode
+        navigateTo(Screen.CURRICULUM)
+    }
+
+    fun openQBankCourse(courseCode: String) {
+        clearTargets()
+        _qbankCourseTarget.value = courseCode
+        navigateTo(Screen.QBANK)
+    }
+
+    fun consumeQBankCourseTarget() {
+        _qbankCourseTarget.value = null
     }
 
     // Attendance initial view (Timetable / Predictor / Calendar)
@@ -1943,6 +2050,7 @@ object AppState {
         _selectedSemester.value = "CH20262701"
         _selectedCourseCode.value = null
         _selectedCourseSemester.value = null
+        clearTargets()
         _isLoading.value = false
         _cabShareUser.value = null
         _cabHubs.value = emptyList()

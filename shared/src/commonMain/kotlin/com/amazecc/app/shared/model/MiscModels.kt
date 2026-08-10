@@ -367,6 +367,9 @@ data class QBankSubmitRes(val success: Boolean, val message: String? = null)
 data class QBankCourse(val courseCode: String, val courseTitle: String)
 
 @Serializable
+internal data class QBankCourseRaw(val code: String = "", val title: String = "")
+
+@Serializable
 data class QBankCoursesRes(
     val success: Boolean = true,
     val courses: List<QBankCourse> = emptyList(),

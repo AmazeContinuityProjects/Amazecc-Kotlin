@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,6 +37,12 @@ import androidx.compose.ui.window.DialogProperties
 import com.amazecc.app.shared.theme.AmazeTheme
 import kotlinx.coroutines.delay
 
+/**
+ * Two-stage global search handler:
+ *  - Main: the index of every screen, module, course, task, route & search tool.
+ *  - SubSearch: a dedicated in-palette search for a big/network-backed data set
+ *    (library catalog, faculty directory, FFCS, curriculum, free rooms...).
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun CommandPalette(
@@ -51,8 +58,21 @@ fun CommandPalette(
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    val filteredCommands = remember(query, commands) {
-        if (query.isBlank()) {
+    // ── Sub-search stage state ──
+    var subSpec by remember { mutableStateOf<SubSearchSpec?>(null) }
+    var subCtx by remember { mutableStateOf<SubSearchContext?>(null) }
+    var subResults by remember { mutableStateOf<List<CommandItem>>(emptyList()) }
+    var subLoading by remember { mutableStateOf(false) }
+
+    val isInSubStage = subSpec != null
+
+    val activeCommands = if (isInSubStage) subResults else commands
+
+    // Filtered main list (or sub results list when staged)
+    val filteredCommands = remember(query, activeCommands, isInSubStage) {
+        if (isInSubStage) {
+            activeCommands
+        } else if (query.isBlank()) {
             commands.take(50) // Limit default view for performance
         } else {
             val q = query.lowercase()
@@ -70,9 +90,31 @@ fun CommandPalette(
 
     var selectedIndex by remember(filteredCommands) { mutableStateOf(if (filteredCommands.isNotEmpty()) 0 else -1) }
 
+    // Run the sub-search whenever query or stage changes (debounced)
+    LaunchedEffect(subSpec, subCtx, query) {
+        val spec = subSpec ?: return@LaunchedEffect
+        val ctx = subCtx ?: return@LaunchedEffect
+        if (query.isBlank()) {
+            subLoading = false
+            subResults = emptyList()
+            return@LaunchedEffect
+        }
+        subLoading = true
+        delay(250) // debounce network-backed lookups
+        subResults = try {
+            spec.search(query, ctx)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        subLoading = false
+    }
+
     LaunchedEffect(isOpen) {
         if (isOpen) {
             query = ""
+            subSpec = null
+            subCtx = null
+            subResults = emptyList()
             delay(100)
             focusRequester.requestFocus()
             keyboardController?.show()
@@ -80,6 +122,20 @@ fun CommandPalette(
     }
 
     val listState = rememberLazyListState()
+
+    val runSelect: (CommandItem) -> Unit = { item ->
+        if (item.subSearch != null) {
+            // Open the sub-search stage instead of closing
+            subCtx = SubSearchContext()
+            subSpec = item.subSearch
+            subResults = emptyList()
+        } else if (item.keepPaletteOpen) {
+            item.onSelect()
+        } else {
+            item.onSelect()
+            onClose()
+        }
+    }
 
     // Handle keyboard navigation globally inside the dialog
     val handleKeyEvent: (KeyEvent) -> Boolean = { event ->
@@ -95,13 +151,18 @@ fun CommandPalette(
                 }
                 Key.Enter -> {
                     if (selectedIndex in filteredCommands.indices) {
-                        filteredCommands[selectedIndex].onSelect()
-                        onClose()
+                        runSelect(filteredCommands[selectedIndex])
                     }
                     true
                 }
                 Key.Escape -> {
-                    onClose()
+                    if (isInSubStage) {
+                        subSpec = null
+                        subCtx = null
+                        subResults = emptyList()
+                    } else {
+                        onClose()
+                    }
                     true
                 }
                 else -> false
@@ -146,6 +207,24 @@ fun CommandPalette(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (isInSubStage) {
+                        IconButton(
+                            onClick = {
+                                subSpec = null
+                                subCtx = null
+                                subResults = emptyList()
+                            },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back to all search",
+                                tint = colors.textPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     Icon(
                         imageVector = Icons.Rounded.Search,
                         contentDescription = "Search",
@@ -166,15 +245,14 @@ fun CommandPalette(
                         keyboardActions = KeyboardActions(
                             onSearch = {
                                 if (selectedIndex in filteredCommands.indices) {
-                                    filteredCommands[selectedIndex].onSelect()
-                                    onClose()
+                                    runSelect(filteredCommands[selectedIndex])
                                 }
                             }
                         ),
                         decorationBox = { innerTextField ->
                             if (query.isEmpty()) {
                                 Text(
-                                    text = placeholder,
+                                    text = if (isInSubStage) subSpec?.placeholder ?: placeholder else placeholder,
                                     style = AmazeTheme.typography.body,
                                     color = colors.textSecondary
                                 )
@@ -182,7 +260,7 @@ fun CommandPalette(
                             innerTextField()
                         }
                     )
-                    
+
                     if (query.isNotEmpty()) {
                         Box(
                             modifier = Modifier
@@ -198,11 +276,45 @@ fun CommandPalette(
 
                 HorizontalDivider(color = colors.border)
 
+                // Sub-stage context banner (e.g. faculty directory step label)
+                if (isInSubStage) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(colors.accent.copy(alpha = 0.08f))
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = subSpec?.icon ?: Icons.Rounded.Search,
+                            contentDescription = null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = subSpec?.label ?: "Search",
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = colors.accent,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "  ·  Esc to go back",
+                            style = AmazeTheme.typography.smallLabel,
+                            color = colors.textMuted,
+                            maxLines = 1
+                        )
+                    }
+                }
+
                 val selectedItem = filteredCommands.getOrNull(selectedIndex)
 
                 // Spotlight Detail View (iOS Spotlight style)
                 AnimatedVisibility(
-                    visible = selectedItem?.detail != null,
+                    visible = selectedItem?.detail != null && !isInSubStage,
                     enter = expandVertically(animationSpec = tween(300)) + fadeIn(animationSpec = tween(300)),
                     exit = shrinkVertically(animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
                 ) {
@@ -225,11 +337,51 @@ fun CommandPalette(
                     modifier = Modifier.fillMaxWidth().weight(1f, fill = false),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    if (filteredCommands.isEmpty()) {
+                    if (isInSubStage && subLoading) {
                         item {
                             Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                                Text("No results found", style = AmazeTheme.typography.body, color = colors.textSecondary)
+                                CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(28.dp))
                             }
+                        }
+                    } else if (filteredCommands.isEmpty()) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Rounded.Search, null, tint = colors.textMuted, modifier = Modifier.size(28.dp))
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        "No results found",
+                                        style = AmazeTheme.typography.body,
+                                        color = colors.textSecondary
+                                    )
+                                    if (isInSubStage && query.isBlank()) {
+                                        Text(
+                                            "Type something to search",
+                                            style = AmazeTheme.typography.smallLabel,
+                                            color = colors.textMuted
+                                        )
+                                    } else {
+                                        Text(
+                                            "Type to refine your search",
+                                            style = AmazeTheme.typography.smallLabel,
+                                            color = colors.textMuted
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else if (isInSubStage) {
+                        itemsIndexed(
+                            items = filteredCommands,
+                            key = { index, item -> item.id }
+                        ) { index, item ->
+                            val isSelected = selectedIndex == index
+                            CommandItemRow(
+                                item = item,
+                                isSelected = isSelected,
+                                onClick = { runSelect(item) },
+                                onHover = { selectedIndex = index }
+                            )
                         }
                     } else {
                         var globalIndex = 0
@@ -244,7 +396,7 @@ fun CommandPalette(
                                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                                 )
                             }
-                            
+
                             items(
                                 count = items.size,
                                 key = { localIndex -> items[localIndex].id }
@@ -256,10 +408,7 @@ fun CommandPalette(
                                 CommandItemRow(
                                     item = item,
                                     isSelected = isSelected,
-                                    onClick = {
-                                        item.onSelect()
-                                        onClose()
-                                    },
+                                    onClick = { runSelect(item) },
                                     onHover = {
                                         selectedIndex = currentIndex
                                     }
@@ -268,7 +417,7 @@ fun CommandPalette(
                         }
                     }
                 }
-                
+
                 // Footer
                 HorizontalDivider(color = colors.border)
                 Row(
@@ -279,9 +428,12 @@ fun CommandPalette(
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         ShortcutHint("↑↓", "Navigate")
                         ShortcutHint("↵", "Select")
+                        if (isInSubStage) {
+                            ShortcutHint("Esc", "Back")
+                        }
                     }
                     Text(
-                        "Command Palette",
+                        if (isInSubStage) "Focused Search" else "Command Palette",
                         style = AmazeTheme.typography.smallLabel,
                         color = colors.textSecondary
                     )
@@ -299,7 +451,7 @@ private fun CommandItemRow(
     onHover: () -> Unit
 ) {
     val colors = AmazeTheme.colors
-    
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -321,7 +473,7 @@ private fun CommandItemRow(
         } else {
             Spacer(modifier = Modifier.width(32.dp))
         }
-        
+
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = item.label,
@@ -342,7 +494,7 @@ private fun CommandItemRow(
                 )
             }
         }
-        
+
         if (item.rightSlot != null) {
             Spacer(modifier = Modifier.width(12.dp))
             item.rightSlot.invoke()

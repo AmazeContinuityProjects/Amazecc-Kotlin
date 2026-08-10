@@ -8,3 +8,9 @@ plugins {
     alias(libs.plugins.jetbrains.compose) apply false
     alias(libs.plugins.compose.compiler) apply false
 }
+
+subprojects {
+    configurations.configureEach {
+        resolutionStrategy.force("org.jetbrains.kotlinx:kotlinx-datetime:${libs.versions.datetime.get()}")
+    }
+}

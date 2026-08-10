@@ -1,5 +1,10 @@
-package com.amazecc.app.shared.ui.screens.academics
+﻿package com.amazecc.app.shared.ui.screens.academics
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -16,17 +21,26 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.SyncModule
@@ -39,6 +53,7 @@ import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.utils.rememberFileSaver
+import com.amazecc.app.shared.utils.toFixed
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.launch
@@ -103,6 +118,20 @@ fun CurriculumScreen() {
     var downloadingSyllabus by remember { mutableStateOf<String?>(null) }
     var downloadMessage by remember { mutableStateOf<String?>(null) }
 
+    // Hidden search activated via the header search icon
+    val localSearchTick by AppState.localSearchTick.collectAsState()
+    var searchActive by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(localSearchTick) {
+        if (localSearchTick > 0) {
+            searchActive = true
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
     LaunchedEffect(downloadMessage) {
         if (downloadMessage != null) {
             delay(2500.milliseconds)
@@ -157,7 +186,7 @@ fun CurriculumScreen() {
                     }
                 }
             } else {
-                // ── Summary Card ──
+                // â”€â”€ Summary Card â”€â”€
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -186,8 +215,8 @@ fun CurriculumScreen() {
                                 Text("Credit plan overview", color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs)
                                 Spacer(Modifier.height(AmazeTheme.spacing.sm))
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    MetricBox("Earned", "${totalEarned.toFloat().let { if (it == it.toInt().toFloat()) it.toInt().toString() else String.format("%.1f", it) }}", colors.chart3, colors)
-                                    MetricBox("In Prog.", "${ongoingCredits.let { if (it == it.toInt().toFloat()) it.toInt().toString() else "%.1f".format(it) }}", colors.chart4, colors)
+                                    MetricBox("Earned", "${totalEarned.toFloat().let { if (it == it.toInt().toFloat()) it.toInt().toString() else it.toFixed(1) }}", colors.chart3, colors)
+                                    MetricBox("In Prog.", "${ongoingCredits.let { if (it == it.toInt().toFloat()) it.toInt().toString() else it.toFixed(1) }}", colors.chart4, colors)
                                     MetricBox("Remain.", "${remainingCredits}", colors.textMuted, colors)
                                     MetricBox("Req.", "$totalRequired", colors.textPrimary, colors)
                                     MetricBox("Grad.", expectedGrad, colors.success, colors)
@@ -205,7 +234,7 @@ fun CurriculumScreen() {
                     }
                 }
 
-                // ── Credit Baskets ──
+                // â”€â”€ Credit Baskets â”€â”€
                 Text("Credit Baskets", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.md)
                 categories.forEach { cat ->
                     val required = cat.maxCredits.coerceAtLeast(1)
@@ -285,24 +314,42 @@ fun CurriculumScreen() {
                     }
                 }
 
-                // ── Course Details by Category ──
+                // â”€â”€ Course Details by Category â”€â”€
                 if (details.isNotEmpty()) {
                     Text("Course Details by Category", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.md)
 
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search by code, name...", color = colors.textMuted) },
-                        leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
-                        trailingIcon = if (searchQuery.isNotEmpty()) ({
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Rounded.Close, null, tint = colors.textMuted)
-                            }
-                        }) else null,
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent)
-                    )
+                    AnimatedVisibility(
+                        visible = searchActive,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = { Text("Search by code, name...", color = colors.textMuted) },
+                            leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
+                            trailingIcon = if (searchQuery.isNotEmpty()) ({
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Rounded.Close, null, tint = colors.textMuted)
+                                }
+                            }) else null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                                .focusRequester(searchFocusRequester)
+                                .onPreviewKeyEvent { event ->
+                                    if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                                        searchActive = false
+                                        keyboardController?.hide()
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, cursorColor = colors.accent)
+                        )
+                    }
 
                     filteredCategories.forEach { cat ->
                         val earnedCredits = categoryEarnedCredits[cat.code] ?: 0

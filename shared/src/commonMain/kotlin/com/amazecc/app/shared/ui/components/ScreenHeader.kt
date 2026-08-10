@@ -55,10 +55,11 @@ fun ScreenHeader(
     onRefresh: (() -> Unit)? = null,
     syncModules: Set<SyncModule> = emptySet(),
     onBackOverride: (() -> Unit)? = null,
+    searchAction: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
     enabledScreens: Set<Screen>? = null
 ) {
-    val config = remember(title, description, showBackButton, showSyncButton, onRefresh, syncModules, onBackOverride) {
+    val config = remember(title, description, showBackButton, showSyncButton, onRefresh, syncModules, onBackOverride, searchAction) {
         HeaderConfig(
             title = title,
             description = description,
@@ -66,7 +67,8 @@ fun ScreenHeader(
             showSyncButton = showSyncButton,
             onRefresh = onRefresh,
             syncModules = syncModules,
-            onBackOverride = onBackOverride
+            onBackOverride = onBackOverride,
+            searchAction = searchAction
         )
     }
 
@@ -200,7 +202,7 @@ fun FloatingScreenHeader(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
-                        onClick = { AppState.openCommandPalette() },
+                        onClick = { config.searchAction?.invoke() ?: AppState.openCommandPalette() },
                         modifier = Modifier
                             .size(36.dp)
                             .background(colors.accent.copy(alpha = 0.12f), CircleShape)

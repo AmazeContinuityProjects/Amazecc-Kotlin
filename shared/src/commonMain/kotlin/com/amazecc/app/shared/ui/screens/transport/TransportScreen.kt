@@ -1,6 +1,11 @@
-package com.amazecc.app.shared.ui.screens.transport
+﻿package com.amazecc.app.shared.ui.screens.transport
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,9 +24,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,6 +46,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.runtime.collectAsState
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
@@ -50,6 +64,20 @@ fun TransportScreen() {
     var showRegistrationForm by remember { mutableStateOf(false) }
     var showHistoryDialog by remember { mutableStateOf(false) }
 
+    // Hidden search activated via the header search icon
+    val localSearchTick by AppState.localSearchTick.collectAsState()
+    var searchActive by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(localSearchTick) {
+        if (localSearchTick > 0) {
+            searchActive = true
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
     val filteredRoutes = remember(routes, searchQuery) {
         if (searchQuery.isBlank()) routes
         else routes.filter {
@@ -61,7 +89,8 @@ fun TransportScreen() {
 
     Scaffold(
         containerColor = colors.background,
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets(0.dp)
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -85,13 +114,29 @@ fun TransportScreen() {
             }
 
             item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                AnimatedVisibility(
+                    visible = searchActive,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut(),
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                ) {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
                         placeholder = { Text("Search routes or stops...", color = colors.textMuted) },
                         leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(searchFocusRequester)
+                            .onPreviewKeyEvent { event ->
+                                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                                    searchActive = false
+                                    keyboardController?.hide()
+                                    true
+                                } else {
+                                    false
+                                }
+                            },
                         singleLine = true,
                         shape = RoundedCornerShape(AmazeTheme.radius.medium),
                         colors = OutlinedTextFieldDefaults.colors(

@@ -47,21 +47,16 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
     val timetable by AppState.timetable.collectAsState()
 
     var selectedSemester by remember { mutableStateOf("All") }
-    var searchQuery by remember { mutableStateOf("") }
 
     val semesterGroups = remember(allSemesterMarks, allSemesterAttendance, marksRes, attendanceRes, allGrades, timetable) {
         buildSemesterGroups(allSemesterMarks, allSemesterAttendance, marksRes, attendanceRes, allGrades, timetable)
     }
 
-    val filteredGroups = remember(semesterGroups, selectedSemester, searchQuery) {
+    val filteredGroups = remember(semesterGroups, selectedSemester) {
         semesterGroups.filter { group ->
             if (group.courseCode.isBlank()) return@filter false
             val semMatch = selectedSemester == "All" || group.semesterSubId == selectedSemester
-            val search = searchQuery.lowercase()
-            val searchMatch = search.isEmpty() ||
-                    group.courseCode.lowercase().contains(search) ||
-                    group.courseTitle.lowercase().contains(search)
-            semMatch && searchMatch
+            semMatch
         }.groupBy { it.semesterSubId }
     }
 
@@ -91,44 +86,6 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
         ) {
             item {
                 HeaderSpacer()
-            }
-
-            // Search bar item
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                        .background(colors.surface)
-                        .border(1.dp, colors.border.copy(alpha = 0.6f), RoundedCornerShape(AmazeTheme.radius.medium))
-                        .padding(horizontal = 14.dp, vertical = 4.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Search, null, tint = colors.accent, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                        TextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = { Text("Search courses...", color = colors.textMuted, fontSize = AmazeTheme.fontSize.base) },
-                            modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = Color.Transparent,
-                                unfocusedContainerColor = Color.Transparent,
-                                focusedIndicatorColor = Color.Transparent,
-                                unfocusedIndicatorColor = Color.Transparent,
-                                focusedTextColor = colors.textPrimary,
-                                unfocusedTextColor = colors.textPrimary
-                            )
-                        )
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Rounded.Close, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(AmazeTheme.spacing.sm))
             }
 
             // Semester filter chips item

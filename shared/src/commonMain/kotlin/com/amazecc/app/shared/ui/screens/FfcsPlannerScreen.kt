@@ -1,5 +1,10 @@
-package com.amazecc.app.shared.ui.screens
+﻿package com.amazecc.app.shared.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,13 +21,23 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
 import com.amazecc.app.shared.ffcs.*
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.FfcsViewModel
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
@@ -148,6 +163,20 @@ private fun CourseSelectionTab(
     var search by remember { mutableStateOf("") }
     var expandedCourse by remember { mutableStateOf<String?>(null) }
 
+    // Hidden search activated via the header search icon
+    val localSearchTick by AppState.localSearchTick.collectAsState()
+    var searchActive by remember { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(localSearchTick) {
+        if (localSearchTick > 0) {
+            searchActive = true
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
     val filtered = remember(allCourses, search) {
         if (search.isBlank()) allCourses
         else allCourses.filter { (code, offerings) ->
@@ -157,33 +186,50 @@ private fun CourseSelectionTab(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
+        AnimatedVisibility(
+            visible = searchActive,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
         ) {
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
-                modifier = Modifier.weight(1f),
-                placeholder = {
-                    Text("Search by code or title...",
-                        style = AmazeTheme.typography.body.copy(color = colors.textMuted))
-                },
-                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
-                singleLine = true,
-                shape = RoundedCornerShape(AmazeTheme.radius.small),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = colors.accent.copy(alpha = 0.5f),
-                    unfocusedBorderColor = colors.border,
-                    focusedTextColor = colors.textPrimary,
-                    unfocusedTextColor = colors.textPrimary,
-                    cursorColor = colors.accent
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = search,
+                    onValueChange = { search = it },
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(searchFocusRequester)
+                        .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                                searchActive = false
+                                keyboardController?.hide()
+                                true
+                            } else {
+                                false
+                            }
+                        },
+                    placeholder = {
+                        Text("Search by code or title...",
+                            style = AmazeTheme.typography.body.copy(color = colors.textMuted))
+                    },
+                    leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(AmazeTheme.radius.small),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = colors.accent.copy(alpha = 0.5f),
+                        unfocusedBorderColor = colors.border,
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary,
+                        cursorColor = colors.accent
+                    )
                 )
-            )
-            if (selectedCodes.isNotEmpty()) {
-                IconButton(onClick = { FfcsViewModel.resetSelection() }) {
-                    Icon(Icons.Rounded.Clear, null, tint = colors.danger)
+                if (selectedCodes.isNotEmpty()) {
+                    IconButton(onClick = { FfcsViewModel.resetSelection() }) {
+                        Icon(Icons.Rounded.Clear, null, tint = colors.danger)
+                    }
                 }
             }
         }
