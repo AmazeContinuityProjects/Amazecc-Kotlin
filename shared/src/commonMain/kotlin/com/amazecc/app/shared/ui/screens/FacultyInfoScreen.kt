@@ -8,11 +8,9 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,6 +42,8 @@ import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.screens.settings.SettingsGroupCard
+import com.amazecc.app.shared.ui.screens.settings.SettingsRow
 import com.amazecc.app.shared.utils.FacultyFreeSlotsUtil
 import com.amazecc.app.shared.utils.FacultySlot
 import kotlinx.coroutines.launch
@@ -59,7 +59,12 @@ fun FacultyInfoScreen() {
     var selectedFaculty by remember { mutableStateOf<FacultyProfile?>(null) }
     var searchTerm by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var schoolMenuExpanded by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    AppBackHandler(enabled = selectedFaculty != null) {
+        selectedFaculty = null
+    }
 
     // Hidden search activated via the header search icon
     val localSearchTick by AppState.localSearchTick.collectAsState()
@@ -81,15 +86,6 @@ fun FacultyInfoScreen() {
             val res = AmazeClient.getFacultySchools()
             if (res.success && res.schools.isNotEmpty()) {
                 schools = res.schools
-                val firstId = res.schools.first().id
-                selectedSchoolId = firstId
-                loadingFaculties = true
-                try {
-                    val scrapeRes = AmazeClient.postFacultyScrape(firstId)
-                    if (scrapeRes.success) faculties = scrapeRes.faculties
-                    else error = scrapeRes.error
-                } catch (e: Exception) { error = e.message }
-                loadingFaculties = false
             } else {
                 error = res.error ?: "Failed to load schools"
             }
@@ -97,6 +93,24 @@ fun FacultyInfoScreen() {
             error = e.message
         }
         loadingSchools = false
+    }
+
+    val selectSchool: (String) -> Unit = { id ->
+        if (id != selectedSchoolId) {
+            selectedSchoolId = id
+            faculties = emptyList()
+            searchTerm = ""
+            error = null
+            loadingFaculties = true
+            scope.launch {
+                try {
+                    val res = AmazeClient.postFacultyScrape(id)
+                    if (res.success) faculties = res.faculties
+                    else error = res.error
+                } catch (e: Exception) { error = e.message }
+                loadingFaculties = false
+            }
+        }
     }
 
     val sf = selectedFaculty
@@ -116,57 +130,6 @@ fun FacultyInfoScreen() {
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
                 HeaderSpacer()
-                // School Pills
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    schools.forEach { school ->
-                        val isSelected = selectedSchoolId == school.id
-
-                        Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(if (isSelected) colors.accent else colors.surface)
-                                .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
-                                .clickable(
-                                    onClick = {
-                                        if (school.id != selectedSchoolId) {
-                                            selectedSchoolId = school.id
-                                            faculties = emptyList()
-                                            searchTerm = ""
-                                            error = null
-                                            loadingFaculties = true
-                                            scope.launch {
-                                                try {
-                                                    val res = AmazeClient.postFacultyScrape(school.id)
-                                                    if (res.success) faculties = res.faculties
-                                                    else error = res.error
-                                                } catch (e: Exception) { error = e.message }
-                                                loadingFaculties = false
-                                            }
-                                        }
-                                    }
-                                )
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                school.school_name,
-                                style = AmazeTheme.typography.body.copy(
-                                    fontSize = AmazeTheme.fontSize.base,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isSelected) colors.background else colors.textPrimary
-                                ),
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-
                 // Error
                 val err = error
                 if (err != null) {
@@ -179,8 +142,103 @@ fun FacultyInfoScreen() {
                     }
                 }
 
-                // Search
-                if (selectedSchoolId != null) {
+                if (selectedSchoolId == null) {
+                    // Schools as menu items
+                    Text(
+                        "Select a School",
+                        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Text(
+                        "Choose a school to browse its faculty directory",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                    SettingsGroupCard(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        schools.forEachIndexed { index, school ->
+                            SettingsRow(
+                                icon = Icons.Rounded.School,
+                                title = school.school_name,
+                                subtitle = "View faculty directory",
+                                tint = colors.accent,
+                                onClick = { selectSchool(school.id) }
+                            )
+                            if (index < schools.lastIndex) {
+                                HorizontalDivider(color = colors.border.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 14.dp))
+                            }
+                        }
+                    }
+                } else {
+                    // School switcher menu
+                    val selectedSchool = schools.firstOrNull { it.id == selectedSchoolId }
+                    Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        SettingsGroupCard {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { schoolMenuExpanded = true }
+                                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(colors.accent.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Rounded.School, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Faculty Directory", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                                    Text(
+                                        selectedSchool?.school_name ?: "Select a school",
+                                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Icon(Icons.Rounded.ExpandMore, null, tint = colors.textMuted)
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = schoolMenuExpanded,
+                            onDismissRequest = { schoolMenuExpanded = false },
+                            containerColor = colors.elevatedSurface
+                        ) {
+                            schools.forEach { school ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            school.school_name,
+                                            style = AmazeTheme.typography.body.copy(
+                                                fontWeight = if (school.id == selectedSchoolId) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (school.id == selectedSchoolId) colors.accent else colors.textPrimary
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    onClick = {
+                                        schoolMenuExpanded = false
+                                        selectSchool(school.id)
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Rounded.School,
+                                            null,
+                                            tint = if (school.id == selectedSchoolId) colors.accent else colors.textSecondary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    // Search
                     AnimatedVisibility(
                         visible = searchActive,
                         enter = expandVertically() + fadeIn(),
@@ -233,53 +291,41 @@ fun FacultyInfoScreen() {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = colors.accent)
                     }
-                } else if (selectedSchoolId != null) {
-                    if (filtered.isEmpty()) {
-                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Rounded.PersonSearch, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                                Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                                Text(
-                                    if (faculties.isEmpty()) "No faculty data available for this school"
-                                    else "No faculty found matching \"$searchTerm\"",
-                                    color = colors.textSecondary,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                            contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
-                        ) {
-                            items(filtered, key = { it.id }) { faculty ->
-                                FacultyCard(
-                                    faculty = faculty,
-                                    onClick = { selectedFaculty = faculty },
-                                    onDetailFetched = { profile ->
-                                        faculties = faculties.map {
-                                            if (it.id == profile.id) {
-                                                it.copy(
-                                                    designation = profile.designation.ifBlank { it.designation },
-                                                    email = profile.email.ifBlank { it.email },
-                                                    intercom = profile.intercom.ifBlank { it.intercom }
-                                                )
-                                            } else it
-                                        }
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-
-                if (selectedSchoolId == null && !loadingSchools) {
+                } else if (filtered.isEmpty()) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Rounded.School, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                            Icon(Icons.Rounded.PersonSearch, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
                             Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                            Text("Select a school to view its faculty directory", color = colors.textSecondary)
+                            Text(
+                                if (faculties.isEmpty()) "No faculty data available for this school"
+                                else "No faculty found matching \"$searchTerm\"",
+                                color = colors.textSecondary,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
+                    ) {
+                        items(filtered, key = { it.id }) { faculty ->
+                            FacultyCard(
+                                faculty = faculty,
+                                onClick = { selectedFaculty = faculty },
+                                onDetailFetched = { profile ->
+                                    faculties = faculties.map {
+                                        if (it.id == profile.id) {
+                                            it.copy(
+                                                designation = profile.designation.ifBlank { it.designation },
+                                                email = profile.email.ifBlank { it.email },
+                                                intercom = profile.intercom.ifBlank { it.intercom }
+                                            )
+                                        } else it
+                                    }
+                                }
+                            )
                         }
                     }
                 }

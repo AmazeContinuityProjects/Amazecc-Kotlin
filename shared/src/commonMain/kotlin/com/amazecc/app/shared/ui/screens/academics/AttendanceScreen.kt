@@ -30,6 +30,16 @@ import com.amazecc.app.shared.model.ExamItem
 import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.ExamDayBanner
+import com.amazecc.app.shared.ui.components.rememberSelectedSemesterExams
+import com.amazecc.app.shared.ui.components.ExamStatusChip
+import com.amazecc.app.shared.ui.components.examStatusText
+import com.amazecc.app.shared.utils.AttendanceDay
+import com.amazecc.app.shared.utils.AttendanceTimetable
+import com.amazecc.app.shared.utils.CourseAttendanceInfo
+import com.amazecc.app.shared.utils.SlotInfo
+import com.amazecc.app.shared.utils.ExamUtils
+import com.amazecc.app.shared.utils.examDateParsed
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -40,10 +50,6 @@ import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
-import com.amazecc.app.shared.utils.AttendanceDay
-import com.amazecc.app.shared.utils.AttendanceTimetable
-import com.amazecc.app.shared.utils.CourseAttendanceInfo
-import com.amazecc.app.shared.utils.SlotInfo
 import kotlinx.datetime.*
 import com.amazecc.app.shared.utils.TimeMath
 import kotlinx.datetime.Clock
@@ -866,6 +872,35 @@ fun TimetableGridScreen() {
         map
     }
 
+    // Exam data for this week
+    val allExams = rememberSelectedSemesterExams()
+    val weekExams = remember(allExams, mondayDate) {
+        allExams.filter { exam ->
+            val date = exam.examDateParsed
+            date != null && date >= mondayDate && date < mondayDate.plus(DatePeriod(days = 7))
+        }
+    }
+    val examsByDay = remember(weekExams) {
+        val map = mutableMapOf<String, MutableList<ExamItem>>()
+        for (exam in weekExams) {
+            val dayOfWeek = exam.examDateParsed?.dayOfWeek?.let {
+                when (it) {
+                    DayOfWeek.MONDAY -> "MON"
+                    DayOfWeek.TUESDAY -> "TUE"
+                    DayOfWeek.WEDNESDAY -> "WED"
+                    DayOfWeek.THURSDAY -> "THU"
+                    DayOfWeek.FRIDAY -> "FRI"
+                    DayOfWeek.SATURDAY -> "SAT"
+                    else -> null
+                }
+            }
+            if (dayOfWeek != null) {
+                map.getOrPut(dayOfWeek) { mutableListOf() }.add(exam)
+            }
+        }
+        map
+    }
+
     var selectedDay by remember { mutableStateOf<String?>(null) }
     var showTimetableDialog by remember { mutableStateOf(false) }
 
@@ -940,6 +975,21 @@ fun TimetableGridScreen() {
                                         )
                                     }
                                 }
+                                val dayExams = examsByDay[day] ?: emptyList()
+                                if (dayExams.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                            .background(colors.chart1.copy(alpha = 0.12f))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text(
+                                            "${dayExams.size} exam${if (dayExams.size != 1) "s" else ""}",
+                                            style = AmazeTheme.typography.smallLabel.copy(color = colors.chart1, fontWeight = FontWeight.Bold)
+                                        )
+                                    }
+                                }
                             }
                             Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                             if (dayCourses.isEmpty()) {
@@ -1003,15 +1053,39 @@ fun TimetableGridScreen() {
                     Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                 }
                 val slots = dayTimeSlots[selectedDay] ?: emptyList()
+                val dayExams = examsByDay[selectedDay] ?: emptyList()
+                val examRanges = dayExams.mapNotNull { ExamUtils.parseExamTimeRange(it.examTime) }
                 items(slots, key = { it.first }) { (slotCode, timeRange) ->
                     val course = daySlotMap[selectedDay]?.get(slotCode)
                     val hasClass = course != null
+                    // Check if this slot overlaps with any exam
+                    val slotStart = TimeMath.toMinutes(timeRange.split("-")[0])
+                    val slotEnd = TimeMath.toMinutes(timeRange.split("-")[1])
+                    val hasExamOverlap = examRanges.any { (exStart, exEnd) ->
+                        slotStart < exEnd && slotEnd > exStart
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                            .background(if (hasClass) colors.accent.copy(alpha = 0.06f) else colors.surface)
-                            .border(1.dp, if (hasClass) colors.accent.copy(alpha = 0.2f) else colors.border, RoundedCornerShape(AmazeTheme.radius.small))
+                            .background(
+                                when {
+                                    hasClass && hasExamOverlap -> colors.chart1.copy(alpha = 0.08f)
+                                    hasClass -> colors.accent.copy(alpha = 0.06f)
+                                    hasExamOverlap -> colors.chart1.copy(alpha = 0.04f)
+                                    else -> colors.surface
+                                }
+                            )
+                            .border(
+                                1.dp,
+                                when {
+                                    hasClass && hasExamOverlap -> colors.chart1.copy(alpha = 0.3f)
+                                    hasClass -> colors.accent.copy(alpha = 0.2f)
+                                    hasExamOverlap -> colors.chart1.copy(alpha = 0.2f)
+                                    else -> colors.border
+                                },
+                                RoundedCornerShape(AmazeTheme.radius.small)
+                            )
                             .clickable { if (course != null) AppState.openCourseDetail(course.courseCode) }
                             .padding(10.dp)
                     ) {
@@ -1020,8 +1094,15 @@ fun TimetableGridScreen() {
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.width(64.dp)) {
-                                Text(slotCode, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = if (hasClass) colors.accent else colors.textMuted))
+                                Text(slotCode, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = if (hasClass) colors.accent else if (hasExamOverlap) colors.chart1 else colors.textMuted))
                                 Text(timeRange, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                                if (hasExamOverlap) {
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    ExamStatusChip(
+                                        text = "EXAM",
+                                        color = colors.chart1
+                                    )
+                                }
                             }
                             Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                             if (hasClass) {

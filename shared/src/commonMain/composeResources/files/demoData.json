@@ -8793,6 +8793,46 @@
     "profile": null,
     "studentPhoto": null
   },
+  "credentials": {
+    "success": true,
+    "title": "Credentials",
+    "credentials": [
+      {
+        "account": "Gmail",
+        "username": "buddda.p2025@vitstudent.ac.in",
+        "defaultCredentials": "VIT@2025#budd",
+        "url": "https://mail.google.com/",
+        "venueDate": "08-12-2025",
+        "seatLocation": "TT-521"
+      },
+      {
+        "account": "Microsoft-Team",
+        "username": "buddda.p2025@vitstudent.ac.in",
+        "defaultCredentials": "VIT@2025#budd",
+        "url": "https://teams.microsoft.com/",
+        "venueDate": "08-12-2025",
+        "seatLocation": "TT-521"
+      },
+      {
+        "account": "LMS",
+        "username": "25BLC1081",
+        "defaultCredentials": "25BLC1081",
+        "url": "https://lms.vit.ac.in/",
+        "venueDate": "",
+        "seatLocation": ""
+      }
+    ],
+    "ranks": [
+      {
+        "name": "CGPA Rank",
+        "rank": "42"
+      },
+      {
+        "name": "Class Rank",
+        "rank": "17"
+      }
+    ]
+  },
   "eptSchedule": {
     "success": true,
     "tables": [
@@ -8812,18 +8852,34 @@
   },
   "registrationSchedule": {
     "success": true,
+    "title": "Registration Schedule",
+    "keyValuePairs": {
+      "userName": "25BLC1081",
+      "date": "27-Jun-2026",
+      "fromTime": "9:00:00 AM",
+      "toTime": "10:00:00 AM"
+    },
     "tables": [
       {
-        "Programme": "UG",
-        "Round": "Round 1",
-        "Start": "2026-07-01",
-        "End": "2026-07-10"
-      },
+        "headers": ["User Name", "25BLC1081"],
+        "rows": [
+          { "User Name": "Date", "25BLC1081": "27-Jun-2026" },
+          { "User Name": "From Time", "25BLC1081": "9:00:00 AM" },
+          { "User Name": "To Time", "25BLC1081": "10:00:00 AM" }
+        ]
+      }
+    ]
+  },
+  "universityDay": {
+    "success": true,
+    "title": "University Day Awards",
+    "tables": [
       {
-        "Programme": "UG",
-        "Round": "Round 2",
-        "Start": "2026-07-15",
-        "End": "2026-07-25"
+        "headers": ["#", "YEAR", "CATEGORY", "CERTIFICATE"],
+        "rows": [
+          { "#": "1", "YEAR": "2026", "CATEGORY": "MERIT CERTIFICATE", "CERTIFICATE": "Awarded for academic excellence" },
+          { "#": "2", "YEAR": "2026", "CATEGORY": "PROFICIENCY CERTIFICATE", "CERTIFICATE": "Awarded for co-curricular achievements" }
+        ]
       }
     ]
   },

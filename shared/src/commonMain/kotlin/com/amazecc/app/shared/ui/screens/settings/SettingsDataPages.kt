@@ -22,7 +22,12 @@ import com.amazecc.app.shared.state.*
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
+import com.amazecc.app.shared.utils.ExportImportManager
+import com.amazecc.app.shared.utils.rememberFileImporter
+import com.amazecc.app.shared.utils.rememberFileSaver
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AcademicsPage() {
@@ -214,6 +219,24 @@ fun DataSyncPage(
                     }
                 }
             )
+            SettingsRowDivider()
+
+            var examNotif by remember { mutableStateOf(SettingsManager.isNotifExamRemindersEnabled()) }
+            SettingsSwitchRow(
+                icon = Icons.Rounded.EventSeat,
+                title = "Exam Reminders",
+                subtitle = "Remind 24h prior & at reporting time; suppresses class reminders on exam days",
+                tint = colors.accent,
+                checked = examNotif,
+                onCheckedChange = { enabled ->
+                    if (enabled && !examNotif && hasPermissionManager) {
+                        requestPushToggle { _ -> examNotif = true; SettingsManager.setNotifExamRemindersEnabled(true); AppState.rescheduleNotifications() }
+                    } else {
+                        examNotif = enabled; SettingsManager.setNotifExamRemindersEnabled(enabled)
+                        AppState.rescheduleNotifications()
+                    }
+                }
+            )
         }
 
         SettingsGroupLabel("Class Reminder Lead Time")
@@ -354,6 +377,85 @@ fun DataSyncPage(
                         }
                     }
                     if (index < modulesToShow.lastIndex) SettingsRowDivider()
+                }
+            }
+        }
+
+        SettingsGroupLabel("Backup & Export")
+        SettingsGroupCard {
+            var exportStatus by remember { mutableStateOf<String?>(null) }
+            var exportFailed by remember { mutableStateOf(false) }
+            var importStatus by remember { mutableStateOf<String?>(null) }
+            var importFailed by remember { mutableStateOf(false) }
+            val scope = rememberCoroutineScope()
+            val saveFile = rememberFileSaver()
+            val fileImporter = rememberFileImporter { text ->
+                if (text == null) return@rememberFileImporter
+                scope.launch {
+                    importStatus = "Importing backup..."
+                    importFailed = false
+                    withContext(Dispatchers.Default) { ExportImportManager.importFromJson(text) }
+                        .onSuccess { result ->
+                            importStatus = "Restored ${result.settingsImported} settings and ${result.tasksImported} tasks"
+                        }
+                        .onFailure { error ->
+                            importFailed = true
+                            importStatus = "Import failed: ${error.message ?: "invalid file"}"
+                        }
+                }
+            }
+            val doExport: (Boolean) -> Unit = { includeCache ->
+                scope.launch {
+                    exportStatus = "Exporting..."
+                    exportFailed = false
+                    val backupJson = withContext(Dispatchers.Default) {
+                        runCatching { ExportImportManager.buildBackupJson(includeCache) }
+                    }
+                    val saved = backupJson.fold(
+                        onSuccess = { json -> saveFile(ExportImportManager.backupFileName(), json.encodeToByteArray()) },
+                        onFailure = { false }
+                    )
+                    exportFailed = !saved
+                    val errorMessage = backupJson.exceptionOrNull()?.message
+                    exportStatus = when {
+                        saved -> "Backup saved to Downloads"
+                        errorMessage != null -> "Export failed - $errorMessage"
+                        else -> "Export failed - file could not be saved"
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "Create a JSON backup of your preferences and tasks, or restore from an existing backup file. Credentials and session data are never included.",
+                    color = colors.textSecondary,
+                    fontSize = AmazeTheme.fontSize.sm
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    AmazeButton("Export Custom", onClick = { doExport(false) }, modifier = Modifier.weight(1f), variant = ButtonVariant.PRIMARY)
+                    AmazeButton("Export Full", onClick = { doExport(true) }, modifier = Modifier.weight(1f), variant = ButtonVariant.SECONDARY)
+                }
+
+                SettingsRow(
+                    icon = Icons.Rounded.FileOpen,
+                    title = "Import Backup",
+                    subtitle = "Restore settings & tasks from a JSON file",
+                    tint = colors.accent,
+                    onClick = { fileImporter() }
+                )
+
+                val statusColor = when {
+                    (exportFailed || importFailed) -> colors.danger
+                    exportStatus != null || importStatus != null -> colors.success
+                    else -> colors.textMuted
+                }
+                val statusText = exportStatus ?: importStatus
+                if (statusText != null) {
+                    Text(statusText, color = statusColor, fontSize = AmazeTheme.fontSize.xs)
                 }
             }
         }

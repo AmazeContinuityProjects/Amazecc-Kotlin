@@ -56,14 +56,20 @@ import io.ktor.util.decodeBase64Bytes
 import com.amazecc.app.shared.utils.toFixed
 import com.amazecc.app.shared.utils.toImageBitmap
 import com.amazecc.app.shared.utils.WidgetDataUtils
+import com.amazecc.app.shared.utils.ExamUtils
+import com.amazecc.app.shared.utils.sessionDisplay
+import com.amazecc.app.shared.utils.seatLocationDisplay
+import com.amazecc.app.shared.utils.examDateParsed
 import com.amazecc.app.shared.model.displayCgpa
 import com.amazecc.app.shared.model.displayCreditsEarned
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import kotlin.math.roundToInt
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 
 private class DragState {
@@ -214,23 +220,33 @@ private fun EditModeHeader(
             .background(colors.accent.copy(alpha = 0.12f), RoundedCornerShape(AmazeTheme.radius.medium))
             .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.Edit, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(
-                "Use \u25B2\u25BC or drag to reorder",
-                style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium)
-            )
+        Icon(Icons.Rounded.Edit, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+        Text(
+            "Use \u25B2\u25BC or drag to reorder",
+            style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        TextButton(
+            onClick = onOpenManage,
+            contentPadding = PaddingValues(horizontal = 8.dp),
+            modifier = Modifier.height(36.dp)
+        ) {
+            Text("Manage All", color = colors.accent, fontWeight = FontWeight.Bold)
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onOpenManage) {
-                Text("Manage All", color = colors.accent, fontWeight = FontWeight.Bold)
-            }
-            TextButton(onClick = { AppState.toggleDashboardEditMode() }) {
-                Text("Done", color = colors.success, fontWeight = FontWeight.Bold)
-            }
+        Box(
+            modifier = Modifier
+                .height(36.dp)
+                .clip(RoundedCornerShape(50))
+                .background(colors.success.copy(alpha = 0.15f))
+                .clickable { AppState.toggleDashboardEditMode() }
+                .padding(horizontal = 18.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Done", color = colors.success, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -578,7 +594,7 @@ internal fun DashboardWidgetRows() {
 internal fun getWidgetTitle(widget: DashboardWidget): String = when (widget) {
     DashboardWidget.PROFILE_HEADER -> "Profile Header & Actions"
     DashboardWidget.METRIC_CARDS -> "Quick Stats (CGPA & Credits)"
-    DashboardWidget.CURRENT_NEXT_CLASS -> "Current & Next Class Tracker"
+    DashboardWidget.EXAM_AND_CLASS -> "Exam & Live Class Tracker"
     DashboardWidget.ATTENDANCE_BUNK -> "Attendance & Bunk Calculator"
     DashboardWidget.TODAYS_CLASSES -> "Today's Schedule & Live Tracker"
     DashboardWidget.COURSE_ATTENDANCE -> "Course Attendance Breakdown"
@@ -589,7 +605,7 @@ internal fun getWidgetTitle(widget: DashboardWidget): String = when (widget) {
 internal fun getWidgetDescription(widget: DashboardWidget): String = when (widget) {
     DashboardWidget.PROFILE_HEADER -> "Greeting, avatar, sync status & search"
     DashboardWidget.METRIC_CARDS -> "CGPA, earned credits & active ODs"
-    DashboardWidget.CURRENT_NEXT_CLASS -> "Compact view showing ongoing & upcoming class"
+    DashboardWidget.EXAM_AND_CLASS -> "Shows today's exams, next exam within 24h, or live & next class"
     DashboardWidget.ATTENDANCE_BUNK -> "Overall percentage & bunk-o-meter"
     DashboardWidget.TODAYS_CLASSES -> "Timetable for today with countdowns"
     DashboardWidget.COURSE_ATTENDANCE -> "Per-course breakdown and predictor"
@@ -602,7 +618,7 @@ private fun WidgetContent(widget: DashboardWidget) {
     when (widget) {
         DashboardWidget.PROFILE_HEADER -> ProfileHeaderWidget()
         DashboardWidget.METRIC_CARDS -> MetricCardsWidget()
-        DashboardWidget.CURRENT_NEXT_CLASS -> CurrentNextClassWidget()
+        DashboardWidget.EXAM_AND_CLASS -> ExamAndClassWidget()
         DashboardWidget.ATTENDANCE_BUNK -> AttendanceBunkWidget()
         DashboardWidget.TODAYS_CLASSES -> TodayClassesWidget()
         DashboardWidget.COURSE_ATTENDANCE -> CourseAttendanceWidget()
@@ -973,8 +989,12 @@ private data class DashboardClassEvent(
     val course: AttendanceItem
 )
 
+// ── EXAM & LIVE CLASS WIDGET ──
+// Shows today's exams from when the last class ends until the exam ends;
+// otherwise falls back to the live / next class tracker.
+
 @Composable
-private fun CurrentNextClassWidget() {
+private fun ExamAndClassWidget() {
     val colors = AmazeTheme.colors
     val attendanceRes by AppState.attendance.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
@@ -1017,6 +1037,375 @@ private fun CurrentNextClassWidget() {
         }
     }
 
+    val todayDate = remember(currentMins) {
+        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    }
+    val allExams = rememberSelectedSemesterExams()
+    val todayExams = remember(allExams, todayDate) {
+        allExams
+            .filter { it.examDateParsed == todayDate }
+            .sortedBy { ExamUtils.examStartMinutes(it) ?: 0 }
+    }
+
+    val tasks by AppState.tasks.collectAsState()
+    val todayQuizTasks = remember(tasks, todayDate) {
+        tasks
+            .filter { !it.completed && (it.type == "quiz" || it.type == "exam") && it.showOnCalendar }
+            .filter { try { it.dueDate == todayDate.toString() } catch (_: Exception) { false } }
+            .sortedBy { it.dueTime }
+    }
+
+    val nextExam = remember(allExams, currentMins) {
+        ExamUtils.nextExamWithin(allExams, withinHours = 24)
+    }
+
+    // Exams today that have not finished yet (unknown end time keeps them visible).
+    val activeTodayExams = remember(todayExams, currentMins) {
+        val now = Clock.System.now()
+        todayExams.filter { exam ->
+            val end = ExamUtils.examEndInstant(exam) ?: return@filter true
+            now < end
+        }
+    }
+
+    if (todayExams.isNotEmpty() || nextExam != null || todayQuizTasks.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (todayExams.isNotEmpty()) {
+                if (activeTodayExams.isNotEmpty() || nextExam == null) {
+                    ExamTimeWidget(todayExams, colors)
+                } else {
+                    UpcomingExamWidget(nextExam, colors)
+                }
+            } else if (nextExam != null) {
+                UpcomingExamWidget(nextExam, colors)
+            }
+            if (todayQuizTasks.isNotEmpty()) {
+                TodayQuizTasksWidget(todayQuizTasks, colors)
+            }
+        }
+    } else {
+        LiveNextClassContent(todayClasses, currentMins, colors)
+    }
+}
+
+/** Compact card for the next exam within the next 24 hours (when there is no exam today). */
+@Composable
+private fun UpcomingExamWidget(
+    exam: com.amazecc.app.shared.model.ExamItem,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val now = Clock.System.now()
+    val start = ExamUtils.examStartInstant(exam)
+    val minutes = start?.let { ((it - now).inWholeMilliseconds / 60_000L).toInt() } ?: 0
+    val label = when {
+        minutes >= 60 -> "In ${minutes / 60}h ${minutes % 60}m"
+        minutes > 0 -> "In ${minutes}m"
+        else -> "Today"
+    }
+
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { AppState.navigateTo(Screen.EXAM_SCHEDULE) },
+        variant = CardVariant.ACCENT_SURFACE,
+        accentStrip = true
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                    .background(colors.chart1.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.EventSeat, null, tint = colors.chart1)
+            }
+            Spacer(Modifier.width(AmazeTheme.spacing.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Next Exam",
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            color = colors.chart1,
+                            fontWeight = FontWeight.Black,
+                            fontSize = AmazeTheme.fontSize.xs
+                        )
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = exam.courseCode,
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = colors.textPrimary
+                        )
+                    )
+                }
+                Text(
+                    text = exam.courseTitle,
+                    style = AmazeTheme.typography.caption.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = buildString {
+                        append(exam.examDate)
+                        if (exam.examTime.isNotBlank()) append(" · ").append(exam.examTime)
+                        if (exam.venue.isNotBlank()) append(" · ").append(exam.venue)
+                    },
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                    .background(colors.chart1.copy(alpha = 0.14f))
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = label,
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        color = colors.chart1,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = AmazeTheme.fontSize.micro
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TodayQuizTasksWidget(
+    tasks: List<com.amazecc.app.shared.model.HomeworkTask>,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { AppState.navigateTo(Screen.TASKS) },
+        variant = CardVariant.ACCENT_SURFACE,
+        accentStrip = true
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Assignment, null, tint = colors.chart1, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Today's Quiz / Exam Tasks",
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                )
+                Spacer(Modifier.weight(1f))
+                AmazeBadge(text = "${tasks.size} task${if (tasks.size != 1) "s" else ""} due", variant = BadgeVariant.INFO)
+            }
+
+            tasks.forEach { task ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                        .background(colors.chart1.copy(alpha = 0.07f))
+                        .border(1.dp, colors.chart1.copy(alpha = 0.35f), RoundedCornerShape(AmazeTheme.radius.small))
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = task.courseCode,
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        color = colors.chart1,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = AmazeTheme.fontSize.xs
+                                    )
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                        .background(colors.chart1.copy(alpha = 0.14f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = if (task.type == "quiz") "QUIZ" else "EXAM",
+                                        style = AmazeTheme.typography.smallLabel.copy(
+                                            color = colors.chart1,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = AmazeTheme.fontSize.micro
+                                        )
+                                    )
+                                }
+                            }
+                            Text(
+                                text = task.title,
+                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                text = task.dueTime,
+                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = colors.chart1)
+                            )
+                            Text(
+                                text = "DUE",
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExamTimeWidget(
+    exams: List<com.amazecc.app.shared.model.ExamItem>,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val now = Clock.System.now()
+
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth(),
+        onClick = { AppState.navigateTo(Screen.EXAM_SCHEDULE) },
+        variant = CardVariant.ACCENT_SURFACE,
+        accentStrip = true
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.EventSeat, null, tint = colors.chart1, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Exam Time",
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                )
+                Spacer(Modifier.weight(1f))
+                AmazeBadge(text = "${exams.size} exam${if (exams.size != 1) "s" else ""} today", variant = BadgeVariant.INFO)
+            }
+
+            exams.forEach { exam ->
+                val status = examWidgetStatus(exam, now, colors)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                        .background(status.color.copy(alpha = 0.07f))
+                        .border(1.dp, status.color.copy(alpha = 0.35f), RoundedCornerShape(AmazeTheme.radius.small))
+                        .padding(12.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = exam.courseCode,
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        color = status.color,
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = AmazeTheme.fontSize.xs
+                                    )
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                        .background(status.color.copy(alpha = 0.14f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = status.label,
+                                        style = AmazeTheme.typography.smallLabel.copy(
+                                            color = status.color,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = AmazeTheme.fontSize.micro
+                                        )
+                                    )
+                                }
+                            }
+                            Text(
+                                text = exam.courseTitle,
+                                style = AmazeTheme.typography.caption.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textPrimary
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = buildString {
+                                    append(exam.examTime.ifBlank { exam.reportingTime.ifBlank { "Time TBD" } })
+                                    if (exam.venue.isNotBlank()) append(" · ").append(exam.venue)
+                                    if (exam.sessionDisplay != "TBD") append(" · ").append(exam.sessionDisplay)
+                                    append(" · Seat ").append(exam.seatLocationDisplay)
+                                    if (exam.seatNo.isNotBlank()) append(" #").append(exam.seatNo)
+                                },
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Icons.Rounded.ChevronRight,
+                            null,
+                            tint = status.color,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class ExamWidgetStatus(val label: String, val color: Color)
+
+private fun examWidgetStatus(
+    exam: com.amazecc.app.shared.model.ExamItem,
+    now: kotlinx.datetime.Instant,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+): ExamWidgetStatus {
+    val start = ExamUtils.examStartInstant(exam) ?: return ExamWidgetStatus("TODAY", colors.chart1)
+    val end = ExamUtils.examEndInstant(exam)
+
+    return when {
+        end != null && now >= end -> ExamWidgetStatus("DONE", colors.success)
+        now < start -> {
+            val minutes = ((start - now).inWholeMilliseconds / 60_000L).toInt()
+            val label = if (minutes >= 60) "In ${minutes / 60}h ${minutes % 60}m" else "In ${minutes}m"
+            val color = when {
+                minutes <= 60 -> colors.danger
+                minutes <= 180 -> colors.warning
+                else -> colors.chart1
+            }
+            ExamWidgetStatus(label, color)
+        }
+        else -> ExamWidgetStatus("LIVE", colors.accent)
+    }
+}
+
+@Composable
+private fun LiveNextClassContent(
+    todayClasses: List<DashboardClassEvent>,
+    currentMins: Int,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
     val currentClass = todayClasses.firstOrNull { it.startMins <= currentMins && it.endMins >= currentMins }
     val nextClass = todayClasses.firstOrNull { it.startMins > currentMins }
 
@@ -1212,6 +1601,24 @@ private fun TodayClassesWidget() {
         }
     }
 
+    // FFCS registration alert — takes over the status banner when the slot is within 24h
+    val regInfo by AppState.ffcsRegistration.collectAsState()
+    val regAlert = remember(regInfo, currentMins) {
+        val info = regInfo
+        if (info == null) {
+            null
+        } else {
+            val start = com.amazecc.app.shared.utils.NotificationsUtils.registrationStartInstant(info)
+                ?: return@remember null
+            val remaining = start - Clock.System.now()
+            if (remaining > 24.hours || remaining < -2.hours) {
+                null
+            } else {
+                Triple(info, start, remaining)
+            }
+        }
+    }
+
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(
@@ -1255,7 +1662,55 @@ private fun TodayClassesWidget() {
             }
             val statusColor = if (currentClass != null) colors.success else colors.info
 
-            if (statusText != null) {
+            if (regAlert != null) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                        .background(colors.accent.copy(alpha = 0.15f))
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Rounded.HowToReg,
+                        null,
+                        tint = colors.accent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "FFCS Registration ${regAlert.first.date}",
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = colors.accent,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+                        val slot = buildString {
+                            if (regAlert.first.fromTime.isNotBlank()) append(regAlert.first.fromTime)
+                            if (regAlert.first.toTime.isNotBlank()) {
+                                if (isNotEmpty()) append(" - ")
+                                append(regAlert.first.toTime)
+                            }
+                        }
+                        if (slot.isNotBlank()) {
+                            Text(
+                                slot,
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        regCountdownText(regAlert.third),
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            color = colors.accent,
+                            fontWeight = FontWeight.Bold
+                        )
+                    )
+                }
+            } else if (statusText != null) {
                 Spacer(Modifier.height(8.dp))
                 Row(
                     modifier = Modifier
@@ -1728,5 +2183,25 @@ private fun getGreeting(): String {
         now.hour < 12 -> "Morning"
         now.hour < 17 -> "Afternoon"
         else -> "Evening"
+    }
+}
+
+private fun regCountdownText(remaining: kotlin.time.Duration): String {
+    val totalMin = remaining.inWholeMinutes
+    return if (totalMin < 0) {
+        "Started ${formatCountdownParts(-totalMin)} ago"
+    } else {
+        "Starts in ${formatCountdownParts(totalMin)}"
+    }
+}
+
+private fun formatCountdownParts(totalMin: Long): String {
+    val days = totalMin / 1440
+    val hours = (totalMin % 1440) / 60
+    val mins = totalMin % 60
+    return when {
+        days > 0 -> "${days}d ${hours}h ${mins}m"
+        hours > 0 -> "${hours}h ${mins}m"
+        else -> "${mins}m"
     }
 }

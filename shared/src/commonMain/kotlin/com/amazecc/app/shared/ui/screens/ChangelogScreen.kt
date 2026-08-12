@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -12,14 +11,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
-import com.amazecc.app.shared.ui.components.AmazeCard
-import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.utils.UpdateConfig
 
 val changelogEntries = listOf(
     "Phase 3: 15 new features including QBank, Faculty Info, Course Management, Projects, Wishlist, Feedback, Documents, Activity Tree, Spotlight Search, and more",
@@ -32,14 +30,25 @@ val changelogEntries = listOf(
 @Composable
 fun ChangelogScreen() {
     val colors = AmazeTheme.colors
-    val changes = changelogEntries
+    var currentVersion by remember { mutableStateOf("...") }
+    LaunchedEffect(Unit) {
+        currentVersion = UpdateConfig.getCurrentVersion()
+    }
+    val latestReleaseNotes by AppState.latestReleaseNotes.collectAsState()
+
+    val changes = remember(latestReleaseNotes, currentVersion) {
+        if (latestReleaseNotes.isNotBlank()) {
+            latestReleaseNotes.lines().filter { it.isNotBlank() }.map { "• $it" }
+        } else {
+            changelogEntries
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
     ) {
-
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(16.dp),
             contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING),
@@ -61,7 +70,7 @@ fun ChangelogScreen() {
                         Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                         Column {
                             Text(
-                                text = "Update ${changes.size - index}",
+                                text = if (latestReleaseNotes.isNotBlank()) "Release Notes" else "Update ${changes.size - index}",
                                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                             )
                             Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))

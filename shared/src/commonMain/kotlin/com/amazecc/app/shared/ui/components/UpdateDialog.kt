@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.NewReleases
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -18,8 +19,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalUriHandler
 import com.amazecc.app.shared.model.GitHubRelease
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.utils.isAndroid
 
 @Composable
 fun UpdateDialog(
@@ -29,9 +32,16 @@ fun UpdateDialog(
     onDownload: () -> Unit
 ) {
     val colors = AmazeTheme.colors
+    val isAndroid = isAndroid()
+    val uriHandler = LocalUriHandler.current
 
     val updateIconGradient = remember(colors) {
         Brush.linearGradient(listOf(colors.chart2, colors.chart1))
+    }
+
+    val apkAssetUrl = remember(release) {
+        release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+            ?.browserDownloadUrl ?: release.htmlUrl
     }
 
     AlertDialog(
@@ -71,10 +81,17 @@ fun UpdateDialog(
         },
         text = {
             Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
-                Text(
-                    "A new update is available on GitHub. Tap download to get the latest release.",
-                    style = AmazeTheme.typography.body.copy(color = colors.textSecondary, lineHeight = 20.sp)
-                )
+                if (isAndroid) {
+                    Text(
+                        "A new update is available on GitHub. Tap download to get the latest release.",
+                        style = AmazeTheme.typography.body.copy(color = colors.textSecondary, lineHeight = 20.sp)
+                    )
+                } else {
+                    Text(
+                        "A new release is available. iOS builds are distributed via TestFlight — check the release notes below.",
+                        style = AmazeTheme.typography.body.copy(color = colors.textSecondary, lineHeight = 20.sp)
+                    )
+                }
                 if (!release.body.isNullOrBlank()) {
                     Spacer(Modifier.height(12.dp))
                     Text(
@@ -90,15 +107,28 @@ fun UpdateDialog(
             }
         },
         confirmButton = {
-            Button(
-                onClick = onDownload,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = colors.chart1),
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Icon(Icons.Rounded.Download, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Download", fontWeight = FontWeight.Bold)
+            if (isAndroid) {
+                Button(
+                    onClick = { onDownload(); uriHandler.openUri(apkAssetUrl) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.chart1),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(Icons.Rounded.Download, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Download APK", fontWeight = FontWeight.Bold)
+                }
+            } else {
+                Button(
+                    onClick = { onDownload(); uriHandler.openUri(release.htmlUrl) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.chart1),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("View Release Notes", fontWeight = FontWeight.Bold)
+                }
             }
         },
         dismissButton = {
@@ -110,4 +140,3 @@ fun UpdateDialog(
         }
     )
 }
-

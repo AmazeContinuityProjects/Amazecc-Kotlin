@@ -40,11 +40,14 @@ data class CGPAResult(
 @Serializable
 data class MarksRes(
     val success: Boolean = true,
-    val marks: List<MarksCourseItem> = emptyList(),
+    @SerialName("marks") val marksKey: List<MarksCourseItem> = emptyList(),
+    val courses: List<MarksCourseItem> = emptyList(),
     val cgpa: CGPAResult? = null,
     val error: String? = null,
     val message: String? = null
-)
+) {
+    val marks: List<MarksCourseItem> get() = if (marksKey.isNotEmpty()) marksKey else courses
+}
 
 val MarksRes?.displayCgpa: Double get() = this?.cgpa?.cgpa?.toDoubleOrNull() ?: 0.0
 val MarksRes?.displayCreditsEarned: Double get() = this?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
@@ -537,7 +540,10 @@ data class CabActionRes(
 data class ProfileImagesCredential(
     val account: String = "",
     val username: String = "",
-    val url: String? = null
+    val url: String? = null,
+    val defaultCredentials: String = "",
+    val venueDate: String = "",
+    val seatLocation: String = ""
 )
 
 @Serializable
@@ -551,6 +557,16 @@ data class ProfileImagesCredentials(
     val title: String = "",
     val credentials: List<ProfileImagesCredential> = emptyList(),
     val ranks: List<ProfileImagesRank> = emptyList()
+)
+
+// Dedicated /credentials endpoint — linked account logins, exam venue/seat & ranks
+@Serializable
+data class CredentialsRes(
+    val success: Boolean = true,
+    val title: String = "",
+    val credentials: List<ProfileImagesCredential> = emptyList(),
+    val ranks: List<ProfileImagesRank> = emptyList(),
+    val error: String? = null
 )
 
 @Serializable
@@ -644,7 +660,45 @@ data class EptScheduleRes(
 data class RegistrationScheduleRes(
     val success: Boolean = true,
     @Contextual
+    val selectOptions: Map<String, JsonElement>? = null,
+    @Contextual
     val tables: List<JsonElement>? = null,
+    @Contextual
+    val keyValuePairs: Map<String, JsonElement>? = null,
+    @Contextual
+    val formFields: Map<String, JsonElement>? = null,
+    @Contextual
+    val hiddenFields: Map<String, JsonElement>? = null,
+    @Contextual
+    val messages: Map<String, JsonElement>? = null,
+    val error: String? = null
+)
+
+// FFCS course-registration slot parsed from the /registration-schedule response
+@Serializable
+data class FfcsRegistrationInfo(
+    val userName: String = "",
+    val date: String = "",
+    val fromTime: String = "",
+    val toTime: String = ""
+)
+
+@Serializable
+data class UniversityDayRes(
+    val success: Boolean = true,
+    val title: String = "",
+    @Contextual
+    val selectOptions: Map<String, JsonElement>? = null,
+    @Contextual
+    val tables: List<JsonElement>? = null,
+    @Contextual
+    val keyValuePairs: Map<String, JsonElement>? = null,
+    @Contextual
+    val formFields: Map<String, JsonElement>? = null,
+    @Contextual
+    val hiddenFields: Map<String, JsonElement>? = null,
+    @Contextual
+    val messages: Map<String, JsonElement>? = null,
     val error: String? = null
 )
 

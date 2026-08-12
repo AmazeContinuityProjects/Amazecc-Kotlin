@@ -24,11 +24,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.model.ExamItem
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.ExamEventCard
 import com.amazecc.app.shared.ui.components.MoodleLoginModal
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
@@ -37,6 +40,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import com.amazecc.app.shared.ui.components.bouncySpring
+import com.amazecc.app.shared.utils.ExamUtils
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -49,23 +53,16 @@ data class ConsolidatedEvent(
     val timeOrLocation: String = "",
     val color: Color,
     val startDay: Int = 0,
-    val endDay: Int = 0
+    val endDay: Int = 0,
+    val exam: ExamItem? = null,
+    val examType: String = ""
 )
 
-// Helper: parse "YYYY-MM-DD" or "DD-MM-YYYY" -> Triple(day, month, year)
+// Helper: parse "YYYY-MM-DD", "DD-MM-YYYY" or "DD-Mon-YYYY" -> Triple(day, month, year)
+// Uses ExamUtils so month-name dates (e.g. "20-May-2026") resolve instead of falling to (0,0,0).
 private fun parseExamDateParts(dateStr: String): Triple<Int, Int, Int> {
-    val cleanDate = dateStr.trim().split(" ", "T").first() // strip time part
-    val parts = cleanDate.split("-", "/")
-    if (parts.size >= 3) {
-        return try {
-            if (parts[0].length == 4) { // YYYY-MM-DD
-                Triple(parts[2].toInt(), parts[1].toInt(), parts[0].toInt())
-            } else { // DD-MM-YYYY
-                Triple(parts[0].toInt(), parts[1].toInt(), parts[2].toInt())
-            }
-        } catch (_: Exception) { Triple(0, 0, 0) }
-    }
-    return Triple(0, 0, 0)
+    val date = ExamUtils.parseExamDateToLocalDate(dateStr) ?: return Triple(0, 0, 0)
+    return Triple(date.dayOfMonth, date.monthNumber, date.year)
 }
 
 // Helper: parse "July 2026" or "Jul 2026" -> Pair(monthNumber, year)
@@ -175,6 +172,7 @@ private fun getConsolidatedEventsForDisplay(
                 }
 
                 val titleText = if (rangeStart == prevDay) groupName else "$groupName ($rangeLabel)"
+                val singleExamEv = if (rangeStart == prevDay) examEventsByDay[rangeStart]?.firstOrNull() else null
                 processedExamRanges.add(
                     rangeLabel to ConsolidatedEvent(
                         title = titleText,
@@ -182,7 +180,9 @@ private fun getConsolidatedEventsForDisplay(
                         timeOrLocation = if (rangeStart == prevDay) "Exam Day" else "${prevDay - rangeStart + 1} Days Exam Period",
                         color = examColor,
                         startDay = rangeStart,
-                        endDay = prevDay
+                        endDay = prevDay,
+                        exam = singleExamEv?.exam,
+                        examType = singleExamEv?.examType ?: ""
                     )
                 )
                 if (currDay != null) {
@@ -271,8 +271,10 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
     var filterExams by remember { mutableStateOf(true) }
     var filterODs by remember { mutableStateOf(true) }
     var filterClasses by remember { mutableStateOf(true) }
+    var filterTasks by remember { mutableStateOf(true) }
+    val tasks by AppState.tasks.collectAsState()
 
-    val activeMonthEvents = remember(activeMonth, moodleData, examData, filterHolidays, filterExams, filterODs, filterClasses) {
+    val activeMonthEvents = remember(activeMonth, moodleData, examData, tasks, filterHolidays, filterExams, filterODs, filterClasses, filterTasks) {
         val map = mutableMapOf<Int, MutableList<ConsolidatedEvent>>()
         if (activeMonth == null) return@remember map
 
@@ -280,6 +282,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
 
         activeMonth.days.forEach { day ->
             val list = map.getOrPut(day.date) { mutableListOf() }
+            var hasAddedInstructional = false
             day.events.forEach { ev ->
                 val type = if (ev.type.isNotBlank()) ev.type else "Event"
                 
@@ -287,7 +290,11 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                     ?: com.amazecc.app.shared.utils.AttendanceTimetable.getDayOrderLabelFromText(ev.category)
                     ?: com.amazecc.app.shared.utils.AttendanceTimetable.getDayOrderLabelFromText(type)
 
-                val isHoliday = ev.text.contains("Holiday", true) || ev.text.contains("Vacation", true) || ev.text.contains("Pooja", true)
+                val isHoliday = ev.text.contains("Holiday", true) 
+                    || ev.text.contains("Vacation", true) 
+                    || ev.text.contains("Pooja", true)
+                    || ev.type.contains("No Instructional", true)
+                    || ev.text.contains("No Instructional", true)
                 val isOD = ev.text.contains("OD", true) || ev.text.contains("On Duty", true) || ev.text.contains("OnDuty", true) || type.contains("OD", true)
                 val isClass = ev.text.contains("Instructional Day", true) || type.contains("Instructional", true) || ev.text.contains("Working Day", true) || dayOrderLabel != null
                 val isExam = ev.text.contains("CAT", true) || ev.text.contains("FAT", true) || ev.text.contains("Exam", true) || type.contains("Exam", true)
@@ -297,22 +304,29 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                 if (isClass && !isExam && !filterClasses) return@forEach
                 if (isExam && !filterExams) return@forEach
 
-                val titleText = if (dayOrderLabel != null && isClass && !isExam && !isHoliday) {
-                    "Instructional Day ($dayOrderLabel)"
-                } else ev.text
-                
-                val col = try {
-                    ev.color?.let { Color(it.removePrefix("#").toLong(16) or 0xFF000000) }
-                } catch (_: Exception) { null } ?: (
-                    when {
-                        isExam -> colors.chart1
-                        isHoliday -> colors.danger
-                        isClass && dayOrderLabel != null -> colors.success
-                        else -> colors.accent
-                    }
-                )
-                val categoryText = if (dayOrderLabel != null) "Follows $dayOrderLabel" else (ev.category ?: "")
-                list.add(ConsolidatedEvent(titleText, if (isExam) "Exam" else type, categoryText, col, startDay = day.date, endDay = day.date))
+                // Deduplicate: keep only one instructional/working-day entry per day
+                val isInstructionalWorkDay = isClass && !isExam
+                val shouldAdd = !isInstructionalWorkDay || !hasAddedInstructional
+                if (isInstructionalWorkDay) hasAddedInstructional = true
+
+                if (shouldAdd) {
+                    val titleText = if (dayOrderLabel != null && isClass && !isExam && !isHoliday) {
+                        "Instructional Day ($dayOrderLabel)"
+                    } else ev.text
+                    
+                    val col = try {
+                        ev.color?.let { Color(it.removePrefix("#").toLong(16) or 0xFF000000) }
+                    } catch (_: Exception) { null } ?: (
+                        when {
+                            isExam -> colors.chart1
+                            isHoliday -> colors.danger
+                            isClass && dayOrderLabel != null -> colors.success
+                            else -> colors.accent
+                        }
+                    )
+                    val categoryText = if (dayOrderLabel != null) "Follows $dayOrderLabel" else (ev.category ?: "")
+                    list.add(ConsolidatedEvent(titleText, if (isExam) "Exam" else type, categoryText, col, startDay = day.date, endDay = day.date))
+                }
             }
         }
 
@@ -342,11 +356,48 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                     if (exYear == yearNum && exMonth == monthNum) {
                         if (filterExams) {
                             val list = map.getOrPut(exDay) { mutableListOf() }
-                            list.add(ConsolidatedEvent("${ex.courseCode} ($type)", "Exam", "${ex.examTime} · ${ex.venue}", colors.chart1, startDay = exDay, endDay = exDay))
+                            list.add(
+                                ConsolidatedEvent(
+                                    "${ex.courseCode} ($type)",
+                                    "Exam",
+                                    "${ex.examTime} · ${ex.venue}",
+                                    colors.chart1,
+                                    startDay = exDay,
+                                    endDay = exDay,
+                                    exam = ex,
+                                    examType = type
+                                )
+                            )
                         }
                     }
                 } catch (e: Exception) { println("AmazeCC: CalendarScreen examEvents — ${e.message}") }
             }
+        }
+
+        tasks.forEach { t ->
+            if (t.completed) return@forEach
+            try {
+                val parts = t.dueDate.split("-")
+                if (parts.size >= 3) {
+                    val y = parts[0].toInt()
+                    val mNum = parts[1].toInt()
+                    val dNum = parts[2].substring(0, 2).toInt()
+                    if (y == yearNum && mNum == monthNum && filterTasks) {
+                        val list = map.getOrPut(dNum) { mutableListOf() }
+                        val isExamLike = t.type == "exam" || t.type == "quiz"
+                        list.add(
+                            ConsolidatedEvent(
+                                "${t.title} · ${t.courseCode}",
+                                if (isExamLike) "Exam" else "Task",
+                                "Due",
+                                if (isExamLike) colors.chart1 else colors.warning,
+                                startDay = dNum,
+                                endDay = dNum
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) { println("AmazeCC: CalendarScreen taskEvents — ${e.message}") }
         }
 
         map
@@ -357,15 +408,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
 
     val eventsToShow = remember(activeMonthEvents, selectedDay, activeMonth) {
         val monthName = monthDisplayName(activeMonth?.month ?: "")
-        val rawList = getConsolidatedEventsForDisplay(activeMonthEvents, selectedDay, monthName, colors.chart1)
-        rawList.filter { (_, ev) ->
-            val text = ev.title.lowercase()
-            val timeLoc = ev.timeOrLocation.lowercase()
-            val hasDayOrder = text.contains("order") || timeLoc.contains("order")
-            val isPlainWorkingDay = (text == "instructional day" || text == "working day" || text == "instructional") &&
-                    !text.contains("holiday") && !text.contains("exam") && !text.contains("cat") && !text.contains("fat") && !text.contains("od") && !hasDayOrder
-            !isPlainWorkingDay
-        }
+        getConsolidatedEventsForDisplay(activeMonthEvents, selectedDay, monthName, colors.chart1)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -397,8 +440,10 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
                 ) {
-                    item {
-                        com.amazecc.app.shared.ui.components.HeaderSpacer()
+                    if (showHeader) {
+                        item {
+                            com.amazecc.app.shared.ui.components.HeaderSpacer()
+                        }
                     }
                     // ── Filters ──
                     item {
@@ -411,7 +456,8 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                 "Classes" to filterClasses,
                                 "Exams" to filterExams,
                                 "Holidays" to filterHolidays,
-                                "ODs" to filterODs
+                                "ODs" to filterODs,
+                                "Tasks" to filterTasks
                             )
                             items(filters, key = { it.first }) { (label, isActive) ->
                                 val interactionSource = remember { MutableInteractionSource() }
@@ -436,6 +482,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                                     "Exams" -> filterExams = !filterExams
                                                     "Holidays" -> filterHolidays = !filterHolidays
                                                     "ODs" -> filterODs = !filterODs
+                                                    "Tasks" -> filterTasks = !filterTasks
                                                 }
                                             }
                                         )
@@ -594,14 +641,15 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                             val isBlank = row == 0 && col < startCol
                                             val dayNumber = if (isBlank) 0 else currentDay
                                             if (!isBlank && dayNumber in 1..daysInMonth) {
-                                                val dayEvents = activeMonthEvents[dayNumber] ?: emptyList()
-                                                val hasExam = dayEvents.any { ev ->
-                                                    val t = ev.title.lowercase()
-                                                    val type = ev.type.lowercase()
-                                                    t.contains("cat") || t.contains("fat") || t.contains("exam") || t.contains("assessment") || type.contains("exam")
-                                                }
-                                                val hasHoliday = dayEvents.any { it.title.contains("Holiday", true) || it.title.contains("Vacation", true) || it.type.contains("Holiday", true) }
-                                                val hasWorkingDay = dayEvents.any { it.title.contains("Instructional Day", true) || it.title.contains("Working Day", true) || it.type.contains("Instructional", true) }
+val dayEvents = activeMonthEvents[dayNumber] ?: emptyList()
+                                                 val hasExam = dayEvents.any { ev ->
+                                                     val t = ev.title.lowercase()
+                                                     val type = ev.type.lowercase()
+                                                     t.contains("cat") || t.contains("fat") || t.contains("exam") || t.contains("assessment") || type.contains("exam")
+                                                 }
+                                                 val hasHoliday = dayEvents.any { it.title.contains("Holiday", true) || it.title.contains("Vacation", true) || it.type.contains("Holiday", true) }
+                                                 val hasNoInstructional = dayEvents.any { it.title.contains("No Instructional", true) || it.type.contains("No Instructional", true) }
+                                                 val hasWorkingDay = dayEvents.any { it.title.contains("Instructional Day", true) || it.title.contains("Working Day", true) || it.type.contains("Instructional", true) }
                                                 val isToday = dayNumber == now.dayOfMonth &&
                                                         monthNumber == now.monthNumber &&
                                                         gridYearNum == todayYearNum
@@ -625,32 +673,34 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                                             scaleY = cellScale
                                                         }
                                                         .clip(CircleShape)
-                                                        .background(
-                                                            when {
-                                                                isSelected -> colors.accent
-                                                                isToday && hasExam -> colors.chart1.copy(alpha = 0.22f)
-                                                                isToday -> colors.accent.copy(alpha = 0.18f)
-                                                                hasExam -> colors.chart1.copy(alpha = 0.22f)
-                                                                hasHoliday -> colors.danger.copy(alpha = 0.18f)
-                                                                hasWorkingDay -> colors.success.copy(alpha = 0.18f)
-                                                                dayEvents.isNotEmpty() -> colors.surface
-                                                                else -> Color.Transparent
-                                                            }
-                                                        )
-                                                        .border(
-                                                            1.dp,
-                                                            when {
-                                                                isSelected -> colors.accent
-                                                                isToday && hasExam -> colors.accent
-                                                                isToday -> colors.accent
-                                                                hasExam -> colors.chart1.copy(alpha = 0.85f)
-                                                                hasHoliday -> colors.danger.copy(alpha = 0.5f)
-                                                                hasWorkingDay -> colors.success.copy(alpha = 0.5f)
-                                                                dayEvents.isNotEmpty() -> colors.border
-                                                                else -> Color.Transparent
-                                                            },
-                                                            CircleShape
-                                                        )
+.background(
+                                                             when {
+                                                                 isSelected -> colors.accent
+                                                                 isToday && hasExam -> colors.chart1.copy(alpha = 0.22f)
+                                                                 isToday -> colors.accent.copy(alpha = 0.18f)
+                                                                 hasExam -> colors.chart1.copy(alpha = 0.22f)
+                                                                 hasHoliday -> colors.danger.copy(alpha = 0.18f)
+                                                                 hasNoInstructional -> colors.danger.copy(alpha = 0.18f)
+                                                                 hasWorkingDay -> colors.success.copy(alpha = 0.18f)
+                                                                 dayEvents.isNotEmpty() -> colors.surface
+                                                                 else -> Color.Transparent
+                                                             }
+                                                         )
+                                                         .border(
+                                                             1.dp,
+                                                             when {
+                                                                 isSelected -> colors.accent
+                                                                 isToday && hasExam -> colors.accent
+                                                                 isToday -> colors.accent
+                                                                 hasExam -> colors.chart1.copy(alpha = 0.85f)
+                                                                 hasHoliday -> colors.danger.copy(alpha = 0.5f)
+                                                                 hasNoInstructional -> colors.danger.copy(alpha = 0.5f)
+                                                                 hasWorkingDay -> colors.success.copy(alpha = 0.5f)
+                                                                 dayEvents.isNotEmpty() -> colors.border
+                                                                 else -> Color.Transparent
+                                                             },
+                                                             CircleShape
+                                                         )
                                                         .clickable(
                                                             interactionSource = interactionSource,
                                                             indication = null,
@@ -818,7 +868,16 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                                     }
                                 }
                             }
-                            BouncyEventCard(ev = ev, colors = colors)
+                            if (ev.exam != null) {
+                                ExamEventCard(
+                                    exam = ev.exam,
+                                    examType = ev.examType,
+                                    colors = colors,
+                                    onClick = { AppState.navigateTo(Screen.EXAM_SCHEDULE) }
+                                )
+                            } else {
+                                BouncyEventCard(ev = ev, colors = colors)
+                            }
                         }
                     }
                 }
@@ -847,9 +906,8 @@ private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.share
     ) {
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 10.dp, horizontal = 12.dp)
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
                     ev.title,
@@ -858,7 +916,6 @@ private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.share
                     overflow = TextOverflow.Ellipsis
                 )
                 if (ev.type.isNotBlank() || ev.timeOrLocation.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)

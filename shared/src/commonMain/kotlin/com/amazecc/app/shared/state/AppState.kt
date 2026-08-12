@@ -29,6 +29,7 @@ import kotlinx.coroutines.supervisorScope
 import com.russhwolf.settings.Settings
 import com.russhwolf.settings.set
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.datetime.Clock
@@ -46,7 +47,9 @@ enum class AttendanceDisplayMode(val value: String) {
     }
 }
 
-enum class Screen { SPLASH, 
+private val REG_FIELD_NAMES = setOf("username", "date", "fromtime", "totime")
+
+enum class Screen { SPLASH,
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
     COURSE_ATTENDANCE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
@@ -135,6 +138,9 @@ object AppState {
     private val _updateDialogDismissedVersion = MutableStateFlow("")
     val updateDialogDismissedVersion: StateFlow<String> = _updateDialogDismissedVersion.asStateFlow()
 
+    private val _latestReleaseNotes = MutableStateFlow("")
+    val latestReleaseNotes: StateFlow<String> = _latestReleaseNotes.asStateFlow()
+
     fun dismissUpdateDialog() {
         val status = _updateStatus.value
         if (status is UpdateStatus.Available) {
@@ -145,31 +151,43 @@ object AppState {
         }
     }
 
-    fun checkForUpdate() {
-        if (_updateStatus.value is UpdateStatus.Checking) return
+    fun checkForUpdate(force: Boolean = false) {
+        if (!force && _updateStatus.value is UpdateStatus.Checking) return
+        val lastCheck = SettingsManager.getLong(SettingsManager.KEY_LAST_UPDATE_CHECK, 0L)
+        val now = System.currentTimeMillis()
+        if (!force && now - lastCheck < 24 * 60 * 60 * 1000L) {
+            return // throttle: once per 24h
+        }
         scope.launch {
             _updateStatus.value = UpdateStatus.Checking
             try {
                 val currentVersion = UpdateConfig.getCurrentVersion()
                 val release = AmazeClient.checkForUpdate()
-                val latestVer = release.tagName.removePrefix("v")
+                val latestVer = release.tagName.removePrefix("v").removePrefix("V").trim()
                 val dismissed = _updateDialogDismissedVersion.value
                 if (latestVer == dismissed) {
                     _updateStatus.value = UpdateStatus.Idle
-                } else if (compareVersions(latestVer, currentVersion) > 0) {
+                } else if (currentVersion.isNotBlank() && compareVersions(latestVer, currentVersion) > 0) {
+                    // Capture release notes for About/Changelog screens
+                    _latestReleaseNotes.value = release.body ?: ""
+                    SettingsManager.setString(SettingsManager.KEY_LATEST_RELEASE_NOTES, release.body ?: "")
                     _updateStatus.value = UpdateStatus.Available(release, currentVersion)
                 } else {
                     _updateStatus.value = UpdateStatus.UpToDate
                 }
+                SettingsManager.setLong(SettingsManager.KEY_LAST_UPDATE_CHECK, System.currentTimeMillis())
             } catch (e: Exception) {
                 _updateStatus.value = UpdateStatus.Error(e.message ?: "Failed to check for update")
             }
         }
     }
 
+    fun forceCheckForUpdate() = checkForUpdate(force = true)
+
     private fun compareVersions(v1: String, v2: String): Int {
-        val clean1 = v1.removePrefix("v").removePrefix("V").trim().split("-").first()
-        val clean2 = v2.removePrefix("v").removePrefix("V").trim().split("-").first()
+        val clean1 = normalizeVersion(v1)
+        val clean2 = normalizeVersion(v2)
+        if (clean1.isBlank() || clean2.isBlank()) return 0 // unknown versions -> treat as equal
         val parts1 = clean1.split(".").map { it.filter { ch -> ch.isDigit() }.toIntOrNull() ?: 0 }
         val parts2 = clean2.split(".").map { it.filter { ch -> ch.isDigit() }.toIntOrNull() ?: 0 }
         for (i in 0 until maxOf(parts1.size, parts2.size)) {
@@ -180,6 +198,14 @@ object AppState {
         return 0
     }
 
+    private fun normalizeVersion(v: String): String {
+        return v.trim()
+            .removePrefix("v")
+            .removePrefix("V")
+            .split("-")
+            .firstOrNull() ?: ""
+    }
+
     // Student profile data
     private val _studentProfile = MutableStateFlow<StudentProfile?>(null)
     val studentProfile: StateFlow<StudentProfile?> = _studentProfile.asStateFlow()
@@ -188,6 +214,12 @@ object AppState {
     // Profile Extended Data
     private val _profileImages = MutableStateFlow<ProfileImagesRes?>(null)
     val profileImages: StateFlow<ProfileImagesRes?> = _profileImages.asStateFlow()
+
+    private val _pendingExamSeatAlerts = MutableStateFlow<List<ProfileImagesCredential>>(emptyList())
+    val pendingExamSeatAlerts: StateFlow<List<ProfileImagesCredential>> = _pendingExamSeatAlerts.asStateFlow()
+
+    private val _credentials = MutableStateFlow<CredentialsRes?>(null)
+    val credentials: StateFlow<CredentialsRes?> = _credentials.asStateFlow()
     
     private val _bankInfo = MutableStateFlow<BankInfoRes?>(null)
     val bankInfo: StateFlow<BankInfoRes?> = _bankInfo.asStateFlow()
@@ -200,6 +232,15 @@ object AppState {
     
     private val _registrationSchedule = MutableStateFlow<RegistrationScheduleRes?>(null)
     val registrationSchedule: StateFlow<RegistrationScheduleRes?> = _registrationSchedule.asStateFlow()
+    
+    private val _universityDay = MutableStateFlow<UniversityDayRes?>(null)
+    val universityDay: StateFlow<UniversityDayRes?> = _universityDay.asStateFlow()
+
+    private val _ffcsRegistration = MutableStateFlow<FfcsRegistrationInfo?>(null)
+    val ffcsRegistration: StateFlow<FfcsRegistrationInfo?> = _ffcsRegistration.asStateFlow()
+
+    private val _pendingFfcsAlert = MutableStateFlow<FfcsRegistrationInfo?>(null)
+    val pendingFfcsAlert: StateFlow<FfcsRegistrationInfo?> = _pendingFfcsAlert.asStateFlow()
     
     private val _apaarId = MutableStateFlow<ApaarIdRes?>(null)
     val apaarId: StateFlow<ApaarIdRes?> = _apaarId.asStateFlow()
@@ -289,6 +330,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
         _attendanceDisplayMode.value = AttendanceDisplayMode.fromString(SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage"))
         _updateDialogDismissedVersion.value = SettingsManager.getString(SettingsManager.KEY_UPDATE_DISMISSED_VERSION, "")
+        _latestReleaseNotes.value = SettingsManager.getString(SettingsManager.KEY_LATEST_RELEASE_NOTES, "")
 
         val savedTheme = SettingsManager.getString(SettingsManager.KEY_APP_THEME, "")
         if (savedTheme.isNotEmpty()) {
@@ -380,10 +422,21 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         loadCachedData<StudentProfileRes>(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile)
         _studentProfile.value = _cachedStudentProfile.value?.data
         loadCachedData<ProfileImagesRes>(SettingsManager.CACHE_PROFILE_IMAGES, _profileImages)
+        _credentials.value = loadCredentials()
+        reconcileExamSeatAlerts()
         loadCachedData<BankInfoRes>(SettingsManager.CACHE_BANK_INFO, _bankInfo)
         loadCachedData<DayboarderRes>(SettingsManager.CACHE_DAYBOARDER, _dayboarder)
         loadCachedData<EptScheduleRes>(SettingsManager.CACHE_EPT_SCHEDULE, _eptSchedule)
         loadCachedData<RegistrationScheduleRes>(SettingsManager.CACHE_REGISTRATION_SCHEDULE, _registrationSchedule)
+        _ffcsRegistration.value = try {
+            settings.getString(SettingsManager.CACHE_FFCS_REG_INFO, "").let { raw ->
+                if (raw.isBlank()) null
+                else jsonFormat.decodeFromString(FfcsRegistrationInfo.serializer(), raw)
+            }
+        } catch (e: Exception) {
+            null
+        }
+        loadCachedData<UniversityDayRes>(SettingsManager.CACHE_UNIVERSITY_DAY, _universityDay)
         loadCachedData<ApaarIdRes>(SettingsManager.CACHE_APAAR_ID, _apaarId)
         loadCachedData<CabShareUser>(SettingsManager.CACHE_CAB_USER, _cabShareUser)
         loadCachedData<CircularsRes>(SettingsManager.CACHE_CIRCULARS, _circulars)
@@ -423,6 +476,126 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         try {
             settings[key] = jsonFormat.encodeToString(value)
         } catch (e: Exception) { println("AmazeCC: AppState cacheData — ${e.message}") }
+    }
+
+    // Credentials contain passwords (defaultCredentials) — never persist them in the
+    // plain profile-images cache. The /credentials payload is stored separately, encrypted.
+    private fun persistProfileImages(res: ProfileImagesRes?) {
+        if (res == null) return
+        _profileImages.value = res
+        cacheData(SettingsManager.CACHE_PROFILE_IMAGES, res)
+    }
+
+    private fun persistCredentials(res: CredentialsRes?) {
+        if (res == null) return
+        _credentials.value = res
+        try {
+            val encoded = jsonFormat.encodeToString(CredentialsRes.serializer(), res)
+            settings[SettingsManager.CACHE_CREDENTIALS_SECURE] =
+                com.amazecc.app.shared.security.Encryption.encryptOrPlain(encoded)
+        } catch (e: Exception) {
+            println("AmazeCC: persistCredentials — ${e.message}")
+        }
+        reconcileExamSeatAlerts()
+    }
+
+    private fun loadCredentials(): CredentialsRes? {
+        val raw = settings.getString(SettingsManager.CACHE_CREDENTIALS_SECURE, "")
+        if (raw.isBlank()) return null
+        return try {
+            jsonFormat.decodeFromString(
+                CredentialsRes.serializer(),
+                com.amazecc.app.shared.security.Encryption.decryptOrPlain(raw)
+            )
+        } catch (e: Exception) {
+            println("AmazeCC: loadCredentials — ${e.message}")
+            null
+        }
+    }
+
+    fun dismissExamSeatAlerts() {
+        _pendingExamSeatAlerts.value = emptyList()
+    }
+
+    // Alert once per newly added exam venue/seat entry. Entries that disappear are
+    // forgotten, so a returning entry alerts again.
+    private fun reconcileExamSeatAlerts() {
+        val creds = _credentials.value?.credentials.orEmpty()
+        val current = creds
+            .filter { it.venueDate.isNotBlank() || it.seatLocation.isNotBlank() }
+            .associateBy { it.account.lowercase() }
+        val seen = SettingsManager.getExamSeatAlerted()
+        val fresh = current.filterKeys { it !in seen }
+        if (fresh.isNotEmpty()) {
+            _pendingExamSeatAlerts.value = fresh.values.toList()
+            SettingsManager.setExamSeatAlerted(current.keys)
+        } else if (seen != current.keys) {
+            SettingsManager.setExamSeatAlerted(current.keys)
+        }
+    }
+
+    fun dismissFfcsAlert() {
+        _pendingFfcsAlert.value = null
+    }
+
+    // Parses the FFCS registration slot from /registration-schedule keyValuePairs
+    // (falls back to the header/value table the endpoint also returns).
+    private fun parseFfcsRegistration(res: RegistrationScheduleRes): FfcsRegistrationInfo? {
+        val pairs = mutableMapOf<String, String>()
+        res.keyValuePairs?.forEach { (k, v) ->
+            val norm = k.lowercase().filter { it.isLetterOrDigit() }
+            val value = (v as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull ?: ""
+            if (norm in REG_FIELD_NAMES && value.isNotBlank()) pairs[norm] = value
+        }
+        if (pairs.isEmpty()) {
+            val table = res.tables.orEmpty().firstOrNull { it is kotlinx.serialization.json.JsonObject }
+                as? kotlinx.serialization.json.JsonObject
+            if (table != null) {
+                val headers = (table["headers"] as? kotlinx.serialization.json.JsonArray).orEmpty()
+                    .mapNotNull { (it as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull }
+                if (headers.size >= 2) {
+                    val labelKey = headers[0]
+                    val valueKey = headers[1]
+                    (table["rows"] as? kotlinx.serialization.json.JsonArray).orEmpty().forEach { row ->
+                        val obj = row as? kotlinx.serialization.json.JsonObject ?: return@forEach
+                        val label = (obj[labelKey] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull ?: return@forEach
+                        val value = (obj[valueKey] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull ?: return@forEach
+                        val norm = label.lowercase().filter { it.isLetterOrDigit() }
+                        if (norm in REG_FIELD_NAMES && value.isNotBlank()) pairs[norm] = value
+                    }
+                }
+            }
+        }
+        val date = pairs["date"] ?: ""
+        if (date.isBlank()) return null
+        return FfcsRegistrationInfo(
+            userName = pairs["username"] ?: "",
+            date = date,
+            fromTime = pairs["fromtime"] ?: "",
+            toTime = pairs["totime"] ?: ""
+        )
+    }
+
+    // Tracked on change + persisted so a returned/changed slot re-alerts; also re-arms reminders.
+    private fun updateFfcsRegistration(info: FfcsRegistrationInfo?) {
+        val prev = _ffcsRegistration.value
+        _ffcsRegistration.value = info
+        try {
+            if (info != null) {
+                settings[SettingsManager.CACHE_FFCS_REG_INFO] =
+                    jsonFormat.encodeToString(FfcsRegistrationInfo.serializer(), info)
+            } else {
+                settings.remove(SettingsManager.CACHE_FFCS_REG_INFO)
+            }
+        } catch (e: Exception) { println("AmazeCC: updateFfcsRegistration — ${e.message}") }
+        if (info != null && info != prev) {
+            _pendingFfcsAlert.value = info
+        }
+        if (info != null) {
+            scope.launch {
+                com.amazecc.app.shared.utils.NotificationsUtils.scheduleRegistrationReminders(info)
+            }
+        }
     }
 
     private fun applyAllGrades(res: AllGradesRes) {
@@ -475,11 +648,13 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         if (_events.value != null) { cacheData(SettingsManager.CACHE_EVENTS, _events.value); saved++ }
         if (_clubs.value != null) { cacheData(SettingsManager.CACHE_CLUBS, _clubs.value); saved++ }
         if (_cachedStudentProfile.value != null) { cacheData(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile.value); saved++ }
-        if (_profileImages.value != null) { cacheData(SettingsManager.CACHE_PROFILE_IMAGES, _profileImages.value); saved++ }
+        if (_profileImages.value != null) { persistProfileImages(_profileImages.value); saved++ }
+        if (_credentials.value != null) { persistCredentials(_credentials.value); saved++ }
         if (_bankInfo.value != null) { cacheData(SettingsManager.CACHE_BANK_INFO, _bankInfo.value); saved++ }
         if (_dayboarder.value != null) { cacheData(SettingsManager.CACHE_DAYBOARDER, _dayboarder.value); saved++ }
         if (_eptSchedule.value != null) { cacheData(SettingsManager.CACHE_EPT_SCHEDULE, _eptSchedule.value); saved++ }
         if (_registrationSchedule.value != null) { cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, _registrationSchedule.value); saved++ }
+        if (_universityDay.value != null) { cacheData(SettingsManager.CACHE_UNIVERSITY_DAY, _universityDay.value); saved++ }
         if (_apaarId.value != null) { cacheData(SettingsManager.CACHE_APAAR_ID, _apaarId.value); saved++ }
         if (_cabShareUser.value != null) { cacheData(SettingsManager.CACHE_CAB_USER, _cabShareUser.value); saved++ }
         if (_allSemesterAttendance.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value); saved++ }
@@ -756,6 +931,14 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         saveTasks()
     }
 
+    /** Merges imported backup tasks into the current list (imported wins on id conflict). */
+    fun applyImportedTasks(imported: List<HomeworkTask>) {
+        val importedIds = imported.map { it.id }.toSet()
+        val merged = imported + _tasks.value.filter { it.id !in importedIds }
+        _tasks.value = merged
+        saveTasks()
+    }
+
     fun updateTask(id: String, transform: (HomeworkTask) -> HomeworkTask) {
         _tasks.value = _tasks.value.map { if (it.id == id) transform(it) else it }
         saveTasks()
@@ -807,11 +990,29 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         _isAppLibraryOpen.value = false
         headerOverride.value = null
         _headerOverrideOwner.value = null
-        if (_currentScreen.value != screen) {
-            backstack.add(_currentScreen.value)
+        if (_currentScreen.value == screen) return
+        if (screen in rootScreens) {
+            backstack.clear()
             _currentScreen.value = screen
+            return
         }
+        backstack.removeAll { it == screen }
+        if (backstack.lastOrNull() != _currentScreen.value) {
+            backstack.add(_currentScreen.value)
+        }
+        _currentScreen.value = screen
     }
+
+    fun canNavigateBack(): Boolean = backstack.isNotEmpty()
+
+    fun navigateBackTo(screen: Screen) {
+        if (backstack.isNotEmpty() && backstack.last() == screen) {
+            backstack.removeAt(backstack.size - 1)
+        }
+        _currentScreen.value = screen
+    }
+
+    private val rootScreens = setOf(Screen.HOME, Screen.LOGIN, Screen.ONBOARDING, Screen.SPLASH)
 
     fun switchTopLevel(screen: Screen) {
         if (_currentScreen.value != screen) {
@@ -949,7 +1150,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             "Attendance", "All Semesters Attendance", "Timetable", "Grade history", "Curriculum",
             "Hostel details", "Exam schedule", "All Semesters Exam Schedule", "Academic calendar",
             "Calendars list", "Payments", "Library", "Transport Data", "Buses", "LMS",
-            "Registered Events", "Clubs", "QCM View", "Student Profile", "Profile Images",
+            "Registered Events", "Clubs", "QCM View", "Student Profile", "Profile Images", "Credentials",
             "Bank Information", "Dayboarder Info", "EPT Schedule", "Registration Schedule",
             "APAAR ID", "Circulars", "Moodle Assignments"
         ).mapNotNull { SyncEngine.moduleOf(it) }.filter { SyncEngine.isModuleEnabled(it) }.toSet()
@@ -1287,8 +1488,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                         },
                                         async {
                                             syncModule("Profile Images", { AmazeClient.getProfileImages() }, { it.success }, { it.error }) {
-                                                _profileImages.value = it
-                                                cacheData(SettingsManager.CACHE_PROFILE_IMAGES, it)
+                                                persistProfileImages(it)
+                                            }
+                                        },
+                                        async {
+                                            syncModule("Credentials", { AmazeClient.getCredentials() }, { it.success }, { it.error }) {
+                                                persistCredentials(it)
                                             }
                                         },
                                         async {
@@ -1313,6 +1518,13 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                             syncModule("Registration Schedule", { AmazeClient.getRegistrationSchedule() }, { it.success }, { it.error }) {
                                                 _registrationSchedule.value = it
                                                 cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, it)
+                                                updateFfcsRegistration(parseFfcsRegistration(it))
+                                            }
+                                        },
+                                        async {
+                                            syncModule("University Day", { AmazeClient.getUniversityDay() }, { it.success }, { it.error }) {
+                                                _universityDay.value = it
+                                                cacheData(SettingsManager.CACHE_UNIVERSITY_DAY, it)
                                             }
                                         },
                                         async {
@@ -1399,11 +1611,16 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             LMSAssignment("moodle_${a.hashCode()}", a.courseCode, a.taskTitle, "", a.due, "Pending")
         } ?: emptyList()
         val allAssignments = (assignments ?: emptyList()) + moodleAssignments
+        val selectedExams = _allSemesterExams.value[_selectedExamSemester.value]?.schedule?.values?.flatten().orEmpty()
+        val exams = if (selectedExams.isNotEmpty()) selectedExams
+            else _allSemesterExams.value.values.mapNotNull { it }.flatMap { it.schedule.values.flatten() }
         com.amazecc.app.shared.utils.NotificationsUtils.scheduleAll(
             attendance = com.amazecc.app.shared.utils.NotificationsUtils.buildAttendanceMaps(attendanceItems),
             slotMap = com.amazecc.app.shared.utils.NotificationsUtils.typedSlotMap(),
             assignments = allAssignments,
-            tasks = _tasks.value
+            tasks = _tasks.value,
+            exams = if (exams.isEmpty()) null else exams,
+            registration = _ffcsRegistration.value
         )
         com.amazecc.app.shared.utils.pushWidgetUpdates()
     }
@@ -1752,8 +1969,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                         },
                         async {
                             syncModule("Profile Images", { AmazeClient.getProfileImages() }, { it.success }, { it.error }) {
-                                _profileImages.value = it
-                                cacheData(SettingsManager.CACHE_PROFILE_IMAGES, it)
+                                persistProfileImages(it)
+                            }
+                        },
+                        async {
+                            syncModule("Credentials", { AmazeClient.getCredentials() }, { it.success }, { it.error }) {
+                                persistCredentials(it)
                             }
                         },
                         async {
@@ -1778,6 +1999,13 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             syncModule("Registration Schedule", { AmazeClient.getRegistrationSchedule() }, { it.success }, { it.error }) {
                                 _registrationSchedule.value = it
                                 cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, it)
+                                updateFfcsRegistration(parseFfcsRegistration(it))
+                            }
+                        },
+                        async {
+                            syncModule("University Day", { AmazeClient.getUniversityDay() }, { it.success }, { it.error }) {
+                                _universityDay.value = it
+                                cacheData(SettingsManager.CACHE_UNIVERSITY_DAY, it)
                             }
                         },
                         async {
@@ -2017,10 +2245,14 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         // Clear caches
         _attendance.value = null
         _profileImages.value = null
+        _credentials.value = null
         _bankInfo.value = null
         _dayboarder.value = null
         _eptSchedule.value = null
         _registrationSchedule.value = null
+        _ffcsRegistration.value = null
+        _pendingFfcsAlert.value = null
+        _universityDay.value = null
         _apaarId.value = null
         _circulars.value = null
         _timetable.value = null
@@ -2097,10 +2329,15 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         settings.remove(SettingsManager.CACHE_OD_TRACKER_STATE)
         settings.remove(SettingsManager.RESIDENTIAL_STATUS)
         settings.remove(SettingsManager.CACHE_PROFILE_IMAGES)
+        settings.remove(SettingsManager.CACHE_CREDENTIALS_SECURE)
+        settings.remove(SettingsManager.KEY_EXAM_SEAT_ALERTED)
+        _pendingExamSeatAlerts.value = emptyList()
         settings.remove(SettingsManager.CACHE_BANK_INFO)
         settings.remove(SettingsManager.CACHE_DAYBOARDER)
         settings.remove(SettingsManager.CACHE_EPT_SCHEDULE)
         settings.remove(SettingsManager.CACHE_REGISTRATION_SCHEDULE)
+        settings.remove(SettingsManager.CACHE_FFCS_REG_INFO)
+        settings.remove(SettingsManager.CACHE_UNIVERSITY_DAY)
         settings.remove(SettingsManager.CACHE_APAAR_ID)
         scope.launch { com.amazecc.app.shared.utils.clearPendingNotifications() }
     }
@@ -2830,8 +3067,13 @@ fun updateMoodleData(data: MoodleRes?) {
         if (raw.isBlank()) return DashboardWidget.entries
         return try {
             raw.split(",").mapNotNull { name ->
-                try { DashboardWidget.valueOf(name.trim()) } catch (_: Exception) { null }
-            }.ifEmpty { DashboardWidget.entries }
+                when (name.trim()) {
+                    // CURRENT_NEXT_CLASS + EXAM_ALERT merged into one widget
+                    "CURRENT_NEXT_CLASS" -> DashboardWidget.EXAM_AND_CLASS
+                    "EXAM_ALERT" -> null
+                    else -> try { DashboardWidget.valueOf(name.trim()) } catch (_: Exception) { null }
+                }
+            }.distinct().ifEmpty { DashboardWidget.entries }
         } catch (_: Exception) {
             DashboardWidget.entries
         }
@@ -2840,6 +3082,11 @@ fun updateMoodleData(data: MoodleRes?) {
     private fun saveWidgetOrder(order: List<DashboardWidget>) {
         val raw = order.joinToString(",") { it.name }
         SettingsManager.setString(SettingsManager.KEY_DASHBOARD_WIDGETS, raw)
+    }
+
+    /** Re-reads the persisted widget order (e.g. after importing a backup). */
+    fun reloadWidgetOrder() {
+        _widgetOrder.value = loadWidgetOrder()
     }
 
     fun setHeaderOverride(
@@ -2871,7 +3118,7 @@ fun updateMoodleData(data: MoodleRes?) {
 enum class DashboardWidget {
     PROFILE_HEADER,
     METRIC_CARDS,
-    CURRENT_NEXT_CLASS,
+    EXAM_AND_CLASS,
     ATTENDANCE_BUNK,
     TODAYS_CLASSES,
     COURSE_ATTENDANCE,

@@ -1,17 +1,23 @@
 ﻿package com.amazecc.app.shared.ui.screens.academics
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -33,6 +39,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
@@ -43,6 +50,7 @@ import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.ui.components.AmazeCard
@@ -53,6 +61,10 @@ import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.bouncySpring
+import com.amazecc.app.shared.ui.components.QBankCourseWorkspace
+import com.amazecc.app.shared.ui.screens.settings.SettingsGroupCard
+import com.amazecc.app.shared.ui.screens.settings.SettingsRow
+import com.amazecc.app.shared.ui.screens.settings.SettingsRowDivider
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.automirrored.rounded.Assignment
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -70,16 +82,38 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.datetime.*
 import kotlinx.serialization.json.*
 
-private val GradeColors: Map<String, Color?> = mapOf(
-    "S" to null, "A" to null,
-    "B" to null, "C" to null,
-    "D" to null, "E" to null,
-    "F" to null
-)
-
 private val GradeBoundariesAbsolute = listOf(
     "S" to 90, "A" to 80, "B" to 70, "C" to 60, "D" to 50, "E" to 40, "F" to 0
 )
+
+private fun gradeColor(g: String, colors: com.amazecc.app.shared.theme.AmazeColors): Color = when (g.uppercase()) {
+    "S" -> colors.success
+    "A" -> colors.accent
+    "B" -> colors.warning
+    "C" -> colors.chart1
+    "D" -> colors.chart3
+    "E" -> colors.chart4
+    "F" -> colors.danger
+    else -> colors.textMuted
+}
+
+private enum class GradingMode(val label: String) {
+    ABSOLUTE("Absolute"),
+    RELATIVE("Relative")
+}
+
+private data class CourseGrading(val mode: GradingMode, val reason: String)
+
+private fun courseGrading(group: CourseGroup, theoryMarks: MarksCourseItem?, labMarks: MarksCourseItem?): CourseGrading {
+    val type = (theoryMarks?.courseType ?: labMarks?.courseType ?: "").lowercase()
+    return when {
+        theoryMarks == null && labMarks != null -> CourseGrading(GradingMode.ABSOLUTE, "Lab-only courses use absolute grading.")
+        type.contains("project") -> CourseGrading(GradingMode.ABSOLUTE, "Project courses use absolute grading.")
+        group.courseCode.contains("STS", ignoreCase = true) -> CourseGrading(GradingMode.ABSOLUTE, "STS skill courses use absolute grading.")
+        theoryMarks != null && labMarks != null -> CourseGrading(GradingMode.RELATIVE, "Embedded courses use relative grading — final boundaries are set against the class average.")
+        else -> CourseGrading(GradingMode.RELATIVE, "Theory-only courses use relative grading — final boundaries are set against the class average.")
+    }
+}
 
 private fun formatSemesterName(id: String): String {
     if (!id.uppercase().startsWith("CH") || id.length != 10) return id
@@ -113,6 +147,33 @@ data class CourseGroup(
     val labAtt: AttendanceItem? = null,
     val grade: GradeItem? = null
 )
+
+private enum class CourseSubPage(
+    val title: String,
+    val description: String,
+    val icon: ImageVector
+) {
+    GRADES("Grade History", "Grades across semesters", Icons.Rounded.History),
+    MARKS("Marks", "Assessment-wise marks & grade insights", Icons.Rounded.Assessment),
+    ATTENDANCE("Attendance", "Daily records & predictor", Icons.Rounded.CheckCircle),
+    PLAN("Course Plan", "Syllabus, QCM & assessments", Icons.AutoMirrored.Rounded.MenuBook),
+    QBANK("QBank", "Question bank workspace", Icons.Rounded.Folder),
+    TASKS("Tasks", "Course tasks & reminders", Icons.AutoMirrored.Rounded.Assignment),
+    FACULTY("Faculty", "Faculty profile & contact", Icons.Rounded.Person),
+    FREE_SLOTS("Free Slots", "Weekly availability schedule", Icons.Rounded.CalendarMonth)
+}
+
+@Composable
+private fun CourseSubPageTint(sub: CourseSubPage, colors: com.amazecc.app.shared.theme.AmazeColors): Color = when (sub) {
+    CourseSubPage.GRADES -> colors.chart4
+    CourseSubPage.MARKS -> colors.chart1
+    CourseSubPage.ATTENDANCE -> colors.success
+    CourseSubPage.PLAN -> colors.chart3
+    CourseSubPage.QBANK -> colors.info
+    CourseSubPage.TASKS -> colors.warning
+    CourseSubPage.FACULTY -> colors.accent
+    CourseSubPage.FREE_SLOTS -> colors.chart2
+}
 
 @Composable
 fun CourseDetailScreen(onBack: () -> Unit) {
@@ -164,14 +225,15 @@ fun CourseDetailScreen(onBack: () -> Unit) {
     val labAtt = group?.labAtt
     val mainAtt = theoryAtt ?: labAtt
 
-    var innerTab by remember { mutableStateOf("overview") }
-    val tabs = listOf("overview", "grades", "marks", "attendance", "plan", "qbank", "tasks")
-    val tabLabels = mapOf(
-        "overview" to "Overview", "grades" to "Grade History",
-        "marks" to "Marks", "attendance" to "Attendance",
-        "plan" to "Course Plan", "qbank" to "QBank",
-        "tasks" to "Tasks"
-    )
+    var subPage by remember { mutableStateOf<CourseSubPage?>(null) }
+
+    AppBackHandler(enabled = subPage != null || facultyView != null) {
+        if (facultyView != null) {
+            facultyView = null
+        } else {
+            subPage = null
+        }
+    }
 
     if (group == null) {
         Box(modifier = Modifier.fillMaxSize().background(colors.background), contentAlignment = Alignment.Center) {
@@ -198,106 +260,76 @@ fun CourseDetailScreen(onBack: () -> Unit) {
     val qcmTables = extractQcmTables(qcmViewRes?.data)
     val qcmLoading = AppState.isLoading.collectAsState().value
 
-    val tabIcons = mapOf(
-        "overview" to Icons.Rounded.Dashboard,
-        "grades" to Icons.Rounded.History,
-        "marks" to Icons.Rounded.Assessment,
-        "attendance" to Icons.Rounded.CheckCircle,
-        "plan" to Icons.AutoMirrored.Rounded.MenuBook,
-        "qbank" to Icons.Rounded.Folder,
-        "tasks" to Icons.AutoMirrored.Rounded.Assignment
-    )
-
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(colors.background)
     ) {
         ScreenHeader(
-            title = group.courseCode,
-            description = group.courseTitle,
+            title = subPage?.title ?: group.courseCode,
+            description = subPage?.description ?: group.courseTitle,
             showBackButton = true,
             showSyncButton = false,
+            onBackOverride = if (subPage != null) { { subPage = null } } else null,
             enabledScreens = setOf(Screen.COURSE_DETAIL)
         )
 
         Column(modifier = Modifier.fillMaxSize()) {
             HeaderSpacer()
 
-            // Expressive Tab Bar Capsule
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                tabs.forEach { tab ->
-                    val selected = innerTab == tab
-                    val icon = tabIcons[tab] ?: Icons.Rounded.Circle
-
-                    val interactionSource = remember { MutableInteractionSource() }
-                    val isPressed by interactionSource.collectIsPressedAsState()
-                    val scale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.94f else 1f,
-                        animationSpec = bouncySpring()
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
-                            }
-                            .clip(CircleShape)
-                            .background(if (selected) colors.accent else colors.surface)
-                            .border(1.dp, if (selected) colors.accent else colors.border.copy(alpha = 0.6f), CircleShape)
-                            .clickable(
-                                interactionSource = interactionSource,
-                                indication = null,
-                                onClick = {
-                                    innerTab = tab
-                                    if (tab == "overview" && qcmTables.isEmpty() && !qcmLoading) AppState.refreshQcmView()
-                                }
-                            )
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                icon,
-                                null,
-                                tint = if (selected) Color.White else colors.textSecondary,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                            Text(
-                                tabLabels[tab] ?: tab,
-                                color = if (selected) Color.White else colors.textPrimary,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = AmazeTheme.fontSize.sm,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-            }
-
             Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                when (innerTab) {
-                    "overview" -> OverviewTab(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, qcmTables, qcmLoading, { AppState.refreshQcmView() }, facultyLoading, onViewFaculty, colors)
-                    "grades" -> GradeHistoryTab(courseCode, allGrades, group, colors)
-                    "marks" -> MarksTab(group, isEmbedded, allGrades, mainSemesterId, colors)
-                    "attendance" -> AttendanceTab(courseCode, group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, calendar, colors)
-                    "plan" -> CoursePlanTab(courseCode, group.theory, group.lab, mainAtt, colors)
-                    "qbank" -> QBankTab(courseCode, colors)
-                    "tasks" -> {
-                        val taskCodes = buildList {
-                            add(courseCode)
-                            group?.theory?.courseCode?.let { if (it != courseCode) add(it) }
-                            group?.lab?.courseCode?.let { if (it != courseCode) add(it) }
+                AnimatedContent(
+                    targetState = subPage,
+                    transitionSpec = {
+                        if (targetState == null) {
+                            (slideInHorizontally { -it / 3 } + fadeIn()) togetherWith
+                                    (slideOutHorizontally { it / 3 } + fadeOut())
+                        } else {
+                            (slideInHorizontally { it / 3 } + fadeIn()) togetherWith
+                                    (slideOutHorizontally { -it / 3 } + fadeOut())
                         }
-                        CourseTasksTab(taskCodes, group.courseTitle, colors)
+                    },
+                    label = "courseSubNav"
+                ) { sub ->
+                    if (sub == null) {
+                        CourseOverviewPage(
+                            group = group,
+                            theoryAtt = theoryAtt,
+                            labAtt = labAtt,
+                            mainAtt = mainAtt,
+                            isEmbedded = isEmbedded,
+                            isPastSemester = isPastSemester,
+                            qcmTables = qcmTables,
+                            qcmLoading = qcmLoading,
+                            refreshQcm = { AppState.refreshQcmView() },
+                            facultyLoading = facultyLoading,
+                            onViewFaculty = onViewFaculty,
+                            colors = colors,
+                            onOpenSubPage = { subPage = it }
+                        )
+                    } else {
+                        when (sub) {
+                            CourseSubPage.GRADES -> GradeHistoryTab(courseCode, allGrades, group, colors)
+                            CourseSubPage.MARKS -> MarksTab(group, isEmbedded, colors)
+                            CourseSubPage.ATTENDANCE -> AttendanceTab(courseCode, group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, calendar, colors)
+                            CourseSubPage.PLAN -> CoursePlanTab(group, colors)
+                            CourseSubPage.QBANK -> QBankCourseWorkspace(
+                                courseCode = courseCode,
+                                courseTitle = group.courseTitle,
+                                embedded = true,
+                                onExit = { subPage = null }
+                            )
+                            CourseSubPage.TASKS -> {
+                                val taskCodes = buildList {
+                                    add(courseCode)
+                                    group.theory?.courseCode?.let { if (it != courseCode) add(it) }
+                                    group.lab?.courseCode?.let { if (it != courseCode) add(it) }
+                                }
+                                CourseTasksTab(taskCodes, group.courseTitle, colors)
+                            }
+                            CourseSubPage.FACULTY -> FacultyTab(group, colors)
+                            CourseSubPage.FREE_SLOTS -> FreeSlotsTab(group, colors)
+                        }
                     }
                 }
             }
@@ -306,7 +338,7 @@ fun CourseDetailScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun OverviewTab(
+private fun CourseOverviewPage(
     group: CourseGroup,
     theoryAtt: AttendanceItem?,
     labAtt: AttendanceItem?,
@@ -318,250 +350,275 @@ private fun OverviewTab(
     refreshQcm: () -> Unit,
     facultyLoading: Boolean,
     onViewFaculty: (ParsedFaculty) -> Unit,
-    colors: com.amazecc.app.shared.theme.AmazeColors
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    onOpenSubPage: (CourseSubPage) -> Unit
 ) {
     val moodleAssignments = remember(group) {
         AppState.getMoodleAssignmentsForCourse(group.courseCode)
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(bottom = BOTTOM_NAV_PADDING),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (isEmbedded) {
-                    Box(Modifier.weight(1f)) { CircularAttendCard("Theory", theoryAtt, colors.accent, colors) }
-                    Box(Modifier.weight(1f)) { CircularAttendCard("Lab", labAtt, colors.success, colors) }
-                } else {
-                    Box(Modifier.weight(1f)) { CircularAttendCard("Attendance", mainAtt, colors.accent, colors) }
-                }
+        // 1. Attendance hero — arcs for every component + marks / grade
+        AttendanceHeroCard(group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, colors)
 
-                val attItem = if (isEmbedded) theoryAtt else mainAtt
-                val attPct = attItem?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
-                val grade = predictedGrade(0.0)
-                val (healthLabel, healthColor, healthBg) = healthStatus(attPct, grade, isPastSemester, colors)
-
-                AmazeCard(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text("Status", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted, fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                .background(healthBg)
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Text(healthLabel, color = healthColor, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
-                        }
-                        if (isEmbedded && theoryAtt != null && labAtt != null) {
-                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                            Text("T: ${theoryAtt.attendedClasses}/${theoryAtt.totalClasses}", fontSize = AmazeTheme.fontSize.micro, color = colors.accent)
-                            Text("L: ${labAtt.attendedClasses}/${labAtt.totalClasses}", fontSize = AmazeTheme.fontSize.micro, color = colors.success)
-                        } else if (mainAtt != null) {
-                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                            Text("${mainAtt.attendedClasses}/${mainAtt.totalClasses} classes", fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary)
-                        }
-                    }
-                }
+        // 2. Menu — replaces the pill tab bar
+        SettingsGroupCard {
+            CourseSubPage.entries.forEachIndexed { index, sub ->
+                SettingsRow(
+                    icon = sub.icon,
+                    title = sub.title,
+                    subtitle = sub.description,
+                    tint = CourseSubPageTint(sub, colors),
+                    onClick = { onOpenSubPage(sub) }
+                )
+                if (index < CourseSubPage.entries.lastIndex) SettingsRowDivider()
             }
         }
 
-        item {
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                    Text("Course Details", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    Spacer(Modifier.height(12.dp))
-                    val mainCourse = group.theory ?: group.lab
-                    val rawFaculty = mainCourse?.faculty?.ifBlank { null }
-                        ?: group.theoryAtt?.faculty?.ifBlank { null }
-                        ?: group.labAtt?.faculty?.ifBlank { null }
-                        ?: mainAtt?.faculty?.ifBlank { null }
-                    val parsedFac = if (!rawFaculty.isNullOrBlank()) com.amazecc.app.shared.utils.FacultyUtils.parseFaculty(rawFaculty) else null
+        // 3. Grouped info cards
+        CourseDetailsInfoCard(group, theoryAtt, labAtt, mainAtt, isEmbedded, facultyLoading, onViewFaculty, colors)
 
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MetricTile("Type", if (isEmbedded) "Embedded" else (mainCourse?.courseType ?: "-"), colors, Modifier.weight(1f))
-                            MetricTile("Slot", mainCourse?.slot ?: "-", colors, Modifier.weight(1f))
-                        }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MetricTile("System", mainCourse?.courseSystem ?: "-", colors, Modifier.weight(1f))
-                            MetricTile("Credits", mainAtt?.credits ?: "-", colors, Modifier.weight(1f))
-                        }
-                        if (parsedFac != null) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                                    .background(colors.surface)
-                                    .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
-                                    .padding(12.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text("Faculty", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
-                                        Spacer(Modifier.height(2.dp))
-                                        Text(parsedFac.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base))
-                                    }
-                                    if (!parsedFac.school.isNullOrBlank()) {
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                                .background(colors.accent.copy(alpha = 0.12f))
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
-                                            Text(parsedFac.school, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro))
-                                        }
-                                    }
-                                }
+        if (moodleAssignments.isNotEmpty()) {
+            MoodleAssignmentsCard(moodleAssignments, colors)
+        }
+
+        QcmCard(qcmTables, qcmLoading, refreshQcm, colors)
+    }
+}
+
+@Composable
+private fun AttendanceHeroCard(
+    group: CourseGroup,
+    theoryAtt: AttendanceItem?,
+    labAtt: AttendanceItem?,
+    mainAtt: AttendanceItem?,
+    isEmbedded: Boolean,
+    isPastSemester: Boolean,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val heroGradient = remember(colors) {
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
+        )
+    }
+
+    val attItem = if (isEmbedded) theoryAtt else mainAtt
+    val attPct = attItem?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
+    val (healthLabel, _, _) = healthStatus(attPct, predictedGrade(0.0), isPastSemester, colors)
+
+    val assessments = (group.theory?.assessments ?: emptyList()) + (group.lab?.assessments ?: emptyList())
+    val totalWeighted = assessments.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
+    val totalWeightPct = assessments.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
+    val projectedPct = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(AmazeTheme.radius.large))
+            .background(heroGradient)
+            .padding(20.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.CheckCircle, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Attendance",
+                    color = Color.White.copy(alpha = 0.9f),
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                        .background(Color.White.copy(alpha = 0.18f))
+                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(healthLabel, color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
+                }
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                if (isEmbedded) {
+                    HeroArc("Theory", theoryAtt, Modifier.weight(1f))
+                    HeroArc("Lab", labAtt, Modifier.weight(1f))
+                } else {
+                    HeroArc("Attendance", mainAtt, Modifier.weight(1f))
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                    .background(Color.White.copy(alpha = 0.14f))
+                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium))
+                    .padding(12.dp)
+            ) {
+                when {
+                    assessments.isNotEmpty() -> {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(
+                                "Marks Earned",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = AmazeTheme.fontSize.sm
+                            )
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                HeroStat("Scored", "${totalWeighted.toInt()}", Color.White)
+                                HeroStat("Weight", "${totalWeightPct.toInt()}%", Color.White.copy(alpha = 0.9f))
+                                HeroStat("Projected", "$projectedPct%", Color.White.copy(alpha = 0.9f))
                             }
-                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                            AmazeButton(
-                                text = if (facultyLoading) "Finding faculty..." else "View Faculty & Free Slots",
-                                onClick = { onViewFaculty(parsedFac) },
-                                modifier = Modifier.fillMaxWidth(),
-                                variant = ButtonVariant.SECONDARY
+                            LinearProgressIndicator(
+                                progress = { if (totalWeightPct > 0) (totalWeighted / totalWeightPct).toFloat() else 0f },
+                                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                                color = Color.White,
+                                trackColor = Color.White.copy(alpha = 0.25f)
                             )
                         }
                     }
-
-                    if (isEmbedded) {
-                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                        Box(
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.1f)).padding(12.dp)
-                        ) {
-                            Column {
-                                Text("Components", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                                Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                group.theory?.let { Text("${it.courseType} — Class #${it.classNbr.takeLast(4)}", fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary, fontWeight = FontWeight.Medium) }
-                                group.lab?.let { Text("${it.courseType} — Class #${it.classNbr.takeLast(4)}", fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary, fontWeight = FontWeight.Medium) }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            val assessments = (group.theory?.assessments ?: emptyList()) + (group.lab?.assessments ?: emptyList())
-            if (assessments.isNotEmpty()) {
-                AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text("Marks Snapshot", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                        val totalWeighted = assessments.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
-                        val totalWeightPct = assessments.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
-                        val pct = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
-                        Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                            StatItem("Scored", "${totalWeighted.toInt()}", colors.accent, colors)
-                            StatItem("Weight", "${totalWeightPct.toInt()}%", colors.info, colors)
-                            StatItem("Projected", "$pct%", if (pct >= 70) colors.success else colors.warning, colors)
-                        }
-                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                        LinearProgressIndicator(
-                            progress = { if (totalWeightPct > 0) (totalWeighted / totalWeightPct).toFloat() else 0f },
-                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                            color = colors.accent,
-                            trackColor = colors.border,
-                        )
-                    }
-                }
-            }
-        }
-
-        if (moodleAssignments.isNotEmpty()) {
-            item {
-                AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
+                    group.grade != null -> {
+                        val gradeItem = group.grade!!
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Moodle Assignments", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
-                            Text("${moodleAssignments.size}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
-                        }
-                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                        moodleAssignments.forEach { assignment ->
-                            val dueColor = try {
-                                val dueDate = assignment.due.split(" ").firstOrNull() ?: ""
-                                if (assignment.done) colors.success else if (dueDate.isNotEmpty()) colors.warning else colors.textMuted
-                            } catch (_: Exception) { colors.textMuted }
                             Box(
-                                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.surface).padding(12.dp)
+                                modifier = Modifier.size(52.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier.size(8.dp).clip(CircleShape).background(if (assignment.done) colors.success else colors.warning)
-                                    )
-                                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(assignment.taskTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Rounded.Schedule, null, tint = dueColor, modifier = Modifier.size(12.dp))
-                                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                                            Text(assignment.due, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                                        }
-                                    }
-                                    if (assignment.done) {
-                                        Icon(Icons.Rounded.CheckCircle, null, tint = colors.success, modifier = Modifier.size(18.dp))
-                                    } else {
-                                        Icon(Icons.Rounded.Warning, null, tint = colors.warning, modifier = Modifier.size(18.dp))
-                                    }
-                                }
+                                Text(gradeItem.grade, color = Color.White, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl)
                             }
-                            Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                            Spacer(Modifier.width(AmazeTheme.spacing.md))
+                            Column {
+                                Text("Grade Published", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
+                                Text("Total: ${gradeItem.grandTotal}%", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.md)
+                            }
+                        }
+                    }
+                    else -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.Schedule, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "Marks not published yet",
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = AmazeTheme.fontSize.sm
+                            )
                         }
                     }
                 }
             }
         }
+    }
+}
 
-        item {
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Quality Circle Meeting (QCM)", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
-                        if (qcmTables.isEmpty() && !qcmLoading) {
-                            AmazeButton("Load", onClick = refreshQcm, variant = ButtonVariant.SECONDARY, modifier = Modifier.height(32.dp))
+@Composable
+private fun HeroArc(label: String, att: AttendanceItem?, modifier: Modifier = Modifier) {
+    val pct = att?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
+    val animatedPct by animateFloatAsState(targetValue = (pct / 100f).toFloat(), animationSpec = tween(1000))
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
+            Canvas(modifier = Modifier.size(64.dp)) {
+                drawArc(color = Color.White.copy(alpha = 0.25f), startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
+                drawArc(color = Color.White, startAngle = -90f, sweepAngle = 360f * animatedPct, useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
+            }
+            Text("${pct.toInt()}%", fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = Color.White)
+        }
+        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold)
+        if (att != null) {
+            Text("${att.attendedClasses}/${att.totalClasses}", fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.7f))
+        }
+    }
+}
+
+@Composable
+private fun HeroStat(label: String, value: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = color)
+        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.8f))
+    }
+}
+
+@Composable
+private fun CourseDetailsInfoCard(
+    group: CourseGroup,
+    theoryAtt: AttendanceItem?,
+    labAtt: AttendanceItem?,
+    mainAtt: AttendanceItem?,
+    isEmbedded: Boolean,
+    facultyLoading: Boolean,
+    onViewFaculty: (ParsedFaculty) -> Unit,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Text("Course Details", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Spacer(Modifier.height(12.dp))
+            val mainCourse = group.theory ?: group.lab
+            val rawFaculty = mainCourse?.faculty?.ifBlank { null }
+                ?: theoryAtt?.faculty?.ifBlank { null }
+                ?: labAtt?.faculty?.ifBlank { null }
+                ?: mainAtt?.faculty?.ifBlank { null }
+            val parsedFac = if (!rawFaculty.isNullOrBlank()) com.amazecc.app.shared.utils.FacultyUtils.parseFaculty(rawFaculty) else null
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetricTile("Type", if (isEmbedded) "Embedded" else (mainCourse?.courseType ?: "-"), colors, Modifier.weight(1f))
+                    MetricTile("Slot", mainCourse?.slot ?: "-", colors, Modifier.weight(1f))
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetricTile("System", mainCourse?.courseSystem ?: "-", colors, Modifier.weight(1f))
+                    MetricTile("Credits", mainAtt?.credits ?: "-", colors, Modifier.weight(1f))
+                }
+                if (parsedFac != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                            .background(colors.surface)
+                            .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
+                            .padding(12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Faculty", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+                                Spacer(Modifier.height(2.dp))
+                                Text(parsedFac.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base))
+                            }
                         }
                     }
                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    when {
-                        qcmLoading -> CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
-                        qcmTables.isEmpty() -> Text("No QCM data available", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
-                        else -> qcmTables.forEach { table ->
-                            table.rows.forEach { rowJson ->
-                                val obj = rowJson.jsonObject
-                                val qcmNo = obj["qcmNo"]?.jsonPrimitive?.contentOrNull ?: obj["QCM No"]?.jsonPrimitive?.contentOrNull
-                                val action = obj["actionTaken"]?.jsonPrimitive?.contentOrNull ?: obj["Action Taken"]?.jsonPrimitive?.contentOrNull
-                                val suggestions = obj["suggestions"]?.jsonPrimitive?.contentOrNull ?: obj["Suggestions"]?.jsonPrimitive?.contentOrNull
-                                val facultyReply = obj["facultyReply"]?.jsonPrimitive?.contentOrNull ?: obj["Faculty Reply"]?.jsonPrimitive?.contentOrNull
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.surface).padding(12.dp)
-                                ) {
-                                    Column {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("QCM ${qcmNo ?: ""}", fontWeight = FontWeight.Bold, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs, modifier = Modifier.weight(1f))
-                                            action?.let { AmazeBadge(it, variant = BadgeVariant.INFO) }
-                                        }
-                                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                        suggestions?.let { Text(it, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm) }
-                                        facultyReply?.let {
-                                            Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                            Box(modifier = Modifier.fillMaxWidth().padding(start = 8.dp)) {
-                                                Column {
-                                                    Text("Faculty Reply", fontWeight = FontWeight.Bold, color = colors.success, fontSize = AmazeTheme.fontSize.micro)
-                                                    Text(it, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                            }
-                        }
+                    AmazeButton(
+                        text = if (facultyLoading) "Finding faculty..." else "View Faculty & Free Slots",
+                        onClick = { onViewFaculty(parsedFac) },
+                        modifier = Modifier.fillMaxWidth(),
+                        variant = ButtonVariant.SECONDARY
+                    )
+                }
+            }
+
+            if (isEmbedded) {
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                Box(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.1f)).padding(12.dp)
+                ) {
+                    Column {
+                        Text("Components", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                        group.theory?.let { Text("${it.courseType} — Class #${it.classNbr.takeLast(4)}", fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary, fontWeight = FontWeight.Medium) }
+                        group.lab?.let { Text("${it.courseType} — Class #${it.classNbr.takeLast(4)}", fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary, fontWeight = FontWeight.Medium) }
                     }
                 }
             }
@@ -570,32 +627,103 @@ private fun OverviewTab(
 }
 
 @Composable
-private fun CircularAttendCard(label: String, att: AttendanceItem?, accent: Color, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    val pct = att?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
-    val animatedPct by animateFloatAsState(targetValue = (pct / 100f).toFloat(), animationSpec = tween(1000))
+private fun MoodleAssignmentsCard(
+    moodleAssignments: List<MoodleAssignment>,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
-                Canvas(modifier = Modifier.size(64.dp)) {
-                    drawArc(color = Color.LightGray.copy(alpha = 0.3f), startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
-                    drawArc(color = accent, startAngle = -90f, sweepAngle = 360f * animatedPct, useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
-                }
-                Text("${pct.toInt()}%", fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = accent)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Moodle Assignments", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
+                Text("${moodleAssignments.size}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
             }
-            Spacer(Modifier.height(AmazeTheme.spacing.xs))
-            Text(label, fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary, fontWeight = FontWeight.Bold)
-            if (att != null) {
-                Text("${att.attendedClasses}/${att.totalClasses}", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+            moodleAssignments.forEach { assignment ->
+                val dueColor = try {
+                    val dueDate = assignment.due.split(" ").firstOrNull() ?: ""
+                    if (assignment.done) colors.success else if (dueDate.isNotEmpty()) colors.warning else colors.textMuted
+                } catch (_: Exception) { colors.textMuted }
+                Box(
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.surface).padding(12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier.size(8.dp).clip(CircleShape).background(if (assignment.done) colors.success else colors.warning)
+                        )
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(assignment.taskTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.Schedule, null, tint = dueColor, modifier = Modifier.size(12.dp))
+                                Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                                Text(assignment.due, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                            }
+                        }
+                        if (assignment.done) {
+                            Icon(Icons.Rounded.CheckCircle, null, tint = colors.success, modifier = Modifier.size(18.dp))
+                        } else {
+                            Icon(Icons.Rounded.Warning, null, tint = colors.warning, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
             }
         }
     }
 }
 
 @Composable
-private fun StatItem(label: String, value: String, color: Color, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = color)
-        Text(label, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+private fun QcmCard(
+    qcmTables: List<QcmTable>,
+    qcmLoading: Boolean,
+    refreshQcm: () -> Unit,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Quality Circle Meeting (QCM)", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
+                if (qcmTables.isEmpty() && !qcmLoading) {
+                    AmazeButton("Load", onClick = refreshQcm, variant = ButtonVariant.SECONDARY, modifier = Modifier.height(32.dp))
+                }
+            }
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+            when {
+                qcmLoading -> CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                qcmTables.isEmpty() -> Text("No QCM data available", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
+                else -> qcmTables.forEach { table ->
+                    table.rows.forEach { rowJson ->
+                        val obj = rowJson.jsonObject
+                        val qcmNo = obj["qcmNo"]?.jsonPrimitive?.contentOrNull ?: obj["QCM No"]?.jsonPrimitive?.contentOrNull
+                        val action = obj["actionTaken"]?.jsonPrimitive?.contentOrNull ?: obj["Action Taken"]?.jsonPrimitive?.contentOrNull
+                        val suggestions = obj["suggestions"]?.jsonPrimitive?.contentOrNull ?: obj["Suggestions"]?.jsonPrimitive?.contentOrNull
+                        val facultyReply = obj["facultyReply"]?.jsonPrimitive?.contentOrNull ?: obj["Faculty Reply"]?.jsonPrimitive?.contentOrNull
+                        Box(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.surface).padding(12.dp)
+                        ) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("QCM ${qcmNo ?: ""}", fontWeight = FontWeight.Bold, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs, modifier = Modifier.weight(1f))
+                                    action?.let { AmazeBadge(it, variant = BadgeVariant.INFO) }
+                                }
+                                Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                                suggestions?.let { Text(it, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm) }
+                                facultyReply?.let {
+                                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                                    Box(modifier = Modifier.fillMaxWidth().padding(start = 8.dp)) {
+                                        Column {
+                                            Text("Faculty Reply", fontWeight = FontWeight.Bold, color = colors.success, fontSize = AmazeTheme.fontSize.micro)
+                                            Text(it, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -650,80 +778,131 @@ private fun GradeHistoryTab(courseCode: String, allGrades: AllGradesRes?, group:
         return
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
+    LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
         itemsIndexed(gradeItems) { index, (semId, grade) ->
             val semName = semesterMap[semId] ?: formatSemesterName(semId)
-            Row(modifier = Modifier.fillMaxWidth()) {
-                if (index % 2 == 0) {
-                    TimelineCard(semName, grade, colors, Modifier.weight(1f))
-                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                } else {
-                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                    TimelineCard(semName, grade, colors, Modifier.weight(1f))
-                }
-            }
+            val prevTotal = gradeItems.getOrNull(index + 1)?.second?.grandTotal?.toDoubleOrNull()
+            val trendDiff = if (prevTotal != null) (grade?.grandTotal?.toDoubleOrNull() ?: 0.0) - prevTotal else null
+            GradeHistoryCard(semName, grade, trendDiff, colors)
         }
     }
 }
 
 @Composable
-private fun TimelineCard(semName: String, grade: GradeItem?, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
-    AmazeCard(modifier = modifier) {
+@OptIn(ExperimentalLayoutApi::class)
+private fun GradeHistoryCard(semName: String, grade: GradeItem?, trendDiff: Double?, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
+    var expanded by remember { mutableStateOf(false) }
+    val gc = gradeColor(grade?.grade ?: "", colors)
+    AmazeCard(modifier = modifier.fillMaxWidth(), onClick = { expanded = !expanded }) {
         Column {
-            Text(semName, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm)
-
-            if (grade != null) {
-                Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                val gc = GradeColors[grade.grade.uppercase()] ?: colors.textPrimary
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier.size(40.dp).clip(CircleShape).background(gc.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(grade.grade, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl, color = gc)
-                    }
-                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                    Column {
-                        Text("Total: ${grade.grandTotal}", fontSize = AmazeTheme.fontSize.sm, color = colors.textSecondary)
-                        Text(grade.courseType, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+            Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(44.dp).clip(CircleShape).background(gc.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(grade?.grade ?: "-", fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl, color = gc)
+                }
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(semName, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Total: ${grade?.grandTotal ?: "-"}", fontSize = AmazeTheme.fontSize.sm, color = colors.textSecondary)
+                        if (!grade?.courseType.isNullOrBlank()) {
+                            Text(grade!!.courseType, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+                        }
                     }
                 }
+                if (trendDiff != null) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            when {
+                                trendDiff > 0 -> Icons.Rounded.TrendingUp
+                                trendDiff < 0 -> Icons.Rounded.TrendingDown
+                                else -> Icons.Rounded.TrendingFlat
+                            },
+                            null,
+                            tint = when {
+                                trendDiff > 0 -> colors.success
+                                trendDiff < 0 -> colors.danger
+                                else -> colors.textMuted
+                            },
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "${if (trendDiff > 0) "+" else ""}%.1f".format(trendDiff),
+                            fontSize = AmazeTheme.fontSize.micro,
+                            color = when {
+                                trendDiff > 0 -> colors.success
+                                trendDiff < 0 -> colors.danger
+                                else -> colors.textMuted
+                            },
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else {
+                    Icon(Icons.Rounded.TrendingFlat, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                Icon(
+                    if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                    null,
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
 
-                grade.range?.let { range ->
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                        listOf("S" to range.S, "A" to range.A, "B" to range.B, "C" to range.C, "D" to range.D, "E" to range.E, "F" to range.F).forEach { (g, r) ->
-                            val gColor = GradeColors[g] ?: colors.textMuted
-                            Box(
-                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(gColor.copy(alpha = 0.1f)).padding(vertical = 4.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(g, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.micro, color = gColor)
-                                    Text(r, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
+                    grade?.range?.let { range ->
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                            listOf("S" to range.S, "A" to range.A, "B" to range.B, "C" to range.C, "D" to range.D, "E" to range.E, "F" to range.F).forEach { (g, r) ->
+                                val gColor = gradeColor(g, colors)
+                                Box(
+                                    modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(gColor.copy(alpha = 0.1f)).padding(horizontal = 10.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(g, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.micro, color = gColor)
+                                        Text(r, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+                                    }
                                 }
+                            }
+                        }
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                    }
+
+                    grade?.details?.let { details ->
+                        Text("Component Breakdown", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm)
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                        details.forEach { comp ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    comp.component,
+                                    fontSize = AmazeTheme.fontSize.micro,
+                                    color = colors.textSecondary,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                comp.weightagePercent.ifBlank { null }?.let { w ->
+                                    Text("$w%", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+                                    Spacer(Modifier.width(6.dp))
+                                }
+                                Text("${comp.scoredMark}/${comp.maxMark}", fontSize = AmazeTheme.fontSize.micro, color = colors.textPrimary, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
                 }
-
-                grade.details?.let { details ->
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    details.take(4).forEach { comp ->
-                        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(comp.component, fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary, modifier = Modifier.weight(1f))
-                            Text("${comp.scoredMark}/${comp.maxMark}", fontSize = AmazeTheme.fontSize.micro, color = colors.textPrimary, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                }
             }
         }
     }
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun GradeViewCard(grade: GradeItem, label: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    val gc = GradeColors[grade.grade.uppercase()] ?: colors.textPrimary
+    val gc = gradeColor(grade.grade, colors)
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -740,14 +919,14 @@ private fun GradeViewCard(grade: GradeItem, label: String, colors: com.amazecc.a
                 }
                 Spacer(Modifier.height(AmazeTheme.spacing.xs))
                 grade.range?.let { range ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                         listOf("S" to range.S, "A" to range.A, "B" to range.B, "C" to range.C, "D" to range.D, "E" to range.E, "F" to range.F).forEach { (g, r) ->
-                            val gColor = GradeColors[g] ?: colors.textMuted
+                            val gColor = gradeColor(g, colors)
                             Box(
-                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(gColor.copy(alpha = 0.1f)).padding(vertical = 4.dp),
+                                modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(gColor.copy(alpha = 0.1f)).padding(horizontal = 10.dp, vertical = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(g, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.micro, color = gColor)
                                     Text(r, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
                                 }
@@ -764,38 +943,60 @@ private fun GradeViewCard(grade: GradeItem, label: String, colors: com.amazecc.a
 private fun MarksTab(
     group: CourseGroup,
     isEmbedded: Boolean,
-    allGrades: AllGradesRes?,
-    semesterId: String,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val theoryMarks = group.theory
     val labMarks = group.lab
-    val allAssessments = remember(theoryMarks, labMarks) {
+    val singleComponent = theoryMarks != null && labMarks != null && theoryMarks === labMarks
+    val grading = remember(theoryMarks, labMarks, group.courseCode) { courseGrading(group, theoryMarks, labMarks) }
+
+    val allAssessments = remember(theoryMarks, labMarks, singleComponent) {
+        val theoryAsms = theoryMarks?.assessments ?: emptyList()
         val list = mutableListOf<Pair<String, List<AssessmentItem>>>()
-        if (theoryMarks != null) list.add("Theory" to theoryMarks.assessments)
-        if (labMarks != null) list.add("Lab" to labMarks.assessments)
-        if (!isEmbedded && theoryMarks != null && labMarks == null) { list.clear(); list.add("Assessments" to theoryMarks.assessments) }
+        if (singleComponent) {
+            list.add(theoryMarks!!.courseType.ifBlank { "Assessments" } to theoryAsms)
+        } else {
+            if (theoryMarks != null) list.add("Theory" to theoryAsms)
+            if (labMarks != null) list.add("Lab" to labMarks.assessments)
+            if (!isEmbedded && theoryMarks != null && labMarks == null) {
+                list.clear()
+                list.add("Assessments" to theoryAsms)
+            }
+        }
         list
     }
 
-    val isRelative = theoryMarks?.courseSystem == "ACE" && (theoryMarks.courseType in listOf("Theory Only", "Embedded Theory", "Embedded Lab", "Embedded"))
-
-    val allAsms = (theoryMarks?.assessments ?: emptyList()) + (labMarks?.assessments ?: emptyList())
+    val allAsms = remember(theoryMarks, labMarks, singleComponent) {
+        if (singleComponent) theoryMarks?.assessments ?: emptyList()
+        else (theoryMarks?.assessments ?: emptyList()) + (labMarks?.assessments ?: emptyList())
+    }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
         if (allAsms.isNotEmpty()) {
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    val totalWeighted = allAsms.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
-                    val totalWeightPct = allAsms.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
-                    val projected = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
-                    val maxPossible = 100 - (totalWeightPct - totalWeighted).toInt()
-                    val maxScore = totalWeighted.toInt()
+                MarksHeroCard(group, allAsms, grading, colors)
+            }
 
-                    StatBox("Course Type", if (isEmbedded) "Embedded" else (theoryMarks?.courseType ?: "-"), colors, Modifier.weight(1f))
-                    StatBox("Score", "$maxScore/${totalWeightPct.toInt()}", colors, Modifier.weight(1f))
-                    StatBox("Projected", "$projected%", colors, Modifier.weight(1f))
-                    StatBox("Max", "$maxPossible%", colors, Modifier.weight(1f))
+            item {
+                val totalWeighted = allAsms.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
+                val totalWeightPct = allAsms.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
+                val projected = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
+                val maxPossible = 100 - (totalWeightPct - totalWeighted).toInt()
+                val typeLabel = (if (singleComponent) theoryMarks?.courseType
+                else if (isEmbedded) "Embedded"
+                else theoryMarks?.courseType ?: labMarks?.courseType ?: "-") ?: "-"
+
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            MetricTile("Course Type", typeLabel, colors, Modifier.weight(1f))
+                            MetricTile("Score", "${totalWeighted.toInt()}/${totalWeightPct.toInt()}", colors, Modifier.weight(1f))
+                        }
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            MetricTile("Projected", "$projected%", colors, Modifier.weight(1f))
+                            MetricTile("Max Possible", "$maxPossible%", colors, Modifier.weight(1f))
+                        }
+                    }
                 }
             }
         }
@@ -815,95 +1016,192 @@ private fun MarksTab(
                 }
             } else {
                 item {
-                    Text(label, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(if (label == "Theory") colors.accent else colors.success))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
+                        Text(label, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${asms.size} assessments", style = AmazeTheme.typography.caption.copy(color = colors.textMuted), maxLines = 1)
+                    }
                 }
                 items(asms, key = { "${it.title}-${it.maxMark}" }) { asm ->
-                    ExpandableAssessmentCard(asm, label, isRelative, colors)
+                    ExpandableAssessmentCard(asm, label, grading, colors)
                 }
             }
         }
 
         if (allAsms.isNotEmpty()) {
             item {
-                TargetGradeCalculator(theoryMarks, labMarks, isRelative, colors)
+                TargetGradeCalculator(theoryMarks, labMarks, grading, colors)
             }
         }
     }
 }
 
 @Composable
-private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, isRelative: Boolean, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun MarksHeroCard(
+    group: CourseGroup,
+    allAsms: List<AssessmentItem>,
+    grading: CourseGrading,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val heroGradient = remember(colors) {
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
+        )
+    }
+    val modeTint = if (grading.mode == GradingMode.ABSOLUTE) colors.success else colors.warning
+
+    val totalWeighted = allAsms.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
+    val totalWeightPct = allAsms.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
+    val projectedPct = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(AmazeTheme.radius.large))
+            .background(heroGradient)
+            .padding(20.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Assessment, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Marks", color = Color.White.copy(alpha = 0.9f), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold))
+                Spacer(Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                        .background(Color.White.copy(alpha = 0.18f))
+                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(modeTint))
+                        Spacer(Modifier.width(6.dp))
+                        Text("${grading.mode.label} Grading", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
+                    }
+                }
+            }
+
+            when {
+                allAsms.isNotEmpty() -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Marks Earned", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                            HeroStat("Scored", "${totalWeighted.toInt()}", Color.White)
+                            HeroStat("Weight", "${totalWeightPct.toInt()}%", Color.White.copy(alpha = 0.9f))
+                            HeroStat("Projected", "$projectedPct%", Color.White.copy(alpha = 0.9f))
+                        }
+                        LinearProgressIndicator(
+                            progress = { if (totalWeightPct > 0) (totalWeighted / totalWeightPct).toFloat() else 0f },
+                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                            color = Color.White,
+                            trackColor = Color.White.copy(alpha = 0.25f)
+                        )
+                    }
+                }
+                group.grade != null -> {
+                    val gradeItem = group.grade!!
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier.size(52.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(gradeItem.grade, color = Color.White, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl)
+                        }
+                        Spacer(Modifier.width(AmazeTheme.spacing.md))
+                        Column {
+                            Text("Grade Published", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
+                            Text("Total: ${gradeItem.grandTotal}%", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.md)
+                        }
+                    }
+                }
+                else -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Schedule, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Marks not published yet", color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.SemiBold, fontSize = AmazeTheme.fontSize.sm)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, grading: CourseGrading, colors: com.amazecc.app.shared.theme.AmazeColors) {
     var expanded by remember { mutableStateOf(false) }
-    val pct = if (asm.maxMark.toDoubleOrNull() != null && asm.maxMark.toDouble() > 0)
-        ((asm.scoredMark.toDoubleOrNull() ?: 0.0) / asm.maxMark.toDouble()) * 100 else 0.0
+    val maxMark = asm.maxMark.toDoubleOrNull() ?: 0.0
+    val scored = asm.scoredMark.toDoubleOrNull() ?: 0.0
+    val pct = if (maxMark > 0) scored / maxMark * 100 else 0.0
     val isTheory = typeLabel == "Theory"
     val accentColor = if (isTheory) colors.accent else colors.success
     val shortenedTitle = com.amazecc.app.shared.ui.components.shortenAssessmentName(asm.title)
+    val done = asm.status.contains("complet", ignoreCase = true)
 
     AmazeCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = { expanded = !expanded }
     ) {
-        Column {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(accentColor))
+                Text(shortenedTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (asm.status.isNotBlank()) {
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                    Text(asm.status, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.SemiBold, color = if (done) colors.success else colors.warning, fontSize = AmazeTheme.fontSize.micro))
+                }
                 Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                Text(shortenedTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
+                Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.height(AmazeTheme.spacing.xs))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("${asm.scoredMark} / ${asm.maxMark}", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.md)
-                }
+            Text("${asm.scoredMark} / ${asm.maxMark}", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.md)
+            Text("${pct.toInt()}% scored · ${asm.weightageMark} of ${asm.weightagePercent}% weightage", style = AmazeTheme.typography.caption.copy(color = colors.textMuted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+            Box(
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.border)
+            ) {
                 Box(
-                    modifier = Modifier.fillMaxWidth(0.5f).height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.border)
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxWidth().fillMaxHeight().clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                            .background(accentColor)
-                    )
-                }
-                Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                Text("${asm.weightageMark} / ${asm.weightagePercent}%", fontWeight = FontWeight.Bold, color = accentColor, fontSize = AmazeTheme.fontSize.xs)
+                    modifier = Modifier.fillMaxWidth((pct / 100).toFloat().coerceIn(0f, 1f)).fillMaxHeight().clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(accentColor)
+                )
             }
 
             AnimatedVisibility(visible = expanded, enter = fadeIn(), exit = fadeOut()) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    Box(
-                        modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border)
-                    )
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border))
                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
-                    if (isRelative) {
-                        Text("Relative Grading (ACE)", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary)
-                        Text("Class statistics required for actual grade boundaries.", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
-                    }
-
-                    Text("Grade Placement Preview", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
-                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                    val gradePlacement = predictedGrade(pct)
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                        GradeBoundariesAbsolute.take(4).forEach { (g, bound) ->
-                            val gColor = GradeColors[g] ?: colors.textSecondary
-                            val isCurrent = g == gradePlacement
-                            Box(
-                                modifier = Modifier.weight(1f)
-                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                    .background(if (isCurrent) gColor.copy(alpha = 0.2f) else colors.surface)
-                                    .border(if (isCurrent) 1.dp else 0.dp, if (isCurrent) gColor else Color.Transparent, RoundedCornerShape(AmazeTheme.radius.xs))
-                                    .padding(vertical = 6.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(g, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = gColor))
-                                    Text("≥${bound}%", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+                    if (grading.mode == GradingMode.RELATIVE) {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.warning.copy(alpha = 0.08f)).border(1.dp, colors.warning.copy(alpha = 0.25f), RoundedCornerShape(AmazeTheme.radius.small)).padding(10.dp)
+                        ) {
+                            Column {
+                                Text("Relative Grading", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs, color = colors.warning)
+                                Text("Final grade boundaries are set against the class average — no fixed cutoffs.", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+                            }
+                        }
+                    } else {
+                        Text("Grade Placement Preview", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                        val gradePlacement = predictedGrade(pct)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                            GradeBoundariesAbsolute.forEach { (g, bound) ->
+                                val gColor = gradeColor(g, colors)
+                                val isCurrent = g == gradePlacement
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                        .background(if (isCurrent) gColor.copy(alpha = 0.18f) else colors.surface)
+                                        .border(if (isCurrent) 1.dp else 0.dp, if (isCurrent) gColor else Color.Transparent, RoundedCornerShape(AmazeTheme.radius.xs))
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("$g ≥${bound}%", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = gColor), maxLines = 1)
                                 }
                             }
                         }
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                        Text("Hypothetical Placement: Grade $gradePlacement", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs, color = colors.accent, modifier = Modifier.align(Alignment.CenterHorizontally))
                     }
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    Text("Hypothetical Placement: Grade $gradePlacement", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs, color = colors.accent, modifier = Modifier.align(Alignment.CenterHorizontally))
                 }
             }
         }
@@ -914,60 +1212,72 @@ private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, isR
 private fun TargetGradeCalculator(
     theoryMarks: MarksCourseItem?,
     labMarks: MarksCourseItem?,
-    isRelative: Boolean,
+    grading: CourseGrading,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     var targetGrade by remember { mutableStateOf("A") }
-    val allAsm = (theoryMarks?.assessments ?: emptyList()) + (labMarks?.assessments ?: emptyList())
+    val singleComponent = theoryMarks != null && labMarks != null && theoryMarks === labMarks
+    val allAsm = remember(theoryMarks, labMarks, singleComponent) {
+        if (singleComponent) theoryMarks?.assessments ?: emptyList()
+        else (theoryMarks?.assessments ?: emptyList()) + (labMarks?.assessments ?: emptyList())
+    }
     val totalWeighted = allAsm.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
     val totalWeightPct = allAsm.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
     val remainingPct = 100.0 - totalWeightPct
 
     val targetBound = GradeBoundariesAbsolute.find { it.first == targetGrade }?.second ?: 70
     val needPoints = (targetBound.toDouble() / 100.0 * 100.0) - totalWeighted
-    val maxAchievable = totalWeighted + remainingPct
+    val isAbsolute = grading.mode == GradingMode.ABSOLUTE
+    val modeTint = if (isAbsolute) colors.success else colors.warning
 
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
-        Column {
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Grade Insights", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Text("Grade Insights", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 Spacer(Modifier.width(AmazeTheme.spacing.sm))
                 AmazeBadge("BETA", variant = BadgeVariant.INFO)
             }
-            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+            Spacer(Modifier.height(AmazeTheme.spacing.md))
 
-            if (isRelative) {
-                Text("Relative (ACE) Grading — Boundaries shift with class average", fontSize = AmazeTheme.fontSize.xs, color = colors.textMuted)
-            } else {
-                Text("Absolute Grading Enforced", fontSize = AmazeTheme.fontSize.xs, color = colors.success, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                Box(
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.success.copy(alpha = 0.08f)).padding(8.dp)
-                ) {
-                    Text("Fixed grade boundaries: S≥90, A≥80, B≥70, C≥60, D≥50, E≥40", fontSize = AmazeTheme.fontSize.micro, color = colors.success)
-                }
-            }
-
-            Spacer(Modifier.height(AmazeTheme.spacing.sm))
-            Text("Target Grade", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm, color = colors.textSecondary)
-            Spacer(Modifier.height(AmazeTheme.spacing.xs))
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf("S", "A", "B", "C", "D", "E").forEach { g ->
-                    val sel = targetGrade == g
-                    val gColor = GradeColors[g] ?: colors.textPrimary
-                    Box(
-                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                            .background(if (sel) gColor else colors.surface)
-                            .clickable { targetGrade = g }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(g, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black, color = if (sel) Color.White else gColor))
+            Box(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(modeTint.copy(alpha = 0.08f)).border(1.dp, modeTint.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.small)).padding(12.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(modeTint))
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                        Text(if (isAbsolute) "Absolute Grading Enforced" else "Relative Grading (Class-Average)", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs, color = modeTint)
+                    }
+                    Text(grading.reason, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
+                    if (isAbsolute) {
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                        Text("Fixed boundaries: S≥90 · A≥80 · B≥70 · C≥60 · D≥50 · E≥40", fontSize = AmazeTheme.fontSize.micro, color = modeTint, fontWeight = FontWeight.Medium)
                     }
                 }
             }
 
-            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+            Spacer(Modifier.height(AmazeTheme.spacing.md))
+            Text("Target Grade", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm, color = colors.textSecondary)
+            Spacer(Modifier.height(AmazeTheme.spacing.xs))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                listOf("S", "A", "B", "C", "D", "E").forEach { g ->
+                    val sel = targetGrade == g
+                    val gColor = gradeColor(g, colors)
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                            .background(if (sel) gColor else colors.surface)
+                            .border(if (sel) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.xs))
+                            .clickable { targetGrade = g }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(g, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Black), color = if (sel) Color.White else gColor)
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(AmazeTheme.spacing.md))
             when {
                 needPoints <= 0 -> Text("Target Achieved! 🎯", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.md, color = colors.success)
                 needPoints > remainingPct -> Text("Impossible to achieve — need ${(needPoints * 10).toInt() / 10.0}pts but only ${remainingPct.toInt()}pts remaining", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm, color = colors.danger)
@@ -984,28 +1294,25 @@ private fun TargetGradeCalculator(
                 )
             }
 
-            Spacer(Modifier.height(AmazeTheme.spacing.sm))
-            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                GradeBoundariesAbsolute.forEach { (g, bound) ->
-                    val gc = GradeColors[g] ?: colors.textMuted
-                    Text(g, fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold, color = gc)
+            if (isAbsolute) {
+                Spacer(Modifier.height(AmazeTheme.spacing.md))
+                Text("Grade Boundaries", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm, color = colors.textSecondary)
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    GradeBoundariesAbsolute.forEach { (g, bound) ->
+                        val gc = gradeColor(g, colors)
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                .background(gc.copy(alpha = 0.1f))
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("$g ≥${bound}%", fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold, color = gc, maxLines = 1)
+                        }
+                    }
                 }
             }
-            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
-                GradeBoundariesAbsolute.forEach { (_, bound) ->
-                    Text("≥${bound}%", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun StatBox(label: String, value: String, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
-    AmazeCard(modifier = modifier) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-            Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = colors.accent)
-            Text(label, fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
         }
     }
 }
@@ -1242,19 +1549,23 @@ private fun StatChip(label: String, value: String, color: Color, colors: com.ama
 
 @Composable
 private fun CoursePlanTab(
-    courseCode: String,
-    theory: MarksCourseItem?,
-    lab: MarksCourseItem?,
-    mainAtt: AttendanceItem?,
+    group: CourseGroup,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
+    val courseCode = group.courseCode
+    val theory = group.theory
+    val lab = group.lab
+    val mainAtt = group.theoryAtt ?: group.labAtt
+
     var syllabusFile by remember { mutableStateOf<SyllabusDownload?>(null) }
     var syllabusLoading by remember { mutableStateOf(false) }
     var syllabusError by remember { mutableStateOf<String?>(null) }
-    var showSchedule by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val saveFile = rememberFileSaver()
-    val launchScope = scope
+
+    val qcmViewRes by AppState.qcmView.collectAsState()
+    val qcmTables = remember(qcmViewRes) { extractQcmTables(qcmViewRes?.data) }
+    val qcmLoading = AppState.isLoading.collectAsState().value
 
     LaunchedEffect(courseCode) {
         syllabusLoading = true
@@ -1266,17 +1577,25 @@ private fun CoursePlanTab(
         syllabusLoading = false
     }
 
+    val allAssessments = remember(theory, lab) {
+        (theory?.assessments ?: emptyList()) + (lab?.assessments ?: emptyList())
+    }
+    val totalWeighted = allAssessments.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
+    val totalWeightPct = allAssessments.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
+    val projectedPct = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
     ) {
+        // 1. Course Overview Card (from CourseDetailsInfoCard)
         item {
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
+                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("Course Syllabus", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            Text("Course Details", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text(courseCode, fontSize = AmazeTheme.fontSize.xs, color = colors.textMuted)
                         }
                         val sb = syllabusFile
@@ -1302,23 +1621,101 @@ private fun CoursePlanTab(
                             se != null -> Text(se, fontSize = AmazeTheme.fontSize.micro, color = colors.danger)
                         }
                     }
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    Box(
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.08f)).padding(12.dp)
-                    ) {
-                        Column {
-                            Text("Course Info", fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs, color = colors.accent)
-                            Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                            theory?.let { Text("Theory: ${it.courseType} — ${it.slot}", fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary) }
-                            lab?.let { Text("Lab: ${lab.courseType} — ${lab.slot}", fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary) }
-                            mainAtt?.let { Text("Slot: ${it.slotName}", fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary) }
+                    Spacer(Modifier.height(12.dp))
+
+                    val mainCourse = theory ?: lab
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricTile("Type", mainCourse?.courseType ?: "-", colors, Modifier.weight(1f))
+                        MetricTile("Slot", mainCourse?.slot ?: "-", colors, Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        MetricTile("System", mainCourse?.courseSystem ?: "-", colors, Modifier.weight(1f))
+                        MetricTile("Credits", mainAtt?.credits ?: "-", colors, Modifier.weight(1f))
+                    }
+
+                    if (theory != null && lab != null) {
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                        Box(
+                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.1f)).padding(12.dp)
+                        ) {
+                            Column {
+                                Text("Components", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                                Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                                theory.let { Text("${it.courseType} — Class #${it.classNbr.takeLast(4)}", fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary, fontWeight = FontWeight.Medium) }
+                                lab.let { Text("${it.courseType} — Class #${it.classNbr.takeLast(4)}", fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary, fontWeight = FontWeight.Medium) }
+                            }
+                        }
+                    }
+
+                    val rawFaculty = mainCourse?.faculty?.ifBlank { null }
+                        ?: mainAtt?.faculty?.ifBlank { null }
+                    val parsedFac = if (!rawFaculty.isNullOrBlank()) com.amazecc.app.shared.utils.FacultyUtils.parseFaculty(rawFaculty) else null
+                    if (parsedFac != null) {
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                                .background(colors.surface)
+                                .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
+                                .padding(12.dp)
+                        ) {
+                            Column {
+                                Text("Faculty", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+                                Spacer(Modifier.height(2.dp))
+                                Text(parsedFac.name, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base))
+                            }
                         }
                     }
                 }
             }
         }
 
+        // 2. Assessment Timeline (from MarksTab summary)
+        if (allAssessments.isNotEmpty()) {
+            item {
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        Text("Assessment Overview", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            MetricTile("Score", "${totalWeighted.toInt()}/${totalWeightPct.toInt()}", colors, Modifier.weight(1f))
+                            MetricTile("Projected", "$projectedPct%", colors, Modifier.weight(1f))
+                            MetricTile("Assessments", "${allAssessments.size}", colors, Modifier.weight(1f))
+                        }
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                        allAssessments.take(5).forEach { asm ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    com.amazecc.app.shared.ui.components.shortenAssessmentName(asm.title),
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textPrimary),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    "${asm.scoredMark}/${asm.maxMark} (${asm.weightageMark}/${asm.weightagePercent}%)",
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro)
+                                )
+                            }
+                        }
+                        if (allAssessments.size > 5) {
+                            Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                            Text("+${allAssessments.size - 5} more — see Marks tab", style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Weekly Schedule (existing)
         item {
+            var showSchedule by remember { mutableStateOf(false) }
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1351,23 +1748,51 @@ private fun CoursePlanTab(
             }
         }
 
+        // 4. QCM Card (moved from Overview)
         item {
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                Column {
-                    Text("Quick Actions", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Quality Circle Meeting (QCM)", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
+                        if (qcmTables.isEmpty() && !qcmLoading) {
+                            AmazeButton("Load", onClick = { AppState.refreshQcmView() }, variant = ButtonVariant.SECONDARY, modifier = Modifier.height(32.dp))
+                        }
+                    }
                     Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    val sb = syllabusFile
-                    if (sb != null) {
-                        AmazeButton(
-                            "Download Syllabus",
-                            onClick = {
-                                scope.launch {
-                                    saveFile("${courseCode}_syllabus.${sb.extension}", sb.bytes)
+                    when {
+                        qcmLoading -> CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+                        qcmTables.isEmpty() -> Text("No QCM data available", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
+                        else -> qcmTables.forEach { table ->
+                            table.rows.forEach { rowJson ->
+                                val obj = rowJson.jsonObject
+                                val qcmNo = obj["qcmNo"]?.jsonPrimitive?.contentOrNull ?: obj["QCM No"]?.jsonPrimitive?.contentOrNull
+                                val action = obj["actionTaken"]?.jsonPrimitive?.contentOrNull ?: obj["Action Taken"]?.jsonPrimitive?.contentOrNull
+                                val suggestions = obj["suggestions"]?.jsonPrimitive?.contentOrNull ?: obj["Suggestions"]?.jsonPrimitive?.contentOrNull
+                                val facultyReply = obj["facultyReply"]?.jsonPrimitive?.contentOrNull ?: obj["Faculty Reply"]?.jsonPrimitive?.contentOrNull
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.surface).padding(12.dp)
+                                ) {
+                                    Column {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("QCM ${qcmNo ?: ""}", fontWeight = FontWeight.Bold, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs, modifier = Modifier.weight(1f))
+                                            action?.let { AmazeBadge(it, variant = BadgeVariant.INFO) }
+                                        }
+                                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                                        suggestions?.let { Text(it, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm) }
+                                        facultyReply?.let {
+                                            Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                                            Box(modifier = Modifier.fillMaxWidth().padding(start = 8.dp)) {
+                                                Column {
+                                                    Text("Faculty Reply", fontWeight = FontWeight.Bold, color = colors.success, fontSize = AmazeTheme.fontSize.micro)
+                                                    Text(it, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
-                            },
-                            icon = Icons.Rounded.PictureAsPdf,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                                Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                            }
+                        }
                     }
                 }
             }
@@ -1376,165 +1801,312 @@ private fun CoursePlanTab(
 }
 
 @Composable
-private fun QBankTab(courseCode: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    val scope = rememberCoroutineScope()
-    val semesterMap by AppState.semesterMap.collectAsState()
-    var qbTab by remember { mutableStateOf("questions") }
-    var questions by remember { mutableStateOf<List<QBankQuestion>>(emptyList()) }
-    var questionsLoading by remember { mutableStateOf(true) }
-    var questionsError by remember { mutableStateOf<String?>(null) }
+private fun FacultyTab(
+    group: CourseGroup,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val theory = group.theory
+    val lab = group.lab
+    val mainAtt = group.theoryAtt ?: group.labAtt
 
-    LaunchedEffect(courseCode) {
-        questionsLoading = true
-        try {
-            val res = AmazeClient.getQBankQuestions(courseCode)
-            if (res.success) questions = res.data else questionsError = res.message
-        } catch (e: Exception) { questionsError = e.message }
-        questionsLoading = false
+    val rawFaculty = theory?.faculty?.ifBlank { null }
+        ?: lab?.faculty?.ifBlank { null }
+        ?: mainAtt?.faculty?.ifBlank { null }
+    val parsedFac = if (!rawFaculty.isNullOrBlank()) com.amazecc.app.shared.utils.FacultyUtils.parseFaculty(rawFaculty) else null
+
+    if (parsedFac == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Rounded.PersonSearch, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                Text("No faculty information available", color = colors.textSecondary)
+            }
+        }
+        return
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("papers" to "Papers", "questions" to "Questions").forEach { (key, label) ->
-                val sel = qbTab == key
-                Box(
-                    modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(if (sel) colors.accent else colors.surface)
-                        .clickable { qbTab = key }.padding(horizontal = 14.dp, vertical = 8.dp)
-                ) {
-                    Text(label, color = if (sel) colors.background else colors.textSecondary, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal, fontSize = AmazeTheme.fontSize.sm)
+    var facultyLoading by remember { mutableStateOf(false) }
+    var facultyProfile by remember { mutableStateOf<FacultyProfile?>(null) }
+
+    LaunchedEffect(parsedFac.name, parsedFac.id) {
+        facultyLoading = true
+        val dir = AmazeClient.searchFacultyDirectory(parsedFac.name, parsedFac.id, parsedFac.school)
+        facultyLoading = false
+        facultyProfile = FacultyProfile(
+            id = parsedFac.id ?: dir?.id ?: "",
+            name = parsedFac.name.ifBlank { dir?.name ?: parsedFac.name },
+            designation = dir?.designation ?: "",
+            imageUrl = dir?.imageUrl ?: "",
+            profileUrl = dir?.profileUrl ?: "",
+            email = dir?.email ?: "",
+            employeeId = dir?.employeeId ?: parsedFac.id ?: "",
+            intercom = dir?.intercom ?: ""
+        )
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
+    ) {
+        item {
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(colors.accent.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                parsedFac.name.take(2).uppercase(),
+                                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = colors.accent)
+                            )
+                        }
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(parsedFac.name, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            if (facultyLoading) {
+                                Text("Loading profile...", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                            } else {
+                                val fp = facultyProfile
+                                Text(fp?.designation?.ifBlank { "-" } ?: "-", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        when (qbTab) {
-            "papers" -> {
-                var showUpload by remember { mutableStateOf(false) }
-                var paperLink by remember { mutableStateOf("") }
-                var paperTitle by remember { mutableStateOf("") }
-                var paperType by remember { mutableStateOf("CAT 1") }
-                var uploadStatus by remember { mutableStateOf<String?>(null) }
-                var uploading by remember { mutableStateOf(false) }
-
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
-                    item {
-                        AmazeButton(
-                            if (showUpload) Strings.cancel else "Upload Paper",
-                            onClick = { showUpload = !showUpload },
-                            icon = if (!showUpload) Icons.Rounded.UploadFile else null,
-                            variant = if (showUpload) ButtonVariant.GHOST else ButtonVariant.PRIMARY,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    if (showUpload) {
-                        item {
-                            AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                                Column {
-                                    Text("Share a Paper", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                                    OutlinedTextField(
-                                        value = paperTitle, onValueChange = { paperTitle = it },
-                                        label = { Text("Title") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(AmazeTheme.radius.small),
-                                        singleLine = true,
-                                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = colors.surface, unfocusedContainerColor = colors.surface, focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
-                                    )
-                                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                                    OutlinedTextField(
-                                        value = paperLink, onValueChange = { paperLink = it },
-                                        label = { Text("Link (GDrive, Dropbox...)") },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(AmazeTheme.radius.small),
-                                        singleLine = true,
-                                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = colors.surface, unfocusedContainerColor = colors.surface, focusedBorderColor = colors.accent, unfocusedBorderColor = colors.border, focusedTextColor = colors.textPrimary, unfocusedTextColor = colors.textPrimary)
-                                    )
-                                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                                    Text("Paper Type", fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary)
-                                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        listOf("CAT 1", "CAT 2", "FAT", "Quiz", "Assignment").forEach { t ->
-                                            val sel = paperType == t
-                                            Box(
-                                                modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                                    .background(if (sel) colors.accent else colors.surface)
-                                                    .clickable { paperType = t }.padding(vertical = 6.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(t, color = if (sel) Color.White else colors.textPrimary, fontSize = AmazeTheme.fontSize.micro, fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal)
-                                            }
-                                        }
-                                    }
-                                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                                    AmazeButton(
-                                        if (uploading) "Uploading..." else Strings.submit,
-                                            onClick = {
-                                                uploading = true
-                                                uploadStatus = null
-                                                scope.launch {
-                                                    try {
-                                                        val res = AmazeClient.postQBankPaper(courseCode, paperTitle, paperLink, paperType)
-                                                        uploadStatus = if (res?.success == true) "Paper uploaded!" else res?.message ?: "Upload failed"
-                                                    } catch (e: Exception) { uploadStatus = "Error: ${e.message}" }
-                                                    uploading = false
-                                                }
-                                            },
-                                        enabled = paperTitle.isNotBlank() && paperLink.isNotBlank() && !uploading,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                    uploadStatus?.let {
-                                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                                        val isSuccess = it.contains("uploaded", ignoreCase = true) || it.contains("success", ignoreCase = true)
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(
-                                                if (isSuccess) Icons.Rounded.CheckCircle else Icons.Rounded.Error,
-                                                null, tint = if (isSuccess) colors.success else colors.danger, modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                                            Text(it, color = if (isSuccess) colors.success else colors.danger, fontSize = AmazeTheme.fontSize.xs)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    item {
-                        Text("No papers available yet.", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
-                    }
+        val fp = facultyProfile
+        item {
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Text("Contact Details", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                    DetailRow("Email", fp?.email ?: "-", colors)
+                    DetailRow("Employee ID", fp?.employeeId ?: parsedFac.id ?: "-", colors)
+                    DetailRow("Intercom", fp?.intercom ?: "-", colors)
+                    DetailRow("School", parsedFac.school ?: "-", colors)
                 }
             }
-            "questions" -> {
-                Box(modifier = Modifier.fillMaxSize()) {
-                    val qe = questionsError
-                    when {
-                        questionsLoading -> CircularProgressIndicator(color = colors.accent, modifier = Modifier.align(Alignment.Center))
-                        qe != null -> Text(qe, color = colors.danger, modifier = Modifier.align(Alignment.Center))
-                        questions.isEmpty() -> Text("No questions available for $courseCode", color = colors.textMuted, modifier = Modifier.align(Alignment.Center))
-                        else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp), contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)) {
-                            items(questions) { q ->
-                                AmazeCard(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    onClick = { AppState.openQBankCourse(courseCode) }
+        }
+
+        item {
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Text("Free Time at a Glance", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                    if (fp == null && facultyLoading) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                            Text("Loading schedule...", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
+                        }
+                    } else {
+                        val profile = fp ?: FacultyProfile(id = parsedFac.id ?: "", name = parsedFac.name, designation = "", employeeId = parsedFac.id ?: "")
+                        val schedule = remember(profile) { com.amazecc.app.shared.utils.FacultyFreeSlotsUtil.getFacultySchedule(profile) }
+                        if (schedule.freeSlots.isEmpty()) {
+                            Text("No free slots found", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
+                        } else {
+                            schedule.freeSlots.forEach { (day, free) ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Column {
-                                        Text(q.question_text, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                        q.topic_name?.let {
-                                            Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                            Text("Topic: $it", color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm)
-                                        }
-                                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                            AmazeBadge(q.question_type, variant = BadgeVariant.INFO)
-                                            q.exam_semester?.let { AmazeBadge(it, variant = BadgeVariant.INFO) }
-                                        }
-                                    }
+                                    Text(day, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent), modifier = Modifier.width(44.dp))
+                                    Text(
+                                        free.joinToString(", "),
+                                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+
+        item {
+            AmazeButton(
+                text = "Open Full Schedule",
+                onClick = {
+                    AppState.navigateTo(Screen.FACULTY_INFO)
+                },
+                icon = Icons.Rounded.CalendarMonth,
+                modifier = Modifier.fillMaxWidth(),
+                variant = ButtonVariant.SECONDARY
+            )
+        }
+    }
+}
+
+@Composable
+private fun FreeSlotsTab(
+    group: CourseGroup,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val theory = group.theory
+    val lab = group.lab
+    val mainAtt = group.theoryAtt ?: group.labAtt
+
+    val rawFaculty = theory?.faculty?.ifBlank { null }
+        ?: lab?.faculty?.ifBlank { null }
+        ?: mainAtt?.faculty?.ifBlank { null }
+    val parsedFac = if (!rawFaculty.isNullOrBlank()) com.amazecc.app.shared.utils.FacultyUtils.parseFaculty(rawFaculty) else null
+
+    if (parsedFac == null) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Rounded.CalendarMonth, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                Text("No faculty information available", color = colors.textSecondary)
+            }
+        }
+        return
+    }
+
+    var facultyProfile by remember { mutableStateOf<FacultyProfile?>(null) }
+
+    LaunchedEffect(parsedFac.name, parsedFac.id) {
+        val dir = AmazeClient.searchFacultyDirectory(parsedFac.name, parsedFac.id, parsedFac.school)
+        facultyProfile = FacultyProfile(
+            id = parsedFac.id ?: dir?.id ?: "",
+            name = parsedFac.name.ifBlank { dir?.name ?: parsedFac.name },
+            designation = dir?.designation ?: "",
+            imageUrl = dir?.imageUrl ?: "",
+            profileUrl = dir?.profileUrl ?: "",
+            email = dir?.email ?: "",
+            employeeId = dir?.employeeId ?: parsedFac.id ?: "",
+            intercom = dir?.intercom ?: ""
+        )
+    }
+
+    val profile = facultyProfile ?: FacultyProfile(id = parsedFac.id ?: "", name = parsedFac.name, designation = "", employeeId = parsedFac.id ?: "")
+    val schedule = remember(profile) { com.amazecc.app.shared.utils.FacultyFreeSlotsUtil.getFacultySchedule(profile) }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
+    ) {
+        item {
+            Text("Weekly Free Slots — ${parsedFac.name}", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            Text("Based on the FFCS report for this semester", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+        }
+
+        item(key = "schedule_grid") {
+            val weekDays = listOf("MON", "TUE", "WED", "THU", "FRI")
+            val timePeriods = remember { com.amazecc.app.shared.utils.FacultyFreeSlotsUtil.getAllTimePeriods() }
+            val dayLabels = mapOf("MON" to "Mon", "TUE" to "Tue", "WED" to "Wed", "THU" to "Thu", "FRI" to "Fri")
+            val freeColor = colors.success
+            val occupiedSlotKeys = remember(schedule) {
+                schedule.occupiedSlots.map { "${it.day}:${it.timeRange}" }.toSet()
+            }
+            val occupiedSlotByKey = remember(schedule) {
+                schedule.occupiedSlots.associateBy { "${it.day}:${it.timeRange}" }
+            }
+
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Box(modifier = Modifier.width(52.dp))
+                        weekDays.forEach { day ->
+                            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                Text(dayLabels[day] ?: day, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
+
+                    timePeriods.forEach { time ->
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
+                            Box(modifier = Modifier.width(52.dp), contentAlignment = Alignment.CenterStart) {
+                                Text(time, style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                            }
+                            weekDays.forEach { day ->
+                                val isOccupied = occupiedSlotKeys.contains("$day:$time")
+                                val slot = if (isOccupied) occupiedSlotByKey["$day:$time"] else null
+                                val cellColor = if (slot != null) colors.danger.copy(alpha = 0.18f) else freeColor.copy(alpha = 0.12f)
+                                val borderColor = if (slot != null) colors.danger.copy(alpha = 0.35f) else freeColor.copy(alpha = 0.25f)
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(1.5.dp)
+                                        .height(18.dp)
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                        .background(cellColor)
+                                        .border(0.5.dp, borderColor, RoundedCornerShape(AmazeTheme.radius.xs)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (slot != null) {
+                                        Text(slot.slotCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.danger, fontWeight = FontWeight.Bold))
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                    Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(freeColor.copy(alpha = 0.2f)).border(0.5.dp, freeColor.copy(alpha = 0.25f), RoundedCornerShape(AmazeTheme.radius.xs)))
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                            Text("Free", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(modifier = Modifier.size(10.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.danger.copy(alpha = 0.2f)).border(0.5.dp, colors.danger.copy(alpha = 0.35f), RoundedCornerShape(AmazeTheme.radius.xs)))
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                            Text("Occupied", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                    }
+                }
+            }
+        }
+
+        if (schedule.freeSlots.isNotEmpty()) {
+            item {
+                Text("Free Slots by Day", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+            }
+            schedule.freeSlots.forEach { (day, free) ->
+                item(key = "free_$day") {
+                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                    .background(colors.success.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(day.take(2), style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.success))
+                            }
+                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                            Column(Modifier.weight(1f)) {
+                                Text(day, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                Text(free.joinToString(", "), style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            AmazeButton(
+                text = "Open Full Faculty Schedule",
+                onClick = {
+                    AppState.navigateTo(Screen.FACULTY_INFO)
+                },
+                icon = Icons.Rounded.ArrowForward,
+                modifier = Modifier.fillMaxWidth(),
+                variant = ButtonVariant.SECONDARY
+            )
         }
     }
 }
@@ -1553,10 +2125,17 @@ private fun findCourseGroup(
     val currentMarksCourses = marksRes?.marks ?: allSemesterMarks[semesterId]?.marks ?: emptyList()
     val currentAttList = attendanceRes?.attendance ?: allSemesterAttendance[semesterId]?.attendance ?: emptyList()
 
-    val theoryM = currentMarksCourses.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && !it.courseType.lowercase().contains("lab") }
-    val labM = currentMarksCourses.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && it.courseType.lowercase().contains("lab") }
-    val theoryA = currentAttList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && !it.courseType.lowercase().contains("lab") }
-    val labA = currentAttList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && it.courseType.lowercase().contains("lab") }
+    // For marks: match by base courseCode + courseType (marks don't have T/L suffix in courseCode)
+    // For attendance: match by base courseCode (with suffix removal) + courseType
+    fun isTheoryMarks(m: MarksCourseItem) = m.courseCode == cleanCode && (m.courseType.contains("Theory", true) || m.courseType.contains("Online", true))
+    fun isLabMarks(m: MarksCourseItem) = m.courseCode == cleanCode && m.courseType.contains("Lab", true)
+    fun isTheoryAtt(a: AttendanceItem) = a.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && (a.courseType.contains("Theory", true) || a.courseType.contains("Online", true))
+    fun isLabAtt(a: AttendanceItem) = a.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && a.courseType.contains("Lab", true)
+
+    val theoryM = currentMarksCourses.find { isTheoryMarks(it) }
+    val labM = currentMarksCourses.find { isLabMarks(it) }
+    val theoryA = currentAttList.find { isTheoryAtt(it) }
+    val labA = currentAttList.find { isLabAtt(it) }
 
     if (theoryM != null || labM != null || theoryA != null || labA != null) {
         val semName = AppState.semesterMap.value[semesterId] ?: semesterId
@@ -1565,10 +2144,10 @@ private fun findCourseGroup(
 
     for ((semId, marks) in allSemesterMarks) {
         val attList = allSemesterAttendance[semId]?.attendance ?: emptyList()
-        val tM = marks.marks.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && !it.courseType.lowercase().contains("lab") }
-        val lM = marks.marks.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && it.courseType.lowercase().contains("lab") }
-        val tA = attList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && !it.courseType.lowercase().contains("lab") }
-        val lA = attList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && it.courseType.lowercase().contains("lab") }
+        val tM = marks.marks.find { isTheoryMarks(it) }
+        val lM = marks.marks.find { isLabMarks(it) }
+        val tA = attList.find { isTheoryAtt(it) }
+        val lA = attList.find { isLabAtt(it) }
         if (tM != null || lM != null || tA != null || lA != null) {
             val semName = AppState.semesterMap.value[semId] ?: semId
             return CourseGroup(cleanCode, (tM?.courseTitle ?: lM?.courseTitle ?: tA?.courseTitle ?: lA?.courseTitle ?: cleanCode), semId, semName, tM, lM, tA, lA)
@@ -1579,8 +2158,8 @@ private fun findCourseGroup(
     for ((semId, att) in allSemesterAttendance) {
         if (semId in allSemesterMarks) continue
         val attList = att?.attendance ?: emptyList()
-        val tA = attList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && !it.courseType.lowercase().contains("lab") }
-        val lA = attList.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && it.courseType.lowercase().contains("lab") }
+        val tA = attList.find { isTheoryAtt(it) }
+        val lA = attList.find { isLabAtt(it) }
         if (tA != null || lA != null) {
             val semName = AppState.semesterMap.value[semId] ?: semId
             return CourseGroup(cleanCode, (tA?.courseTitle ?: lA?.courseTitle ?: cleanCode), semId, semName, theoryAtt = tA, labAtt = lA)
@@ -1596,13 +2175,12 @@ private fun findCourseGroup(
                 val gCleanCode = grade.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
                 if (gCleanCode == cleanCode) {
                     val semName = AppState.semesterMap.value[semId] ?: semId
-                    // Check if this semester has marks/attendance available in the maps
                     val semMarks = allSemesterMarks[semId]?.marks ?: emptyList()
                     val semAtt = allSemesterAttendance[semId]?.attendance ?: emptyList()
-                    val tM = semMarks.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && !it.courseType.lowercase().contains("lab") }
-                    val lM = semMarks.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && it.courseType.lowercase().contains("lab") }
-                    val tA = semAtt.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && !it.courseType.lowercase().contains("lab") }
-                    val lA = semAtt.find { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && it.courseType.lowercase().contains("lab") }
+                    val tM = semMarks.find { isTheoryMarks(it) }
+                    val lM = semMarks.find { isLabMarks(it) }
+                    val tA = semAtt.find { isTheoryAtt(it) }
+                    val lA = semAtt.find { isLabAtt(it) }
                     return CourseGroup(
                         courseCode = cleanCode,
                         courseTitle = grade.courseTitle,

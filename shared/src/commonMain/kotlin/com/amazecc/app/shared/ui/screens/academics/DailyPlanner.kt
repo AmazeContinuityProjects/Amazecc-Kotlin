@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Assignment
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +28,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.ui.components.ExamDayBanner
+import com.amazecc.app.shared.ui.components.ExamDayGoodLuck
+import com.amazecc.app.shared.ui.components.rememberSelectedSemesterExams
+import com.amazecc.app.shared.utils.ExamUtils
+import com.amazecc.app.shared.utils.examDateParsed
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -41,12 +47,14 @@ import kotlinx.datetime.*
 import kotlin.math.max
 
 data class TimelineEvent(
-    val type: String, // "class", "free", "lunch"
+    val type: String, // "class", "free", "lunch", "task"
     val slots: List<String> = emptyList(),
     val startMins: Int,
     val endMins: Int,
     val durationMins: Int,
-    val course: AttendanceItem? = null
+    val course: AttendanceItem? = null,
+    val title: String = "",
+    val taskType: String = ""
 )
 
 private data class WeekDay(
@@ -71,6 +79,7 @@ fun DailyPlannerScreen() {
     val todayAbbrev = remember(today, calendarRes) {
         AttendanceTimetable.getTodayAttendanceDay(calendarRes).name
     }
+    val tasks by AppState.tasks.collectAsState()
 
     val weekDays = remember(today, calendarRes) {
         val monday = today.minus(DatePeriod(days = today.dayOfWeek.ordinal))
@@ -117,9 +126,18 @@ fun DailyPlannerScreen() {
         map
     }
 
-    fun buildDailySchedule(day: String): List<TimelineEvent> {
+    fun buildDailySchedule(
+        day: String,
+        examsForDay: List<com.amazecc.app.shared.model.ExamItem> = emptyList(),
+        taskBlocks: List<TimelineEvent> = emptyList()
+    ): List<TimelineEvent> {
         val dayClasses = mutableListOf<TimelineEvent>()
         val dayMap = SlotMap.map[day] ?: return emptyList()
+
+        // Exam time ranges for this day (in minutes from midnight)
+        val examRanges: List<Pair<Int, Int>> = examsForDay.mapNotNull { exam ->
+            com.amazecc.app.shared.utils.ExamUtils.parseExamTimeRange(exam.examTime)
+        }
 
         attendance.forEach { course ->
             val slots = course.slotName.split("+").map { it.trim() }.filter { it.isNotEmpty() }
@@ -138,7 +156,7 @@ fun DailyPlannerScreen() {
             }
         }
 
-        if (dayClasses.isEmpty()) return emptyList()
+        if (dayClasses.isEmpty() && examsForDay.isEmpty() && taskBlocks.isEmpty()) return emptyList()
         dayClasses.sortBy { it.startMins }
 
         val merged = mutableListOf<TimelineEvent>()
@@ -147,7 +165,7 @@ fun DailyPlannerScreen() {
                 merged.add(item)
             } else {
                 val last = merged.last()
-                if (last.course?.courseCode == item.course?.courseCode && kotlin.math.abs(last.endMins - item.startMins) <= 10) {
+                if (last.course?.courseCode != null && last.course?.courseCode == item.course?.courseCode && kotlin.math.abs(last.endMins - item.startMins) <= 10) {
                     val updated = last.copy(
                         endMins = max(last.endMins, item.endMins),
                         slots = last.slots + item.slots,
@@ -159,6 +177,8 @@ fun DailyPlannerScreen() {
                 }
             }
         }
+        merged.addAll(taskBlocks)
+        merged.sortBy { it.startMins }
 
         val DAY_START = 480 // 8:00 AM
         val LUNCH_START = 800 // 1:20 PM
@@ -174,16 +194,21 @@ fun DailyPlannerScreen() {
             val gap = gapEnd - gapStart
 
             if (gap > 10) {
-                if (gapStart < LUNCH_END && gapEnd > LUNCH_START) {
-                    if (gapStart < LUNCH_START && LUNCH_START - gapStart > 10) {
-                        timeline.add(TimelineEvent("free", emptyList(), gapStart, LUNCH_START, LUNCH_START - gapStart))
+                val isExamTime = examRanges.any { (exStart, exEnd) ->
+                    gapStart < exEnd && gapEnd > exStart
+                }
+                if (!isExamTime) {
+                    if (gapStart < LUNCH_END && gapEnd > LUNCH_START) {
+                        if (gapStart < LUNCH_START && LUNCH_START - gapStart > 10) {
+                            timeline.add(TimelineEvent("free", emptyList(), gapStart, LUNCH_START, LUNCH_START - gapStart))
+                        }
+                        timeline.add(TimelineEvent("lunch", emptyList(), LUNCH_START, LUNCH_END, 40))
+                        if (gapEnd > LUNCH_END && gapEnd - LUNCH_END > 10) {
+                            timeline.add(TimelineEvent("free", emptyList(), LUNCH_END, gapEnd, gapEnd - LUNCH_END))
+                        }
+                    } else {
+                        timeline.add(TimelineEvent("free", emptyList(), gapStart, gapEnd, gap))
                     }
-                    timeline.add(TimelineEvent("lunch", emptyList(), LUNCH_START, LUNCH_END, 40))
-                    if (gapEnd > LUNCH_END && gapEnd - LUNCH_END > 10) {
-                        timeline.add(TimelineEvent("free", emptyList(), LUNCH_END, gapEnd, gapEnd - LUNCH_END))
-                    }
-                } else {
-                    timeline.add(TimelineEvent("free", emptyList(), gapStart, gapEnd, gap))
                 }
             }
             timeline.add(c)
@@ -191,24 +216,81 @@ fun DailyPlannerScreen() {
         }
 
         if (pointer < LUNCH_START) {
-            if (LUNCH_START - pointer > 10) {
-                timeline.add(TimelineEvent("free", emptyList(), pointer, LUNCH_START, LUNCH_START - pointer))
+            val isExamTime = examRanges.any { (exStart, exEnd) ->
+                pointer < exEnd && LUNCH_START > exStart
             }
-            timeline.add(TimelineEvent("lunch", emptyList(), LUNCH_START, LUNCH_END, 40))
-            pointer = LUNCH_END
+            if (!isExamTime) {
+                if (LUNCH_START - pointer > 10) {
+                    timeline.add(TimelineEvent("free", emptyList(), pointer, LUNCH_START, LUNCH_START - pointer))
+                }
+                timeline.add(TimelineEvent("lunch", emptyList(), LUNCH_START, LUNCH_END, 40))
+                pointer = LUNCH_END
+            }
         }
 
         if (pointer < DAY_END) {
-            val finalGap = DAY_END - pointer
-            if (finalGap > 10) {
-                timeline.add(TimelineEvent("free", emptyList(), pointer, DAY_END, finalGap))
+            val isExamTime = examRanges.any { (exStart, exEnd) ->
+                pointer < exEnd && DAY_END > exStart
+            }
+            if (!isExamTime) {
+                val finalGap = DAY_END - pointer
+                if (finalGap > 10) {
+                    timeline.add(TimelineEvent("free", emptyList(), pointer, DAY_END, finalGap))
+                }
             }
         }
 
         return timeline
     }
 
-    val scheduleData = remember(selectedWeekDay, attendance) { buildDailySchedule(selectedWeekDay.effectiveAbbrev) }
+    // Get exams for selected date
+    val allExams = rememberSelectedSemesterExams()
+    val examsByDate = remember(allExams) {
+        allExams.filter { it.examDateParsed != null }.groupBy { it.examDateParsed!! }
+    }
+    val examsForDate = remember(allExams, selectedWeekDay) {
+        examsByDate[selectedWeekDay.fullDate] ?: emptyList()
+    }
+
+    var showTimetable by remember { mutableStateOf(false) }
+
+    fun minutesFromTime(timeStr: String): Int? {
+        val parts = timeStr.trim().split(":")
+        if (parts.size != 2) return null
+        val h = parts[0].toIntOrNull() ?: return null
+        val m = parts[1].toIntOrNull() ?: return null
+        return h * 60 + m
+    }
+
+    val selectedDateStr = selectedWeekDay.fullDate.toString()
+    val taskBlocks = remember(tasks, selectedWeekDay) {
+        val blocks = mutableListOf<TimelineEvent>()
+        tasks.forEach { t ->
+            if (t.completed) return@forEach
+            if (t.type == "exam" || t.type == "quiz") {
+                if (t.showOnTimetable) {
+                    val start = minutesFromTime(t.dueTime) ?: 1080
+                    val end = start + 60
+                    blocks.add(TimelineEvent("task", emptyList(), start, end, end - start, title = t.title, taskType = t.type))
+                }
+            } else if (t.type == "assignment") {
+                t.workSessions.forEach { s ->
+                    if (s.date == selectedDateStr) {
+                        val start = minutesFromTime(s.startTime) ?: 1080
+                        val end = start + s.durationMinutes.coerceAtLeast(10)
+                        blocks.add(TimelineEvent("task", emptyList(), start, end, end - start, title = "${t.title} — Study Block", taskType = "study"))
+                    }
+                }
+            }
+        }
+        blocks.sortedBy { it.startMins }
+    }
+
+    val scheduleData = remember(selectedWeekDay, attendance, examsForDate, taskBlocks) { buildDailySchedule(selectedWeekDay.effectiveAbbrev, examsForDate, taskBlocks) }
+
+    val dayTasks = remember(tasks, selectedWeekDay) {
+        tasks.filter { it.dueDate == selectedWeekDay.fullDate.toString() && !it.completed }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Horizontal Day Selector with Dates
@@ -224,6 +306,7 @@ fun DailyPlannerScreen() {
                     slots.any { dayMap.containsKey(it) }
                 }
                 val isHoliday = holidayMap[wd.fullDate] == true
+                val isExamDay = examsByDate.containsKey(wd.fullDate)
 
                     val interactionSource = remember { MutableInteractionSource() }
                     val isPressed by interactionSource.collectIsPressedAsState()
@@ -282,6 +365,15 @@ fun DailyPlannerScreen() {
                                 fontSize = AmazeTheme.fontSize.micro
                             )
                         )
+                    } else if (isExamDay) {
+                        Text(
+                            "Exam",
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = if (isSelected) Color.White.copy(alpha = 0.8f) else colors.chart1,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = AmazeTheme.fontSize.micro
+                            )
+                        )
                     } else if (classCount > 0) {
                         Text(
                             "$classCount class${if (classCount != 1) "es" else ""}",
@@ -326,47 +418,70 @@ fun DailyPlannerScreen() {
             }
         }
 
-        if (scheduleData.isEmpty()) {
-            Box(
-                modifier = Modifier.fillMaxWidth().padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("🎉", fontSize = AmazeTheme.fontSize.hero)
-                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-                    Text("No Classes Scheduled", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    Text("Enjoy your day off!", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                }
-            }
+        if (examsForDate.isNotEmpty() && !showTimetable) {
+            ExamDayGoodLuck(
+                exams = examsForDate,
+                onToggleTimetable = { showTimetable = true }
+            )
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(start = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
-            ) {
-                items(scheduleData, key = { it.startMins }) { item ->
-                    TimelineRow(item)
+            if (examsForDate.isNotEmpty()) {
+                ExamDayBanner(examsForDate)
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = { showTimetable = false },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Icon(Icons.Rounded.VisibilityOff, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Hide Timetable", color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
                 }
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+            }
 
-                val todayTasks = AppState.todayTasks
-                if (todayTasks.isNotEmpty()) {
-                    item { Spacer(Modifier.height(AmazeTheme.spacing.sm)) }
-                    item {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.CheckCircle, null, tint = colors.accent, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                            Text("Today's Tasks (${todayTasks.size})", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        }
+            if (scheduleData.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("🎉", fontSize = AmazeTheme.fontSize.hero)
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+                        Text("No Classes Scheduled", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Text("Enjoy your day off!", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                     }
-                    items(todayTasks, key = { it.id }) { task ->
-                        TaskCard(
-                            task = task,
-                            colors = colors,
-                            onToggle = { AppState.toggleTaskCompleted(task.id) },
-                            onDelete = { AppState.deleteTask(task.id) },
-                            showCourse = true,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
-                        )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(start = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
+                ) {
+                    items(scheduleData, key = { it.startMins }) { item ->
+                        TimelineRow(item)
+                    }
+
+                    if (dayTasks.isNotEmpty()) {
+                        item { Spacer(Modifier.height(AmazeTheme.spacing.sm)) }
+                        item {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.CheckCircle, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                                Text(
+                                    if (selectedWeekDay.isToday) "Today's Tasks (${dayTasks.size})" else "Tasks on ${selectedWeekDay.fullDate} (${dayTasks.size})",
+                                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                                )
+                            }
+                        }
+                        items(dayTasks, key = { it.id }) { task ->
+                            TaskCard(
+                                task = task,
+                                colors = colors,
+                                onToggle = { AppState.toggleTaskCompleted(task.id) },
+                                onDelete = { AppState.deleteTask(task.id) },
+                                showCourse = true,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -521,6 +636,53 @@ fun TimelineRow(item: TimelineEvent) {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+                "task" -> {
+                    val isStudy = item.taskType == "study"
+                    val taskColor = if (isStudy) colors.warning else colors.danger
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .fillMaxHeight()
+                                .background(taskColor, RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
+                        )
+                        Column(modifier = Modifier.weight(1f).padding(16.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                        .background(taskColor.copy(alpha = 0.12f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        if (isStudy) "STUDY" else if (item.taskType == "quiz") "QUIZ" else "EXAM",
+                                        style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = taskColor)
+                                    )
+                                }
+                                Text(
+                                    "${TimeMath.minutesToTimeStr(item.startMins)} - ${TimeMath.minutesToTimeStr(item.endMins)}",
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
+                            Text(
+                                item.title,
+                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
+                            Text(
+                                if (isStudy) "Planned work session" else "Task due ${TimeMath.minutesToTimeStr(item.endMins - 60)}",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
                         }
                     }
                 }

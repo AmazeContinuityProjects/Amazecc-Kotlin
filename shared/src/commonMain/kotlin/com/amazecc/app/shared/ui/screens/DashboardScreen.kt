@@ -8,7 +8,6 @@ import com.amazecc.app.shared.ui.components.*
 
 @Composable
 fun DashboardScreen() {
-    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
     val updateStatus by AppState.updateStatus.collectAsState()
 
     LaunchedEffect(Unit) {
@@ -23,10 +22,7 @@ fun DashboardScreen() {
                         release = status.release,
                         currentVersion = status.currentVersion,
                         onDismiss = { AppState.dismissUpdateDialog() },
-                        onDownload = {
-                            AppState.dismissUpdateDialog()
-                            uriHandler.openUri(status.release.htmlUrl)
-                        }
+                        onDownload = { AppState.dismissUpdateDialog() }
                     )
                 }
                 else -> {}

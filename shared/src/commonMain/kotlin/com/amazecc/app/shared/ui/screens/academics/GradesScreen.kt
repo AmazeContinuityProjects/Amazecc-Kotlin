@@ -349,17 +349,20 @@ private fun GradeCourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> 
                     }
                     Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("${course.courseCode} · ${course.courseTitle}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Text("${course.courseCode} · ${course.courseTitle}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (!course.courseType.isBlank()) {
                             Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                                Text(course.courseType, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Medium))
-                            }
-                            Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(gColor.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                                Text("Overall ${course.grandTotal}%", style = AmazeTheme.typography.smallLabel.copy(color = gColor, fontWeight = FontWeight.Bold))
+                                Text(course.courseType, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Medium), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Overall", style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+                        Text("${course.grandTotal}%", style = AmazeTheme.typography.body.copy(color = gColor, fontWeight = FontWeight.Black))
+                    }
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
                     Icon(if (isOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
                 }
             }

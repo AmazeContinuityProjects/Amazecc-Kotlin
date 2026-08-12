@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.amazecc.app.shared.model.HomeworkTask
 import com.amazecc.app.shared.model.Subtask
+import com.amazecc.app.shared.model.WorkSession
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
@@ -68,8 +69,9 @@ fun TasksScreen() {
     var editingTask by remember { mutableStateOf<HomeworkTask?>(null) }
     var focusTask by remember { mutableStateOf<HomeworkTask?>(null) }
 
-    var selectedViewMode by remember { mutableStateOf("list") } // "list", "kanban", "workload"
+    var selectedViewMode by remember { mutableStateOf("list") } // "list", "kanban", "workload", "calendar"
     var filter by remember { mutableStateOf("all") } // "all", "pending", "today", "done", "lms"
+    var courseFilter by remember { mutableStateOf<String?>(null) } // null = all courses
     var sortMode by remember { mutableStateOf("date") } // "date", "priority"
 
     val todayStr = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString() }
@@ -90,6 +92,8 @@ fun TasksScreen() {
         "done" -> tasks.filter { it.completed }
         "lms" -> tasks.filter { it.isAutoSynced }
         else -> tasks
+    }.let { filtered ->
+        if (courseFilter == null) filtered else filtered.filter { it.courseCode == courseFilter }
     }
 
     val filteredTasks = remember(baseFiltered, sortMode) {
@@ -177,7 +181,7 @@ fun TasksScreen() {
                                 }
                             }
 
-                            Spacer(Modifier.height(14.dp))
+Spacer(Modifier.height(14.dp))
 
                             // View Mode Segmented Bar
                             Row(
@@ -188,8 +192,9 @@ fun TasksScreen() {
                                     .padding(4.dp),
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                ViewTabButton("list", "List View", Icons.Rounded.List, selectedViewMode == "list", colors, Modifier.weight(1f)) { selectedViewMode = "list" }
+                                ViewTabButton("list", "List", Icons.Rounded.List, selectedViewMode == "list", colors, Modifier.weight(1f)) { selectedViewMode = "list" }
                                 ViewTabButton("kanban", "Kanban", Icons.Rounded.ViewColumn, selectedViewMode == "kanban", colors, Modifier.weight(1f)) { selectedViewMode = "kanban" }
+                                ViewTabButton("calendar", "Calendar", Icons.Rounded.CalendarMonth, selectedViewMode == "calendar", colors, Modifier.weight(1f)) { selectedViewMode = "calendar" }
                                 ViewTabButton("workload", "Workload", Icons.Rounded.Analytics, selectedViewMode == "workload", colors, Modifier.weight(1f)) { selectedViewMode = "workload" }
                             }
                         }
@@ -215,6 +220,18 @@ fun TasksScreen() {
                                 tasks = tasks,
                                 colors = colors,
                                 todayStr = todayStr
+                            )
+                        }
+                    }
+                    "calendar" -> {
+                        item(key = "calendar_content") {
+                            CalendarViewContent(
+                                tasks = tasks,
+                                colors = colors,
+                                todayStr = todayStr,
+                                onToggle = { AppState.toggleTaskCompleted(it) },
+                                onEditTask = { editingTask = it; showBottomSheet = true },
+                                onDeleteTask = { AppState.deleteTask(it) }
                             )
                         }
                     }
@@ -246,6 +263,46 @@ fun TasksScreen() {
                                                 onClick = { filter = key },
                                                 label = { Text(label, fontSize = AmazeTheme.fontSize.xs, fontWeight = if (filter == key) FontWeight.Bold else FontWeight.Normal) }
                                             )
+                                        }
+                                    }
+
+                                    if (courseOptions.size > 1) {
+                                        var courseMenuOpen by remember { mutableStateOf(false) }
+                                        Box {
+                                            FilterChip(
+                                                selected = courseFilter != null,
+                                                onClick = { courseMenuOpen = true },
+                                                label = {
+                                                    Text(
+                                                        if (courseFilter != null) courseFilter!! else "By Course",
+                                                        fontSize = AmazeTheme.fontSize.xs,
+                                                        fontWeight = if (courseFilter != null) FontWeight.Bold else FontWeight.Normal,
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                            )
+                                            DropdownMenu(
+                                                expanded = courseMenuOpen,
+                                                onDismissRequest = { courseMenuOpen = false }
+                                            ) {
+                                                DropdownMenuItem(
+                                                    text = { Text("All Courses", fontSize = AmazeTheme.fontSize.sm) },
+                                                    onClick = { courseFilter = null; courseMenuOpen = false }
+                                                )
+                                                courseOptions.forEach { opt ->
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Column {
+                                                                Text(opt.code, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
+                                                                if (opt.title.isNotBlank()) {
+                                                                    Text(opt.title, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                                }
+                                                            }
+                                                        },
+                                                        onClick = { courseFilter = opt.code; courseMenuOpen = false }
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
 
@@ -449,6 +506,14 @@ private fun TaskItemCard(
                                     .padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
+                        if (task.showOnCalendar) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(Icons.Rounded.CalendarMonth, null, tint = colors.accent, modifier = Modifier.size(12.dp))
+                        }
+                        if (task.showOnTimetable) {
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.Rounded.TableRows, null, tint = colors.accent, modifier = Modifier.size(12.dp))
+                        }
                     }
 
                     Spacer(Modifier.height(4.dp))
@@ -559,6 +624,30 @@ private fun TaskItemCard(
                         Spacer(Modifier.width(2.dp))
                         Text(
                             "${task.actualMinutesSpent}/${task.estimatedMinutes}m",
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro)
+                        )
+                    }
+
+                    if (task.reminderAt != null) {
+                        Spacer(Modifier.width(10.dp))
+                        Icon(Icons.Rounded.Alarm, null, tint = colors.warning, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text(task.reminderAt, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro))
+                    }
+
+                    if (task.odHours > 0) {
+                        Spacer(Modifier.width(10.dp))
+                        Icon(Icons.Rounded.AccessTime, null, tint = colors.info, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text("OD ${task.odHours}h", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro))
+                    }
+
+                    if (task.workSessions.isNotEmpty()) {
+                        Spacer(Modifier.width(10.dp))
+                        Icon(Icons.Rounded.PlaylistPlay, null, tint = colors.success, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text(
+                            "${task.workSessions.size} sessions",
                             style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro)
                         )
                     }
@@ -711,6 +800,155 @@ private fun WorkloadDensityContent(
     }
 }
 
+// ── Calendar View Content (Monthly grid with task dots) ──
+@Composable
+private fun CalendarViewContent(
+    tasks: List<HomeworkTask>,
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    todayStr: String,
+    onToggle: (String) -> Unit,
+    onEditTask: (HomeworkTask) -> Unit,
+    onDeleteTask: (String) -> Unit
+) {
+    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+    var monthFirst by remember { mutableStateOf(LocalDate(now.year, now.monthNumber, 1)) }
+    var selectedDate by remember { mutableStateOf(todayStr) }
+
+    val pendingByDate = remember(tasks) {
+        tasks.filter { !it.completed }.groupBy { it.dueDate }
+    }
+    val selectedTasks = remember(tasks, selectedDate) {
+        tasks.filter { it.dueDate == selectedDate }.sortedBy { it.completed }
+    }
+
+    val leadingBlanks = monthFirst.dayOfWeek.isoDayNumber - 1
+    val daysInMonth = when (monthFirst.monthNumber) {
+        1, 3, 5, 7, 8, 10, 12 -> 31
+        4, 6, 9, 11 -> 30
+        else -> if ((monthFirst.year % 4 == 0 && monthFirst.year % 100 != 0) || monthFirst.year % 400 == 0) 29 else 28
+    }
+    val weekdayLabels = listOf("M", "T", "W", "T", "F", "S", "S")
+    val monthNames = listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
+    val monthLabel = "${monthNames[monthFirst.monthNumber - 1]} ${monthFirst.year}"
+
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = colors.surface),
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth().border(1.dp, colors.border, RoundedCornerShape(16.dp))
+        ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = { monthFirst = monthFirst.plus(-1, DateTimeUnit.MONTH) }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.ChevronLeft, "Previous Month", tint = colors.accent, modifier = Modifier.size(20.dp))
+                    }
+                    Text(monthLabel, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    IconButton(onClick = { monthFirst = monthFirst.plus(1, DateTimeUnit.MONTH) }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.ChevronRight, "Next Month", tint = colors.accent, modifier = Modifier.size(20.dp))
+                    }
+                }
+
+                Spacer(Modifier.height(8.dp))
+
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    weekdayLabels.forEach { label ->
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro))
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                val cells = (0 until leadingBlanks + daysInMonth).map { idx ->
+                    val dayNumber = idx - leadingBlanks + 1
+                    if (dayNumber in 1..daysInMonth) dayNumber else null
+                }
+
+                cells.chunked(7).forEach { week ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                        week.forEach { dayNumber ->
+                            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                                if (dayNumber == null) {
+                                    Spacer(Modifier.height(28.dp))
+                                } else {
+                                    val dateStr = "${monthFirst.year}-${monthFirst.monthNumber.toString().padStart(2, '0')}-${dayNumber.toString().padStart(2, '0')}"
+                                    val dayTasks = pendingByDate[dateStr] ?: emptyList()
+                                    val isSelected = selectedDate == dateStr
+                                    val isToday = todayStr == dateStr
+                                    Column(
+                                        modifier = Modifier
+                                            .size(width = 34.dp, height = 34.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                when {
+                                                    isSelected -> colors.accent
+                                                    isToday -> colors.accent.copy(alpha = 0.15f)
+                                                    else -> Color.Transparent
+                                                }
+                                            )
+                                            .clickable { selectedDate = dateStr },
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            dayNumber.toString(),
+                                            style = AmazeTheme.typography.caption.copy(
+                                                color = if (isSelected) Color.White else if (isToday) colors.accent else colors.textPrimary,
+                                                fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal,
+                                                fontSize = AmazeTheme.fontSize.sm
+                                            )
+                                        )
+                                        if (dayTasks.isNotEmpty()) {
+                                            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                repeat(dayTasks.size.coerceAtMost(3)) {
+                                                    Box(modifier = Modifier.size(3.dp).clip(CircleShape).background(if (isSelected) Color.White else colors.accent))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Text(
+            "Tasks on $selectedDate (${selectedTasks.size})",
+            style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+        )
+        Spacer(Modifier.height(4.dp))
+
+        if (selectedTasks.isEmpty()) {
+            Text(
+                "No tasks for this day — tap '+' to add one",
+                style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        } else {
+            selectedTasks.forEach { task ->
+                TaskItemCard(
+                    task = task,
+                    colors = colors,
+                    onToggle = { onToggle(task.id) },
+                    onToggleSubtask = { subId -> AppState.toggleSubtaskCompleted(task.id, subId) },
+                    onStartFocus = {},
+                    onEdit = { onEditTask(task) },
+                    onDelete = { onDeleteTask(task.id) }
+                )
+            }
+        }
+    }
+}
+
 // ── Modal Bottom Sheet Add/Edit Task Pane ──
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -732,6 +970,20 @@ private fun AddTaskBottomSheet(
     var subtaskInput by remember { mutableStateOf("") }
     var subtasksList by remember { mutableStateOf(taskToEdit?.subtasks ?: emptyList()) }
     var expandedCourseDropdown by remember { mutableStateOf(false) }
+
+    var reminderAt by remember { mutableStateOf(taskToEdit?.reminderAt ?: "") }
+    var reminderRepeat by remember { mutableStateOf(taskToEdit?.reminderRepeat ?: "none") }
+    var showOnCalendar by remember { mutableStateOf(taskToEdit?.showOnCalendar ?: false) }
+    var showOnTimetable by remember { mutableStateOf(taskToEdit?.showOnTimetable ?: false) }
+    var includeRegularClasses by remember { mutableStateOf(taskToEdit?.includeRegularClasses ?: false) }
+    var workSessionsState by remember {
+        mutableStateOf(taskToEdit?.workSessions?.toMutableList() ?: mutableStateListOf<WorkSession>())
+    }
+    var odHoursText by remember { mutableStateOf(taskToEdit?.odHours?.takeIf { it > 0 }?.toString() ?: "") }
+
+    val tomorrow = try {
+        Clock.System.now().plus(1, DateTimeUnit.DAY, TimeZone.currentSystemDefault()).toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+    } catch (_: Exception) { dueDate }
 
     val currentCourseOpt = remember(selectedCourse, courseOptions) {
         courseOptions.firstOrNull { it.code == selectedCourse } ?: courseOptions.firstOrNull() ?: CourseOption(selectedCourse, selectedCourse)
@@ -863,7 +1115,7 @@ private fun AddTaskBottomSheet(
             // Type Selector
             Text("TYPE", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-                listOf("homework" to "Homework", "quiz" to "Quiz", "exam" to "Exam", "lab" to "Lab", "project" to "Project").forEach { (key, label) ->
+                listOf("homework" to "Homework", "assignment" to "Assignment", "quiz" to "Quiz", "exam" to "Exam", "lab" to "Lab", "project" to "Project").forEach { (key, label) ->
                     FilterChip(
                         selected = type == key,
                         onClick = { type = key },
@@ -873,6 +1125,27 @@ private fun AddTaskBottomSheet(
             }
 
             Spacer(Modifier.height(10.dp))
+
+            if (type == "quiz" || type == "exam") {
+                Text("CALENDAR & TIMETABLE", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
+                AmazeCard(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    Column {
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Show on Calendar", style = AmazeTheme.typography.body.copy(fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary))
+                            Switch(checked = showOnCalendar, onCheckedChange = { showOnCalendar = it }, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent))
+                        }
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Show on Timetable", style = AmazeTheme.typography.body.copy(fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary))
+                            Switch(checked = showOnTimetable, onCheckedChange = { showOnTimetable = it }, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent))
+                        }
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Include regular classes", style = AmazeTheme.typography.body.copy(fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary))
+                            Switch(checked = includeRegularClasses, onCheckedChange = { includeRegularClasses = it }, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent))
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
 
             // Priority Selector
             Text("PRIORITY", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
@@ -907,6 +1180,114 @@ private fun AddTaskBottomSheet(
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            if (type == "assignment") {
+                Text("WORK SESSIONS", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
+                Spacer(Modifier.height(4.dp))
+                AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column {
+                        if (workSessionsState.isEmpty()) {
+                            Text(
+                                "Plan when you'll work on this before the deadline. Pick dates + duration per session.",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        } else {
+                            workSessionsState.forEachIndexed { idx, session ->
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("Session ${idx + 1}", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro))
+                                        Text("${session.date} • ${session.startTime} • ${session.durationMinutes}m", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontSize = AmazeTheme.fontSize.xs))
+                                    }
+                                    IconButton(onClick = { workSessionsState.removeAt(idx) }, modifier = Modifier.size(28.dp)) {
+                                        Icon(Icons.Rounded.DeleteOutline, "Remove Session", tint = colors.danger, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        val newDate = try {
+                            val lastSession = workSessionsState.lastOrNull()
+                            if (lastSession != null) {
+                                val d = LocalDate.parse(lastSession.date)
+                                d.plus(1, DateTimeUnit.DAY).toString()
+                            } else {
+                                val dd = LocalDate.parse(tomorrow)
+                                val dl = try { LocalDate.parse(dueDate.trim()) } catch (_: Exception) { dd }
+                                if (dd < dl) dd.toString() else dl.toString()
+                            }
+                        } catch (_: Exception) { tomorrow }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            AmazeButton(
+                                text = "Add Session",
+                                variant = ButtonVariant.SECONDARY,
+                                onClick = {
+                                    workSessionsState.add(WorkSession(date = newDate, startTime = "18:00", durationMinutes = 30))
+                                },
+                                icon = Icons.Rounded.Add,
+                                modifier = Modifier.weight(1f).height(36.dp)
+                            )
+                            AmazeButton(
+                                text = "Auto-Split Till Deadline",
+                                variant = ButtonVariant.SECONDARY,
+                                onClick = {
+                                    workSessionsState.clear()
+                                    try {
+                                        val deadline = LocalDate.parse(dueDate.trim())
+                                        var day = LocalDate.parse(tomorrow)
+                                        var count = 0
+                                        while (day < deadline && count < 14) {
+                                            workSessionsState.add(WorkSession(date = day.toString(), startTime = "18:00", durationMinutes = 30))
+                                            day = day.plus(1, DateTimeUnit.DAY)
+                                            count++
+                                        }
+                                    } catch (_: Exception) {}
+                                },
+                                icon = Icons.Rounded.Schema,
+                                modifier = Modifier.weight(1f).height(36.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+
+            if (type == "assignment" || type == "project" || type == "lab") {
+                Text("OD HOURS (OPTIONAL)", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
+                Spacer(Modifier.height(4.dp))
+                OutlinedTextField(
+                    value = odHoursText,
+                    onValueChange = { odHoursText = it },
+                    label = { Text("Hours (e.g. 2.5)", color = colors.textSecondary) },
+                    colors = textFieldColors,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(Modifier.height(10.dp))
+            }
+
+            Text("REMINDER", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
+            Spacer(Modifier.height(4.dp))
+            OutlinedTextField(
+                value = reminderAt,
+                onValueChange = { reminderAt = it },
+                label = { Text("Remind on (YYYY-MM-DD HH:mm, optional)", color = colors.textSecondary) },
+                colors = textFieldColors,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 4.dp)) {
+                listOf("none" to "None", "daily" to "Daily", "weekly" to "Weekly", "custom" to "Custom").forEach { (key, label) ->
+                    FilterChip(
+                        selected = reminderRepeat == key,
+                        onClick = { reminderRepeat = key },
+                        label = { Text(label, fontSize = AmazeTheme.fontSize.xs) }
+                    )
+                }
             }
 
             Spacer(Modifier.height(14.dp))
@@ -974,7 +1355,14 @@ private fun AddTaskBottomSheet(
                             estimatedMinutes = est,
                             completed = taskToEdit?.completed ?: false,
                             subtasks = subtasksList,
-                            createdAt = taskToEdit?.createdAt ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toString()
+                            createdAt = taskToEdit?.createdAt ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toString(),
+                            reminderAt = reminderAt.trim().ifBlank { null },
+                            reminderRepeat = reminderRepeat,
+                            showOnCalendar = showOnCalendar,
+                            showOnTimetable = showOnTimetable,
+                            includeRegularClasses = includeRegularClasses,
+                            workSessions = workSessionsState.toList(),
+                            odHours = odHoursText.toDoubleOrNull()?.takeIf { it > 0 } ?: 0.0
                         )
                         onSave(newTask)
                     }

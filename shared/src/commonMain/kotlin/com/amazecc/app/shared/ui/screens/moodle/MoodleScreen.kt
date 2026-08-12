@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -82,7 +83,7 @@ fun MoodleScreen() {
                     item {
                         com.amazecc.app.shared.ui.components.HeaderSpacer()
                     }
-                    items(assignments, key = { it.name }) { assignment ->
+                    itemsIndexed(assignments, key = { index, assignment -> "${assignment.name}_$index" }) { _, assignment ->
                         MoodleAssignmentCard(assignment)
                     }
                 }

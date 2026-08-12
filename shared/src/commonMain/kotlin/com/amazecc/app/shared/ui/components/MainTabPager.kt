@@ -86,8 +86,8 @@ fun MainTabPager(
             Screen.QBANK -> QBankScreen()
             Screen.SOCIAL -> SocialScreen()
             Screen.FFCS_PLANNER -> FfcsPlannerScreen()
-            Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateTo(Screen.ACADEMICS) }
-            Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateTo(Screen.ACADEMICS) })
+            Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateBackTo(Screen.ACADEMICS) }
+            Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateBackTo(Screen.ACADEMICS) })
             Screen.PROJECTS -> ProjectsScreen()
             Screen.WISHLIST -> WishlistScreen()
             else -> {}

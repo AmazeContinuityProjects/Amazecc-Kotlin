@@ -62,6 +62,7 @@ class AlarmReceiver : BroadcastReceiver() {
         const val EXTRA_NOTIFICATION_ID = "alarm_notification_id"
         const val CHANNEL_CLASSES = "amazecc_classes"
         const val CHANNEL_ASSIGNMENTS = "amazecc_assignments"
+        const val CHANNEL_EXAMS = "amazecc_exams"
         const val CHANNEL_VITOL = "amazecc_vitol"
         const val CHANNEL_TASKS = "amazecc_tasks"
         const val CHANNEL_SYNC = "amazecc_sync"

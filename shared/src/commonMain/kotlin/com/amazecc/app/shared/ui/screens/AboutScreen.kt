@@ -17,19 +17,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.strings.Strings
+import com.amazecc.app.shared.utils.UpdateConfig
 
 @Composable
 fun AboutScreen() {
     val colors = AmazeTheme.colors
     var currentVersion by remember { mutableStateOf("...") }
     LaunchedEffect(Unit) {
-        currentVersion = com.amazecc.app.shared.utils.UpdateConfig.getCurrentVersion()
+        currentVersion = UpdateConfig.getCurrentVersion()
     }
+    val updateStatus by AppState.updateStatus.collectAsState()
+    val latestReleaseNotes by AppState.latestReleaseNotes.collectAsState()
     var showChangelog by remember { mutableStateOf(false) }
-    val changes = changelogEntries
+    var checkingUpdate by remember { mutableStateOf(false) }
+    var updateCheckMessage by remember { mutableStateOf("") }
+    val changes = if (latestReleaseNotes.isNotBlank()) {
+        latestReleaseNotes.lines().filter { it.isNotBlank() }.map { "• $it" }
+    } else {
+        changelogEntries
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
 
@@ -61,6 +71,40 @@ fun AboutScreen() {
                             "Your all-in-one student companion for VIT. Track attendance, manage academics, explore campus life, and stay connected.",
                             style = AmazeTheme.typography.body.copy(color = colors.textSecondary, textAlign = TextAlign.Center, lineHeight = 20.sp)
                         )
+                    }
+                }
+            }
+
+            item {
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AmazeButton(
+                            text = "Check for Updates",
+                            onClick = {
+                                checkingUpdate = true
+                                updateCheckMessage = ""
+                                AppState.forceCheckForUpdate()
+                            },
+                            icon = Icons.Rounded.Download,
+                            modifier = Modifier.weight(1f),
+                            enabled = !checkingUpdate && updateStatus !is AppState.UpdateStatus.Checking
+                        )
+                        when (updateStatus) {
+                            is AppState.UpdateStatus.Checking -> {
+                                Text("Checking…", style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Medium), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
+                            }
+                            is AppState.UpdateStatus.UpToDate -> {
+                                Text("Up to date ✓", style = AmazeTheme.typography.body.copy(color = colors.success, fontWeight = FontWeight.Medium), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
+                            }
+                            is AppState.UpdateStatus.Error -> {
+                                Text("Check failed", style = AmazeTheme.typography.body.copy(color = colors.danger, fontWeight = FontWeight.Medium), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
+                            }
+                            else -> {
+                                if (updateCheckMessage.isNotBlank()) {
+                                    Text(updateCheckMessage, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
+                                }
+                            }
+                        }
                     }
                 }
             }

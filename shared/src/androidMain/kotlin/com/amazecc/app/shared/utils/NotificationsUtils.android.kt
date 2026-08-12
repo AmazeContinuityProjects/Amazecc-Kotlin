@@ -31,7 +31,8 @@ actual suspend fun requestNotificationPermissions(): Boolean {
 actual suspend fun scheduleLocalNotification(id: Int, title: String, body: String, triggerTimeMs: Long) {
     val context = AndroidApp.context ?: return
     val channelId = when {
-        id in NotificationsUtils.ASSIGNMENT_REMINDER_ID_BASE until NotificationsUtils.TASK_REMINDER_ID_BASE -> AlarmReceiver.CHANNEL_ASSIGNMENTS
+        id in NotificationsUtils.ASSIGNMENT_REMINDER_ID_BASE until NotificationsUtils.EXAM_REMINDER_ID_BASE -> AlarmReceiver.CHANNEL_ASSIGNMENTS
+        id in NotificationsUtils.EXAM_REMINDER_ID_BASE until NotificationsUtils.TASK_REMINDER_ID_BASE -> AlarmReceiver.CHANNEL_EXAMS
         id in NotificationsUtils.TASK_REMINDER_ID_BASE until NotificationsUtils.TEST_NOTIFICATION_ID -> AlarmReceiver.CHANNEL_TASKS
         else -> AlarmReceiver.CHANNEL_CLASSES
     }
@@ -119,6 +120,10 @@ actual suspend fun createNotificationChannels() {
                 AlarmReceiver.CHANNEL_ASSIGNMENTS, "Assignment Reminders",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply { description = "Reminders for upcoming assignment deadlines" },
+            NotificationChannel(
+                AlarmReceiver.CHANNEL_EXAMS, "Exam Reminders",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply { description = "Reminders before exams (24h prior and at reporting time)" },
             NotificationChannel(
                 AlarmReceiver.CHANNEL_VITOL, "VITOL Alerts",
                 NotificationManager.IMPORTANCE_DEFAULT

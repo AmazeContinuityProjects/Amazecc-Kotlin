@@ -35,6 +35,10 @@ fun SettingsScreen() {
     // Deep link from the command palette: apply the requested settings section
     val settingsSectionTarget by AppState.settingsSectionTarget.collectAsState()
 
+    AppBackHandler(enabled = currentSubScreen != null) {
+        currentSubScreen = null
+    }
+
     LaunchedEffect(settingsSectionTarget) {
         if (settingsSectionTarget != null) {
             currentSubScreen = SettingsSubScreen.entries.firstOrNull { it.name == settingsSectionTarget }

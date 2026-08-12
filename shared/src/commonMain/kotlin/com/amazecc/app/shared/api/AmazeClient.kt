@@ -773,6 +773,15 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
         }
     }
 
+    suspend fun getCredentials(): CredentialsRes {
+        if (useMockData) return DemoData.get("credentials", CredentialsRes.serializer()) ?: CredentialsRes(success = true)
+        return try {
+            postAuthorized<CredentialsRes>("credentials") ?: CredentialsRes(success = false)
+        } catch (e: Exception) {
+            CredentialsRes(success = false, error = e.toString())
+        }
+    }
+
     suspend fun getEptSchedule(): EptScheduleRes {
         if (useMockData) return DemoData.get("eptSchedule", EptScheduleRes.serializer()) ?: EptScheduleRes(success = true)
         return try {
@@ -785,6 +794,13 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
         return try {
             postAuthorized<RegistrationScheduleRes>("registration-schedule") ?: RegistrationScheduleRes(success = false)
         } catch (e: Exception) { RegistrationScheduleRes(success = false, error = e.toString()) }
+    }
+
+    suspend fun getUniversityDay(): UniversityDayRes {
+        if (useMockData) return DemoData.get("universityDay", UniversityDayRes.serializer()) ?: UniversityDayRes(success = true)
+        return try {
+            postAuthorized<UniversityDayRes>("university-day") ?: UniversityDayRes(success = false)
+        } catch (e: Exception) { UniversityDayRes(success = false, error = e.toString()) }
     }
 
     suspend fun getBankInfo(): BankInfoRes {

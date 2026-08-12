@@ -37,11 +37,14 @@ class MainActivity : ComponentActivity() {
         }
         
         setContent {
-            val currentScreen by AppState.currentScreen.collectAsState()
-            val isRootScreen = currentScreen == Screen.HOME || currentScreen == Screen.LOGIN || currentScreen == Screen.SPLASH
-            
-            BackHandler(enabled = !isRootScreen) {
-                AppState.navigateBack()
+            val isAppLibraryOpen by AppState.isAppLibraryOpen.collectAsState()
+
+            BackHandler(enabled = AppState.canNavigateBack() || isAppLibraryOpen) {
+                if (isAppLibraryOpen) {
+                    AppState.closeAppLibrary()
+                } else {
+                    AppState.navigateBack()
+                }
             }
 
             val notifPermissionLauncher = rememberLauncherForActivityResult(

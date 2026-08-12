@@ -1,5 +1,8 @@
 package com.amazecc.app.shared.ui.screens.academics
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
@@ -17,15 +21,24 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.model.ExamItem
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.ExamStatusChip
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.components.examStatusText
+import com.amazecc.app.shared.utils.ExamUtils
+import com.amazecc.app.shared.utils.seatLocationDisplay
+import com.amazecc.app.shared.utils.sessionDisplay
+import kotlinx.datetime.Clock
 
 @Composable
 fun ExamScheduleScreen() {
@@ -44,6 +57,16 @@ fun ExamScheduleScreen() {
             res != null && res.schedule.isNotEmpty()
         }
         if (filtered.isNotEmpty()) filtered else AppState.semesterIDs
+    }
+
+    val allExamsFlat = remember(schedule) { schedule.values.flatten() }
+    val now = Clock.System.now()
+    val nextExam = remember(allExamsFlat, now) {
+        allExamsFlat
+            .mapNotNull { exam -> ExamUtils.hoursUntilExam(exam, now)?.let { exam to it } }
+            .filter { it.second >= 0 }
+            .minByOrNull { it.second }
+            ?.first
     }
 
     Column(
@@ -107,86 +130,361 @@ fun ExamScheduleScreen() {
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = BOTTOM_NAV_PADDING)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = BOTTOM_NAV_PADDING),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
 
-            schedule.forEach { (type, exams) ->
+            item {
+                ExamHeroCard(schedule = schedule, colors = colors)
+            }
+
+            schedule.entries.forEachIndexed { typeIndex, (type, exams) ->
                 item {
-                    Text(
-                        text = type.uppercase(),
-                        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent),
-                        modifier = Modifier.padding(vertical = 12.dp, horizontal = 4.dp)
+                    ExamGroupCard(
+                        type = type,
+                        exams = exams,
+                        tint = examTypeTint(typeIndex, colors),
+                        nextExamCode = nextExam?.courseCode,
+                        colors = colors
                     )
                 }
-
-                items(exams, key = { "${it.courseCode}-${it.examDate}-${it.slot}" }) { exam ->
-                    AmazeCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        backgroundColor = colors.surface
-                    ) {
-                        Column(modifier = Modifier.padding(4.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(42.dp)
-                                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                                        .background(colors.accent.copy(alpha = 0.12f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.AutoMirrored.Rounded.MenuBook, contentDescription = null, tint = colors.accent)
-                                }
-                                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = exam.courseCode,
-                                        style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold)
-                                    )
-                                    Text(
-                                        text = exam.courseTitle,
-                                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
-                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                ExamDetailItem(icon = Icons.Rounded.CalendarToday, label = "Date", value = exam.examDate, color = colors.textPrimary)
-                                ExamDetailItem(icon = Icons.Rounded.AccessTime, label = "Time", value = exam.examTime, color = colors.textPrimary)
-                            }
-                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                ExamDetailItem(icon = Icons.Rounded.Place, label = "Venue", value = exam.venue, color = colors.chart3)
-                                ExamDetailItem(icon = Icons.Rounded.EventSeat, label = "Seat", value = exam.seatNo, color = colors.chart1)
-                            }
-                        }
-                    }
-                }
             }
+
             item { Spacer(modifier = Modifier.height(88.dp)) }
         }
     }
 }
 
 @Composable
-private fun ExamDetailItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String, color: Color) {
-    val colors = AmazeTheme.colors
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
-        Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
-        Column {
-            Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
-            Text(value.ifBlank { "TBD" }, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = color))
+private fun ExamHeroCard(schedule: Map<String, List<ExamItem>>, colors: AmazeColors) {
+    val all = schedule.values.flatten()
+    if (all.isEmpty()) return
+
+    val now = Clock.System.now()
+    val hoursList = all.map { exam -> exam to ExamUtils.hoursUntilExam(exam, now) }
+    val total = all.size
+    val completed = hoursList.count { (_, h) -> h != null && h < 0 }
+    val next = hoursList.filter { (_, h) -> h != null && h!! >= 0 }.minByOrNull { (_, h) -> h!! }
+    val fraction by animateFloatAsState(
+        targetValue = if (total > 0) completed / total.toFloat() else 0f,
+        animationSpec = tween(800)
+    )
+    val upcoming = total - completed
+
+    val heroGradient = remember(colors) {
+        Brush.linearGradient(
+            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(AmazeTheme.radius.large))
+            .background(heroGradient)
+            .padding(20.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.EventSeat, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Exam Schedule",
+                    color = Color.White.copy(alpha = 0.9f),
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                        .background(Color.White.copy(alpha = 0.18f))
+                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text("$upcoming UPCOMING", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
+                }
+            }
+
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                ExamHeroStat("Total", "$total")
+                ExamHeroStat("Completed", "$completed")
+                next?.let { (_, hours) ->
+                    ExamHeroStat("Next in", countdownShort(hours))
+                }
+            }
+
+            LinearProgressIndicator(
+                progress = { fraction },
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.25f)
+            )
+
+            next?.let { (exam, _) ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                        .background(Color.White.copy(alpha = 0.14f))
+                        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium))
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Text(
+                            "NEXT EXAM",
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = AmazeTheme.fontSize.sm
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "${exam.courseCode} · ${exam.courseTitle}",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = AmazeTheme.fontSize.sm,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            buildString {
+                                append(exam.examDate.ifBlank { "Date TBD" })
+                                if (exam.examTime.isNotBlank()) append(" · ").append(exam.examTime)
+                                if (exam.sessionDisplay != "TBD") append(" · ").append(exam.sessionDisplay)
+                            },
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = AmazeTheme.fontSize.micro
+                        )
+                    }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun ExamHeroStat(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = Color.White)
+        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.8f))
+    }
+}
+
+@Composable
+private fun ExamGroupCard(
+    type: String,
+    exams: List<ExamItem>,
+    tint: Color,
+    nextExamCode: String?,
+    colors: AmazeColors
+) {
+    val sorted = remember(exams) { ExamUtils.sortedExamDays(exams) }
+
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(tint.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = tint, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        type.uppercase(),
+                        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "${exams.size} exam${if (exams.size != 1) "s" else ""}",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+                    )
+                }
+            }
+
+            sorted.forEachIndexed { index, exam ->
+                if (index > 0) {
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
+                }
+                ExamRow(
+                    exam = exam,
+                    tint = tint,
+                    isNext = exam.courseCode == nextExamCode,
+                    colors = colors
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExamRow(exam: ExamItem, tint: Color, isNext: Boolean, colors: AmazeColors) {
+    var expanded by remember { mutableStateOf(false) }
+    val hours = remember(exam) { ExamUtils.hoursUntilExam(exam) }
+    val status = examStatusText(exam)
+    val iconTint = when {
+        status == "TODAY" -> colors.success
+        status == "PAST" -> colors.textMuted
+        else -> tint
+    }
+    val countdown = countdownText(hours)
+    val countdownColor = if (hours != null && hours in 0.0..24.0) colors.success else colors.textMuted
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+            .background(if (isNext && status != "PAST") colors.accent.copy(alpha = 0.05f) else Color.Transparent)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(iconTint.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = iconTint, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(AmazeTheme.spacing.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        exam.courseCode,
+                        style = AmazeTheme.typography.smallLabel.copy(color = iconTint, fontWeight = FontWeight.Bold)
+                    )
+                    if (exam.slot.isNotBlank() && exam.slot != "-") {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                .background(colors.accentSurface.copy(alpha = 0.5f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                exam.slot,
+                                style = AmazeTheme.typography.smallLabel.copy(
+                                    color = colors.accent,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = AmazeTheme.fontSize.micro
+                                )
+                            )
+                        }
+                    }
+                }
+                Text(
+                    exam.courseTitle,
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (!countdown.isNullOrBlank()) {
+                    Text(
+                        countdown,
+                        style = AmazeTheme.typography.caption.copy(color = countdownColor, fontWeight = FontWeight.SemiBold)
+                    )
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            ExamStatusChip(
+                text = status,
+                color = if (status == "TODAY") colors.success else if (status == "PAST") colors.textMuted else colors.chart1
+            )
+            Spacer(Modifier.width(6.dp))
+            Icon(
+                if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                null,
+                tint = colors.textMuted,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        AnimatedVisibility(visible = expanded) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetricTile("Date", exam.examDate, colors, Modifier.weight(1f))
+                    MetricTile("Time", exam.examTime, colors, Modifier.weight(1f))
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetricTile("Session", exam.sessionDisplay, colors, Modifier.weight(1f))
+                    MetricTile("Reporting", exam.reportingTime, colors, Modifier.weight(1f))
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetricTile("Venue", exam.venue, colors, Modifier.weight(1f))
+                    MetricTile(
+                        "Seat",
+                        buildString {
+                            append(exam.seatLocationDisplay)
+                            if (exam.seatNo.isNotBlank()) append(" · #").append(exam.seatNo)
+                        },
+                        colors,
+                        Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricTile(label: String, value: String, colors: AmazeColors, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+            .background(colors.surface)
+            .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
+            .padding(10.dp)
+    ) {
+        Column {
+            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+            Spacer(Modifier.height(2.dp))
+            Text(
+                value.ifBlank { "TBD" },
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+private fun examTypeTint(index: Int, colors: AmazeColors): Color = when (index % 6) {
+    0 -> colors.chart1
+    1 -> colors.chart2
+    2 -> colors.chart3
+    3 -> colors.chart4
+    4 -> colors.success
+    else -> colors.warning
+}
+
+private fun countdownText(hours: Double?): String? {
+    if (hours == null) return null
+    if (hours < 0) return "Completed"
+    val h = hours.toInt()
+    return when {
+        h < 1 -> "Starting in ${(hours * 60).toInt()}m"
+        h < 24 -> "Starts in ${h}h"
+        else -> "Starts in ${h / 24}d ${h % 24}h"
+    }
+}
+
+private fun countdownShort(hours: Double?): String {
+    if (hours == null) return "—"
+    if (hours < 0) return "Done"
+    val h = hours.toInt()
+    return when {
+        h < 1 -> "${(hours * 60).toInt()}m"
+        h < 24 -> "${h}h"
+        else -> "${h / 24}d"
     }
 }

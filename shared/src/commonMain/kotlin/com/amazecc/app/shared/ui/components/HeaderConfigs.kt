@@ -104,7 +104,7 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         description = "Find live available empty rooms on campus",
         showBackButton = true,
         showSyncButton = false,
-        onBackOverride = { AppState.navigateTo(Screen.ACADEMICS) }
+        onBackOverride = { AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.CALENDAR -> HeaderConfig(
         title = "Academic Calendar",
@@ -112,7 +112,7 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showBackButton = true,
         showSyncButton = true,
         onRefresh = { AppState.refreshCalendarsList() },
-        onBackOverride = { AppState.navigateTo(Screen.ACADEMICS) }
+        onBackOverride = { AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.GRADES -> HeaderConfig(
         title = "Grade History",
@@ -151,7 +151,7 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showBackButton = true,
         showSyncButton = true,
         onRefresh = AppState::refreshAllAcademic,
-        onBackOverride = { AppState.navigateTo(Screen.ACADEMICS) }
+        onBackOverride = { AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.COURSE_ATTENDANCE -> HeaderConfig(
         title = "Course Attendance",

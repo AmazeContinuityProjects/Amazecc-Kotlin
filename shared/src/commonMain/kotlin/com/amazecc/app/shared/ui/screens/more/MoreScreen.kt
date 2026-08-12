@@ -1,12 +1,17 @@
 package com.amazecc.app.shared.ui.screens.more
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,8 +28,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.repository.SettingsManager
@@ -33,6 +41,8 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,8 +56,6 @@ fun MoreScreen() {
     val selectedSemester by AppState.selectedSemester.collectAsState()
     val semesterMap by AppState.semesterMap.collectAsState()
     val semIds = semesterMap.keys.toList().sortedDescending()
-
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val onDismissSheet: () -> Unit = {
         AppState.closeAppLibrary()
@@ -64,239 +72,303 @@ fun MoreScreen() {
     val academicsSubItems = remember(allSearchableItems) { allSearchableItems.filter { it.groupName == "Academics" } }
     val hostelSubItems = remember(allSearchableItems) { allSearchableItems.filter { it.groupName == "Hostel" } }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismissSheet,
-        sheetState = sheetState,
-        containerColor = colors.background,
-        scrimColor = Color.Black.copy(alpha = 0.5f),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-        dragHandle = {
-            Box(
-                modifier = Modifier
-                    .padding(vertical = 8.dp)
-                    .width(36.dp)
-                    .height(4.dp)
-                    .clip(CircleShape)
-                    .background(colors.textMuted.copy(alpha = 0.4f))
-            )
+    val scope = rememberCoroutineScope()
+    var sheetHeightPx by remember { mutableStateOf(0f) }
+    // Offset of the sheet from its open position, in pixels. 0 = fully open,
+    // sheetHeightPx = fully hidden below the screen.
+    val sheetOffsetPx = remember { Animatable(0f) }
+
+    AppBackHandler(enabled = true) {
+        onDismissSheet()
+    }
+
+    // Enter animation: slide up from below the screen once the sheet is measured.
+    LaunchedEffect(sheetHeightPx) {
+        if (sheetHeightPx > 0f && !sheetOffsetPx.isRunning) {
+            sheetOffsetPx.snapTo(sheetHeightPx)
+            sheetOffsetPx.animateTo(0f, tween(360, easing = FastOutSlowInEasing))
         }
-    ) {
-        Column(
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Scrim — fades in with the sheet, tap anywhere outside to dismiss
+        Box(
             modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = (1f - sheetOffsetPx.value / sheetHeightPx.coerceAtLeast(1f)) * 0.5f))
+                .pointerInput(Unit) { detectTapGestures { onDismissSheet() } }
+        )
+
+        // Sheet
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .fillMaxHeight(0.88f)
-                .padding(bottom = 16.dp)
+                .offset { IntOffset(0, sheetOffsetPx.value.roundToInt()) }
+                .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                .background(colors.background)
+                .onSizeChanged { sheetHeightPx = it.height.toFloat() }
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { change, dragAmount ->
+                            change.consume()
+                            scope.launch {
+                                sheetOffsetPx.snapTo(
+                                    (sheetOffsetPx.value + dragAmount)
+                                        .coerceIn(0f, sheetHeightPx.coerceAtLeast(sheetOffsetPx.value))
+                                )
+                            }
+                        },
+                        onDragEnd = {
+                            scope.launch {
+                                val threshold = sheetHeightPx * 0.45f
+                                if (sheetOffsetPx.value > threshold) {
+                                    sheetOffsetPx.animateTo(sheetHeightPx, tween(240, easing = FastOutSlowInEasing))
+                                    onDismissSheet()
+                                } else {
+                                    sheetOffsetPx.animateTo(0f, tween(240, easing = FastOutSlowInEasing))
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            scope.launch { sheetOffsetPx.animateTo(0f, tween(240, easing = FastOutSlowInEasing)) }
+                        }
+                    )
+                }
         ) {
-            // Header Section: Title + New-Line Semester Dropdown + Search
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
+                    .fillMaxSize()
+                    .padding(bottom = 16.dp)
             ) {
-                // Line 1: Header Title & Sub-Panel Back Button
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                // Drag handle
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    if (currentPanel != LibraryPanel.PRIMARY) {
-                        IconButton(
-                            onClick = { currentPanel = LibraryPanel.PRIMARY },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back to Primary", tint = colors.accent, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(Modifier.width(4.dp))
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = when (currentPanel) {
-                                LibraryPanel.PRIMARY -> "App Library"
-                                LibraryPanel.ACADEMICS -> "Academics Hub"
-                                LibraryPanel.HOSTEL -> "Hostel Hub"
-                            },
-                            style = AmazeTheme.typography.heading.copy(fontSize = AmazeTheme.fontSize.lg, color = colors.textPrimary)
-                        )
-                        Text(
-                            text = when (currentPanel) {
-                                LibraryPanel.PRIMARY -> "Select a module to open or pin"
-                                LibraryPanel.ACADEMICS -> "Choose an academic sub-module"
-                                LibraryPanel.HOSTEL -> "Select a hostel service"
-                            },
-                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                        )
-                    }
+                    Box(
+                        modifier = Modifier
+                            .width(36.dp)
+                            .height(4.dp)
+                            .clip(CircleShape)
+                            .background(colors.textMuted.copy(alpha = 0.4f))
+                    )
                 }
 
-                // Line 2: Active Semester Dropdown on its OWN NEW LINE with ample breathing room!
-                if (currentPanel == LibraryPanel.PRIMARY) {
-                    Spacer(Modifier.height(10.dp))
+                // Header Section: Title + New-Line Semester Dropdown + Search
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                ) {
+                    // Line 1: Header Title & Sub-Panel Back Button
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        var semExpanded by remember { mutableStateOf(false) }
-                        Box {
-                            Row(
-                                modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(colors.accent.copy(alpha = 0.12f))
-                                    .border(1.dp, colors.accent.copy(alpha = 0.28f), CircleShape)
-                                    .clickable { semExpanded = !semExpanded }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                        if (currentPanel != LibraryPanel.PRIMARY) {
+                            IconButton(
+                                onClick = { currentPanel = LibraryPanel.PRIMARY },
+                                modifier = Modifier.size(32.dp)
                             ) {
-                                Text("Active Semester: ", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 11.sp))
-                                Text(semesterMap[selectedSemester] ?: selectedSemester, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 12.sp))
-                                Spacer(Modifier.width(4.dp))
-                                Icon(Icons.Rounded.KeyboardArrowDown, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back to Primary", tint = colors.accent, modifier = Modifier.size(20.dp))
                             }
-                            DropdownMenu(
-                                expanded = semExpanded,
-                                onDismissRequest = { semExpanded = false },
-                                modifier = Modifier.background(colors.surface)
-                            ) {
-                                semIds.forEach { semId ->
-                                    val isSelected = semId == selectedSemester
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = semesterMap[semId] ?: semId,
-                                                color = if (isSelected) colors.accent else colors.textPrimary,
-                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                fontSize = AmazeTheme.fontSize.xs
-                                            )
-                                        },
-                                        onClick = {
-                                            semExpanded = false
-                                            if (semId != selectedSemester) AppState.selectSemester(semId)
-                                        }
-                                    )
+                            Spacer(Modifier.width(4.dp))
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = when (currentPanel) {
+                                    LibraryPanel.PRIMARY -> "App Library"
+                                    LibraryPanel.ACADEMICS -> "Academics Hub"
+                                    LibraryPanel.HOSTEL -> "Hostel Hub"
+                                },
+                                style = AmazeTheme.typography.heading.copy(fontSize = AmazeTheme.fontSize.lg, color = colors.textPrimary)
+                            )
+                            Text(
+                                text = when (currentPanel) {
+                                    LibraryPanel.PRIMARY -> "Select a module to open or pin"
+                                    LibraryPanel.ACADEMICS -> "Choose an academic sub-module"
+                                    LibraryPanel.HOSTEL -> "Select a hostel service"
+                                },
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                        }
+                    }
+
+                    // Line 2: Active Semester Dropdown on its OWN NEW LINE with ample breathing room!
+                    if (currentPanel == LibraryPanel.PRIMARY) {
+                        Spacer(Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            var semExpanded by remember { mutableStateOf(false) }
+                            Box {
+                                Row(
+                                    modifier = Modifier
+                                        .clip(CircleShape)
+                                        .background(colors.accent.copy(alpha = 0.12f))
+                                        .border(1.dp, colors.accent.copy(alpha = 0.28f), CircleShape)
+                                        .clickable { semExpanded = !semExpanded }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Active Semester: ", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = 11.sp))
+                                    Text(semesterMap[selectedSemester] ?: selectedSemester, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = 12.sp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Icon(Icons.Rounded.KeyboardArrowDown, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                                }
+                                DropdownMenu(
+                                    expanded = semExpanded,
+                                    onDismissRequest = { semExpanded = false },
+                                    modifier = Modifier.background(colors.surface)
+                                ) {
+                                    semIds.forEach { semId ->
+                                        val isSelected = semId == selectedSemester
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = semesterMap[semId] ?: semId,
+                                                    color = if (isSelected) colors.accent else colors.textPrimary,
+                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                    fontSize = AmazeTheme.fontSize.xs
+                                                )
+                                            },
+                                            onClick = {
+                                                semExpanded = false
+                                                if (semId != selectedSemester) AppState.selectSemester(semId)
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
+
+                    Spacer(Modifier.height(12.dp))
                 }
 
-                Spacer(Modifier.height(12.dp))
-            }
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
 
-            Spacer(Modifier.height(8.dp))
-            HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+                // Scrollable Grid Content — scrolling is enabled only while the sheet is fully open;
+                // while it is being dragged, all vertical drags move the sheet itself.
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState(), enabled = sheetOffsetPx.value <= 0f)
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    AnimatedContent(
+                            targetState = currentPanel,
+                            transitionSpec = { fadeIn() togetherWith fadeOut() }
+                        ) { panel ->
+                            when (panel) {
+                                LibraryPanel.PRIMARY -> {
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        SectionHeader("STUDY")
+                                        DualRowGrid(
+                                            items = primaryStudyItems,
+                                            pinnedTabs = pinnedNavTabs,
+                                            onItemClick = { item ->
+                                                if (item.type == "panel" && item.panelTarget != null) {
+                                                    currentPanel = item.panelTarget
+                                                } else {
+                                                    AppState.closeAppLibrary()
+                                                    if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
+                                                }
+                                            },
+                                            onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
+                                            colors = colors
+                                        )
 
-            // Scrollable Grid Content
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                AnimatedContent(
-                        targetState = currentPanel,
-                        transitionSpec = { fadeIn() togetherWith fadeOut() }
-                    ) { panel ->
-                        when (panel) {
-                            LibraryPanel.PRIMARY -> {
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    SectionHeader("STUDY")
-                                    DualRowGrid(
-                                        items = primaryStudyItems,
-                                        pinnedTabs = pinnedNavTabs,
-                                        onItemClick = { item ->
-                                            if (item.type == "panel" && item.panelTarget != null) {
-                                                currentPanel = item.panelTarget
-                                            } else {
+                                        SectionHeader("CAMPUS")
+                                        DualRowGrid(
+                                            items = primaryCampusItems,
+                                            pinnedTabs = pinnedNavTabs,
+                                            onItemClick = { item ->
+                                                if (item.type == "panel" && item.panelTarget != null) {
+                                                    currentPanel = item.panelTarget
+                                                } else {
+                                                    AppState.closeAppLibrary()
+                                                    if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
+                                                }
+                                            },
+                                            onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
+                                            colors = colors
+                                        )
+
+                                        SectionHeader("TOOLS & COMMUNITIES")
+                                        DualRowGrid(
+                                            items = primaryToolsItems,
+                                            pinnedTabs = pinnedNavTabs,
+                                            onItemClick = { item ->
+                                                AppState.closeAppLibrary()
+                                                if (item.onClickOverride != null) item.onClickOverride.invoke()
+                                                else if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
+                                            },
+                                            onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
+                                            colors = colors
+                                        )
+
+                                        SectionHeader("ACCOUNT & APP")
+                                        DualRowGrid(
+                                            items = primaryAccountItems,
+                                            pinnedTabs = pinnedNavTabs,
+                                            onItemClick = { item ->
+                                                if (item.label == "Log Out") {
+                                                    showLogoutConfirm = true
+                                                    return@DualRowGrid
+                                                }
+                                                AppState.closeAppLibrary()
+                                                if (item.onClickOverride != null) item.onClickOverride.invoke()
+                                                else if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
+                                            },
+                                            onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
+                                            colors = colors
+                                        )
+                                    }
+                                }
+
+                                LibraryPanel.ACADEMICS -> {
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        SectionHeader("ALL ACADEMIC SUB-MODULES")
+                                        DualRowGrid(
+                                            items = academicsSubItems,
+                                            pinnedTabs = pinnedNavTabs,
+                                            onItemClick = { item ->
                                                 AppState.closeAppLibrary()
                                                 if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
-                                            }
-                                        },
-                                        onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
-                                        colors = colors
-                                    )
+                                            },
+                                            onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
+                                            colors = colors
+                                        )
+                                    }
+                                }
 
-                                    SectionHeader("CAMPUS")
-                                    DualRowGrid(
-                                        items = primaryCampusItems,
-                                        pinnedTabs = pinnedNavTabs,
-                                        onItemClick = { item ->
-                                            if (item.type == "panel" && item.panelTarget != null) {
-                                                currentPanel = item.panelTarget
-                                            } else {
+                                LibraryPanel.HOSTEL -> {
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        SectionHeader("HOSTEL SERVICES")
+                                        DualRowGrid(
+                                            items = hostelSubItems,
+                                            pinnedTabs = pinnedNavTabs,
+                                            onItemClick = { item ->
                                                 AppState.closeAppLibrary()
                                                 if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
-                                            }
-                                        },
-                                        onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
-                                        colors = colors
-                                    )
-
-                                    SectionHeader("TOOLS & COMMUNITIES")
-                                    DualRowGrid(
-                                        items = primaryToolsItems,
-                                        pinnedTabs = pinnedNavTabs,
-                                        onItemClick = { item ->
-                                            AppState.closeAppLibrary()
-                                            if (item.onClickOverride != null) item.onClickOverride.invoke()
-                                            else if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
-                                        },
-                                        onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
-                                        colors = colors
-                                    )
-
-                                    SectionHeader("ACCOUNT & APP")
-                                    DualRowGrid(
-                                        items = primaryAccountItems,
-                                        pinnedTabs = pinnedNavTabs,
-                                        onItemClick = { item ->
-                                            if (item.label == "Log Out") {
-                                                showLogoutConfirm = true
-                                                return@DualRowGrid
-                                            }
-                                            AppState.closeAppLibrary()
-                                            if (item.onClickOverride != null) item.onClickOverride.invoke()
-                                            else if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
-                                        },
-                                        onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
-                                        colors = colors
-                                    )
+                                            },
+                                            onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
+                                            colors = colors
+                                        )
+                                    }
                                 }
                             }
-
-                            LibraryPanel.ACADEMICS -> {
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    SectionHeader("ALL ACADEMIC SUB-MODULES")
-                                    DualRowGrid(
-                                        items = academicsSubItems,
-                                        pinnedTabs = pinnedNavTabs,
-                                        onItemClick = { item ->
-                                            AppState.closeAppLibrary()
-                                            if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
-                                        },
-                                        onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
-                                        colors = colors
-                                    )
-                                }
-                            }
-
-                            LibraryPanel.HOSTEL -> {
-                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    SectionHeader("HOSTEL SERVICES")
-                                    DualRowGrid(
-                                        items = hostelSubItems,
-                                        pinnedTabs = pinnedNavTabs,
-                                        onItemClick = { item ->
-                                            AppState.closeAppLibrary()
-                                            if (item.targetScreen != null) AppState.navigateTo(item.targetScreen)
-                                        },
-                                        onPinToggle = { tab -> togglePinState(tab, pinnedNavTabs) },
-                                        colors = colors
-                                    )
-                                }
-                            }
-                        }
+                    }
                 }
-            }
 
                 Spacer(Modifier.height(16.dp))
             }
@@ -321,6 +393,7 @@ fun MoreScreen() {
             }
         }
     }
+}
 
 @Composable
 private fun SectionHeader(title: String) {

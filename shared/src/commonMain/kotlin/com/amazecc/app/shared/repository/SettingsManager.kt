@@ -2,6 +2,7 @@ package com.amazecc.app.shared.repository
 
 import com.russhwolf.settings.Settings
 import com.amazecc.app.shared.security.Encryption
+import kotlinx.serialization.encodeToString
 
 /**
  * SettingsManager mirrors the localStorage caching layer found in the AmazeCC web application.
@@ -52,6 +53,8 @@ object SettingsManager {
 
     // Update checker
     const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"
+    const val KEY_LAST_UPDATE_CHECK = "last_update_check"
+    const val KEY_LATEST_RELEASE_NOTES = "latest_release_notes"
 
     // Session cache (VTOP credentials)
     const val SESSION_COOKIES = "session_cookies"
@@ -100,7 +103,8 @@ object SettingsManager {
     const val CACHE_DAYBOARDER = "cache_dayboarder"
     const val CACHE_EPT_SCHEDULE = "cache_ept_schedule"
     const val CACHE_REGISTRATION_SCHEDULE = "cache_registration_schedule"
-const val CACHE_APAAR_ID = "cache_apaarid"
+    const val CACHE_UNIVERSITY_DAY = "cache_university_day"
+    const val CACHE_APAAR_ID = "cache_apaarid"
     const val CACHE_OD_TRACKER_STATE = "od_tracker_state"
     const val CACHE_MOODLE = "moodle_data_cache"
  
@@ -108,13 +112,32 @@ const val CACHE_APAAR_ID = "cache_apaarid"
     const val NOTIF_CLASS_REMINDERS = "notif_class_reminders"
     const val NOTIF_ASSIGNMENT_REMINDERS = "notif_assignment_reminders"
     const val NOTIF_TASK_REMINDERS = "notif_task_reminders"
+    const val NOTIF_EXAM_REMINDERS = "notif_exam_reminders"
     const val NOTIF_OFFSET_MINUTES = "notif_offset_minutes"
     
+    // Quiz mode preferences
+    const val KEY_QUIZ_TIMER_ENABLED = "quiz_timer_enabled"
+
+    // SWOT analysis configuration
+    const val KEY_SWOT_CONFIG = "swot_config"
+
+    // Quiz performance stats (per-course, per-topic)
+    const val KEY_QBANK_STATS = "qbank_stats"
+
     // Onboarding
     const val KEY_ONBOARDING_COMPLETE = "onboarding_complete"
 
     // Past semester sync flag
     const val PAST_SEMESTER_SYNCED = "past_semester_synced"
+
+    // Securely stored linked-account credentials (encrypted at rest)
+    const val CACHE_CREDENTIALS_SECURE = "cache_credentials_secure"
+
+    // Accounts already shown an exam venue/seat alert (entries removed here re-alert if they return)
+    const val KEY_EXAM_SEAT_ALERTED = "exam_seat_alerted"
+
+    // Last-known FFCS registration slot (used for change detection + reminder re-scheduling)
+    const val CACHE_FFCS_REG_INFO = "cache_ffcs_reg_info"
     
     fun setString(key: String, value: String) {
         settings.putString(key, value)
@@ -137,12 +160,71 @@ const val CACHE_APAAR_ID = "cache_apaarid"
         return settings.getBoolean(key, defaultValue)
     }
 
+    fun setLong(key: String, value: Long) {
+        settings.putLong(key, value)
+    }
+
+    fun getLong(key: String, defaultValue: Long = 0L): Long {
+        return settings.getLong(key, defaultValue)
+    }
+
     fun remove(key: String) {
         settings.remove(key)
     }
 
     fun clearAll() {
         settings.clear()
+    }
+
+    fun getExamSeatAlerted(): Set<String> {
+        val raw = getString(KEY_EXAM_SEAT_ALERTED, "")
+        if (raw.isBlank()) return emptySet()
+        return try {
+            kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                .decodeFromString<List<String>>(raw)
+                .toSet()
+        } catch (_: Exception) {
+            emptySet()
+        }
+    }
+
+    fun setExamSeatAlerted(accounts: Set<String>) {
+        try {
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            setString(KEY_EXAM_SEAT_ALERTED, json.encodeToString(accounts.toList()))
+        } catch (_: Exception) { /* non-critical */ }
+    }
+
+    // ── Backup & Export support ──
+    @kotlinx.serialization.Serializable
+    data class ExportEntry(val type: String, val value: String)
+
+    fun allKeys(): Set<String> = settings.keys
+
+    /**
+     * Reads a stored value without knowing its type up-front.
+     * [type] is "s" (string), "b" (boolean) or "l" (long); null if the key is absent.
+     *
+     * Reads are exception-safe: on Android, `SharedPreferences.getString` throws a
+     * ClassCastException when the stored value is a Boolean/Long, so each getter is
+     * probed individually in string -> long -> boolean order.
+     */
+    fun getExportValue(key: String): ExportEntry? {
+        if (key !in settings.keys) return null
+        val str = runCatching { settings.getStringOrNull(key) }.getOrNull()
+        if (str != null) return ExportEntry("s", str)
+        val long = runCatching { settings.getLong(key, Long.MIN_VALUE) }.getOrDefault(Long.MIN_VALUE)
+        if (long != Long.MIN_VALUE) return ExportEntry("l", long.toString())
+        val bool = runCatching { settings.getBooleanOrNull(key) }.getOrNull()
+        return if (bool != null) ExportEntry("b", bool.toString()) else null
+    }
+
+    fun importExportEntry(key: String, entry: ExportEntry) {
+        when (entry.type) {
+            "s" -> setString(key, entry.value)
+            "b" -> setBoolean(key, entry.value.toBooleanStrictOrNull() ?: false)
+            "l" -> setLong(key, entry.value.toLongOrNull() ?: 0L)
+        }
     }
     
     // Web app specific getters/setters for Profile/Settings parity
@@ -239,6 +321,9 @@ const val CACHE_APAAR_ID = "cache_apaarid"
     fun isNotifTaskRemindersEnabled(): Boolean = getBoolean(NOTIF_TASK_REMINDERS, false)
     fun setNotifTaskRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_TASK_REMINDERS, enabled)
 
+    fun isNotifExamRemindersEnabled(): Boolean = getBoolean(NOTIF_EXAM_REMINDERS, false)
+    fun setNotifExamRemindersEnabled(enabled: Boolean) = setBoolean(NOTIF_EXAM_REMINDERS, enabled)
+
     fun getNotifOffsetMinutes(): Int = getString(NOTIF_OFFSET_MINUTES, "15").toIntOrNull() ?: 15
 
     fun setNotifOffsetMinutes(minutes: Int) = setString(NOTIF_OFFSET_MINUTES, minutes.toString())
@@ -246,4 +331,97 @@ const val CACHE_APAAR_ID = "cache_apaarid"
     // Onboarding
     fun isOnboardingComplete(): Boolean = getBoolean(KEY_ONBOARDING_COMPLETE, false)
     fun setOnboardingComplete(complete: Boolean) = setBoolean(KEY_ONBOARDING_COMPLETE, complete)
+
+    // ── Quiz mode ──
+    fun isQuizTimerEnabled(): Boolean = getBoolean(KEY_QUIZ_TIMER_ENABLED, true)
+    fun setQuizTimerEnabled(enabled: Boolean) = setBoolean(KEY_QUIZ_TIMER_ENABLED, enabled)
+
+    @kotlinx.serialization.Serializable
+    data class SwotConfig(
+        val strengthMinAttempts: Int = 3,
+        val strengthAccuracy: Int = 70,
+        val weaknessMinAttempts: Int = 2,
+        val weaknessAccuracy: Int = 50
+    )
+
+    fun getSwotConfig(): SwotConfig {
+        val raw = getString(KEY_SWOT_CONFIG, "")
+        if (raw.isBlank()) return SwotConfig()
+        return try {
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            json.decodeFromString<SwotConfig>(raw)
+        } catch (_: Exception) { SwotConfig() }
+    }
+
+    fun saveSwotConfig(config: SwotConfig) {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        setString(KEY_SWOT_CONFIG, json.encodeToString(config))
+    }
+
+    @kotlinx.serialization.Serializable
+    data class QuizTopicStat(
+        val topic: String = "",
+        val attempts: Int = 0,
+        val correct: Int = 0,
+        val totalTimeSec: Long = 0
+    )
+
+    @kotlinx.serialization.Serializable
+    data class QuizCourseStats(
+        val courseCode: String = "",
+        val attempts: Int = 0,
+        val correct: Int = 0,
+        val totalQuestions: Int = 0,
+        val topics: Map<String, QuizTopicStat> = emptyMap(),
+        val missedQuestionIds: List<String> = emptyList(),
+        val lastPracticedAt: Long = 0
+    )
+
+    fun getQBankStats(): Map<String, QuizCourseStats> {
+        val raw = getString(KEY_QBANK_STATS, "{}")
+        return try {
+            val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+            json.decodeFromString<Map<String, QuizCourseStats>>(raw)
+        } catch (_: Exception) { emptyMap() }
+    }
+
+    fun saveQBankStats(stats: Map<String, QuizCourseStats>) {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        setString(KEY_QBANK_STATS, json.encodeToString<Map<String, QuizCourseStats>>(stats))
+    }
+
+    fun getCourseQBankStats(courseCode: String): QuizCourseStats =
+        getQBankStats()[courseCode] ?: QuizCourseStats(courseCode = courseCode)
+
+    /**
+     * Records a single answered question into the cumulative per-course stats.
+     * [correct] may be null for descriptive/reviewed questions (counted as attempts, not correct).
+     * Wrong answers are tracked in [missedQuestionIds] until answered correctly.
+     */
+    fun recordQBankAnswer(courseCode: String, topic: String?, correct: Boolean?, timeSpentSec: Int, questionId: String) {
+        val all = getQBankStats().toMutableMap()
+        val course = (all[courseCode] ?: QuizCourseStats(courseCode = courseCode))
+        val topicKey = topic?.takeIf { it.isNotBlank() } ?: "General"
+        val topics = course.topics.toMutableMap()
+        val topicStat = topics[topicKey] ?: QuizTopicStat(topic = topicKey)
+        topics[topicKey] = topicStat.copy(
+            attempts = topicStat.attempts + 1,
+            correct = topicStat.correct + if (correct == true) 1 else 0,
+            totalTimeSec = topicStat.totalTimeSec + timeSpentSec
+        )
+        val missed = course.missedQuestionIds.toMutableList()
+        when (correct) {
+            true -> missed.remove(questionId)
+            false -> if (!missed.contains(questionId)) missed.add(questionId)
+            null -> {}
+        }
+        all[courseCode] = course.copy(
+            attempts = course.attempts + 1,
+            correct = course.correct + if (correct == true) 1 else 0,
+            topics = topics,
+            missedQuestionIds = missed,
+            lastPracticedAt = kotlinx.datetime.Clock.System.now().toEpochMilliseconds()
+        )
+        saveQBankStats(all)
+    }
 }

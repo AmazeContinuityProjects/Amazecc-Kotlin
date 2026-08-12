@@ -40,9 +40,10 @@ fun SettingsHub(
             val on = listOf(
                 SettingsManager.isNotifClassRemindersEnabled(),
                 SettingsManager.isNotifAssignmentRemindersEnabled(),
-                SettingsManager.isNotifTaskRemindersEnabled()
+                SettingsManager.isNotifTaskRemindersEnabled(),
+                SettingsManager.isNotifExamRemindersEnabled()
             ).count { it }
-            "$on/3 alerts"
+            "$on/4 alerts"
         }
         SettingsSubScreen.CREDENTIALS -> {
             val username = SettingsManager.getString(SettingsManager.KEY_USERNAME)
