@@ -396,13 +396,31 @@ if (useMockData) return DemoData.get("library", LibraryRes.serializer()) ?: Libr
         }
     }
 
-    suspend fun searchLibrary(query: String, index: String = "kw", offset: Int = 0): LibraryRes {
-if (useMockData) return DemoData.get("librarySearch", LibraryRes.serializer()) ?: LibraryRes()
+    suspend fun searchLibrary(query: String, index: String = "kw", offset: Int = 0): KohaSearchRes {
+if (useMockData) return DemoData.get("librarySearch", LibraryRes.serializer())?.let { mock ->
+            KohaSearchRes(
+                success = mock.success,
+                books = mock.searchResults.map { KohaBook(biblionumber = it.bookId, title = it.title, author = it.author ?: "") },
+                total = mock.total,
+                error = mock.error,
+                message = mock.message
+            )
+        } ?: KohaSearchRes()
         return try {
             val response: HttpResponse = httpClient.get("$baseUrl/api/koha/search?q=${query.encodeURLParameter()}&idx=${index.encodeURLParameter()}&offset=$offset&count=20")
             jsonConfig.decodeFromString(response.bodyAsText())
         } catch (e: Exception) {
-            LibraryRes(success = false, message = e.message, error = e.toString())
+            KohaSearchRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getKohaDetail(biblionumber: String): KohaDetailRes {
+        if (useMockData) return KohaDetailRes(success = false, error = "No mock data for detail")
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/koha/detail?biblionumber=${biblionumber.encodeURLParameter()}")
+            jsonConfig.decodeFromString(response.bodyAsText())
+        } catch (e: Exception) {
+            KohaDetailRes(success = false, message = e.message, error = e.toString())
         }
     }
     

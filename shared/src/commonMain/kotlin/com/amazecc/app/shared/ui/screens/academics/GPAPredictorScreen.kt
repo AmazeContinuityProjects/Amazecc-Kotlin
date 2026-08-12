@@ -76,7 +76,8 @@ fun GPAPredictorScreen() {
     }
 
     // What-if mode state
-    var targetCgpa by remember { mutableStateOf("") }
+    val savedGoal by AppState.gpaGoal.collectAsState()
+    var targetCgpa by remember(savedGoal) { mutableStateOf(savedGoal) }
 
     val totalOldPoints = currentCgpa * creditsEarned
 
@@ -88,6 +89,12 @@ fun GPAPredictorScreen() {
         }
         val newTotalCredits = creditsEarned + courses.sumOf { it.credits }
         if (newTotalCredits > 0.0) newTotalPoints / newTotalCredits else currentCgpa
+    }
+
+    val heroGradient = remember(colors) {
+        androidx.compose.ui.graphics.Brush.linearGradient(
+            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.70f))
+        )
     }
 
     Column(
@@ -106,16 +113,65 @@ fun GPAPredictorScreen() {
         ) {
             HeaderSpacer()
 
-            // Current CGPA card
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    StatItem("Current CGPA", fmt2(currentCgpa), Icons.Rounded.EmojiEvents, colors.success)
-                    StatItem("Credits Earned", fmt0(creditsEarned), Icons.Rounded.School, colors.accent)
-                    StatItem("Projected", fmt2(projectedCgpa), Icons.AutoMirrored.Rounded.TrendingUp, colors.accent)
+            // Hero Gradient Card (Settings & Exam Schedule design language)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AmazeTheme.radius.large))
+                    .background(heroGradient)
+                    .padding(20.dp)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("CGPA Predictor & Target", style = AmazeTheme.typography.heading.copy(color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold))
+                            Text("Simulate grades & track GPA goals", style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.85f)))
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.20f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                fmt2(projectedCgpa),
+                                style = AmazeTheme.typography.subheading.copy(
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White,
+                                    fontSize = 15.sp
+                                )
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.25f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Current CGPA", color = Color.White.copy(alpha = 0.8f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
+                            Text(fmt2(currentCgpa), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color.White.copy(alpha = 0.3f)))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Credits Earned", color = Color.White.copy(alpha = 0.8f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
+                            Text(fmt0(creditsEarned), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color.White.copy(alpha = 0.3f)))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Target Goal", color = Color.White.copy(alpha = 0.8f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
+                            Text(if (targetCgpa.isBlank()) "9.00" else targetCgpa, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
                 }
             }
 
@@ -190,7 +246,10 @@ fun GPAPredictorScreen() {
             } else {
                 WhatIfMode(
                     targetCgpa = targetCgpa,
-                    onTargetCgpaChange = { targetCgpa = it },
+                    onTargetCgpaChange = {
+                        targetCgpa = it
+                        AppState.setGpaGoal(it)
+                    },
                     courses = courses,
                     onCourseGradeChange = { idx, grade ->
                         val newList = courses.toMutableList()

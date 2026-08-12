@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -88,15 +89,32 @@ private fun monthDisplayName(monthStr: String): String {
     }
 }
 
+private fun isWeekendDay(year: Int, month: Int, day: Int): Boolean {
+    return try {
+        if (year <= 0 || month <= 0 || day <= 0) return false
+        val date = LocalDate(year, month, day)
+        date.dayOfWeek.isoDayNumber >= 6
+    } catch (_: Exception) { false }
+}
+
 // Helper: consolidate contiguous exam events into single range events
 private fun getConsolidatedEventsForDisplay(
     activeMonthEvents: Map<Int, List<ConsolidatedEvent>>,
     selectedDay: Int?,
     monthName: String,
+    yearNum: Int,
+    monthNum: Int,
     examColor: Color
 ): List<Pair<String, ConsolidatedEvent>> {
     if (selectedDay != null) {
-        return (activeMonthEvents[selectedDay] ?: emptyList()).map { "" to it }
+        val selectedEvents = activeMonthEvents[selectedDay] ?: emptyList()
+        val isWeekend = isWeekendDay(yearNum, monthNum, selectedDay)
+        return selectedEvents.filter { ev ->
+            val t = ev.title.lowercase()
+            val typeLower = ev.type.lowercase()
+            val isNoInstructional = t.contains("no instructional") || typeLower.contains("no instructional")
+            !(isNoInstructional && isWeekend)
+        }.map { "" to it }
     }
 
     val allDaysSorted = activeMonthEvents.keys.sorted()
@@ -108,17 +126,25 @@ private fun getConsolidatedEventsForDisplay(
     allDaysSorted.forEach { dayNum ->
         val dayLabel = "$monthName $dayNum"
         val events = activeMonthEvents[dayNum] ?: emptyList()
+        val isWeekend = isWeekendDay(yearNum, monthNum, dayNum)
         var firstForDay = true
-        events.forEachIndexed { i, ev ->
+        events.forEach { ev ->
             val t = ev.title.lowercase()
+            val typeLower = ev.type.lowercase()
             val isExam = ev.type.equals("Exam", ignoreCase = true) ||
                     t.contains("cat") || t.contains("fat") || t.contains("exam") || t.contains("assessment")
+
+            val isInstructional = t.contains("instructional day") || t.contains("working day") || typeLower.contains("instructional")
+            val isNoInstructional = t.contains("no instructional") || typeLower.contains("no instructional")
 
             if (isExam) {
                 examEventsByDay.getOrPut(dayNum) { mutableListOf() }.add(ev)
             } else {
-                nonExamEvents.add((if (firstForDay) dayLabel else "") to ev)
-                firstForDay = false
+                val shouldSkip = isInstructional || (isNoInstructional && isWeekend)
+                if (!shouldSkip) {
+                    nonExamEvents.add((if (firstForDay) dayLabel else "") to ev)
+                    firstForDay = false
+                }
             }
         }
     }
@@ -408,7 +434,8 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
 
     val eventsToShow = remember(activeMonthEvents, selectedDay, activeMonth) {
         val monthName = monthDisplayName(activeMonth?.month ?: "")
-        getConsolidatedEventsForDisplay(activeMonthEvents, selectedDay, monthName, colors.chart1)
+        val (monthNum, yearNum) = parseMonthString(activeMonth?.month ?: "")
+        getConsolidatedEventsForDisplay(activeMonthEvents, selectedDay, monthName, yearNum, monthNum, colors.chart1)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -807,7 +834,6 @@ val dayEvents = activeMonthEvents[dayNumber] ?: emptyList()
                     }
 
                     // ── Events list ──
-
                     if (eventsToShow.isEmpty()) {
                         item {
                             Box(
@@ -887,13 +913,42 @@ val dayEvents = activeMonthEvents[dayNumber] ?: emptyList()
 }
 
 @Composable
+private fun CalendarDetailRow(icon: ImageVector, label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    val colors = AmazeTheme.colors
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, contentDescription = null, tint = colors.textMuted, modifier = Modifier.size(15.dp))
+        Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
+        Column {
+            Text(label, style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+            Text(
+                value.ifBlank { "N/A" },
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = color, fontSize = AmazeTheme.fontSize.sm),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
 private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    var expanded by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) 0.97f else 1f,
         animationSpec = bouncySpring()
     )
+
+    val iconVector = when {
+        ev.type.equals("Exam", ignoreCase = true) -> Icons.Rounded.EventSeat
+        ev.title.contains("Holiday", true) || ev.type.contains("Holiday", true) -> Icons.Rounded.Celebration
+        ev.type.equals("Moodle", ignoreCase = true) -> Icons.AutoMirrored.Rounded.MenuBook
+        ev.type.equals("Task", ignoreCase = true) -> Icons.Rounded.TaskAlt
+        else -> Icons.Rounded.CalendarToday
+    }
+
+    val typeLabel = ev.type.uppercase().ifBlank { "EVENT" }
 
     Box(
         modifier = Modifier
@@ -904,39 +959,100 @@ private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.share
                 scaleY = scale
             }
     ) {
-        AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        AmazeCard(
+            modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+        ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    ev.title,
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (ev.type.isNotBlank() || ev.timeOrLocation.isNotBlank()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                // Header Row (Icon Badge + Title + Status Chip)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                            .background(ev.color.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        if (ev.type.isNotBlank()) {
-                            CalendarBadge(ev.type, ev.color.copy(alpha = 0.16f), ev.color)
-                        }
-                        if (ev.timeOrLocation.isNotBlank()) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Rounded.AccessTime,
-                                    contentDescription = null,
-                                    tint = colors.textMuted,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
+                        Icon(iconVector, contentDescription = null, tint = ev.color, modifier = Modifier.size(20.dp))
+                    }
+                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = ev.title,
+                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    CalendarBadge(typeLabel, ev.color.copy(alpha = 0.14f), ev.color)
+                }
+
+                HorizontalDivider(color = colors.border.copy(alpha = 0.4f))
+
+                // Detail Rows (Exam Schedule Card Style)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val dateRangeText = if (ev.startDay > 0 && ev.endDay > ev.startDay) {
+                        "Day ${ev.startDay} – Day ${ev.endDay}"
+                    } else if (ev.startDay > 0) {
+                        "Day ${ev.startDay}"
+                    } else "Date Event"
+
+                    CalendarDetailRow(
+                        icon = Icons.Rounded.CalendarToday,
+                        label = "Schedule",
+                        value = dateRangeText,
+                        color = colors.textPrimary,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    if (ev.timeOrLocation.isNotBlank()) {
+                        CalendarDetailRow(
+                            icon = Icons.Rounded.AccessTime,
+                            label = "Info / Follows",
+                            value = ev.timeOrLocation,
+                            color = ev.color,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Icon(
+                        if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = null,
+                        tint = colors.textMuted,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                if (expanded) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                            .background(colors.accentSurface.copy(alpha = 0.3f))
+                            .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.xs))
+                            .padding(10.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                "Event Details",
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
+                            )
+                            Text(
+                                ev.title,
+                                style = AmazeTheme.typography.body.copy(color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm)
+                            )
+                            if (ev.timeOrLocation.isNotBlank()) {
                                 Text(
-                                    ev.timeOrLocation,
-                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    "Note: ${ev.timeOrLocation}",
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                                 )
                             }
                         }

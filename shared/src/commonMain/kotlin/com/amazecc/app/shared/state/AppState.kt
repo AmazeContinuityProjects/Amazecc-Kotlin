@@ -115,6 +115,12 @@ object AppState {
     private val _attendanceDisplayMode = MutableStateFlow(AttendanceDisplayMode.PERCENTAGE)
     val attendanceDisplayMode: StateFlow<AttendanceDisplayMode> = _attendanceDisplayMode.asStateFlow()
 
+    private val _showAttendanceInStats = MutableStateFlow(false)
+    val showAttendanceInStats: StateFlow<Boolean> = _showAttendanceInStats.asStateFlow()
+
+    private val _isBusSubscriber = MutableStateFlow(false)
+    val isBusSubscriber: StateFlow<Boolean> = _isBusSubscriber.asStateFlow()
+
     private val _hapticEnabled = MutableStateFlow(true)
     val hapticEnabled: StateFlow<Boolean> = _hapticEnabled.asStateFlow()
 
@@ -232,6 +238,15 @@ object AppState {
     
     private val _registrationSchedule = MutableStateFlow<RegistrationScheduleRes?>(null)
     val registrationSchedule: StateFlow<RegistrationScheduleRes?> = _registrationSchedule.asStateFlow()
+
+    private val _statsCardsOrder = MutableStateFlow(listOf("attendance", "cgpa", "credits", "od"))
+    val statsCardsOrder: StateFlow<List<String>> = _statsCardsOrder.asStateFlow()
+
+    private val _enabledStatsCards = MutableStateFlow(setOf("attendance", "cgpa", "credits", "od"))
+    val enabledStatsCards: StateFlow<Set<String>> = _enabledStatsCards.asStateFlow()
+
+    private val _gpaGoal = MutableStateFlow("9.0")
+    val gpaGoal: StateFlow<String> = _gpaGoal.asStateFlow()
     
     private val _universityDay = MutableStateFlow<UniversityDayRes?>(null)
     val universityDay: StateFlow<UniversityDayRes?> = _universityDay.asStateFlow()
@@ -329,6 +344,22 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         // Load persisted settings
         _cgpaHidden.value = SettingsManager.getBoolean(SettingsManager.KEY_CGPA_HIDDEN, false)
         _attendanceDisplayMode.value = AttendanceDisplayMode.fromString(SettingsManager.getString(SettingsManager.KEY_ATTENDANCE_MODE, "percentage"))
+        _showAttendanceInStats.value = SettingsManager.getBoolean(SettingsManager.KEY_SHOW_ATTENDANCE_IN_STATS, false)
+        _isBusSubscriber.value = SettingsManager.getBoolean(SettingsManager.KEY_BUS_SUBSCRIBER, false)
+        
+        val savedOrder = SettingsManager.getString(SettingsManager.KEY_STATS_CARDS_ORDER, "")
+        if (savedOrder.isNotEmpty()) {
+            _statsCardsOrder.value = savedOrder.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        }
+        val savedEnabled = SettingsManager.getString(SettingsManager.KEY_ENABLED_STATS_CARDS, "")
+        if (savedEnabled.isNotEmpty()) {
+            _enabledStatsCards.value = savedEnabled.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        } else {
+            val showAtt = SettingsManager.getBoolean(SettingsManager.KEY_SHOW_ATTENDANCE_IN_STATS, false)
+            _enabledStatsCards.value = if (showAtt) setOf("attendance", "cgpa", "credits", "od") else setOf("cgpa", "credits", "od")
+        }
+        _gpaGoal.value = SettingsManager.getString(SettingsManager.KEY_GPA_GOAL, "9.0")
+        
         _updateDialogDismissedVersion.value = SettingsManager.getString(SettingsManager.KEY_UPDATE_DISMISSED_VERSION, "")
         _latestReleaseNotes.value = SettingsManager.getString(SettingsManager.KEY_LATEST_RELEASE_NOTES, "")
 
@@ -814,6 +845,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     private val _qbankCourseTarget = MutableStateFlow<String?>(null)
     val qbankCourseTarget: StateFlow<String?> = _qbankCourseTarget.asStateFlow()
 
+    /** Koha book biblionumber for detail view */
+    private val _kohaBookTarget = MutableStateFlow<String?>(null)
+    val kohaBookTarget: StateFlow<String?> = _kohaBookTarget.asStateFlow()
+
     private fun clearTargets() {
         _settingsSectionTarget.value = null
         _transportRouteTarget.value = null
@@ -823,6 +858,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         _ffcsCourseTarget.value = null
         _curriculumCourseTarget.value = null
         _qbankCourseTarget.value = null
+        _kohaBookTarget.value = null
     }
 
     fun openSettingsSection(sectionName: String) {
@@ -870,6 +906,16 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         clearTargets()
         _qbankCourseTarget.value = courseCode
         navigateTo(Screen.QBANK)
+    }
+
+    fun openKohaBookDetail(biblionumber: String) {
+        clearTargets()
+        _kohaBookTarget.value = biblionumber
+        navigateTo(Screen.LIBRARIES)
+    }
+
+    fun consumeKohaBookTarget() {
+        _kohaBookTarget.value = null
     }
 
     fun consumeQBankCourseTarget() {
@@ -2966,6 +3012,38 @@ fun updateMoodleData(data: MoodleRes?) {
     fun setAttendanceDisplayMode(mode: AttendanceDisplayMode) {
         _attendanceDisplayMode.value = mode
         SettingsManager.setString(SettingsManager.KEY_ATTENDANCE_MODE, mode.value)
+    }
+
+    fun setShowAttendanceInStats(enabled: Boolean) {
+        _showAttendanceInStats.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_SHOW_ATTENDANCE_IN_STATS, enabled)
+        setStatCardEnabled("attendance", enabled)
+    }
+
+    fun setStatsCardsOrder(order: List<String>) {
+        _statsCardsOrder.value = order
+        SettingsManager.setString(SettingsManager.KEY_STATS_CARDS_ORDER, order.joinToString(","))
+    }
+
+    fun setStatCardEnabled(cardKey: String, enabled: Boolean) {
+        val current = _enabledStatsCards.value.toMutableSet()
+        if (enabled) current.add(cardKey) else current.remove(cardKey)
+        _enabledStatsCards.value = current
+        SettingsManager.setString(SettingsManager.KEY_ENABLED_STATS_CARDS, current.joinToString(","))
+        if (cardKey == "attendance") {
+            _showAttendanceInStats.value = enabled
+            SettingsManager.setBoolean(SettingsManager.KEY_SHOW_ATTENDANCE_IN_STATS, enabled)
+        }
+    }
+
+    fun setGpaGoal(goal: String) {
+        _gpaGoal.value = goal
+        SettingsManager.setString(SettingsManager.KEY_GPA_GOAL, goal)
+    }
+
+    fun setBusSubscriber(enabled: Boolean) {
+        _isBusSubscriber.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_BUS_SUBSCRIBER, enabled)
     }
 
     fun setHapticEnabled(enabled: Boolean) {

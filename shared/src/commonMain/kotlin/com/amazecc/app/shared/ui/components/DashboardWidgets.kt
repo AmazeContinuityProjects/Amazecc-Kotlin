@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.components
+package com.amazecc.app.shared.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -515,6 +516,14 @@ internal fun DashboardWidgetRows() {
     val colors = AmazeTheme.colors
     val widgetOrder by AppState.widgetOrder.collectAsState()
 
+    QuickStatsCustomizationRows()
+
+    Text(
+        "Home Dashboard Widgets",
+        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+        modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)
+    )
+
     DashboardWidget.entries.forEach { widget ->
         val isEnabled = widget in widgetOrder
         val index = widgetOrder.indexOf(widget)
@@ -584,6 +593,119 @@ internal fun DashboardWidgetRows() {
                                 modifier = Modifier.size(18.dp)
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickStatsCustomizationRows() {
+    val colors = AmazeTheme.colors
+    val statsCardsOrder by AppState.statsCardsOrder.collectAsState()
+    val enabledStatsCards by AppState.enabledStatsCards.collectAsState()
+
+    val cardLabels = mapOf(
+        "attendance" to ("Attendance" to "Displays overall attendance %"),
+        "cgpa" to ("CGPA" to "Displays current cumulative GPA"),
+        "credits" to ("Credits" to "Displays total credits earned (Links to Curriculum)"),
+        "od" to ("OD Hours" to "Displays total On Duty hours")
+    )
+
+    Text(
+        "Quick Stats Order & Toggles",
+        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
+    )
+
+    statsCardsOrder.forEachIndexed { index, cardKey ->
+        val isEnabled = enabledStatsCards.contains(cardKey)
+        val info = cardLabels[cardKey] ?: (cardKey to "")
+
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (isEnabled) colors.accentSurface.copy(alpha = 0.2f) else colors.surface
+            ),
+            shape = RoundedCornerShape(AmazeTheme.radius.medium),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Switch(
+                    checked = isEnabled,
+                    onCheckedChange = { AppState.setStatCardEnabled(cardKey, it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = colors.accent,
+                        uncheckedThumbColor = colors.textMuted,
+                        uncheckedTrackColor = colors.border
+                    )
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        info.first,
+                        style = AmazeTheme.typography.body.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = if (isEnabled) colors.textPrimary else colors.textMuted,
+                            fontSize = AmazeTheme.fontSize.sm
+                        )
+                    )
+                    if (info.second.isNotEmpty()) {
+                        Text(
+                            info.second,
+                            style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                Row {
+                    IconButton(
+                        onClick = {
+                            if (index > 0) {
+                                val mutable = statsCardsOrder.toMutableList()
+                                val tmp = mutable[index]
+                                mutable[index] = mutable[index - 1]
+                                mutable[index - 1] = tmp
+                                AppState.setStatsCardsOrder(mutable)
+                            }
+                        },
+                        enabled = index > 0,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.KeyboardArrowUp,
+                            null,
+                            tint = if (index > 0) colors.accent else colors.textMuted.copy(alpha = 0.3f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            if (index < statsCardsOrder.size - 1) {
+                                val mutable = statsCardsOrder.toMutableList()
+                                val tmp = mutable[index]
+                                mutable[index] = mutable[index + 1]
+                                mutable[index + 1] = tmp
+                                AppState.setStatsCardsOrder(mutable)
+                            }
+                        },
+                        enabled = index < statsCardsOrder.size - 1,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.KeyboardArrowDown,
+                            null,
+                            tint = if (index < statsCardsOrder.size - 1) colors.accent else colors.textMuted.copy(alpha = 0.3f),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }
@@ -774,51 +896,105 @@ private fun MetricCardsWidget() {
     val attendanceRes by AppState.attendance.collectAsState()
     val courses = attendanceRes?.attendance ?: emptyList()
     val isCgpaHidden by AppState.cgpaHidden.collectAsState()
+    val isBusSubscriber by AppState.isBusSubscriber.collectAsState()
 
-    val cgpa = remember(marksRes) {
-        marksRes.displayCgpa
+    val statsCardsOrder by AppState.statsCardsOrder.collectAsState()
+    val enabledStatsCards by AppState.enabledStatsCards.collectAsState()
+
+    val visibleCardKeys = remember(statsCardsOrder, enabledStatsCards) {
+        statsCardsOrder.filter { enabledStatsCards.contains(it) }
     }
+
+    val cgpa = remember(marksRes) { marksRes.displayCgpa }
     val cgpaDisplay = remember(cgpa, isCgpaHidden) {
         if (isCgpaHidden) "\u2022\u2022\u2022" else cgpa.toFixed(2)
     }
-    val credits = remember(marksRes) {
-        marksRes.displayCreditsEarned
+    val credits = remember(marksRes) { marksRes.displayCreditsEarned }
+    val odCount = remember(courses) { WidgetDataUtils.computeODHours(courses) }
+
+    val overallAttendance = remember(courses) {
+        val validCourses = courses.filter { it.totalClasses > 0 }
+        if (validCourses.isEmpty()) 0f
+        else {
+            var totalAtt = 0
+            var totalCls = 0
+            for (item in validCourses) {
+                totalAtt += item.attendedClasses
+                totalCls += item.totalClasses
+            }
+            if (totalCls == 0) 0f else (totalAtt.toFloat() / totalCls.toFloat()) * 100f
+        }
     }
-    val odCount = remember(courses) {
-        WidgetDataUtils.computeODHours(courses)
+    val targetPct = if (isBusSubscriber) 85f else 75f
+    val attColor = when {
+        overallAttendance >= targetPct -> colors.success
+        overallAttendance >= 50f -> colors.warning
+        else -> colors.danger
+    }
+    val attSurfaceBg = when {
+        overallAttendance >= targetPct -> colors.successSurface
+        overallAttendance >= 50f -> colors.warningSurface
+        else -> colors.dangerSurface
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
-    ) {
-        GlassMetricCard(
-            title = "CGPA",
-            value = cgpaDisplay,
-            icon = if (isCgpaHidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Star,
-            colors = colors,
-            iconTint = if (isCgpaHidden) colors.textMuted else colors.warning,
-            surfaceBg = colors.warningSurface,
-            onClick = { AppState.setCgpaHidden(!isCgpaHidden) }
-        )
-        GlassMetricCard(
-            title = "Credits",
-            value = credits.toInt().toString(),
-            icon = Icons.Rounded.Info,
-            colors = colors,
-            iconTint = colors.info,
-            surfaceBg = colors.infoSurface,
-            onClick = { AppState.navigateTo(Screen.PAYMENTS) }
-        )
-        GlassMetricCard(
-            title = "OD Hours",
-            value = if (courses.isNotEmpty()) "${odCount}h" else "\u2014",
-            icon = Icons.Rounded.CheckCircle,
-            colors = colors,
-            iconTint = colors.success,
-            surfaceBg = colors.successSurface,
-            onClick = { AppState.navigateTo(Screen.OD_TRACKER) }
-        )
+    val isScrollable = visibleCardKeys.size > 3
+    val rowModifier = if (isScrollable) {
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+    } else {
+        Modifier.fillMaxWidth()
+    }
+
+    if (visibleCardKeys.isNotEmpty()) {
+        Row(
+            modifier = rowModifier,
+            horizontalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
+        ) {
+            visibleCardKeys.forEach { key ->
+                val cardModifier = if (isScrollable) Modifier.width(120.dp) else Modifier.weight(1f)
+                when (key) {
+                    "attendance" -> GlassMetricCard(
+                        title = "Attendance",
+                        value = if (courses.isNotEmpty()) "${overallAttendance.toInt()}%" else "—",
+                        icon = Icons.Rounded.CheckCircle,
+                        colors = colors,
+                        modifier = cardModifier,
+                        iconTint = attColor,
+                        surfaceBg = attSurfaceBg,
+                        onClick = { AppState.openAttendanceView("Predictor") }
+                    )
+                    "cgpa" -> GlassMetricCard(
+                        title = "CGPA",
+                        value = cgpaDisplay,
+                        icon = if (isCgpaHidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Star,
+                        colors = colors,
+                        modifier = cardModifier,
+                        iconTint = if (isCgpaHidden) colors.textMuted else colors.warning,
+                        surfaceBg = colors.warningSurface,
+                        onClick = { AppState.setCgpaHidden(!isCgpaHidden) }
+                    )
+                    "credits" -> GlassMetricCard(
+                        title = "Credits",
+                        value = credits.toInt().toString(),
+                        icon = Icons.Rounded.Info,
+                        colors = colors,
+                        modifier = cardModifier,
+                        iconTint = colors.info,
+                        surfaceBg = colors.infoSurface,
+                        onClick = { AppState.navigateTo(Screen.CURRICULUM) }
+                    )
+                    "od" -> GlassMetricCard(
+                        title = "OD Hours",
+                        value = if (courses.isNotEmpty()) "${odCount}h" else "—",
+                        icon = Icons.Rounded.CheckCircle,
+                        colors = colors,
+                        modifier = cardModifier,
+                        iconTint = colors.success,
+                        surfaceBg = colors.successSurface,
+                        onClick = { AppState.navigateTo(Screen.OD_TRACKER) }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -828,42 +1004,90 @@ private fun GlassMetricCard(
     value: String,
     icon: ImageVector,
     colors: com.amazecc.app.shared.theme.AmazeColors,
+    modifier: Modifier = Modifier,
     iconTint: Color = colors.accent,
     surfaceBg: Color = colors.accentSurface,
     onClick: (() -> Unit)? = null
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.94f else 1f,
+        animationSpec = bouncySpring()
+    )
+
     Box(
-        modifier = Modifier
-            .width(105.dp)
-            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-            .background(surfaceBg.copy(alpha = 0.2f))
-            .border(1.dp, colors.textMuted.copy(alpha = 0.4f), RoundedCornerShape(AmazeTheme.radius.medium))
-            .clickable(enabled = onClick != null) { onClick?.invoke() }
-            .padding(12.dp)
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(surfaceBg.copy(alpha = 0.5f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(icon, null, tint = iconTint, modifier = Modifier.size(18.dp))
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
             }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                value,
-                style = AmazeTheme.typography.subheading.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary
-                )
+            .shadow(2.dp, RoundedCornerShape(AmazeTheme.radius.medium), clip = false)
+            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+            .background(colors.surface)
+            .background(surfaceBg.copy(alpha = 0.20f))
+            .border(
+                1.5.dp,
+                iconTint.copy(alpha = 0.45f),
+                RoundedCornerShape(AmazeTheme.radius.medium)
             )
-            Text(
-                title,
-                style = AmazeTheme.typography.smallLabel.copy(
-                    color = colors.textMuted
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = onClick != null
+            ) { onClick?.invoke() }
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            // Top Row: Left corner icon indicator & category label
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(surfaceBg.copy(alpha = 0.55f))
+                        .border(1.dp, iconTint.copy(alpha = 0.35f), RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = iconTint,
+                        modifier = Modifier.size(15.dp)
+                    )
+                }
+                Text(
+                    text = title.uppercase(),
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        color = colors.textSecondary,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Emphasized Large Metric Value (Left Aligned)
+            Text(
+                text = value,
+                style = AmazeTheme.typography.heading.copy(
+                    fontWeight = FontWeight.ExtraBold,
+                    color = colors.textPrimary,
+                    fontSize = 22.sp
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

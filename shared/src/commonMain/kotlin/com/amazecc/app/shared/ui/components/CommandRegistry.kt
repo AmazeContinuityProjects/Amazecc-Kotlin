@@ -171,11 +171,11 @@ fun rememberGlobalCommands(): List<CommandItem> {
                     withContext(Dispatchers.Default) {
                         try {
                             val res = AmazeClient.searchLibrary(query)
-                            res.searchResults.take(50).map { book ->
+                            res.books.take(50).map { book ->
                                 CommandItem(
-                                    id = "lib-${book.bookId}",
+                                    id = "lib-${book.biblionumber}",
                                     label = book.title,
-                                    description = listOfNotNull(book.author, book.dueDate?.let { "Due $it" }).joinToString(" · "),
+                                    description = listOfNotNull(book.author.ifBlank { null }, book.isbn.ifBlank { null }).joinToString(" · "),
                                     icon = Icons.Rounded.MenuBook,
                                     onSelect = { AppState.navigateTo(Screen.LIBRARIES) }
                                 )

@@ -256,10 +256,6 @@ fun CourseDetailScreen(onBack: () -> Unit) {
 
     val isPastSemester = group.semesterSubId != currentSemesterId
 
-    val qcmViewRes by AppState.qcmView.collectAsState()
-    val qcmTables = extractQcmTables(qcmViewRes?.data)
-    val qcmLoading = AppState.isLoading.collectAsState().value
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -299,9 +295,6 @@ fun CourseDetailScreen(onBack: () -> Unit) {
                             mainAtt = mainAtt,
                             isEmbedded = isEmbedded,
                             isPastSemester = isPastSemester,
-                            qcmTables = qcmTables,
-                            qcmLoading = qcmLoading,
-                            refreshQcm = { AppState.refreshQcmView() },
                             facultyLoading = facultyLoading,
                             onViewFaculty = onViewFaculty,
                             colors = colors,
@@ -345,9 +338,6 @@ private fun CourseOverviewPage(
     mainAtt: AttendanceItem?,
     isEmbedded: Boolean,
     isPastSemester: Boolean,
-    qcmTables: List<QcmTable>,
-    qcmLoading: Boolean,
-    refreshQcm: () -> Unit,
     facultyLoading: Boolean,
     onViewFaculty: (ParsedFaculty) -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors,
@@ -388,8 +378,6 @@ private fun CourseOverviewPage(
         if (moodleAssignments.isNotEmpty()) {
             MoodleAssignmentsCard(moodleAssignments, colors)
         }
-
-        QcmCard(qcmTables, qcmLoading, refreshQcm, colors)
     }
 }
 
@@ -977,28 +965,6 @@ private fun MarksTab(
                 MarksHeroCard(group, allAsms, grading, colors)
             }
 
-            item {
-                val totalWeighted = allAsms.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
-                val totalWeightPct = allAsms.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
-                val projected = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
-                val maxPossible = 100 - (totalWeightPct - totalWeighted).toInt()
-                val typeLabel = (if (singleComponent) theoryMarks?.courseType
-                else if (isEmbedded) "Embedded"
-                else theoryMarks?.courseType ?: labMarks?.courseType ?: "-") ?: "-"
-
-                AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MetricTile("Course Type", typeLabel, colors, Modifier.weight(1f))
-                            MetricTile("Score", "${totalWeighted.toInt()}/${totalWeightPct.toInt()}", colors, Modifier.weight(1f))
-                        }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            MetricTile("Projected", "$projected%", colors, Modifier.weight(1f))
-                            MetricTile("Max Possible", "$maxPossible%", colors, Modifier.weight(1f))
-                        }
-                    }
-                }
-            }
         }
 
         allAssessments.forEach { (label, asms) ->
@@ -1563,10 +1529,6 @@ private fun CoursePlanTab(
     val scope = rememberCoroutineScope()
     val saveFile = rememberFileSaver()
 
-    val qcmViewRes by AppState.qcmView.collectAsState()
-    val qcmTables = remember(qcmViewRes) { extractQcmTables(qcmViewRes?.data) }
-    val qcmLoading = AppState.isLoading.collectAsState().value
-
     LaunchedEffect(courseCode) {
         syllabusLoading = true
         try {
@@ -1748,55 +1710,6 @@ private fun CoursePlanTab(
             }
         }
 
-        // 4. QCM Card (moved from Overview)
-        item {
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Quality Circle Meeting (QCM)", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), modifier = Modifier.weight(1f))
-                        if (qcmTables.isEmpty() && !qcmLoading) {
-                            AmazeButton("Load", onClick = { AppState.refreshQcmView() }, variant = ButtonVariant.SECONDARY, modifier = Modifier.height(32.dp))
-                        }
-                    }
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    when {
-                        qcmLoading -> CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
-                        qcmTables.isEmpty() -> Text("No QCM data available", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
-                        else -> qcmTables.forEach { table ->
-                            table.rows.forEach { rowJson ->
-                                val obj = rowJson.jsonObject
-                                val qcmNo = obj["qcmNo"]?.jsonPrimitive?.contentOrNull ?: obj["QCM No"]?.jsonPrimitive?.contentOrNull
-                                val action = obj["actionTaken"]?.jsonPrimitive?.contentOrNull ?: obj["Action Taken"]?.jsonPrimitive?.contentOrNull
-                                val suggestions = obj["suggestions"]?.jsonPrimitive?.contentOrNull ?: obj["Suggestions"]?.jsonPrimitive?.contentOrNull
-                                val facultyReply = obj["facultyReply"]?.jsonPrimitive?.contentOrNull ?: obj["Faculty Reply"]?.jsonPrimitive?.contentOrNull
-                                Box(
-                                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.surface).padding(12.dp)
-                                ) {
-                                    Column {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("QCM ${qcmNo ?: ""}", fontWeight = FontWeight.Bold, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs, modifier = Modifier.weight(1f))
-                                            action?.let { AmazeBadge(it, variant = BadgeVariant.INFO) }
-                                        }
-                                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                        suggestions?.let { Text(it, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm) }
-                                        facultyReply?.let {
-                                            Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                                            Box(modifier = Modifier.fillMaxWidth().padding(start = 8.dp)) {
-                                                Column {
-                                                    Text("Faculty Reply", fontWeight = FontWeight.Bold, color = colors.success, fontSize = AmazeTheme.fontSize.micro)
-                                                    Text(it, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.sm)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -1827,6 +1740,9 @@ private fun FacultyTab(
 
     var facultyLoading by remember { mutableStateOf(false) }
     var facultyProfile by remember { mutableStateOf<FacultyProfile?>(null) }
+    val qcmViewRes by AppState.qcmView.collectAsState()
+    val qcmTables = remember(qcmViewRes) { extractQcmTables(qcmViewRes?.data) }
+    val qcmLoading = AppState.isLoading.collectAsState().value
 
     LaunchedEffect(parsedFac.name, parsedFac.id) {
         facultyLoading = true
@@ -1942,6 +1858,10 @@ private fun FacultyTab(
                 modifier = Modifier.fillMaxWidth(),
                 variant = ButtonVariant.SECONDARY
             )
+        }
+
+        item {
+            QcmCard(qcmTables, qcmLoading, { AppState.refreshQcmView() }, colors)
         }
     }
 }

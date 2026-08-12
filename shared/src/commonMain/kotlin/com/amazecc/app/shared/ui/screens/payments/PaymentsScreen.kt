@@ -56,6 +56,9 @@ fun PaymentsScreen() {
                 )
             }
 
+            val dues = payments.filter { it.status != "PAID" }
+            val receipts = payments.filter { it.status == "PAID" }
+
             // Premium Wallet Card
             Box(
                 modifier = Modifier
@@ -84,61 +87,46 @@ fun PaymentsScreen() {
                     Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(
-                            onClick = { /* TODO */ },
+                            onClick = { subTab = "due" },
                             modifier = Modifier.weight(1f).height(42.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(AmazeTheme.radius.small)
-                        ) {
-                            Icon(Icons.Rounded.Add, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                            Text("Top Up", color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.base)
-                        }
-                        Button(
-                            onClick = { /* TODO */ },
-                            modifier = Modifier.weight(1f).height(42.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f)),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (subTab == "due") Color.White else Color.White.copy(alpha = 0.2f)
+                            ),
                             elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
                             shape = RoundedCornerShape(AmazeTheme.radius.small)
                         ) {
-                            Icon(Icons.Rounded.History, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Rounded.Pending, null, tint = if (subTab == "due") colors.accent else Color.White, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                            Text("History", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.base)
+                            Text(
+                                "Dues (${dues.size})",
+                                color = if (subTab == "due") colors.accent else Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = AmazeTheme.fontSize.base
+                            )
+                        }
+                        Button(
+                            onClick = { subTab = "receipts" },
+                            modifier = Modifier.weight(1f).height(42.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (subTab == "receipts") Color.White else Color.White.copy(alpha = 0.2f)
+                            ),
+                            elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
+                            shape = RoundedCornerShape(AmazeTheme.radius.small)
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null, tint = if (subTab == "receipts") colors.accent else Color.White, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                            Text(
+                                "Receipts (${receipts.size})",
+                                color = if (subTab == "receipts") colors.accent else Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = AmazeTheme.fontSize.base
+                            )
                         }
                     }
                 }
             }
 
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
-
-            // Sub-tabs (Bouncy Chips)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                listOf("due" to "Dues", "receipts" to "Receipts").forEach { (key, label) ->
-                    val sel = subTab == key
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                            .background(if (sel) colors.accent else colors.surface)
-                            .border(1.dp, if (sel) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
-                            .clickable { subTab = key }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            label,
-                            color = if (sel) Color.White else colors.textSecondary,
-                            style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-                }
-            }
-
-            val dues = payments.filter { it.status != "PAID" }
-            val receipts = payments.filter { it.status == "PAID" }
 
             when (subTab) {
                 "receipts" -> {

@@ -196,6 +196,63 @@ data class LibraryRes(
 )
 
 @Serializable
+data class KohaBook(
+    val biblionumber: String = "",
+    val title: String = "",
+    val author: String = "",
+    val publisher: String = "",
+    val isbn: String = "",
+    val coverUrl: String = ""
+)
+
+@Serializable
+data class KohaSearchRes(
+    val success: Boolean = true,
+    val books: List<KohaBook> = emptyList(),
+    val total: Int = 0,
+    val query: String? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
+data class KohaHolding(
+    val itemId: String = "",
+    val barcode: String = "",
+    val currentLibrary: String = "",
+    val homeLibrary: String = "",
+    val shelvingLocation: String = "",
+    val callNumber: String = "",
+    val status: String = "",
+    val dateDue: String? = null,
+    val notes: String = ""
+)
+
+@Serializable
+data class KohaDetailBook(
+    val biblionumber: String = "",
+    val title: String = "",
+    val author: String = "",
+    val publisher: String = "",
+    val edition: String = "",
+    val description: String = "",
+    val isbn: String = "",
+    val subjects: List<String> = emptyList(),
+    val ddc: String = "",
+    val summary: String = "",
+    val holdings: List<KohaHolding> = emptyList(),
+    val coverUrl: String = ""
+)
+
+@Serializable
+data class KohaDetailRes(
+    val success: Boolean = true,
+    val book: KohaDetailBook? = null,
+    val error: String? = null,
+    val message: String? = null
+)
+
+@Serializable
 data class BusStop(
     val stopOrder: Int,
     val stopName: String,
