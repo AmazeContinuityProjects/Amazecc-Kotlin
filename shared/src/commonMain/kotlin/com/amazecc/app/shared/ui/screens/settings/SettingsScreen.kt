@@ -115,7 +115,8 @@ fun SettingsScreen() {
                         )
                     } else {
                         when (sub) {
-                            SettingsSubScreen.APPEARANCE -> AppearancePage()
+                            SettingsSubScreen.APPEARANCE -> AppearancePage(onOpenSubScreen = { currentSubScreen = it })
+                            SettingsSubScreen.PALETTE -> PaletteEditorScreen()
                             SettingsSubScreen.DISPLAY -> DisplayPage()
                             SettingsSubScreen.DASHBOARD -> DashboardPage()
                             SettingsSubScreen.BOTTOM_NAV -> BottomNavPage()

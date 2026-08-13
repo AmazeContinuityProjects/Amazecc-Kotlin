@@ -1,13 +1,13 @@
 ﻿package com.amazecc.app.shared.ui.screens
 
+import amazecc_app.shared.generated.resources.Res
+import amazecc_app.shared.generated.resources.ic_launcher
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,6 +25,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.painterResource
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
@@ -41,8 +43,8 @@ fun SplashScreen() {
     val logoGradient = remember(colors) {
         Brush.linearGradient(
             colors = listOf(
-                colors.accent.copy(alpha = 0.7f),
-                colors.accent.copy(alpha = 0.15f)
+                colors.accent,
+                colors.accent.copy(alpha = 0.6f)
             )
         )
     }
@@ -61,14 +63,14 @@ fun SplashScreen() {
                     .shadow(20.dp, RoundedCornerShape(AmazeTheme.radius.large))
                     .clip(RoundedCornerShape(AmazeTheme.radius.large))
                     .background(logoGradient)
-                    .border(2.dp, colors.accent.copy(alpha = 0.25f), RoundedCornerShape(AmazeTheme.radius.large)),
+                    .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.large)),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.material3.Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Rounded.School,
+                Image(
+                    painter = painterResource(Res.drawable.ic_launcher),
                     contentDescription = "AmazeCC Logo",
-                    tint = colors.accent,
-                    modifier = Modifier.size(64.dp)
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
             }
 
@@ -86,10 +88,10 @@ fun SplashScreen() {
             Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
 
             Text(
-                text = "Unified Student Operating System",
-                style = AmazeTheme.typography.caption.copy(
+                text = "UNIFIED STUDENT OPERATING SYSTEM",
+                style = AmazeTheme.typography.smallLabel.copy(
                     color = colors.textSecondary,
-                    letterSpacing = 0.5.sp
+                    letterSpacing = 1.5.sp
                 )
             )
 

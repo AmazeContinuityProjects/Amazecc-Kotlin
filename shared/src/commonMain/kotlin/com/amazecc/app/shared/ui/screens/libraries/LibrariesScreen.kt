@@ -58,6 +58,7 @@ import com.amazecc.app.shared.ui.screens.settings.SettingsGroupCard
 import com.amazecc.app.shared.ui.screens.settings.SettingsRow
 import com.amazecc.app.shared.ui.screens.settings.SettingsRowDivider
 import com.amazecc.app.shared.ui.strings.Strings
+import com.amazecc.app.shared.utils.toFixed
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -250,7 +251,7 @@ private fun LibraryHeroCard(
                 sum += digits
             }
         }
-        if (sum > 0) "Rs. ${"%.2f".format(sum)}" else "Rs. 0.00"
+        if (sum > 0) "Rs. ${sum.toFixed(2)}" else "Rs. 0.00"
     }
 
     Box(

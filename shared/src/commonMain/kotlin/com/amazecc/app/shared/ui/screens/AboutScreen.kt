@@ -21,6 +21,8 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.strings.Strings
+import com.amazecc.app.shared.utils.ChangelogEntry
+import com.amazecc.app.shared.utils.ContentData
 import com.amazecc.app.shared.utils.UpdateConfig
 
 @Composable
@@ -33,12 +35,15 @@ fun AboutScreen() {
     val updateStatus by AppState.updateStatus.collectAsState()
     val latestReleaseNotes by AppState.latestReleaseNotes.collectAsState()
     var showChangelog by remember { mutableStateOf(false) }
-    var checkingUpdate by remember { mutableStateOf(false) }
-    var updateCheckMessage by remember { mutableStateOf("") }
+    var showUpdateCheck by remember { mutableStateOf(false) }
+    var bundledChanges by remember { mutableStateOf(emptyList<ChangelogEntry>()) }
+    LaunchedEffect(Unit) {
+        bundledChanges = ContentData.changelog()
+    }
     val changes = if (latestReleaseNotes.isNotBlank()) {
         latestReleaseNotes.lines().filter { it.isNotBlank() }.map { "• $it" }
     } else {
-        changelogEntries
+        bundledChanges.map { entry -> (entry.title?.let { "$it: " } ?: "") + entry.description }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
@@ -76,37 +81,16 @@ fun AboutScreen() {
             }
 
             item {
-                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AmazeButton(
-                            text = "Check for Updates",
-                            onClick = {
-                                checkingUpdate = true
-                                updateCheckMessage = ""
-                                AppState.forceCheckForUpdate()
-                            },
-                            icon = Icons.Rounded.Download,
-                            modifier = Modifier.weight(1f),
-                            enabled = !checkingUpdate && updateStatus !is AppState.UpdateStatus.Checking
-                        )
-                        when (updateStatus) {
-                            is AppState.UpdateStatus.Checking -> {
-                                Text("Checking…", style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Medium), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
-                            }
-                            is AppState.UpdateStatus.UpToDate -> {
-                                Text("Up to date ✓", style = AmazeTheme.typography.body.copy(color = colors.success, fontWeight = FontWeight.Medium), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
-                            }
-                            is AppState.UpdateStatus.Error -> {
-                                Text("Check failed", style = AmazeTheme.typography.body.copy(color = colors.danger, fontWeight = FontWeight.Medium), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
-                            }
-                            else -> {
-                                if (updateCheckMessage.isNotBlank()) {
-                                    Text(updateCheckMessage, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
-                                }
-                            }
-                        }
-                    }
-                }
+                AmazeButton(
+                    text = "Check for Updates",
+                    onClick = {
+                        showUpdateCheck = true
+                        AppState.forceCheckForUpdate()
+                    },
+                    icon = Icons.Rounded.Download,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = updateStatus !is AppState.UpdateStatus.Checking
+                )
             }
 
             item {
@@ -128,5 +112,9 @@ fun AboutScreen() {
 
     if (showChangelog) {
         ChangelogModal(version = currentVersion, changes = changes, onDismiss = { showChangelog = false })
+    }
+
+    if (showUpdateCheck) {
+        UpdateCheckModal(onDismiss = { showUpdateCheck = false })
     }
 }

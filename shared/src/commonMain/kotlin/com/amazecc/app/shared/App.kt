@@ -59,6 +59,8 @@ import com.amazecc.app.shared.ui.screens.payments.PaymentsScreen
 fun App() {
     val currentTheme by AppState.theme.collectAsState()
     val currentAccent by AppState.accent.collectAsState()
+    val customAccent by AppState.customAccentColor.collectAsState()
+    val customPalette by AppState.customPalette.collectAsState()
     val currentScreen by AppState.currentScreen.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
     val syncError by AppState.error.collectAsState()
@@ -87,6 +89,8 @@ fun App() {
     AmazeTheme(
         appTheme = currentTheme,
         accentTheme = currentAccent,
+        customAccent = customAccent,
+        customPalette = customPalette,
         hapticEnabled = hapticEnabled,
         animationsEnabled = animationsEnabled
     ) {

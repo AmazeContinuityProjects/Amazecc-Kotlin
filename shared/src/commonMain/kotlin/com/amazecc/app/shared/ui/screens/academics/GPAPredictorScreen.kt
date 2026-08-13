@@ -17,8 +17,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -37,6 +39,7 @@ import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.model.displayCgpa
 import com.amazecc.app.shared.model.displayCreditsEarned
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.screens.settings.SettingsGroupLabel
 
 private val gradePointMap = mapOf(
     "S" to 10.0, "A" to 9.0, "B" to 8.0, "C" to 7.0,
@@ -59,16 +62,35 @@ fun GPAPredictorScreen() {
 
     LaunchedEffect(attendanceRes) {
         if (!coursesInitialized) {
-            val att = attendanceRes?.attendance ?: emptyList()
+            val att = attendanceRes?.attendance?.filter { it.courseCode.isNotBlank() } ?: emptyList()
             if (att.isNotEmpty()) {
                 courses = att
                     .distinctBy { "${it.courseCode}|${it.courseType}" }
-                    .map {
-                        ProjectedCourse(
-                            name = it.courseTitle.ifBlank { "Course" },
-                            credits = it.credits?.toDoubleOrNull() ?: 3.0,
-                            grade = "A"
-                        )
+                    .groupBy { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() }
+                    .flatMap { (_, items) ->
+                        val theory = items.firstOrNull { a ->
+                            !(a.courseType.lowercase().contains("lab") || a.slotName.uppercase().startsWith("L"))
+                        }
+                        val lab = items.firstOrNull { a ->
+                            a.courseType.lowercase().contains("lab") || a.slotName.uppercase().startsWith("L")
+                        }
+                        if (theory != null && lab != null) {
+                            listOf(
+                                ProjectedCourse(
+                                    name = cleanCourseTitle(theory.courseTitle).cleanTitle.ifBlank { theory.courseTitle.ifBlank { "Course" } },
+                                    credits = (theory.credits?.toDoubleOrNull() ?: 3.0) + (lab.credits?.toDoubleOrNull() ?: 0.0),
+                                    grade = "A"
+                                )
+                            )
+                        } else {
+                            items.map {
+                                ProjectedCourse(
+                                    name = it.courseTitle.ifBlank { "Course" },
+                                    credits = it.credits?.toDoubleOrNull() ?: 3.0,
+                                    grade = "A"
+                                )
+                            }
+                        }
                     }
                 coursesInitialized = true
             }
@@ -119,9 +141,9 @@ fun GPAPredictorScreen() {
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(AmazeTheme.radius.large))
                     .background(heroGradient)
-                    .padding(20.dp)
+                    .padding(16.dp)
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -318,7 +340,10 @@ private fun InteractiveGradeCanvas(
                 else -> colors.danger
             }
 
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            AmazeCard(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(0.dp)
+            ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Box(
@@ -397,7 +422,6 @@ private fun WhatIfMode(
     val pinned = remember { mutableStateMapOf<Int, String>() }
     val validPins = pinned.filterKeys { it in courses.indices }
 
-    val gradeList = listOf("S", "A", "B", "C", "D", "E", "F")
     val gradeColor = mapOf(
         "S" to colors.success, "A" to colors.accent, "B" to colors.warning,
         "C" to colors.chart1, "D" to colors.chart3, "E" to colors.chart4, "F" to colors.danger
@@ -432,175 +456,163 @@ private fun WhatIfMode(
     val alreadyOnTarget = target != null && currentCgpa >= target - 0.0001
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            text = "What Grade Do I Need?",
-            style = AmazeTheme.typography.subheading.copy(
-                fontWeight = FontWeight.Bold,
-                color = colors.textPrimary
-            )
-        )
-        Text(
-            text = "Enter your target CGPA. Set a grade for any course to lock it in — the others adjust automatically to find a combination that reaches your target.",
-            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                    .background(colors.accent.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.Grade, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(AmazeTheme.spacing.sm))
+            Column {
+                Text(
+                    text = "What Grade Do I Need?",
+                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                )
+                Text(
+                    text = "Enter a target CGPA — tap grades to lock them in, the rest auto-adjust.",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                )
+            }
+        }
 
-        OutlinedTextField(
-            value = targetCgpa,
-            onValueChange = { onTargetCgpaChange(it.filter { c -> c.isDigit() || c == '.' }) },
-            label = { Text("Target CGPA (e.g. 9.5)") },
+        SettingsGroupLabel("Target CGPA")
+        AmazeCard(
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            shape = RoundedCornerShape(AmazeTheme.radius.small),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = colors.surface,
-                unfocusedContainerColor = colors.surface,
-                focusedBorderColor = colors.accent,
-                unfocusedBorderColor = colors.border,
-                focusedTextColor = colors.textPrimary,
-                unfocusedTextColor = colors.textPrimary
-            )
-        )
+            contentPadding = PaddingValues(0.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                            .background(colors.accent.copy(alpha = 0.10f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.Adjust, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Target CGPA", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                        Text("e.g. 9.5", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                    }
+                    OutlinedTextField(
+                        value = targetCgpa,
+                        onValueChange = { onTargetCgpaChange(it.filter { c -> c.isDigit() || c == '.' }) },
+                        modifier = Modifier.width(110.dp),
+                        singleLine = true,
+                        textStyle = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        shape = RoundedCornerShape(AmazeTheme.radius.small),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = colors.surface,
+                            unfocusedContainerColor = colors.surface,
+                            focusedBorderColor = colors.accent,
+                            unfocusedBorderColor = colors.border,
+                            focusedTextColor = colors.textPrimary,
+                            unfocusedTextColor = colors.textPrimary
+                        )
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    listOf("8.0", "8.5", "9.0", "9.5").forEach { preset ->
+                        val isActive = targetCgpa == preset
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                .background(if (isActive) colors.accent else colors.surface)
+                                .border(1.dp, if (isActive) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.xs))
+                                .clickable { onTargetCgpaChange(preset) }
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                preset,
+                                style = AmazeTheme.typography.smallLabel.copy(
+                                    color = if (isActive) colors.background else colors.textPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = AmazeTheme.fontSize.xs
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
 
         if (courses.isEmpty()) {
-            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+            AmazeCard(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(0.dp)
+            ) {
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(Icons.Rounded.School, null, tint = colors.textMuted, modifier = Modifier.size(32.dp))
+                    Box(
+                        modifier = Modifier.size(48.dp).clip(CircleShape).background(colors.textMuted.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.School, null, tint = colors.textMuted, modifier = Modifier.size(24.dp))
+                    }
                     Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                     Text(
                         "No semester courses loaded. Sync attendance to populate this list.",
                         color = colors.textSecondary,
-                        style = AmazeTheme.typography.caption
+                        style = AmazeTheme.typography.caption,
+                        textAlign = TextAlign.Center
                     )
                 }
             }
             return
         }
 
-        AmazeCard(modifier = Modifier.fillMaxWidth()) {
-            Column {
-                courses.forEachIndexed { index, course ->
-                    val recommended = comboResult?.combo?.get(index)
-                    val pinnedGrade = validPins[index]
+        SettingsGroupLabel("Course Grades")
+        CoursePinsGroupCard(
+            courses = courses,
+            validPins = validPins,
+            comboResult = comboResult,
+            gradeColor = gradeColor,
+            onTogglePin = { idx, grade ->
+                if (idx < 0) pinned.clear()
+                else if (grade == null) pinned.remove(idx)
+                else pinned[idx] = grade
+            },
+            colors = colors
+        )
 
-                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                course.name,
-                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                                modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            if (pinnedGrade != null) {
-                                Icon(Icons.Rounded.Lock, null, tint = colors.accent, modifier = Modifier.size(12.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                    .background(colors.surface)
-                                    .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.xs))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    "${course.credits.toInt()} cr",
-                                    style = AmazeTheme.typography.smallLabel.copy(
-                                        color = colors.textSecondary,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = AmazeTheme.fontSize.micro
-                                    )
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                            val autoSelected = pinnedGrade == null
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                    .background(if (autoSelected) colors.accent.copy(alpha = 0.15f) else colors.surface)
-                                    .border(
-                                        1.dp,
-                                        if (autoSelected) colors.accent.copy(alpha = 0.6f) else colors.border.copy(alpha = 0.5f),
-                                        RoundedCornerShape(AmazeTheme.radius.xs)
-                                    )
-                                    .clickable { pinned.remove(index) }
-                                    .padding(vertical = 6.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    "AUTO",
-                                    style = AmazeTheme.typography.smallLabel.copy(
-                                        color = if (autoSelected) colors.accent else colors.textMuted,
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = AmazeTheme.fontSize.micro
-                                    )
-                                )
-                            }
-                            gradeList.forEach { g ->
-                                val isPinned = pinnedGrade == g
-                                val isRecommended = !isPinned && recommended == g
-                                val gColor = gradeColor[g] ?: colors.textMuted
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                        .background(
-                                            when {
-                                                isPinned -> gColor
-                                                isRecommended -> gColor.copy(alpha = 0.14f)
-                                                else -> colors.surface
-                                            }
-                                        )
-                                        .border(
-                                            1.dp,
-                                            when {
-                                                isPinned -> gColor
-                                                isRecommended -> gColor.copy(alpha = 0.7f)
-                                                else -> colors.border.copy(alpha = 0.5f)
-                                            },
-                                            RoundedCornerShape(AmazeTheme.radius.xs)
-                                        )
-                                        .clickable {
-                                            if (isPinned) pinned.remove(index) else pinned[index] = g
-                                        }
-                                        .padding(vertical = 6.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        g,
-                                        style = AmazeTheme.typography.smallLabel.copy(
-                                            color = if (isPinned) Color.White else gColor,
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = AmazeTheme.fontSize.micro
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    if (index < courses.lastIndex) {
-                        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
-                    }
-                }
-            }
-        }
-
+        SettingsGroupLabel("Recommendation")
         when {
             target == null -> {
-                AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        "Enter a target CGPA above to see the grade combination you need.",
-                        color = colors.textSecondary,
-                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium),
-                        modifier = Modifier.fillMaxWidth().padding(16.dp)
-                    )
+                AmazeCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier.size(32.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.Info, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                        }
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                        Text(
+                            "Enter a target CGPA above to see the grade combination you need.",
+                            color = colors.textSecondary,
+                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium)
+                        )
+                    }
                 }
             }
             alreadyOnTarget -> {
@@ -608,106 +620,32 @@ private fun WhatIfMode(
                     title = "You're already there",
                     message = "Your current grades project to ${fmt2(currentCgpa)} — that's at or above your target of ${fmt2(target)}.",
                     color = colors.success,
+                    icon = Icons.Rounded.CheckCircle,
                     colors = colors
                 )
             }
-            comboResult?.feasible == true -> {
-                val combo = comboResult.combo
-                AmazeCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    backgroundColor = colors.success.copy(alpha = 0.08f)
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                        Text(
-                            "Recommended Grade Combination",
-                            style = AmazeTheme.typography.smallLabel.copy(
-                                color = colors.success,
-                                fontWeight = FontWeight.Black,
-                                fontSize = AmazeTheme.fontSize.xs
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                        courses.forEachIndexed { index, course ->
-                            val grade = combo[index] ?: validPins[index] ?: return@forEachIndexed
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier.size(28.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                        .background((gradeColor[grade] ?: colors.textMuted).copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        grade,
-                                        style = AmazeTheme.typography.smallLabel.copy(
-                                            color = gradeColor[grade] ?: colors.textMuted,
-                                            fontWeight = FontWeight.Black,
-                                            fontSize = AmazeTheme.fontSize.micro
-                                        )
-                                    )
-                                }
-                                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                                Text(
-                                    course.name,
-                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary),
-                                    modifier = Modifier.weight(1f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    "(${course.credits.toInt()} cr)",
-                                    style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    "Projected CGPA",
-                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                                )
-                                Text(
-                                    fmt2(recommendedCgpa ?: 0.0),
-                                    style = AmazeTheme.typography.subheading.copy(
-                                        color = colors.success,
-                                        fontWeight = FontWeight.Black
-                                    )
-                                )
-                            }
-                            if (validPins.isEmpty()) {
-                                AmazeButton(
-                                    text = "\u2022 Tap grades to lock them in",
-                                    onClick = {},
-                                    variant = ButtonVariant.SECONDARY,
-                                    modifier = Modifier.height(36.dp)
-                                )
-                            }
-                        }
-                        if (combo.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                            AmazeButton(
-                                text = "Apply Recommended Grades",
-                                onClick = {
-                                    combo.forEach { (idx, grade) -> onCourseGradeChange(idx, grade) }
-                                    pinned.clear()
-                                },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
-                }
+            comboResult != null && comboResult.feasible -> {
+                RecommendationCard(
+                    combo = comboResult.combo,
+                    courses = courses,
+                    validPins = validPins,
+                    gradeColor = gradeColor,
+                    recommendedCgpa = recommendedCgpa ?: 0.0,
+                    target = target ?: 0.0,
+                    allSCgpa = allSCgpa,
+                    onApply = {
+                        comboResult.combo.forEach { (idx, grade) -> onCourseGradeChange(idx, grade) }
+                        pinned.clear()
+                    },
+                    colors = colors
+                )
             }
             else -> {
                 ResultCard(
                     title = "Not achievable",
                     message = "Even with an S in every remaining course you can only reach ${fmt2(allSCgpa)}. Lower your target or improve your earlier-semester CGPA.",
                     color = colors.danger,
+                    icon = Icons.Rounded.Cancel,
                     colors = colors
                 )
             }
@@ -720,18 +658,355 @@ private fun ResultCard(
     title: String,
     message: String,
     color: Color,
+    icon: ImageVector,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    AmazeCard(modifier = Modifier.fillMaxWidth(), backgroundColor = color.copy(alpha = 0.08f)) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            Text(
-                title,
-                style = AmazeTheme.typography.smallLabel.copy(color = color, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xs)
-            )
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = color.copy(alpha = 0.08f),
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(32.dp).clip(CircleShape).background(color.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, null, tint = color, modifier = Modifier.size(16.dp))
+                }
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                Text(
+                    title,
+                    style = AmazeTheme.typography.smallLabel.copy(color = color, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xs)
+                )
+            }
             Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
             Text(
                 message,
                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary)
+            )
+        }
+    }
+}
+
+@Composable
+private fun CoursePinsGroupCard(
+    courses: List<ProjectedCourse>,
+    validPins: Map<Int, String>,
+    comboResult: ComboResult?,
+    gradeColor: Map<String, Color>,
+    onTogglePin: (Int, String?) -> Unit,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Rounded.Tune, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Course Grades",
+                        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "${courses.size} course${if (courses.size != 1) "s" else ""} · tap a grade to lock it in, the rest auto-adjust",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (validPins.isNotEmpty()) {
+                    TextButton(onClick = { onTogglePin(-1, null) }) {
+                        Text("Clear", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
+                    }
+                }
+            }
+
+            courses.forEachIndexed { index, course ->
+                if (index > 0) {
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
+                }
+                CourseGradeRow(
+                    course = course,
+                    pinnedGrade = validPins[index],
+                    recommended = comboResult?.combo?.get(index),
+                    gradeColor = gradeColor,
+                    onTogglePin = { grade -> onTogglePin(index, grade) },
+                    colors = colors
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CourseGradeRow(
+    course: ProjectedCourse,
+    pinnedGrade: String?,
+    recommended: String?,
+    gradeColor: Map<String, Color>,
+    onTogglePin: (String?) -> Unit,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val gradeList = listOf("S", "A", "B", "C", "D", "E", "F")
+    val isPinned = pinnedGrade != null
+    val displayGrade = pinnedGrade ?: recommended
+    val displayColor = when {
+        pinnedGrade != null -> gradeColor[pinnedGrade] ?: colors.textMuted
+        recommended != null -> gradeColor[recommended] ?: colors.textMuted
+        else -> colors.textMuted
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                    .background(displayColor.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    displayGrade ?: "—",
+                    style = AmazeTheme.typography.body.copy(color = displayColor, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.sm)
+                )
+            }
+            Spacer(Modifier.width(AmazeTheme.spacing.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        course.name,
+                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (isPinned) {
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.Rounded.Lock, null, tint = colors.accent, modifier = Modifier.size(12.dp))
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${course.credits.toInt()} credits",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                )
+            }
+            if (isPinned) {
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                        .background(colors.accent.copy(alpha = 0.12f))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        "PINNED",
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            color = colors.accent,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = AmazeTheme.fontSize.micro
+                        )
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            val autoSelected = !isPinned
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                    .background(if (autoSelected) colors.accent else colors.surface)
+                    .border(1.dp, if (autoSelected) colors.accent else colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.xs))
+                    .clickable { onTogglePin(null) }
+                    .padding(vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "AUTO",
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        color = if (autoSelected) colors.background else colors.textMuted,
+                        fontWeight = FontWeight.Black,
+                        fontSize = AmazeTheme.fontSize.micro
+                    )
+                )
+            }
+            gradeList.forEach { g ->
+                val isPinnedGrade = pinnedGrade == g
+                val isRecommended = !isPinnedGrade && recommended == g
+                val gColor = gradeColor[g] ?: colors.textMuted
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                        .background(
+                            when {
+                                isPinnedGrade -> gColor
+                                isRecommended -> gColor.copy(alpha = 0.14f)
+                                else -> colors.surface
+                            }
+                        )
+                        .border(
+                            1.dp,
+                            when {
+                                isPinnedGrade -> gColor
+                                isRecommended -> gColor.copy(alpha = 0.7f)
+                                else -> colors.border.copy(alpha = 0.5f)
+                            },
+                            RoundedCornerShape(AmazeTheme.radius.xs)
+                        )
+                        .clickable {
+                            if (isPinnedGrade) onTogglePin(null) else onTogglePin(g)
+                        }
+                        .padding(vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        g,
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            color = if (isPinnedGrade) Color.White else gColor,
+                            fontWeight = FontWeight.Black,
+                            fontSize = AmazeTheme.fontSize.micro
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecommendationCard(
+    combo: Map<Int, String>,
+    courses: List<ProjectedCourse>,
+    validPins: Map<Int, String>,
+    gradeColor: Map<String, Color>,
+    recommendedCgpa: Double,
+    target: Double,
+    allSCgpa: Double,
+    onApply: () -> Unit,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth(),
+        backgroundColor = colors.success.copy(alpha = 0.08f),
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.success.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Rounded.CheckCircle, null, tint = colors.success, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                Column {
+                    Text(
+                        "Recommended Grade Combination",
+                        style = AmazeTheme.typography.smallLabel.copy(color = colors.success, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xs)
+                    )
+                    Text(
+                        "Minimum effort path to ${fmt2(target)}",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                    )
+                }
+            }
+
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                GpaMetricTile("Projected CGPA", fmt2(recommendedCgpa), colors.success, colors, Modifier.weight(1f))
+                GpaMetricTile("Target", fmt2(target), colors.accent, colors, Modifier.weight(1f))
+                GpaMetricTile("Max Possible", fmt2(allSCgpa), colors.textSecondary, colors, Modifier.weight(1f))
+            }
+
+            HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+
+            courses.forEachIndexed { index, course ->
+                val grade = combo[index] ?: validPins[index] ?: return@forEachIndexed
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier.size(28.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                            .background((gradeColor[grade] ?: colors.textMuted).copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            grade,
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = gradeColor[grade] ?: colors.textMuted,
+                                fontWeight = FontWeight.Black,
+                                fontSize = AmazeTheme.fontSize.micro
+                            )
+                        )
+                    }
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                    Text(
+                        course.name,
+                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary),
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "(${course.credits.toInt()} cr)",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(2.dp))
+            AmazeButton(
+                text = "Apply Recommended Grades",
+                onClick = onApply,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun GpaMetricTile(
+    label: String,
+    value: String,
+    valueColor: Color,
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+            .background(colors.surface)
+            .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
+            .padding(8.dp)
+    ) {
+        Column {
+            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+            Spacer(Modifier.height(2.dp))
+            Text(
+                value,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = valueColor, fontSize = AmazeTheme.fontSize.base),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

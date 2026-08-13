@@ -56,7 +56,8 @@ data class ConsolidatedEvent(
     val startDay: Int = 0,
     val endDay: Int = 0,
     val exam: ExamItem? = null,
-    val examType: String = ""
+    val examType: String = "",
+    val subtitle: String = ""
 )
 
 // Helper: parse "YYYY-MM-DD", "DD-MM-YYYY" or "DD-Mon-YYYY" -> Triple(day, month, year)
@@ -305,27 +306,63 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
         if (activeMonth == null) return@remember map
 
         val (monthNum, yearNum) = parseMonthString(activeMonth.month)
-
         activeMonth.days.forEach { day ->
             val list = map.getOrPut(day.date) { mutableListOf() }
             var hasAddedInstructional = false
-            day.events.forEach { ev ->
+
+            // Partition day events into holiday/no-instructional vs other events
+            val (holidayEvents, nonHolidayEvents) = day.events.partition { ev ->
+                val type = ev.type.lowercase()
+                val txt = ev.text.lowercase()
+                type.contains("holiday") || type.contains("no instructional") || txt.contains("holiday") || txt.contains("no instructional") || txt.contains("vacation") || txt.contains("pooja")
+            }
+
+            // Combine all holiday entries for this day into a single unified Holiday card
+            if (holidayEvents.isNotEmpty() && filterHolidays) {
+                val hasNoInstructional = holidayEvents.any {
+                    it.type.contains("No Instructional", true) || it.text.contains("No Instructional", true)
+                }
+                val mainTitle = if (hasNoInstructional) "No Instructional Day" else "Holiday"
+
+                val occasions = holidayEvents.mapNotNull { ev ->
+                    var txt = ev.text.trim()
+                    if (txt.contains("(") && txt.contains(")")) {
+                        txt = txt.substringAfter("(").substringBefore(")").trim()
+                    }
+                    txt = txt.replace("No Instructional Day", "", ignoreCase = true)
+                        .replace("No Instructional", "", ignoreCase = true)
+                        .replace("Holiday", "", ignoreCase = true)
+                        .trim()
+                    if (txt.isNotBlank()) txt else null
+                }.distinct()
+
+                val subtitleText = occasions.joinToString(" • ")
+
+                list.add(
+                    ConsolidatedEvent(
+                        title = mainTitle,
+                        type = "Holiday",
+                        timeOrLocation = subtitleText,
+                        color = colors.danger,
+                        startDay = day.date,
+                        endDay = day.date,
+                        subtitle = subtitleText
+                    )
+                )
+            }
+
+            // Process non-holiday events (OD, Instructional, Exam, etc.)
+            nonHolidayEvents.forEach { ev ->
                 val type = if (ev.type.isNotBlank()) ev.type else "Event"
                 
                 val dayOrderLabel = com.amazecc.app.shared.utils.AttendanceTimetable.getDayOrderLabelFromText(ev.text)
                     ?: com.amazecc.app.shared.utils.AttendanceTimetable.getDayOrderLabelFromText(ev.category)
                     ?: com.amazecc.app.shared.utils.AttendanceTimetable.getDayOrderLabelFromText(type)
 
-                val isHoliday = ev.text.contains("Holiday", true) 
-                    || ev.text.contains("Vacation", true) 
-                    || ev.text.contains("Pooja", true)
-                    || ev.type.contains("No Instructional", true)
-                    || ev.text.contains("No Instructional", true)
                 val isOD = ev.text.contains("OD", true) || ev.text.contains("On Duty", true) || ev.text.contains("OnDuty", true) || type.contains("OD", true)
                 val isClass = ev.text.contains("Instructional Day", true) || type.contains("Instructional", true) || ev.text.contains("Working Day", true) || dayOrderLabel != null
                 val isExam = ev.text.contains("CAT", true) || ev.text.contains("FAT", true) || ev.text.contains("Exam", true) || type.contains("Exam", true)
-                
-                if (isHoliday && !filterHolidays) return@forEach
+
                 if (isOD && !filterODs) return@forEach
                 if (isClass && !isExam && !filterClasses) return@forEach
                 if (isExam && !filterExams) return@forEach
@@ -336,22 +373,37 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                 if (isInstructionalWorkDay) hasAddedInstructional = true
 
                 if (shouldAdd) {
-                    val titleText = if (dayOrderLabel != null && isClass && !isExam && !isHoliday) {
-                        "Instructional Day ($dayOrderLabel)"
-                    } else ev.text
+                    val (cleanTitle, extractedSub) = if (dayOrderLabel != null && isClass && !isExam) {
+                        "Instructional Day ($dayOrderLabel)" to "Follows $dayOrderLabel"
+                    } else if (ev.text.contains("(") && ev.text.contains(")")) {
+                        val beforeP = ev.text.substringBefore("(").trim()
+                        val insideP = ev.text.substringAfter("(").substringBefore(")").trim()
+                        (if (beforeP.isNotBlank()) beforeP else ev.text) to insideP
+                    } else {
+                        ev.text to ""
+                    }
                     
                     val col = try {
                         ev.color?.let { Color(it.removePrefix("#").toLong(16) or 0xFF000000) }
                     } catch (_: Exception) { null } ?: (
                         when {
                             isExam -> colors.chart1
-                            isHoliday -> colors.danger
                             isClass && dayOrderLabel != null -> colors.success
                             else -> colors.accent
                         }
                     )
-                    val categoryText = if (dayOrderLabel != null) "Follows $dayOrderLabel" else (ev.category ?: "")
-                    list.add(ConsolidatedEvent(titleText, if (isExam) "Exam" else type, categoryText, col, startDay = day.date, endDay = day.date))
+                    val categoryText = if (dayOrderLabel != null) "Follows $dayOrderLabel" else (ev.category ?: extractedSub)
+                    list.add(
+                        ConsolidatedEvent(
+                            title = cleanTitle,
+                            type = if (isExam) "Exam" else type,
+                            timeOrLocation = categoryText,
+                            color = col,
+                            startDay = day.date,
+                            endDay = day.date,
+                            subtitle = extractedSub
+                        )
+                    )
                 }
             }
         }
@@ -470,108 +522,6 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
                     if (showHeader) {
                         item {
                             com.amazecc.app.shared.ui.components.HeaderSpacer()
-                        }
-                    }
-                    // ── Filters ──
-                    item {
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(horizontal = spacing.pageHorizontal)
-                        ) {
-                            val filters = listOf(
-                                "Classes" to filterClasses,
-                                "Exams" to filterExams,
-                                "Holidays" to filterHolidays,
-                                "ODs" to filterODs,
-                                "Tasks" to filterTasks
-                            )
-                            items(filters, key = { it.first }) { (label, isActive) ->
-                                val interactionSource = remember { MutableInteractionSource() }
-                                val isPressed by interactionSource.collectIsPressedAsState()
-                                val scale by animateFloatAsState(
-                                    targetValue = if (isPressed) 0.94f else 1f,
-                                    animationSpec = bouncySpring()
-                                )
-
-                                Box(
-                                    modifier = Modifier
-                                        .graphicsLayer { scaleX = scale; scaleY = scale }
-                                        .clip(CircleShape)
-                                        .background(if (isActive) colors.accent else colors.surface)
-                                        .border(1.dp, if (isActive) colors.accent else colors.border, CircleShape)
-                                        .clickable(
-                                            interactionSource = interactionSource,
-                                            indication = null,
-                                            onClick = {
-                                                when (label) {
-                                                    "Classes" -> filterClasses = !filterClasses
-                                                    "Exams" -> filterExams = !filterExams
-                                                    "Holidays" -> filterHolidays = !filterHolidays
-                                                    "ODs" -> filterODs = !filterODs
-                                                    "Tasks" -> filterTasks = !filterTasks
-                                                }
-                                            }
-                                        )
-                                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = label,
-                                        style = AmazeTheme.typography.smallLabel.copy(
-                                            color = if (isActive) colors.background else colors.textPrimary,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = AmazeTheme.fontSize.sm
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    // ── Calendar type selector ──
-                    item {
-                        if (calendars.isNotEmpty()) {
-                            LazyRow(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                contentPadding = PaddingValues(horizontal = spacing.pageHorizontal)
-                            ) {
-                                items(calendars.indices.toList(), key = { it }) { idx ->
-                                    val cal = calendars[idx]
-                                    val isSelected = selectedCalIdx == idx
-                                    val interactionSource = remember { MutableInteractionSource() }
-                                    val isPressed by interactionSource.collectIsPressedAsState()
-                                    val scale by animateFloatAsState(
-                                        targetValue = if (isPressed) 0.94f else 1f,
-                                        animationSpec = bouncySpring()
-                                    )
-
-                                    Box(
-                                        modifier = Modifier
-                                            .graphicsLayer { scaleX = scale; scaleY = scale }
-                                            .clip(CircleShape)
-                                            .background(if (isSelected) colors.accent else colors.surface)
-                                            .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
-                                            .clickable(
-                                                interactionSource = interactionSource,
-                                                indication = null,
-                                                onClick = {
-                                                    selectedCalIdx = idx
-                                                    SettingsManager.savePreferredCalendar(cal.name)
-                                                }
-                                            )
-                                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                                    ) {
-                                        Text(
-                                            text = cal.name,
-                                            style = AmazeTheme.typography.smallLabel.copy(
-                                                color = if (isSelected) colors.background else colors.textPrimary,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = AmazeTheme.fontSize.sm
-                                            )
-                                        )
-                                    }
-                                }
-                            }
                         }
                     }
                     // ── Month selector ──
@@ -784,6 +734,62 @@ val dayEvents = activeMonthEvents[dayNumber] ?: emptyList()
                         }
                     }
 
+                    // ── Event type filters ──
+                    item {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(horizontal = spacing.pageHorizontal)
+                        ) {
+                            val filters = listOf(
+                                "Classes" to filterClasses,
+                                "Exams" to filterExams,
+                                "Holidays" to filterHolidays,
+                                "ODs" to filterODs,
+                                "Tasks" to filterTasks
+                            )
+                            items(filters, key = { it.first }) { (label, isActive) ->
+                                val interactionSource = remember { MutableInteractionSource() }
+                                val isPressed by interactionSource.collectIsPressedAsState()
+                                val scale by animateFloatAsState(
+                                    targetValue = if (isPressed) 0.94f else 1f,
+                                    animationSpec = bouncySpring()
+                                )
+
+                                Box(
+                                    modifier = Modifier
+                                        .graphicsLayer { scaleX = scale; scaleY = scale }
+                                        .clip(CircleShape)
+                                        .background(if (isActive) colors.accent else colors.surface)
+                                        .border(1.dp, if (isActive) colors.accent else colors.border, CircleShape)
+                                        .clickable(
+                                            interactionSource = interactionSource,
+                                            indication = null,
+                                            onClick = {
+                                                when (label) {
+                                                    "Classes" -> filterClasses = !filterClasses
+                                                    "Exams" -> filterExams = !filterExams
+                                                    "Holidays" -> filterHolidays = !filterHolidays
+                                                    "ODs" -> filterODs = !filterODs
+                                                    "Tasks" -> filterTasks = !filterTasks
+                                                }
+                                            }
+                                        )
+                                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        style = AmazeTheme.typography.smallLabel.copy(
+                                            color = if (isActive) colors.background else colors.textPrimary,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = AmazeTheme.fontSize.sm
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     // ── Divider ──
                     item { HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), color = colors.border.copy(alpha = 0.5f)) }
 
@@ -839,7 +845,7 @@ val dayEvents = activeMonthEvents[dayNumber] ?: emptyList()
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 24.dp)
+                                    .padding(horizontal = 8.dp, vertical = 24.dp)
                                     .clip(RoundedCornerShape(AmazeTheme.radius.medium))
                                     .background(colors.surface)
                                     .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
@@ -874,7 +880,7 @@ val dayEvents = activeMonthEvents[dayNumber] ?: emptyList()
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                                        .padding(horizontal = 8.dp, vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Box(
@@ -953,7 +959,7 @@ private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.share
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 3.dp)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -986,6 +992,18 @@ private fun BouncyEventCard(ev: ConsolidatedEvent, colors: com.amazecc.app.share
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
+                        if (ev.subtitle.isNotBlank()) {
+                            Text(
+                                text = ev.subtitle,
+                                style = AmazeTheme.typography.caption.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (ev.title.contains("Holiday", true) || ev.type.contains("Holiday", true)) colors.danger else colors.accent,
+                                    fontSize = AmazeTheme.fontSize.xs
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     CalendarBadge(typeLabel, ev.color.copy(alpha = 0.14f), ev.color)

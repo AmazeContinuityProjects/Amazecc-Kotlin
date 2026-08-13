@@ -17,15 +17,9 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.utils.ChangelogEntry
+import com.amazecc.app.shared.utils.ContentData
 import com.amazecc.app.shared.utils.UpdateConfig
-
-val changelogEntries = listOf(
-    "Phase 3: 15 new features including QBank, Faculty Info, Course Management, Projects, Wishlist, Feedback, Documents, Activity Tree, Spotlight Search, and more",
-    "Phase 2: Hostel (Mess/Laundry/Counselling), Transport, CabShare, Events, Social modules",
-    "Phase 1: Attendance Predictor, Arrear Management, Circulars, Curriculum, OD Tracker",
-    "Phase 0: Foundation with Settings, Profile, Grades, GPA Predictor",
-    "Initial release with Attendance, Timetable, Academic Calendar, Libraries, Payments"
-)
 
 @Composable
 fun ChangelogScreen() {
@@ -35,12 +29,18 @@ fun ChangelogScreen() {
         currentVersion = UpdateConfig.getCurrentVersion()
     }
     val latestReleaseNotes by AppState.latestReleaseNotes.collectAsState()
+    var bundledChanges by remember { mutableStateOf(emptyList<ChangelogEntry>()) }
+    LaunchedEffect(Unit) {
+        bundledChanges = ContentData.changelog()
+    }
 
-    val changes = remember(latestReleaseNotes, currentVersion) {
+    val changes = remember(latestReleaseNotes, bundledChanges) {
         if (latestReleaseNotes.isNotBlank()) {
-            latestReleaseNotes.lines().filter { it.isNotBlank() }.map { "• $it" }
+            latestReleaseNotes.lines().filter { it.isNotBlank() }.map { "Release Notes" to it }
         } else {
-            changelogEntries
+            bundledChanges.mapIndexed { index, entry ->
+                (entry.title ?: "Update ${bundledChanges.size - index}") to entry.description
+            }
         }
     }
 
@@ -56,6 +56,7 @@ fun ChangelogScreen() {
         ) {
             item { HeaderSpacer() }
             items(changes.size, key = { it }) { index ->
+                val change = changes[index]
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Row(verticalAlignment = Alignment.Top) {
                         Box(
@@ -70,12 +71,12 @@ fun ChangelogScreen() {
                         Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                         Column {
                             Text(
-                                text = if (latestReleaseNotes.isNotBlank()) "Release Notes" else "Update ${changes.size - index}",
+                                text = change.first,
                                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                             )
                             Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                             Text(
-                                text = changes[index],
+                                text = change.second,
                                 style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, lineHeight = 18.sp)
                             )
                         }

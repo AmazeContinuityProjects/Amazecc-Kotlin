@@ -30,12 +30,15 @@ import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.ui.components.*
 
 @Composable
-fun AppearancePage() {
+fun AppearancePage(onOpenSubScreen: (SettingsSubScreen) -> Unit = {}) {
     val colors = AmazeTheme.colors
     val activeTheme by AppState.theme.collectAsState()
     val activeAccent by AppState.accent.collectAsState()
+    val customAccent by AppState.customAccentColor.collectAsState()
+    val customPalette by AppState.customPalette.collectAsState()
     val hapticEnabled by AppState.hapticEnabled.collectAsState()
     val animationsEnabled by AppState.animationsEnabled.collectAsState()
+    var showCustomAccent by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SettingsGroupLabel("Color Theme")
@@ -79,6 +82,54 @@ fun AppearancePage() {
                 AccentSwatch("Forest", AccentTheme.FOREST, activeAccent, colors, Modifier.weight(1f))
                 AccentSwatch("Lavender", AccentTheme.LAVENDER, activeAccent, colors, Modifier.weight(1f))
                 AccentSwatch("Sunset", AccentTheme.SUNSET, activeAccent, colors, Modifier.weight(1f))
+                AccentSwatch("Custom", AccentTheme.CUSTOM, activeAccent, colors, Modifier.weight(1f),
+                    customColor = customAccent,
+                    onClick = { showCustomAccent = true })
+            }
+        }
+
+        if (showCustomAccent) {
+            ColorPickerSheet(
+                title = "Custom Accent",
+                initial = customAccent,
+                colors = colors,
+                onSelected = { AppState.setCustomAccent(it); showCustomAccent = false },
+                onDismiss = { showCustomAccent = false }
+            )
+        }
+
+        SettingsGroupLabel("Custom Palette")
+        SettingsGroupCard {
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+                SettingsSwitchRow(
+                    icon = Icons.Rounded.Adjust,
+                    title = "Enable Custom Palette",
+                    subtitle = "Override every color role for light & dark",
+                    tint = colors.accent,
+                    checked = customPalette.enabled,
+                    onCheckedChange = { AppState.setPaletteEnabled(it) }
+                )
+                SettingsRowDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenSubScreen(SettingsSubScreen.PALETTE) }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Edit Palette",
+                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                        modifier = Modifier.weight(1f)
+                    )
+                    val overrideCount = customPalette.light.values.size + customPalette.dark.values.size
+                    Text(
+                        if (overrideCount == 0) "Not started" else "$overrideCount override${if (overrideCount == 1) "" else "s"}",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
+                }
             }
         }
 
@@ -437,13 +488,14 @@ fun BottomNavPage() {
 }
 
 @Composable
-private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
+private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier, customColor: Color = Color(0xFF0EA5E9), onClick: (() -> Unit)? = null) {
     val selected = accent == current
     val swatchColor = when (accent) {
         AccentTheme.OCEAN -> colors.accent
         AccentTheme.FOREST -> colors.success
         AccentTheme.LAVENDER -> colors.info
         AccentTheme.SUNSET -> colors.warning
+        AccentTheme.CUSTOM -> customColor
     }
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -469,7 +521,7 @@ private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
-                onClick = { AppState.changeAccent(accent) }
+                onClick = { if (onClick != null) onClick() else AppState.changeAccent(accent) }
             )
             .padding(vertical = 10.dp, horizontal = 4.dp),
         contentAlignment = Alignment.Center

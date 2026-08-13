@@ -103,7 +103,7 @@ fun ExamEventCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 3.dp)
+            .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         AmazeCard(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),

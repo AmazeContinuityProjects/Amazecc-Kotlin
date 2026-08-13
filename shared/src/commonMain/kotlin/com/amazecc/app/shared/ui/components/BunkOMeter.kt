@@ -26,11 +26,12 @@ import kotlin.math.floor
 fun BunkOMeterCard(
     attendance: AttendanceRes?,
     modifier: Modifier = Modifier,
-    isInnerCard: Boolean = false
+    isInnerCard: Boolean = false,
+    targetPct: Float = 75f
 ) {
     val colors = AmazeTheme.colors
 
-    val stats = remember(attendance) {
+    val stats = remember(attendance, targetPct) {
         val courseList = attendance?.attendance ?: emptyList()
         if (courseList.isEmpty()) {
             return@remember BunkStats(0, 0, 0, false)
@@ -47,14 +48,14 @@ fun BunkOMeterCard(
             val attended = course.attendedClasses
             val pct = course.attendancePercentage.toDoubleOrNull() ?: 0.0
 
-            if (pct < 75.0) {
+            if (pct < targetPct) {
                 criticalCount++
-            } else if (pct < 80.0) {
+            } else if (pct < targetPct + 5f) {
                 warningCount++
             }
 
-            if (pct >= 75.0) {
-                val maxBunks = floor((attended.toDouble() / 0.75) - total.toDouble()).toInt()
+            if (pct >= targetPct) {
+                val maxBunks = floor((attended.toDouble() / (targetPct / 100.0)) - total.toDouble()).toInt()
                 if (maxBunks > 0) {
                     totalBunkable += maxBunks
                 }
@@ -84,14 +85,14 @@ fun BunkOMeterCard(
             Icons.Rounded.Warning,
             colors.danger,
             "⚠️ ${stats.criticalCount} Critical Course${if (stats.criticalCount > 1) "s" else ""}",
-            "Attendance is below 75%! Do NOT skip any more classes."
+            "Attendance is below ${targetPct.toInt()}%! Do NOT skip any more classes."
         )
         stats.warningCount > 0 -> Tuple6(
             colors.warning.copy(alpha = 0.12f),
             colors.warning,
             Icons.Rounded.Warning,
             colors.warning,
-            "Careful! ${stats.warningCount} course${if (stats.warningCount > 1) "s" else ""} near 75%",
+            "Careful! ${stats.warningCount} course${if (stats.warningCount > 1) "s" else ""} near ${targetPct.toInt()}%",
             "You can bunk ~${stats.totalBunkable} total class${if (stats.totalBunkable != 1) "es" else ""} safely overall."
         )
         else -> Tuple6(
@@ -100,7 +101,7 @@ fun BunkOMeterCard(
             Icons.Rounded.CheckCircle,
             colors.success,
             "Safe to Bunk ~${stats.totalBunkable} Class${if (stats.totalBunkable != 1) "es" else ""}",
-            "All courses are safely above 75%. Keep up the margin!"
+            "All courses are safely above ${targetPct.toInt()}%. Keep up the margin!"
         )
     }
 

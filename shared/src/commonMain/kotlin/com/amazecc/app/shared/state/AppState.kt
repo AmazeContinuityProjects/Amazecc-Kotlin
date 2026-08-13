@@ -6,8 +6,15 @@ import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.theme.AccentOcean
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AppTheme
+import com.amazecc.app.shared.theme.CustomPalette
+import com.amazecc.app.shared.theme.PaletteMode
+import com.amazecc.app.shared.theme.PaletteRole
+import com.amazecc.app.shared.theme.parseHexColor
+import com.amazecc.app.shared.theme.toHexString
+import androidx.compose.ui.graphics.Color
 import com.amazecc.app.shared.utils.SlotInfo
 import com.amazecc.app.shared.utils.UpdateConfig
 import com.amazecc.app.shared.utils.DemoData
@@ -106,6 +113,12 @@ object AppState {
     private val _accent = MutableStateFlow(AccentTheme.OCEAN)
     val accent: StateFlow<AccentTheme> = _accent.asStateFlow()
 
+    private val _customAccentColor = MutableStateFlow(AccentOcean)
+    val customAccentColor: StateFlow<Color> = _customAccentColor.asStateFlow()
+
+    private val _customPalette = MutableStateFlow(CustomPalette())
+    val customPalette: StateFlow<CustomPalette> = _customPalette.asStateFlow()
+
     private val _uiScale = MutableStateFlow(1.0f)
     val uiScale: StateFlow<Float> = _uiScale.asStateFlow()
 
@@ -120,6 +133,14 @@ object AppState {
 
     private val _isBusSubscriber = MutableStateFlow(false)
     val isBusSubscriber: StateFlow<Boolean> = _isBusSubscriber.asStateFlow()
+
+    private val _customAttendanceTarget = MutableStateFlow(
+        SettingsManager.getFloatString(SettingsManager.KEY_CUSTOM_ATTENDANCE_TARGET)
+    )
+    val customAttendanceTarget: StateFlow<Float?> = _customAttendanceTarget.asStateFlow()
+
+    fun effectiveAttendanceTarget(isBusSubscriber: Boolean): Float =
+        _customAttendanceTarget.value ?: if (isBusSubscriber) 85f else 75f
 
     private val _hapticEnabled = MutableStateFlow(true)
     val hapticEnabled: StateFlow<Boolean> = _hapticEnabled.asStateFlow()
@@ -160,7 +181,7 @@ object AppState {
     fun checkForUpdate(force: Boolean = false) {
         if (!force && _updateStatus.value is UpdateStatus.Checking) return
         val lastCheck = SettingsManager.getLong(SettingsManager.KEY_LAST_UPDATE_CHECK, 0L)
-        val now = System.currentTimeMillis()
+        val now = Clock.System.now().toEpochMilliseconds()
         if (!force && now - lastCheck < 24 * 60 * 60 * 1000L) {
             return // throttle: once per 24h
         }
@@ -172,7 +193,7 @@ object AppState {
                 val latestVer = release.tagName.removePrefix("v").removePrefix("V").trim()
                 val dismissed = _updateDialogDismissedVersion.value
                 if (latestVer == dismissed) {
-                    _updateStatus.value = UpdateStatus.Idle
+                    _updateStatus.value = UpdateStatus.UpToDate
                 } else if (currentVersion.isNotBlank() && compareVersions(latestVer, currentVersion) > 0) {
                     // Capture release notes for About/Changelog screens
                     _latestReleaseNotes.value = release.body ?: ""
@@ -181,7 +202,7 @@ object AppState {
                 } else {
                     _updateStatus.value = UpdateStatus.UpToDate
                 }
-                SettingsManager.setLong(SettingsManager.KEY_LAST_UPDATE_CHECK, System.currentTimeMillis())
+                SettingsManager.setLong(SettingsManager.KEY_LAST_UPDATE_CHECK, Clock.System.now().toEpochMilliseconds())
             } catch (e: Exception) {
                 _updateStatus.value = UpdateStatus.Error(e.message ?: "Failed to check for update")
             }
@@ -370,6 +391,14 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         val savedAccent = SettingsManager.getString(SettingsManager.KEY_APP_ACCENT, "")
         if (savedAccent.isNotEmpty()) {
             try { _accent.value = AccentTheme.valueOf(savedAccent) } catch (_: Exception) {}
+        }
+        val savedCustomAccent = SettingsManager.getString(SettingsManager.KEY_CUSTOM_ACCENT, "")
+        if (savedCustomAccent.isNotEmpty()) {
+            parseHexColor(savedCustomAccent)?.let { _customAccentColor.value = it }
+        }
+        val savedPalette = SettingsManager.getString(SettingsManager.KEY_CUSTOM_PALETTE, "")
+        if (savedPalette.isNotEmpty()) {
+            try { _customPalette.value = jsonFormat.decodeFromString<CustomPalette>(savedPalette) } catch (_: Exception) {}
         }
         val savedScale = SettingsManager.getString(SettingsManager.KEY_UI_SCALE, "")
         if (savedScale.isNotEmpty()) {
@@ -2339,52 +2368,32 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         _error.value = null
         _syncStatus.value = null
 
-        // Clear persisted caches
-        settings.remove(SettingsManager.CACHE_ATTENDANCE)
-        settings.remove(SettingsManager.CACHE_TIMETABLE)
-        settings.remove(SettingsManager.CACHE_MARKS)
-        settings.remove(SettingsManager.CACHE_GRADES)
-        settings.remove(SettingsManager.CACHE_HOSTEL_DETAILS)
-        settings.remove(SettingsManager.CACHE_HOSTEL_LEAVES)
-        settings.remove(SettingsManager.CACHE_EXAM_SCHEDULE)
-        settings.remove(SettingsManager.CACHE_CALENDAR)
-        settings.remove(SettingsManager.CACHE_CURRICULUM)
-        settings.remove(SettingsManager.CACHE_PAYMENTS)
-        settings.remove(SettingsManager.CACHE_LIBRARY)
-        settings.remove(SettingsManager.CACHE_LMS)
-        settings.remove(SettingsManager.CACHE_EVENTS)
-        settings.remove(SettingsManager.CACHE_CLUBS)
-        settings.remove(SettingsManager.CACHE_CAB_USER)
-        settings.remove(SettingsManager.CACHE_STUDENT_PROFILE)
-        settings.remove(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE)
-        settings.remove(SettingsManager.CACHE_ALL_SEMESTER_MARKS)
-        settings.remove(SettingsManager.CACHE_ALL_SEMESTER_EXAMS)
-        SettingsManager.clearLibraryCredentials()
-        settings.remove(SettingsManager.SESSION_COOKIES)
-        settings.remove(SettingsManager.SESSION_CSRF)
-        settings.remove(SettingsManager.SESSION_AUTHORIZED_ID)
-        settings.remove(SettingsManager.SESSION_CLUB_TOKEN)
-        settings.remove("moodle_data_cache")
-        settings.remove(SettingsManager.CACHE_VTOP_PHOTO)
-        settings.remove(SettingsManager.CACHE_BUSES)
-        settings.remove(SettingsManager.CACHE_TRANSPORT_DATA)
-        settings.remove(SettingsManager.CACHE_CALENDARS_LIST)
-        settings.remove(SettingsManager.CACHE_QCM_VIEW)
-        settings.remove(SettingsManager.CACHE_TASKS)
-        settings.remove(SettingsManager.CACHE_ATTENDANCE_NOTES)
-        settings.remove(SettingsManager.CACHE_OD_TRACKER_STATE)
-        settings.remove(SettingsManager.RESIDENTIAL_STATUS)
-        settings.remove(SettingsManager.CACHE_PROFILE_IMAGES)
-        settings.remove(SettingsManager.CACHE_CREDENTIALS_SECURE)
-        settings.remove(SettingsManager.KEY_EXAM_SEAT_ALERTED)
+        // Clear persisted caches — wipe ALL data, caches, credentials, and preferences.
+        // Both Settings instances share the same backing store, so clear both.
+        SettingsManager.clearAll()
+        settings.clear()
+
+        // Reset preference flows to defaults so a fresh login starts clean
+        _theme.value = AppTheme.SYSTEM
+        _accent.value = AccentTheme.OCEAN
+        _customAccentColor.value = AccentOcean
+        _customPalette.value = CustomPalette()
+        _uiScale.value = 1.0f
+        _cgpaHidden.value = false
+        _attendanceDisplayMode.value = AttendanceDisplayMode.PERCENTAGE
+        _showAttendanceInStats.value = false
+        _isBusSubscriber.value = false
+        _customAttendanceTarget.value = null
+        _hapticEnabled.value = true
+        _animationsEnabled.value = true
+        _residentialStatus.value = "Hosteller"
+        _statsCardsOrder.value = listOf("attendance", "cgpa", "credits", "od")
+        _enabledStatsCards.value = setOf("attendance", "cgpa", "credits", "od")
+        _gpaGoal.value = "9.0"
+        _pinnedNavTabs.value = listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE)
+        _updateDialogDismissedVersion.value = ""
+        _latestReleaseNotes.value = ""
         _pendingExamSeatAlerts.value = emptyList()
-        settings.remove(SettingsManager.CACHE_BANK_INFO)
-        settings.remove(SettingsManager.CACHE_DAYBOARDER)
-        settings.remove(SettingsManager.CACHE_EPT_SCHEDULE)
-        settings.remove(SettingsManager.CACHE_REGISTRATION_SCHEDULE)
-        settings.remove(SettingsManager.CACHE_FFCS_REG_INFO)
-        settings.remove(SettingsManager.CACHE_UNIVERSITY_DAY)
-        settings.remove(SettingsManager.CACHE_APAAR_ID)
         scope.launch { com.amazecc.app.shared.utils.clearPendingNotifications() }
     }
 
@@ -2987,6 +2996,39 @@ fun updateMoodleData(data: MoodleRes?) {
         SettingsManager.setString(SettingsManager.KEY_APP_ACCENT, accent.name)
     }
 
+    fun setCustomAccent(color: Color) {
+        _customAccentColor.value = color
+        _accent.value = AccentTheme.CUSTOM
+        SettingsManager.setString(SettingsManager.KEY_APP_ACCENT, AccentTheme.CUSTOM.name)
+        SettingsManager.setString(SettingsManager.KEY_CUSTOM_ACCENT, color.toHexString())
+    }
+
+    fun setPaletteEnabled(enabled: Boolean) {
+        _customPalette.value = _customPalette.value.withEnabled(enabled)
+        persistCustomPalette()
+    }
+
+    fun setPaletteRole(mode: PaletteMode, role: PaletteRole, color: Color) {
+        _customPalette.value = _customPalette.value.withRole(mode, role, color.toHexString())
+        persistCustomPalette()
+    }
+
+    fun clearPaletteRole(mode: PaletteMode, role: PaletteRole) {
+        _customPalette.value = _customPalette.value.clearRole(mode, role)
+        persistCustomPalette()
+    }
+
+    fun resetCustomPalette() {
+        _customPalette.value = _customPalette.value.resetAll()
+        persistCustomPalette()
+    }
+
+    private fun persistCustomPalette() {
+        try {
+            SettingsManager.setString(SettingsManager.KEY_CUSTOM_PALETTE, jsonFormat.encodeToString(_customPalette.value))
+        } catch (_: Exception) {}
+    }
+
     fun changeUiScale(scale: Float) {
         _uiScale.value = scale
         SettingsManager.setString(SettingsManager.KEY_UI_SCALE, scale.toString())
@@ -3044,6 +3086,15 @@ fun updateMoodleData(data: MoodleRes?) {
     fun setBusSubscriber(enabled: Boolean) {
         _isBusSubscriber.value = enabled
         SettingsManager.setBoolean(SettingsManager.KEY_BUS_SUBSCRIBER, enabled)
+    }
+
+    fun setCustomAttendanceTarget(value: Float?) {
+        _customAttendanceTarget.value = value
+        if (value != null) {
+            SettingsManager.setFloatString(SettingsManager.KEY_CUSTOM_ATTENDANCE_TARGET, value)
+        } else {
+            SettingsManager.remove(SettingsManager.KEY_CUSTOM_ATTENDANCE_TARGET)
+        }
     }
 
     fun setHapticEnabled(enabled: Boolean) {

@@ -40,7 +40,6 @@ fun ProfileHub(
     val profile by AppState.studentProfile.collectAsState()
     val profileImages by AppState.profileImages.collectAsState()
     val credentials by AppState.credentials.collectAsState()
-    val bankInfo by AppState.bankInfo.collectAsState()
     val dayboarder by AppState.dayboarder.collectAsState()
     val eptSchedule by AppState.eptSchedule.collectAsState()
     val registrationSchedule by AppState.registrationSchedule.collectAsState()
@@ -49,7 +48,6 @@ fun ProfileHub(
 
     val hasEpt = eptSchedule?.tables?.isNotEmpty() == true
     val hasReg = registrationSchedule?.tables?.isNotEmpty() == true
-    val hasBank = bankInfo?.bankDetails != null || bankInfo?.fields?.isNotEmpty() == true
     val hasDay = dayboarder?.fields?.isNotEmpty() == true
     val hasApaar = apaarId?.hasApaar == true
     val viteeeRank = credentials?.ranks?.firstOrNull()?.rank
@@ -62,7 +60,6 @@ fun ProfileHub(
         ProfileSubScreen.EPT_SCHEDULE -> if (hasEpt) "Scheduled" else "Not scheduled"
         ProfileSubScreen.REGISTRATION -> if (hasReg) "Available" else "No schedule"
         ProfileSubScreen.UNIVERSITY_DAY -> if (universityDay?.tables?.isNotEmpty() == true) "Available" else "No details"
-        ProfileSubScreen.BANK_DETAILS -> if (hasBank) "Saved" else "Not available"
         ProfileSubScreen.DAYBOARDER -> if (hasDay) "Active" else "Not active"
         ProfileSubScreen.APAAR_ID -> if (hasApaar) "Generated" else "Pending"
         ProfileSubScreen.CREDENTIALS -> if (viteeeRank.isNullOrBlank()) (if (hasCredentials) "Linked" else null) else viteeeRank

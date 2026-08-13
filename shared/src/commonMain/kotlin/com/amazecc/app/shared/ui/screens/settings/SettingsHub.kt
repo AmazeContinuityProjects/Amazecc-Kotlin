@@ -32,6 +32,7 @@ fun SettingsHub(
 
     fun valueFor(sub: SettingsSubScreen): String? = when (sub) {
         SettingsSubScreen.APPEARANCE -> "${themeLabel(activeTheme)} · ${accentLabel(activeAccent)}"
+        SettingsSubScreen.PALETTE -> null
         SettingsSubScreen.DISPLAY -> "${(uiScale * 100).toInt()}%"
         SettingsSubScreen.DASHBOARD -> "${widgetOrder.size} widget${if (widgetOrder.size != 1) "s" else ""}"
         SettingsSubScreen.BOTTOM_NAV -> "${pinnedTabs.size}/4 tabs"
@@ -89,4 +90,5 @@ private fun accentLabel(accent: AccentTheme): String = when (accent) {
     AccentTheme.FOREST -> "Forest"
     AccentTheme.LAVENDER -> "Lavender"
     AccentTheme.SUNSET -> "Sunset"
+    AccentTheme.CUSTOM -> "Custom"
 }

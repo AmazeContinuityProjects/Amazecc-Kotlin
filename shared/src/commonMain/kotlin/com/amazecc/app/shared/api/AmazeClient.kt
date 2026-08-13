@@ -16,6 +16,8 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.client.call.*
 import io.ktor.serialization.kotlinx.json.*
+import io.ktor.utils.io.readRemaining
+import io.ktor.utils.io.core.readFully
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -1018,12 +1020,22 @@ if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?:
     }
 
     suspend fun getFeedbackStatus(semesterId: String? = null): FeedbackStatusRes {
-if (useMockData) return DemoData.get("feedback", FeedbackStatusRes.serializer()) ?: FeedbackStatusRes()
+        if (useMockData) return DemoData.get("feedback", FeedbackStatusRes.serializer()) ?: FeedbackStatusRes()
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
             postAuthorized<FeedbackStatusRes>("feedback-status", params) ?: FeedbackStatusRes(success = false, error = "Empty response")
         } catch (e: Exception) {
             FeedbackStatusRes(success = false, error = e.message)
+        }
+    }
+
+    suspend fun getGrades(semesterId: String? = null): SemesterGradesRes {
+        if (useMockData) return DemoData.get("grades", SemesterGradesRes.serializer()) ?: SemesterGradesRes()
+        return try {
+            val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
+            postAuthorized<SemesterGradesRes>("grades", params) ?: SemesterGradesRes(success = false, error = "Empty response")
+        } catch (e: Exception) {
+            SemesterGradesRes(success = false, error = e.message)
         }
     }
 
@@ -1055,10 +1067,30 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
         }
     }
 
-    suspend fun getSyllabusPdf(courseCode: String): SyllabusDownload? {
-        val cookies = SessionManager.cookies.value ?: return null
-        val authorizedID = SessionManager.authorizedID.value ?: return null
-        val csrf = SessionManager.csrf.value ?: return null
+    /**
+     * Fetches the syllabus PDF for a course.
+     *
+     * VTOP sessions rot quickly, so if the session is older than [SESSION_MAX_AGE_MS]
+     * the client silently re-logs-in with the stored credentials before downloading.
+     * [onProgress] reports download progress in 0f..1f.
+     */
+    suspend fun getSyllabusPdf(
+        courseCode: String,
+        onProgress: (Float) -> Unit = {}
+    ): SyllabusResult {
+        var cookies = SessionManager.cookies.value
+        var authorizedID = SessionManager.authorizedID.value
+        var csrf = SessionManager.csrf.value
+        if (cookies == null || authorizedID == null || csrf == null || SessionManager.isSessionStale(SESSION_MAX_AGE_MS)) {
+            if (refreshSession()) {
+                cookies = SessionManager.cookies.value
+                authorizedID = SessionManager.authorizedID.value
+                csrf = SessionManager.csrf.value
+            }
+        }
+        if (cookies == null || authorizedID == null || csrf == null) {
+            return SyllabusResult(error = "Not signed in - refresh in Settings to reconnect")
+        }
         return try {
             val response: HttpResponse = httpClient.post("$baseUrl/api/curriculum/syllabus") {
                 contentType(ContentType.Application.Json)
@@ -1066,31 +1098,100 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
                     put("cookies", cookies)
                     put("authorizedID", authorizedID)
                     put("csrf", csrf)
-                    put("courseCode", courseCode)
+                    put("courseCode", normalizeCourseCode(courseCode))
                 })
             }
             if (response.status == HttpStatusCode.OK) {
-                val extension = parseFileExtension(
-                    response.headers["Content-Disposition"],
-                    response.headers["Content-Type"]
+                val contentType = response.headers["Content-Type"].orEmpty().lowercase()
+                if (contentType.contains("json")) {
+                    val body = response.bodyAsText().trim().take(200)
+                    SyllabusResult(error = "Server error: ${body.ifBlank { "empty response" }}")
+                } else {
+                    val extension = parseFileExtension(
+                        response.headers["Content-Disposition"],
+                        contentType
+                    )
+                    val bytes = response.readBytesWithProgress(onProgress)
+                    SyllabusResult(download = SyllabusDownload(bytes, extension))
+                }
+            } else {
+                val code = response.status.value
+                SyllabusResult(
+                    error = if (code == 404) {
+                        "Syllabus not available for this course"
+                    } else {
+                        "Server error (HTTP $code) - try again later"
+                    }
                 )
-                SyllabusDownload(response.readBytes(), extension)
-            } else null
-        } catch (_: Exception) {
-            null
+            }
+        } catch (e: Exception) {
+            SyllabusResult(error = "Network error: ${e.message}")
         }
+    }
+
+    /** Re-logs-in to VTOP with the stored credentials and refreshes the session. */
+    private suspend fun refreshSession(): Boolean {
+        val credentials = SettingsManager.getCredentials() ?: return false
+        val response = login(credentials.first, credentials.second)
+        if (response.success && response.cookies != null && response.csrf != null && response.authorizedID != null) {
+            SessionManager.saveSession(response.cookies, response.csrf, response.authorizedID, response.clubToken)
+            return true
+        }
+        return false
+    }
+
+    private suspend fun HttpResponse.readBytesWithProgress(onProgress: (Float) -> Unit): ByteArray {
+        val channel = bodyAsChannel()
+        val total = contentLength()
+        var received = 0L
+        val chunks = mutableListOf<ByteArray>()
+        while (true) {
+            val packet = channel.readRemaining(16 * 1024L)
+            if (packet.remaining == 0L) break
+            val size = packet.remaining.toInt()
+            val chunk = ByteArray(size)
+            packet.readFully(chunk)
+            chunks.add(chunk)
+            received += size
+            if (total != null && total > 0L) {
+                onProgress((received.toFloat() / total).coerceIn(0f, 1f))
+            }
+        }
+        onProgress(1f)
+        val out = ByteArray(received.toInt())
+        var offset = 0
+        for (chunk in chunks) {
+            chunk.copyInto(out, offset)
+            offset += chunk.size
+        }
+        return out
     }
 
     suspend fun checkForUpdate(): GitHubRelease {
         val url = "https://api.github.com/repos/${UpdateConfig.GITHUB_OWNER}/${UpdateConfig.GITHUB_REPO}/releases/latest"
         return httpClient.get(url).body()
     }
+
+    const val SESSION_MAX_AGE_MS = 5 * 60_000L
 }
 
 data class SyllabusDownload(
     val bytes: ByteArray,
     val extension: String
 )
+
+data class SyllabusResult(
+    val download: SyllabusDownload? = null,
+    val error: String? = null
+)
+
+private fun normalizeCourseCode(code: String): String {
+    var normalized = code.replace(Regex("\\([LPT]\\)$"), "").trim()
+    if (normalized.length > 4 && normalized.lastOrNull() in listOf('L', 'T', 'P')) {
+        normalized = normalized.dropLast(1)
+    }
+    return normalized
+}
 
 private fun parseFileExtension(contentDisposition: String?, contentType: String?): String {
     val fromDisposition = contentDisposition

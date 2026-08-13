@@ -13,7 +13,7 @@ enum class AppTheme {
 }
 
 enum class AccentTheme {
-    OCEAN, FOREST, LAVENDER, SUNSET
+    OCEAN, FOREST, LAVENDER, SUNSET, CUSTOM
 }
 
 @Stable
@@ -250,6 +250,8 @@ val LocalAmazeTypography = staticCompositionLocalOf {
 fun AmazeTheme(
     appTheme: AppTheme = AppTheme.SYSTEM,
     accentTheme: AccentTheme = AccentTheme.OCEAN,
+    customAccent: Color = AccentOcean,
+    customPalette: CustomPalette? = null,
     hapticEnabled: Boolean = true,
     animationsEnabled: Boolean = true,
     content: @Composable () -> Unit
@@ -259,6 +261,7 @@ fun AmazeTheme(
         AccentTheme.FOREST -> AccentForest
         AccentTheme.LAVENDER -> AccentLavender
         AccentTheme.SUNSET -> AccentSunset
+        AccentTheme.CUSTOM -> customAccent
     }
 
     val resolvedTheme = when (appTheme) {
@@ -266,7 +269,7 @@ fun AmazeTheme(
         else -> appTheme
     }
 
-    val colors = when (resolvedTheme) {
+    val baseColors = when (resolvedTheme) {
         AppTheme.LIGHT -> AmazeColors(
             background = NeutralBgLight,
             surface = NeutralSurfaceLight,
@@ -368,6 +371,13 @@ fun AmazeTheme(
         )
         AppTheme.SYSTEM -> error("System theme must be resolved before selecting colors")
     }
+
+    val colors = customPalette
+        ?.takeIf { it.enabled }
+        ?.let { palette -> if (resolvedTheme == AppTheme.LIGHT) palette.light else palette.dark }
+        ?.takeIf { !it.isEmpty }
+        ?.applyTo(baseColors)
+        ?: baseColors
 
     val rememberColors = remember { colors }.apply { updateWith(colors) }
     val radius = remember { AmazeRadius() }

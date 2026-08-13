@@ -23,7 +23,6 @@ enum class ProfileSubScreen(
     EPT_SCHEDULE("EPT Schedule", "Extra practice test schedule", Icons.Rounded.Event, ProfileGroup.RECORDS),
     REGISTRATION("Registration Schedule", "Course registration windows", Icons.Rounded.HowToReg, ProfileGroup.RECORDS),
     UNIVERSITY_DAY("University Day", "Awards & certificates of merit", Icons.Rounded.WorkspacePremium, ProfileGroup.RECORDS),
-    BANK_DETAILS("Bank Details", "Saved bank / scholarship account info", Icons.Rounded.AccountBalance, ProfileGroup.RECORDS),
     DAYBOARDER("Dayboarder", "Transport & day scholar details", Icons.Rounded.Commute, ProfileGroup.RECORDS),
     APAAR_ID("APAAR ID", "Automated Permanent Academic Account Registry", Icons.Rounded.Badge, ProfileGroup.RECORDS),
     CREDENTIALS("Credentials & Ranks", "VITEEE rank & linked account credentials", Icons.Rounded.EmojiEvents, ProfileGroup.ACHIEVEMENTS)

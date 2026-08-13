@@ -94,30 +94,6 @@ fun UniversityDayPage() {
 }
 
 @Composable
-fun BankDetailsPage() {
-    val bankInfo by AppState.bankInfo.collectAsState()
-    val bankDetails = bankInfo?.bankDetails
-    val fields = bankInfo?.fields
-
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SettingsGroupLabel("Bank Details")
-        if (bankDetails == null && fields.isNullOrEmpty()) {
-            EmptyStateCard("No bank details available")
-        } else {
-            if (bankDetails != null) {
-                val rows = flattenNestedFields(bankDetails)
-                if (rows.isNotEmpty()) {
-                    LabelValueCard(title = "Bank Details", rows = rows)
-                }
-            }
-            if (!fields.isNullOrEmpty()) {
-                JsonFieldCard(title = null, fields = fields)
-            }
-        }
-    }
-}
-
-@Composable
 fun DayboarderPage() {
     val dayboarder by AppState.dayboarder.collectAsState()
     val fields = dayboarder?.fields

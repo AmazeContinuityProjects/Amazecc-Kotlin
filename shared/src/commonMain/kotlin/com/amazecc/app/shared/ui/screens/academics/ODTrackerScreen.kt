@@ -408,9 +408,8 @@ private fun OverviewTab(
             ) {
                 KPICard(
                     modifier = Modifier.weight(1f),
-                    title = "Total ODs",
+                    title = "Total OD Days",
                     value = "${metrics.totalODs}",
-                    subtitle = "$OD_TOTAL max",
                     icon = Icons.AutoMirrored.Rounded.Assignment,
                     iconColor = colors.accent,
                     colors = colors

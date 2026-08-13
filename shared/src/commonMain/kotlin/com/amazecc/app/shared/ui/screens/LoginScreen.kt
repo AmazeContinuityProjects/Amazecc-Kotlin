@@ -8,7 +8,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -128,17 +127,21 @@ fun LoginScreen() {
                 modifier = Modifier
                     .size(96.dp)
                     .scale(logoScale)
-                    .shadow(12.dp, CircleShape)
-                    .clip(CircleShape)
-                    .background(colors.accent.copy(alpha = 0.12f))
-                    .border(2.dp, colors.accent.copy(alpha = 0.4f), CircleShape),
+                    .shadow(12.dp, RoundedCornerShape(AmazeTheme.radius.large))
+                    .clip(RoundedCornerShape(AmazeTheme.radius.large))
+                    .background(
+                        Brush.linearGradient(
+                            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
+                        )
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.large)),
                 contentAlignment = Alignment.Center
             ) {
-                androidx.compose.material3.Icon(
-                    imageVector = androidx.compose.material.icons.Icons.Rounded.Person,
+                Image(
+                    painter = painterResource(Res.drawable.ic_launcher),
                     contentDescription = Strings.appName,
-                    tint = colors.accent,
-                    modifier = Modifier.size(48.dp)
+                    modifier = Modifier.fillMaxSize().padding(8.dp),
+                    contentScale = ContentScale.Fit
                 )
             }
 

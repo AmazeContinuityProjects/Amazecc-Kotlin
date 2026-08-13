@@ -18,6 +18,7 @@ enum class SettingsSubScreen(
     val group: SettingsGroup
 ) {
     APPEARANCE("Appearance & Feel", "Theme, accent colors & interactions", Icons.Rounded.Palette, SettingsGroup.PERSONALIZE),
+    PALETTE("Custom Palette", "Override every color role per mode", Icons.Rounded.Adjust, SettingsGroup.PERSONALIZE),
     DISPLAY("Display & Layout", "Attendance format & UI zoom", Icons.Rounded.Visibility, SettingsGroup.PERSONALIZE),
     DASHBOARD("Dashboard Layout", "Home screen widgets & their order", Icons.Rounded.DashboardCustomize, SettingsGroup.PERSONALIZE),
     BOTTOM_NAV("Bottom Navigation", "Pinned tabs, order & live preview", Icons.Rounded.Navigation, SettingsGroup.PERSONALIZE),

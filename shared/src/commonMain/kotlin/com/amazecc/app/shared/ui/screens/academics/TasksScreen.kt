@@ -10,6 +10,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -42,13 +44,20 @@ import androidx.compose.ui.window.Dialog
 import com.amazecc.app.shared.model.HomeworkTask
 import com.amazecc.app.shared.model.Subtask
 import com.amazecc.app.shared.model.WorkSession
+import com.mikepenz.markdown.m3.Markdown
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.AmazePill
+import com.amazecc.app.shared.ui.components.DatePickerSheet
+import com.amazecc.app.shared.ui.components.PickerField
+import com.amazecc.app.shared.ui.components.ReminderPickerSheet
+import com.amazecc.app.shared.ui.components.TimePickerSheet
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.components.SheetHeaderRow
 import com.amazecc.app.shared.ui.components.bouncySpring
 import kotlinx.coroutines.delay
 import kotlinx.datetime.*
@@ -140,7 +149,8 @@ fun TasksScreen() {
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 100.dp + BOTTOM_NAV_PADDING)
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 100.dp + BOTTOM_NAV_PADDING),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Hero — summary card in the course-detail design language
                 item(key = "hero_card") {
@@ -196,7 +206,7 @@ fun TasksScreen() {
                     else -> {
                         // Filters & Sort Bar
                         item(key = "filters_bar") {
-                            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -278,7 +288,7 @@ fun TasksScreen() {
                             }
                         }
 
-                        // Task Items List
+                        // Task Items List — grouped into collapsible course sections
                         if (filteredTasks.isEmpty()) {
                             item(key = "empty_state") {
                                 Box(
@@ -304,15 +314,21 @@ fun TasksScreen() {
                             }
                         } else {
                             items(filteredTasks, key = { it.id }) { task ->
-                                TaskItemCard(
-                                    task = task,
-                                    colors = colors,
-                                    onToggle = { AppState.toggleTaskCompleted(task.id) },
-                                    onToggleSubtask = { subId -> AppState.toggleSubtaskCompleted(task.id, subId) },
-                                    onStartFocus = { focusTask = task },
-                                    onEdit = { editingTask = task; showBottomSheet = true },
-                                    onDelete = { AppState.deleteTask(task.id) }
-                                )
+                                AmazeCard(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    TaskItemCard(
+                                        task = task,
+                                        colors = colors,
+                                        tint = taskTypeTint(task.type, colors),
+                                        onToggle = { AppState.toggleTaskCompleted(task.id) },
+                                        onToggleSubtask = { subId -> AppState.toggleSubtaskCompleted(task.id, subId) },
+                                        onStartFocus = { focusTask = task },
+                                        onEdit = { editingTask = task; showBottomSheet = true },
+                                        onDelete = { AppState.deleteTask(task.id) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -402,223 +418,148 @@ private fun ViewTabButton(
     }
 }
 
-// ── Task Item Card with Subtasks & Focus Button ──
+// ── Task Item Card with Subtasks & Focus Button (exam-schedule row language) ──
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TaskItemCard(
     task: HomeworkTask,
     colors: com.amazecc.app.shared.theme.AmazeColors,
+    tint: Color,
     onToggle: () -> Unit,
     onToggleSubtask: (String) -> Unit,
     onStartFocus: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp)
+    modifier: Modifier = Modifier.fillMaxWidth()
 ) {
-    var expandedSubtasks by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
 
+    val taskOverdue = isTaskOverdue(task)
+    val dueToday = !task.completed && task.dueDate == todayString()
+    val status: Pair<String, Color>? = when {
+        task.completed -> "DONE" to colors.success
+        taskOverdue -> "OVERDUE" to colors.danger
+        dueToday -> "TODAY" to colors.warning
+        else -> null
+    }
+    val iconTint = when {
+        task.completed -> colors.success
+        taskOverdue -> colors.danger
+        else -> tint
+    }
     val priorityColor = when (task.priority) {
         "high" -> colors.danger
         "medium" -> colors.warning
-        else -> null
+        else -> colors.info
     }
-    val taskOverdue = isTaskOverdue(task)
+    val doneSub = task.subtasks.count { it.completed }
+    val totalSub = task.subtasks.size
 
-    AmazeCard(
-        modifier = modifier,
-        contentPadding = PaddingValues(0.dp),
-        backgroundColor = if (task.completed) colors.surface.copy(alpha = 0.55f) else null
+    Column(modifier = Modifier.fillMaxWidth()) {
+        // ── Main Row: 40dp icon circle · code + title + meta · status chip · chevron
+        Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
-            // Header Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(if (task.completed) colors.success.copy(alpha = 0.15f) else colors.accent.copy(alpha = 0.1f))
-                        .clickable { onToggle() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        if (task.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                        null,
-                        tint = if (task.completed) colors.success else colors.accent,
-                        modifier = Modifier.size(20.dp)
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(iconTint.copy(alpha = 0.12f))
+                .clickable { onToggle() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                if (task.completed) Icons.Rounded.CheckCircle else taskTypeIcon(task.type),
+                null,
+                tint = iconTint,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        Spacer(Modifier.width(AmazeTheme.spacing.sm))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = task.courseCode,
+                    style = AmazeTheme.typography.smallLabel.copy(color = iconTint, fontWeight = FontWeight.Bold)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = task.type.uppercase(),
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textSecondary,
+                        fontSize = AmazeTheme.fontSize.micro
                     )
-                }
-
-                Spacer(Modifier.width(10.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = task.courseCode,
-                            style = AmazeTheme.typography.smallLabel.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = colors.accent,
-                                fontSize = AmazeTheme.fontSize.micro
-                            ),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                .background(colors.accent.copy(alpha = 0.12f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = task.type.uppercase(),
-                            style = AmazeTheme.typography.smallLabel.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = colors.textSecondary,
-                                fontSize = AmazeTheme.fontSize.micro
-                            )
-                        )
-                        if (task.isAutoSynced) {
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = "LMS AUTO",
-                                style = AmazeTheme.typography.smallLabel.copy(
-                                    fontWeight = FontWeight.Black,
-                                    color = colors.info,
-                                    fontSize = AmazeTheme.fontSize.micro
-                                ),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                    .background(colors.info.copy(alpha = 0.15f))
-                                    .padding(horizontal = 5.dp, vertical = 2.dp)
-                            )
-                        }
-                        if (task.showOnCalendar) {
-                            Spacer(Modifier.width(6.dp))
-                            Icon(Icons.Rounded.CalendarMonth, null, tint = colors.accent, modifier = Modifier.size(12.dp))
-                        }
-                        if (task.showOnTimetable) {
-                            Spacer(Modifier.width(4.dp))
-                            Icon(Icons.Rounded.TableRows, null, tint = colors.accent, modifier = Modifier.size(12.dp))
-                        }
-                    }
-
-                    Spacer(Modifier.height(5.dp))
-
+                )
+                if (task.isAutoSynced) {
+                    Spacer(Modifier.width(6.dp))
                     Text(
-                        text = task.title,
-                        style = AmazeTheme.typography.body.copy(
-                            fontWeight = FontWeight.Bold,
-                            color = if (task.completed) colors.textMuted else colors.textPrimary,
-                            textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None
-                        )
+                        text = "LMS AUTO",
+                        style = AmazeTheme.typography.smallLabel.copy(
+                            fontWeight = FontWeight.Black,
+                            color = colors.info,
+                            fontSize = AmazeTheme.fontSize.micro
+                        ),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                            .background(colors.info.copy(alpha = 0.15f))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
                     )
-
-                    if (task.description.isNotBlank()) {
-                        Text(
-                            text = task.description,
-                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
                 }
-
-                priorityColor?.let { pc ->
-                    Spacer(Modifier.width(8.dp))
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(pc)
-                        )
-                        Spacer(Modifier.height(3.dp))
-                        Text(
-                            task.priority.uppercase(),
-                            style = AmazeTheme.typography.smallLabel.copy(
-                                fontWeight = FontWeight.Black,
-                                color = pc,
-                                fontSize = AmazeTheme.fontSize.micro
-                            )
-                        )
-                    }
+                if (task.showOnCalendar) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Rounded.CalendarMonth, null, tint = colors.accent, modifier = Modifier.size(12.dp))
+                }
+                if (task.showOnTimetable) {
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Icons.Rounded.TableRows, null, tint = colors.accent, modifier = Modifier.size(12.dp))
                 }
             }
 
-            // Subtask Progress Bar (if subtasks exist)
-            if (task.subtasks.isNotEmpty()) {
-                val doneSub = task.subtasks.count { it.completed }
-                val totalSub = task.subtasks.size
-                val subProgress = doneSub.toFloat() / totalSub.toFloat()
+            Spacer(Modifier.height(3.dp))
 
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                        .background(colors.background.copy(alpha = 0.5f))
-                        .clickable { expandedSubtasks = !expandedSubtasks }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            if (expandedSubtasks) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                            null,
-                            tint = colors.accent,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "Subtasks ($doneSub/$totalSub)",
-                            style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = AmazeTheme.fontSize.xs)
-                        )
-                    }
-                    LinearProgressIndicator(
-                        progress = { subProgress },
-                        modifier = Modifier.width(100.dp).height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                        color = colors.success,
-                        trackColor = colors.textMuted.copy(alpha = 0.2f)
-                    )
-                }
+            Text(
+                text = task.title,
+                style = AmazeTheme.typography.body.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = if (task.completed) colors.textMuted else colors.textPrimary,
+                    textDecoration = if (task.completed) TextDecoration.LineThrough else TextDecoration.None
+                ),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
 
-                if (expandedSubtasks) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(start = 14.dp, top = 6.dp)) {
-                        task.subtasks.forEach { sub ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable { onToggleSubtask(sub.id) },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    if (sub.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
-                                    null,
-                                    tint = if (sub.completed) colors.success else colors.textMuted,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    sub.title,
-                                    style = AmazeTheme.typography.caption.copy(
-                                        color = if (sub.completed) colors.textMuted else colors.textPrimary,
-                                        textDecoration = if (sub.completed) TextDecoration.LineThrough else TextDecoration.None,
-                                        fontSize = AmazeTheme.fontSize.xs
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
+            if (task.description.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = task.description,
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
 
-            // Footer Controls Row
-            Row(
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                maxItemsInEachRow = 2
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.Schedule, null, tint = if (taskOverdue) colors.danger else colors.textMuted, modifier = Modifier.size(13.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                    Icon(
+                        Icons.Rounded.Schedule,
+                        null,
+                        tint = if (taskOverdue) colors.danger else colors.textMuted,
+                        modifier = Modifier.size(13.dp)
+                    )
                     Spacer(Modifier.width(4.dp))
                     Text(
                         "Due ${task.dueDate}",
@@ -626,58 +567,245 @@ private fun TaskItemCard(
                             color = if (taskOverdue) colors.danger else colors.textMuted,
                             fontSize = AmazeTheme.fontSize.micro,
                             fontWeight = if (taskOverdue) FontWeight.Bold else FontWeight.Normal
-                        )
+                        ),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-
-                    if (task.estimatedMinutes > 0) {
-                        Spacer(Modifier.width(10.dp))
+                }
+                if (task.estimatedMinutes > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
                         Icon(Icons.Rounded.Timer, null, tint = colors.textMuted, modifier = Modifier.size(13.dp))
                         Spacer(Modifier.width(2.dp))
                         Text(
                             "${task.actualMinutesSpent}/${task.estimatedMinutes}m",
-                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro)
-                        )
-                    }
-
-                    if (task.reminderAt != null) {
-                        Spacer(Modifier.width(10.dp))
-                        Icon(Icons.Rounded.Alarm, null, tint = colors.warning, modifier = Modifier.size(13.dp))
-                        Spacer(Modifier.width(2.dp))
-                        Text(task.reminderAt, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro))
-                    }
-
-                    if (task.odHours > 0) {
-                        Spacer(Modifier.width(10.dp))
-                        Icon(Icons.Rounded.AccessTime, null, tint = colors.info, modifier = Modifier.size(13.dp))
-                        Spacer(Modifier.width(2.dp))
-                        Text("OD ${task.odHours}h", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro))
-                    }
-
-                    if (task.workSessions.isNotEmpty()) {
-                        Spacer(Modifier.width(10.dp))
-                        Icon(Icons.Rounded.PlaylistPlay, null, tint = colors.success, modifier = Modifier.size(13.dp))
-                        Spacer(Modifier.width(2.dp))
-                        Text(
-                            "${task.workSessions.size} sessions",
-                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro)
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (!task.completed) {
-                        IconButton(onClick = onStartFocus, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Rounded.PlayCircle, "Focus Session", tint = colors.accent, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                    IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Rounded.Edit, "Edit Task", tint = colors.textMuted, modifier = Modifier.size(15.dp))
-                    }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Rounded.Delete, "Delete Task", tint = colors.danger, modifier = Modifier.size(15.dp))
+                if (task.reminderAt != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f, fill = false)) {
+                        Icon(Icons.Rounded.Alarm, null, tint = colors.warning, modifier = Modifier.size(13.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text(
+                            task.reminderAt,
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
+        }
+
+        Spacer(Modifier.width(8.dp))
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (status != null) {
+                TaskStatusChip(text = status.first, color = status.second)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(priorityColor)
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    task.priority.uppercase(),
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        fontWeight = FontWeight.Black,
+                        color = priorityColor,
+                        fontSize = AmazeTheme.fontSize.micro
+                    )
+                )
+            }
+        }
+
+        Spacer(Modifier.width(6.dp))
+        Icon(
+            if (expanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+            null,
+            tint = colors.textMuted,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+
+    // ── Expanded: details, subtasks & actions
+    AnimatedVisibility(
+        visible = expanded,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TaskMetricTile("Priority", task.priority.uppercase(), priorityColor, colors, Modifier.weight(1f))
+                TaskMetricTile("Estimated", "${task.estimatedMinutes}m", colors.textPrimary, colors, Modifier.weight(1f))
+                TaskMetricTile("Spent", "${task.actualMinutesSpent}m", colors.textSecondary, colors, Modifier.weight(1f))
+            }
+
+            if (task.odHours > 0 || task.workSessions.isNotEmpty() || task.reminderAt != null) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (task.reminderAt != null) {
+                        TaskMetricTile("Reminder", task.reminderAt, colors.warning, colors, Modifier.weight(1f))
+                    }
+                    if (task.odHours > 0) {
+                        TaskMetricTile("OD Hours", "${task.odHours}h", colors.info, colors, Modifier.weight(1f))
+                    }
+                    if (task.workSessions.isNotEmpty()) {
+                        TaskMetricTile("Sessions", "${task.workSessions.size} planned", colors.success, colors, Modifier.weight(1f))
+                    }
+                }
+            }
+
+            if (task.subtasks.isNotEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Rounded.Checklist, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Subtasks ($doneSub/$totalSub)",
+                        style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = AmazeTheme.fontSize.xs)
+                    )
+                    Spacer(Modifier.weight(1f))
+                    LinearProgressIndicator(
+                        progress = { if (totalSub > 0) doneSub.toFloat() / totalSub else 0f },
+                        modifier = Modifier.width(100.dp).height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                        color = colors.success,
+                        trackColor = colors.textMuted.copy(alpha = 0.2f)
+                    )
+                }
+                Column(modifier = Modifier.fillMaxWidth().padding(start = 4.dp)) {
+                    task.subtasks.forEach { sub ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { onToggleSubtask(sub.id) },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (sub.completed) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                                null,
+                                tint = if (sub.completed) colors.success else colors.textMuted,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                sub.title,
+                                style = AmazeTheme.typography.caption.copy(
+                                    color = if (sub.completed) colors.textMuted else colors.textPrimary,
+                                    textDecoration = if (sub.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                    fontSize = AmazeTheme.fontSize.xs
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!task.completed) {
+                    AmazeButton(
+                        text = "Focus",
+                        variant = ButtonVariant.SECONDARY,
+                        icon = Icons.Rounded.PlayCircle,
+                        onClick = onStartFocus,
+                        modifier = Modifier.height(36.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                }
+                AmazeButton(
+                    text = "Edit",
+                    variant = ButtonVariant.SECONDARY,
+                    icon = Icons.Rounded.Edit,
+                    onClick = onEdit,
+                    modifier = Modifier.height(36.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                AmazeButton(
+                    text = "Delete",
+                    variant = ButtonVariant.DANGER,
+                    icon = Icons.Rounded.Delete,
+                    onClick = onDelete,
+                    modifier = Modifier.height(36.dp)
+                )
+            }
+        }
+    }
+    }
+}
+
+private fun taskTypeIcon(type: String): androidx.compose.ui.graphics.vector.ImageVector = when (type) {
+    "assignment" -> Icons.Rounded.EditNote
+    "quiz" -> Icons.Rounded.Quiz
+    "exam" -> Icons.Rounded.EventNote
+    "lab" -> Icons.Rounded.Science
+    "project" -> Icons.Rounded.Widgets
+    "lms_auto" -> Icons.Rounded.CloudSync
+    else -> Icons.AutoMirrored.Rounded.MenuBook
+}
+
+private fun taskTypeTint(type: String, colors: com.amazecc.app.shared.theme.AmazeColors): Color = when (type) {
+    "exam" -> colors.chart3
+    "quiz" -> colors.warning
+    "lab" -> colors.chart2
+    "project" -> colors.chart1
+    "assignment" -> colors.chart4
+    "lms_auto" -> colors.info
+    else -> colors.accent
+}
+
+private fun todayString(): String = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
+
+@Composable
+private fun TaskStatusChip(text: String, color: Color) {
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(color.copy(alpha = 0.15f))
+            .border(1.dp, color.copy(alpha = 0.35f), CircleShape)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text,
+            style = AmazeTheme.typography.smallLabel.copy(
+                color = color,
+                fontWeight = FontWeight.Black,
+                fontSize = AmazeTheme.fontSize.micro
+            )
+        )
+    }
+}
+
+@Composable
+private fun TaskMetricTile(
+    label: String,
+    value: String,
+    valueColor: Color,
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+            .background(colors.surface)
+            .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
+            .padding(8.dp)
+    ) {
+        Column {
+            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+            Spacer(Modifier.height(2.dp))
+            Text(
+                value,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = valueColor, fontSize = AmazeTheme.fontSize.base),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -695,7 +823,7 @@ private fun KanbanBoardContent(
     val inProgress = tasks.filter { !it.completed && it.actualMinutesSpent > 0 }
     val completed = tasks.filter { it.completed }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         KanbanColumn("To Do (${toDo.size})", toDo, colors.warning, colors, onToggleTask, onEditTask, onDeleteTask)
         Spacer(Modifier.height(12.dp))
         KanbanColumn("In Progress (${inProgress.size})", inProgress, colors.accent, colors, onToggleTask, onEditTask, onDeleteTask)
@@ -866,7 +994,7 @@ private fun WorkloadDensityContent(
     val pendingTasks = tasks.filter { !it.completed }
     val groupedByDate = pendingTasks.groupBy { it.dueDate }
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text("Weekly Schedule & Workload Timeline", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         Spacer(Modifier.height(8.dp))
 
@@ -1001,7 +1129,7 @@ private fun CalendarViewContent(
     val monthNames = listOf("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")
     val monthLabel = "${monthNames[monthFirst.monthNumber - 1]} ${monthFirst.year}"
 
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+    Column(modifier = Modifier.fillMaxWidth()) {
         AmazeCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
                 Row(
@@ -1101,15 +1229,21 @@ private fun CalendarViewContent(
             )
         } else {
             selectedTasks.forEach { task ->
-                TaskItemCard(
-                    task = task,
-                    colors = colors,
-                    onToggle = { onToggle(task.id) },
-                    onToggleSubtask = { subId -> AppState.toggleSubtaskCompleted(task.id, subId) },
-                    onStartFocus = {},
-                    onEdit = { onEditTask(task) },
-                    onDelete = { onDeleteTask(task.id) }
-                )
+                AmazeCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    TaskItemCard(
+                        task = task,
+                        colors = colors,
+                        tint = taskTypeTint(task.type, colors),
+                        onToggle = { onToggle(task.id) },
+                        onToggleSubtask = { subId -> AppState.toggleSubtaskCompleted(task.id, subId) },
+                        onStartFocus = {},
+                        onEdit = { onEditTask(task) },
+                        onDelete = { onDeleteTask(task.id) }
+                    )
+                }
             }
         }
     }
@@ -1135,7 +1269,16 @@ private fun AddTaskBottomSheet(
 
     var subtaskInput by remember { mutableStateOf("") }
     var subtasksList by remember { mutableStateOf(taskToEdit?.subtasks ?: emptyList()) }
-    var expandedCourseDropdown by remember { mutableStateOf(false) }
+    var showCoursePicker by remember { mutableStateOf(false) }
+    var customCategories by remember { mutableStateOf<List<CourseOption>>(emptyList()) }
+
+    var descPreview by remember { mutableStateOf(false) }
+    var showDueDatePicker by remember { mutableStateOf(false) }
+    var showReminderPicker by remember { mutableStateOf(false) }
+    var sessionDatePickerFor by remember { mutableStateOf<Int?>(null) }
+    var sessionTimePickerFor by remember { mutableStateOf<Int?>(null) }
+    var editingSubtaskId by remember { mutableStateOf<String?>(null) }
+    var editingSubtaskText by remember { mutableStateOf("") }
 
     var reminderAt by remember { mutableStateOf(taskToEdit?.reminderAt ?: "") }
     var reminderRepeat by remember { mutableStateOf(taskToEdit?.reminderRepeat ?: "none") }
@@ -1151,8 +1294,9 @@ private fun AddTaskBottomSheet(
         Clock.System.now().plus(1, DateTimeUnit.DAY, TimeZone.currentSystemDefault()).toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
     } catch (_: Exception) { dueDate }
 
-    val currentCourseOpt = remember(selectedCourse, courseOptions) {
-        courseOptions.firstOrNull { it.code == selectedCourse } ?: courseOptions.firstOrNull() ?: CourseOption(selectedCourse, selectedCourse)
+    val currentCourseOpt = remember(selectedCourse, courseOptions, customCategories) {
+        (courseOptions + customCategories).firstOrNull { it.code == selectedCourse }
+            ?: CourseOption(selectedCourse, selectedCourse)
     }
 
     val textFieldColors = OutlinedTextFieldDefaults.colors(
@@ -1167,214 +1311,354 @@ private fun AddTaskBottomSheet(
         cursorColor = colors.accent
     )
 
+    val isDirty by remember(taskToEdit) {
+        derivedStateOf {
+            title != (taskToEdit?.title ?: "") ||
+                description != (taskToEdit?.description ?: "") ||
+                selectedCourse != (taskToEdit?.courseCode ?: courseOptions.firstOrNull()?.code ?: "GENERAL") ||
+                type != (taskToEdit?.type ?: "homework") ||
+                priority != (taskToEdit?.priority ?: "medium") ||
+                dueDate != (taskToEdit?.dueDate ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()) ||
+                estimatedMinsText != (taskToEdit?.estimatedMinutes?.toString() ?: "30") ||
+                reminderAt != (taskToEdit?.reminderAt ?: "") ||
+                reminderRepeat != (taskToEdit?.reminderRepeat ?: "none") ||
+                showOnCalendar != (taskToEdit?.showOnCalendar ?: false) ||
+                showOnTimetable != (taskToEdit?.showOnTimetable ?: false) ||
+                includeRegularClasses != (taskToEdit?.includeRegularClasses ?: false) ||
+                subtasksList != (taskToEdit?.subtasks ?: emptyList<Subtask>()) ||
+                workSessionsState.toList() != (taskToEdit?.workSessions ?: emptyList<WorkSession>()) ||
+                odHoursText != (taskToEdit?.odHours?.takeIf { it > 0 }?.toString() ?: "")
+        }
+    }
+    var showDiscardDialog by remember { mutableStateOf(false) }
+
+    val buildTask: () -> HomeworkTask = {
+        HomeworkTask(
+            id = taskToEdit?.id ?: ("task_" + Clock.System.now().toEpochMilliseconds()),
+            courseCode = selectedCourse,
+            courseTitle = currentCourseOpt.title.ifBlank { selectedCourse },
+            title = title.trim(),
+            description = description.trim(),
+            dueDate = dueDate.trim(),
+            type = type,
+            priority = priority,
+            estimatedMinutes = estimatedMinsText.toIntOrNull() ?: 30,
+            completed = taskToEdit?.completed ?: false,
+            subtasks = subtasksList,
+            createdAt = taskToEdit?.createdAt ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toString(),
+            reminderAt = reminderAt.trim().ifBlank { null },
+            reminderRepeat = reminderRepeat,
+            showOnCalendar = showOnCalendar,
+            showOnTimetable = showOnTimetable,
+            includeRegularClasses = includeRegularClasses,
+            workSessions = workSessionsState.toList(),
+            odHours = odHoursText.toDoubleOrNull()?.takeIf { it > 0 } ?: 0.0
+        )
+    }
+
+    val requestDismiss = {
+        if (isDirty) showDiscardDialog = true
+        else onDismiss()
+    }
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = requestDismiss,
         sheetState = sheetState,
-        containerColor = colors.surface,
+        containerColor = colors.background,
         contentColor = colors.textPrimary,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState())
+                .imePadding()
         ) {
-            // Header Title
+            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = if (taskToEdit == null) "New Task / Homework" else "Edit Task",
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                )
-                IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(colors.accent.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            if (taskToEdit == null) Icons.Rounded.AddTask else Icons.Rounded.Edit,
+                            null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = if (taskToEdit == null) "New Task" else "Edit Task",
+                            style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                        )
+                        Text(
+                            text = if (taskToEdit == null) "Plan it, track it, get it done" else "Update the details below",
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                        )
+                    }
+                }
+                IconButton(onClick = requestDismiss, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Rounded.Close, "Close", tint = colors.textMuted)
                 }
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // Descriptive Course Selector Dropdown
-            Text("COURSE", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
-            Spacer(Modifier.height(4.dp))
-            Box(modifier = Modifier.fillMaxWidth()) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = colors.background.copy(alpha = 0.4f)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, colors.border, RoundedCornerShape(12.dp))
-                        .clickable { expandedCourseDropdown = true }
-                ) {
+            // ── Details ──
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+
+                    // Course selector row
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.accent.copy(alpha = 0.08f))
+                            .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                            .clickable { showCoursePicker = true }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Box(
+                            modifier = Modifier.size(34.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.accent, modifier = Modifier.size(17.dp))
+                        }
+                        Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = currentCourseOpt.displayLabel,
+                                text = currentCourseOpt.code,
                                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = if (currentCourseOpt.title.isNotBlank()) currentCourseOpt.title else "Tap to change course or add a custom category",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
                         Icon(Icons.Rounded.ArrowDropDown, "Select Course", tint = colors.accent)
                     }
-                }
 
-                DropdownMenu(
-                    expanded = expandedCourseDropdown,
-                    onDismissRequest = { expandedCourseDropdown = false },
-                    modifier = Modifier
-                        .fillMaxWidth(0.88f)
-                        .background(colors.surface)
-                ) {
-                    courseOptions.forEach { opt ->
-                        DropdownMenuItem(
-                            text = {
-                                Column {
-                                    Text(opt.code, fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm)
-                                    if (opt.title.isNotBlank()) {
-                                        Text(opt.title, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    }
-                                }
-                            },
-                            onClick = {
-                                selectedCourse = opt.code
-                                expandedCourseDropdown = false
+            // Title & Description Fields
+                    OutlinedTextField(
+                        value = title,
+                        onValueChange = { title = it },
+                        label = { Text("Task Title", color = colors.textSecondary) },
+                        singleLine = true,
+                        colors = textFieldColors,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    // Description with Markdown preview toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("DESCRIPTION", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            AmazePill("Edit", !descPreview, colors, icon = Icons.Rounded.Edit, onClick = { descPreview = false })
+                            AmazePill("Preview", descPreview, colors, icon = Icons.Rounded.Visibility, onClick = { descPreview = true })
+                        }
+                    }
+                    if (descPreview) {
+                        if (description.isBlank()) {
+                            Text(
+                                "Nothing to preview yet — type some markdown in the editor.",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        } else {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(colors.background.copy(alpha = 0.4f))
+                                    .border(1.dp, colors.border, RoundedCornerShape(12.dp))
+                                    .padding(12.dp)
+                            ) {
+                                Markdown(
+                                    content = description,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             }
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = description,
+                            onValueChange = { description = it },
+                            label = { Text("Description (Optional) — markdown supported", color = colors.textSecondary) },
+                            colors = textFieldColors,
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 3,
+                            maxLines = 6
                         )
                     }
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(14.dp))
 
-            // Title & Description Fields
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("Task Title", color = colors.textSecondary) },
-                singleLine = true,
-                colors = textFieldColors,
-                modifier = Modifier.fillMaxWidth()
-            )
+            // ── Schedule ──
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FormSectionHeader("TYPE", Icons.Rounded.Category, colors)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        listOf("homework" to "Homework", "assignment" to "Assignment", "quiz" to "Quiz", "exam" to "Exam", "lab" to "Lab", "project" to "Project").forEach { (key, label) ->
+                            AmazePill(
+                                label = label,
+                                selected = type == key,
+                                colors = colors,
+                                icon = taskTypeIcon(key),
+                                onClick = { type = key }
+                            )
+                        }
+                    }
 
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = description,
-                onValueChange = { description = it },
-                label = { Text("Description (Optional)", color = colors.textSecondary) },
-                colors = textFieldColors,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            // Type Selector
-            Text("TYPE", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-                listOf("homework" to "Homework", "assignment" to "Assignment", "quiz" to "Quiz", "exam" to "Exam", "lab" to "Lab", "project" to "Project").forEach { (key, label) ->
-                    FilterChip(
-                        selected = type == key,
-                        onClick = { type = key },
-                        label = { Text(label, fontSize = AmazeTheme.fontSize.xs) }
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            if (type == "quiz" || type == "exam") {
-                Text("CALENDAR & TIMETABLE", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
-                AmazeCard(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                    Column {
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    if (type == "quiz" || type == "exam") {
+                        FormSectionHeader("VISIBILITY", Icons.Rounded.CalendarViewMonth, colors)
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Show on Calendar", style = AmazeTheme.typography.body.copy(fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary))
                             Switch(checked = showOnCalendar, onCheckedChange = { showOnCalendar = it }, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent))
                         }
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Show on Timetable", style = AmazeTheme.typography.body.copy(fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary))
                             Switch(checked = showOnTimetable, onCheckedChange = { showOnTimetable = it }, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent))
                         }
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Include regular classes", style = AmazeTheme.typography.body.copy(fontSize = AmazeTheme.fontSize.sm, color = colors.textPrimary))
                             Switch(checked = includeRegularClasses, onCheckedChange = { includeRegularClasses = it }, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent))
                         }
                     }
-                }
-                Spacer(Modifier.height(10.dp))
-            }
 
-            // Priority Selector
-            Text("PRIORITY", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-                listOf("high" to "🔥 High", "medium" to "⚡ Medium", "low" to "🌱 Low").forEach { (key, label) ->
-                    FilterChip(
-                        selected = priority == key,
-                        onClick = { priority = key },
-                        label = { Text(label, fontSize = AmazeTheme.fontSize.xs) }
-                    )
-                }
-            }
+                    FormSectionHeader("PRIORITY", Icons.Rounded.Flag, colors)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        listOf(
+                            "high" to (Icons.Rounded.ArrowUpward to "High"),
+                            "medium" to (Icons.Rounded.Remove to "Medium"),
+                            "low" to (Icons.Rounded.ArrowDownward to "Low")
+                        ).forEach { (key, pair) ->
+                            val (icon, label) = pair
+                            val pillColor = when (key) {
+                                "high" -> colors.danger
+                                "medium" -> colors.warning
+                                else -> colors.success
+                            }
+                            AmazePill(
+                                label = label,
+                                selected = priority == key,
+                                colors = colors,
+                                icon = icon,
+                                tint = pillColor,
+                                onClick = { priority = key }
+                            )
+                        }
+                    }
 
-            Spacer(Modifier.height(10.dp))
+                    FormSectionHeader("DUE", Icons.Rounded.Event, colors)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        PickerField(
+                            value = dueDate,
+                            label = "Due Date",
+                            colors = colors,
+                            icon = Icons.Rounded.Event,
+                            modifier = Modifier.weight(1.4f),
+                            onClick = { showDueDatePicker = true }
+                        )
+                        OutlinedTextField(
+                            value = estimatedMinsText,
+                            onValueChange = { estimatedMinsText = it },
+                            label = { Text("Est. Mins", color = colors.textSecondary) },
+                            colors = textFieldColors,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+                    }
 
-            // Due Date & Estimated Minutes
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                OutlinedTextField(
-                    value = dueDate,
-                    onValueChange = { dueDate = it },
-                    label = { Text("Due Date (YYYY-MM-DD)", color = colors.textSecondary) },
-                    colors = textFieldColors,
-                    modifier = Modifier.weight(1.5f),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = estimatedMinsText,
-                    onValueChange = { estimatedMinsText = it },
-                    label = { Text("Est. Mins", color = colors.textSecondary) },
-                    colors = textFieldColors,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.weight(1f),
-                    singleLine = true
-                )
-            }
-
-            Spacer(Modifier.height(14.dp))
-
-            if (type == "assignment") {
-                Text("WORK SESSIONS", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
-                Spacer(Modifier.height(4.dp))
-                AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                    Column {
+                    if (type == "assignment") {
+                        FormSectionHeader("WORK SESSIONS", Icons.Rounded.HourglassBottom, colors)
                         if (workSessionsState.isEmpty()) {
                             Text(
-                                "Plan when you'll work on this before the deadline. Pick dates + duration per session.",
-                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                                modifier = Modifier.padding(vertical = 4.dp)
+                                "Plan when you'll work on this before the deadline. Pick dates + time per session.",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                             )
                         } else {
                             workSessionsState.forEachIndexed { idx, session ->
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                                    Column(modifier = Modifier.weight(1f)) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(colors.background.copy(alpha = 0.4f))
+                                        .border(1.dp, colors.border.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                        .padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                         Text("Session ${idx + 1}", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro))
-                                        Text("${session.date} • ${session.startTime} • ${session.durationMinutes}m", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontSize = AmazeTheme.fontSize.xs))
+                                        IconButton(onClick = { workSessionsState.removeAt(idx) }, modifier = Modifier.size(24.dp)) {
+                                            Icon(Icons.Rounded.DeleteOutline, "Remove Session", tint = colors.danger, modifier = Modifier.size(16.dp))
+                                        }
                                     }
-                                    IconButton(onClick = { workSessionsState.removeAt(idx) }, modifier = Modifier.size(28.dp)) {
-                                        Icon(Icons.Rounded.DeleteOutline, "Remove Session", tint = colors.danger, modifier = Modifier.size(16.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                                        PickerField(
+                                            value = session.date,
+                                            label = "Date",
+                                            colors = colors,
+                                            icon = Icons.Rounded.Event,
+                                            modifier = Modifier.weight(1.2f),
+                                            onClick = { sessionDatePickerFor = idx }
+                                        )
+                                        PickerField(
+                                            value = session.startTime,
+                                            label = "Start",
+                                            colors = colors,
+                                            icon = Icons.Rounded.Schedule,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = { sessionTimePickerFor = idx }
+                                        )
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text("Duration", style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+                                        Spacer(Modifier.width(2.dp))
+                                        listOf(30, 60, 90).forEach { mins ->
+                                            AmazePill(
+                                                label = "${mins}m",
+                                                selected = session.durationMinutes == mins,
+                                                colors = colors,
+                                                onClick = { workSessionsState[idx] = session.copy(durationMinutes = mins) }
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(2.dp))
                         val newDate = try {
                             val lastSession = workSessionsState.lastOrNull()
                             if (lastSession != null) {
@@ -1417,84 +1701,195 @@ private fun AddTaskBottomSheet(
                             )
                         }
                     }
-                }
-                Spacer(Modifier.height(10.dp))
-            }
 
             if (type == "assignment" || type == "project" || type == "lab") {
-                Text("OD HOURS (OPTIONAL)", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
-                Spacer(Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = odHoursText,
-                    onValueChange = { odHoursText = it },
-                    label = { Text("Hours (e.g. 2.5)", color = colors.textSecondary) },
-                    colors = textFieldColors,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                Spacer(Modifier.height(10.dp))
-            }
+                        FormSectionHeader("OD HOURS", Icons.Rounded.HourglassTop, colors, trailing = "optional")
+                        OutlinedTextField(
+                            value = odHoursText,
+                            onValueChange = { odHoursText = it },
+                            label = { Text("Hours (e.g. 2.5)", color = colors.textSecondary) },
+                            colors = textFieldColors,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                    }
 
-            Text("REMINDER", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
-            Spacer(Modifier.height(4.dp))
-            OutlinedTextField(
-                value = reminderAt,
-                onValueChange = { reminderAt = it },
-                label = { Text("Remind on (YYYY-MM-DD HH:mm, optional)", color = colors.textSecondary) },
-                colors = textFieldColors,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 4.dp)) {
-                listOf("none" to "None", "daily" to "Daily", "weekly" to "Weekly", "custom" to "Custom").forEach { (key, label) ->
-                    FilterChip(
-                        selected = reminderRepeat == key,
-                        onClick = { reminderRepeat = key },
-                        label = { Text(label, fontSize = AmazeTheme.fontSize.xs) }
+                    FormSectionHeader("REMINDER", Icons.Rounded.NotificationsActive, colors)
+                    PickerField(
+                        value = reminderAt,
+                        label = "Remind me on",
+                        colors = colors,
+                        icon = Icons.Rounded.Schedule,
+                        onClick = { showReminderPicker = true }
                     )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        listOf("none" to "None", "daily" to "Daily", "weekly" to "Weekly", "custom" to "Custom").forEach { (key, label) ->
+                            AmazePill(
+                                label = label,
+                                selected = reminderRepeat == key,
+                                colors = colors,
+                                onClick = { reminderRepeat = key }
+                            )
+                        }
+                    }
                 }
             }
 
             Spacer(Modifier.height(14.dp))
 
-            // Subtasks Checklist Builder
-            Text("SUBTASKS CHECKLIST", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
-                OutlinedTextField(
-                    value = subtaskInput,
-                    onValueChange = { subtaskInput = it },
-                    label = { Text("Add step...", color = colors.textSecondary) },
-                    colors = textFieldColors,
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(Modifier.width(8.dp))
-                IconButton(
-                    onClick = {
-                        if (subtaskInput.isNotBlank()) {
-                            val newSub = Subtask("sub_" + Clock.System.now().toEpochMilliseconds(), subtaskInput.trim())
-                            subtasksList = subtasksList + newSub
-                            subtaskInput = ""
-                        }
-                    },
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Icon(Icons.Rounded.AddCircle, "Add Subtask", tint = colors.accent)
-                }
-            }
+            // ── Subtasks Checklist ──
+            AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val doneCount = subtasksList.count { it.completed }
+                    FormSectionHeader(
+                        "SUBTASKS",
+                        Icons.Rounded.Checklist,
+                        colors,
+                        trailing = if (subtasksList.isNotEmpty()) "$doneCount/${subtasksList.size} done" else null
+                    )
+                    if (subtasksList.isNotEmpty()) {
+                        LinearProgressIndicator(
+                            progress = { if (subtasksList.isEmpty()) 0f else doneCount.toFloat() / subtasksList.size },
+                            modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                            color = colors.accent,
+                            trackColor = colors.border.copy(alpha = 0.5f)
+                        )
+                    }
 
-            if (subtasksList.isNotEmpty()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                    subtasksList.forEach { sub ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("• ${sub.title}", style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm))
-                            IconButton(onClick = { subtasksList = subtasksList.filter { it.id != sub.id } }, modifier = Modifier.size(24.dp)) {
-                                Icon(Icons.Rounded.Close, "Remove", tint = colors.danger, modifier = Modifier.size(14.dp))
+                    // Add row
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = subtaskInput,
+                            onValueChange = { subtaskInput = it },
+                            label = { Text("Add a step...", color = colors.textSecondary) },
+                            colors = textFieldColors,
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                                onDone = {
+                                    if (subtaskInput.isNotBlank()) {
+                                        val newSub = Subtask("sub_" + Clock.System.now().toEpochMilliseconds(), subtaskInput.trim())
+                                        subtasksList = subtasksList + newSub
+                                        subtaskInput = ""
+                                    }
+                                }
+                            ),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        AmazePill(
+                            label = "Add",
+                            selected = false,
+                            colors = colors,
+                            icon = Icons.Rounded.Add,
+                            onClick = {
+                                if (subtaskInput.isNotBlank()) {
+                                    val newSub = Subtask("sub_" + Clock.System.now().toEpochMilliseconds(), subtaskInput.trim())
+                                    subtasksList = subtasksList + newSub
+                                    subtaskInput = ""
+                                }
+                            }
+                        )
+                    }
+
+                    if (subtasksList.isNotEmpty()) {
+                        subtasksList.forEachIndexed { idx, sub ->
+                            if (editingSubtaskId == sub.id) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    OutlinedTextField(
+                                        value = editingSubtaskText,
+                                        onValueChange = { editingSubtaskText = it },
+                                        colors = textFieldColors,
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    IconButton(
+                                        onClick = {
+                                            if (editingSubtaskText.isNotBlank()) {
+                                                subtasksList = subtasksList.map { if (it.id == sub.id) it.copy(title = editingSubtaskText.trim()) else it }
+                                            }
+                                            editingSubtaskId = null
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.Check, "Save Subtask", tint = colors.success, modifier = Modifier.size(18.dp))
+                                    }
+                                    IconButton(onClick = { editingSubtaskId = null }, modifier = Modifier.size(32.dp)) {
+                                        Icon(Icons.Rounded.Close, "Cancel", tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            } else {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                                        .background(colors.background.copy(alpha = 0.5f))
+                                        .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
+                                        .clickable {
+                                            editingSubtaskId = sub.id
+                                            editingSubtaskText = sub.title
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier.size(22.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("${idx + 1}", fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold, color = colors.accent)
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Checkbox(
+                                        checked = sub.completed,
+                                        onCheckedChange = { checked ->
+                                            subtasksList = subtasksList.map { if (it.id == sub.id) it.copy(completed = checked) else it }
+                                        },
+                                        colors = CheckboxDefaults.colors(checkedColor = colors.accent),
+                                        modifier = Modifier.scale(0.85f)
+                                    )
+                                    Text(
+                                        sub.title,
+                                        style = AmazeTheme.typography.caption.copy(
+                                            color = if (sub.completed) colors.textMuted else colors.textPrimary,
+                                            fontSize = AmazeTheme.fontSize.sm,
+                                            textDecoration = if (sub.completed) TextDecoration.LineThrough else TextDecoration.None
+                                        ),
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (idx > 0) {
+                                        IconButton(onClick = {
+                                            val list = subtasksList.toMutableList()
+                                            val tmp = list[idx]
+                                            list[idx] = list[idx - 1]
+                                            list[idx - 1] = tmp
+                                            subtasksList = list
+                                        }, modifier = Modifier.size(26.dp)) {
+                                            Icon(Icons.Rounded.KeyboardArrowUp, "Move Up", tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                    if (idx < subtasksList.lastIndex) {
+                                        IconButton(onClick = {
+                                            val list = subtasksList.toMutableList()
+                                            val tmp = list[idx]
+                                            list[idx] = list[idx + 1]
+                                            list[idx + 1] = tmp
+                                            subtasksList = list
+                                        }, modifier = Modifier.size(26.dp)) {
+                                            Icon(Icons.Rounded.KeyboardArrowDown, "Move Down", tint = colors.textMuted, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                    IconButton(onClick = { subtasksList = subtasksList.filter { it.id != sub.id } }, modifier = Modifier.size(26.dp)) {
+                                        Icon(Icons.Rounded.Close, "Remove", tint = colors.danger, modifier = Modifier.size(14.dp))
+                                    }
+                                }
                             }
                         }
                     }
@@ -1502,41 +1897,356 @@ private fun AddTaskBottomSheet(
             }
 
             Spacer(Modifier.height(18.dp))
+        }
 
-            // Save Task Button
+        // Sticky footer
+        HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(top = 12.dp, bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             AmazeButton(
                 text = if (taskToEdit == null) "Create Task" else "Save Changes",
                 onClick = {
-                    if (title.isNotBlank()) {
-                        val est = estimatedMinsText.toIntOrNull() ?: 30
-                        val newTask = HomeworkTask(
-                            id = taskToEdit?.id ?: ("task_" + Clock.System.now().toEpochMilliseconds()),
-                            courseCode = selectedCourse,
-                            courseTitle = selectedCourse,
-                            title = title.trim(),
-                            description = description.trim(),
-                            dueDate = dueDate.trim(),
-                            type = type,
-                            priority = priority,
-                            estimatedMinutes = est,
-                            completed = taskToEdit?.completed ?: false,
-                            subtasks = subtasksList,
-                            createdAt = taskToEdit?.createdAt ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toString(),
-                            reminderAt = reminderAt.trim().ifBlank { null },
-                            reminderRepeat = reminderRepeat,
-                            showOnCalendar = showOnCalendar,
-                            showOnTimetable = showOnTimetable,
-                            includeRegularClasses = includeRegularClasses,
-                            workSessions = workSessionsState.toList(),
-                            odHours = odHoursText.toDoubleOrNull()?.takeIf { it > 0 } ?: 0.0
-                        )
-                        onSave(newTask)
-                    }
+                    val t = buildTask()
+                    if (t.title.isNotBlank()) onSave(t)
                 },
-                modifier = Modifier.fillMaxWidth().height(44.dp)
+                modifier = Modifier.fillMaxWidth().height(48.dp)
+            )
+        }
+    }
+
+    if (showDiscardDialog) {
+        AlertDialog(
+            onDismissRequest = { showDiscardDialog = false },
+            title = {
+                Text(
+                    if (taskToEdit == null) "Discard new task?" else "Discard changes?",
+                    color = colors.textPrimary,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "You have unsaved changes. Save them or go back to keep editing.",
+                    color = colors.textSecondary
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDiscardDialog = false
+                    val t = buildTask()
+                    if (t.title.isNotBlank()) {
+                        onSave(t)
+                        onDismiss()
+                    }
+                }) {
+                    Text("Save", color = colors.success, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { showDiscardDialog = false }) {
+                        Text("Keep Editing", color = colors.textPrimary)
+                    }
+                    TextButton(onClick = { showDiscardDialog = false; onDismiss() }) {
+                        Text("Discard", color = colors.danger, fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            containerColor = colors.surface,
+            titleContentColor = colors.textPrimary,
+            textContentColor = colors.textSecondary
+        )
+    }
+
+    if (showCoursePicker) {
+        CoursePickerSheet(
+            courseOptions = courseOptions,
+            selectedCode = selectedCourse,
+            customCategories = customCategories,
+            colors = colors,
+            onDismiss = { showCoursePicker = false },
+            onSelect = { opt ->
+                selectedCourse = opt.code
+                showCoursePicker = false
+            },
+            onAddCustom = { customCategories = customCategories + it }
+        )
+    }
+
+    if (showDueDatePicker) {
+        DatePickerSheet(
+            title = "Due Date",
+            initial = parseLocalDate(dueDate),
+            colors = colors,
+            onSelected = {
+                dueDate = it.toString()
+                showDueDatePicker = false
+            },
+            onDismiss = { showDueDatePicker = false }
+        )
+    }
+
+    if (showReminderPicker) {
+        val parts = reminderAt.split(" ")
+        ReminderPickerSheet(
+            initialDate = parts.firstOrNull()?.let { parseLocalDate(it) },
+            initialTime = parts.getOrNull(1)?.let { parseLocalTime(it) },
+            colors = colors,
+            onSelected = { d, t ->
+                reminderAt = "${d.toString()} ${formatTime(t)}"
+                showReminderPicker = false
+            },
+            onDismiss = { showReminderPicker = false }
+        )
+    }
+
+    sessionDatePickerFor?.let { idx ->
+        val session = workSessionsState.getOrNull(idx) ?: return@let
+        DatePickerSheet(
+            title = "Session ${idx + 1} Date",
+            initial = parseLocalDate(session.date),
+            colors = colors,
+            onSelected = {
+                workSessionsState[idx] = session.copy(date = it.toString())
+                sessionDatePickerFor = null
+            },
+            onDismiss = { sessionDatePickerFor = null }
+        )
+    }
+
+    sessionTimePickerFor?.let { idx ->
+        val session = workSessionsState.getOrNull(idx) ?: return@let
+        TimePickerSheet(
+            title = "Session ${idx + 1} Start",
+            initial = parseLocalTime(session.startTime),
+            colors = colors,
+            onSelected = {
+                workSessionsState[idx] = session.copy(startTime = formatTime(it))
+                sessionTimePickerFor = null
+            },
+            onDismiss = { sessionTimePickerFor = null }
+        )
+    }
+}
+
+// ── Course Picker Bottom Sheet (slides up, like the rest of the app) ──
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CoursePickerSheet(
+    courseOptions: List<CourseOption>,
+    selectedCode: String,
+    customCategories: List<CourseOption>,
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    onDismiss: () -> Unit,
+    onSelect: (CourseOption) -> Unit,
+    onAddCustom: (CourseOption) -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    var showCustomEntry by remember { mutableStateOf(false) }
+    var customCode by remember { mutableStateOf("") }
+    var customTitle by remember { mutableStateOf("") }
+
+    val textFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = colors.textPrimary,
+        unfocusedTextColor = colors.textPrimary,
+        focusedContainerColor = colors.background.copy(alpha = 0.5f),
+        unfocusedContainerColor = colors.background.copy(alpha = 0.3f),
+        focusedBorderColor = colors.accent,
+        unfocusedBorderColor = colors.border,
+        focusedLabelColor = colors.accent,
+        unfocusedLabelColor = colors.textSecondary,
+        cursorColor = colors.accent
+    )
+
+    val builtIn = listOf(CourseOption("GENERAL", "General Academic Task"))
+    val allOptions = remember(courseOptions, customCategories) {
+        (builtIn + customCategories + courseOptions).distinctBy { it.code }
+    }
+    val filteredOptions = remember(allOptions, searchQuery) {
+        val q = searchQuery.trim().lowercase()
+        if (q.isEmpty()) allOptions
+        else allOptions.filter { it.code.lowercase().contains(q) || it.title.lowercase().contains(q) }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = colors.background,
+        contentColor = colors.textPrimary,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
+        ) {
+            SheetHeaderRow(
+                icon = Icons.AutoMirrored.Rounded.MenuBook,
+                title = "Select Course",
+                subtitle = "Pick a category for this task",
+                colors = colors,
+                onClose = onDismiss
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(12.dp))
+
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search courses...", color = colors.textMuted) },
+                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = colors.textMuted) },
+                singleLine = true,
+                colors = textFieldColors,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+                Spacer(Modifier.height(10.dp))
+
+                if (!showCustomEntry) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                            .background(colors.accent.copy(alpha = 0.08f))
+                            .border(1.dp, colors.accent.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.medium))
+                            .clickable { showCustomEntry = true }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.AddCircle, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Add a custom category (not in your curriculum)",
+                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm)
+                        )
+                    }
+                } else {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = customCode,
+                                onValueChange = { customCode = it },
+                                label = { Text("Code (e.g. PD1001)", color = colors.textSecondary) },
+                                singleLine = true,
+                                colors = textFieldColors,
+                                modifier = Modifier.weight(1.1f)
+                            )
+                            OutlinedTextField(
+                                value = customTitle,
+                                onValueChange = { customTitle = it },
+                                label = { Text("Title (optional)", color = colors.textSecondary) },
+                                singleLine = true,
+                                colors = textFieldColors,
+                                modifier = Modifier.weight(1.5f)
+                            )
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            AmazeButton(
+                                text = "Cancel",
+                                variant = ButtonVariant.SECONDARY,
+                                onClick = { showCustomEntry = false },
+                                modifier = Modifier.weight(1f).height(38.dp)
+                            )
+                            AmazeButton(
+                                text = "Add & Select",
+                                onClick = {
+                                    val code = customCode.trim().uppercase()
+                                    if (code.isNotBlank()) {
+                                        val opt = CourseOption(code, customTitle.trim())
+                                        onAddCustom(opt)
+                                        onSelect(opt)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f).height(38.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                if (filteredOptions.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                        Text("No courses match \"$searchQuery\"", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 320.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredOptions, key = { it.code }) { opt ->
+                            val isSelected = opt.code == selectedCode
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                                    .background(if (isSelected) colors.accent.copy(alpha = 0.1f) else colors.background.copy(alpha = 0.4f))
+                                    .border(1.dp, if (isSelected) colors.accent.copy(alpha = 0.45f) else colors.border.copy(alpha = 0.6f), RoundedCornerShape(AmazeTheme.radius.medium))
+                                    .clickable { onSelect(opt) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(opt.code, style = AmazeTheme.typography.smallLabel.copy(color = colors.textPrimary, fontWeight = FontWeight.Bold))
+                                    if (opt.title.isNotBlank()) {
+                                        Text(opt.title, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                if (isSelected) {
+                                    Icon(Icons.Rounded.CheckCircle, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                                } else {
+                                    Icon(Icons.Rounded.RadioButtonUnchecked, null, tint = colors.textMuted.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+                                }
+                            }
+                        }
+                    }
+            }
+        }
+    }
+}
+
+private fun parseLocalDate(s: String): LocalDate? = try { LocalDate.parse(s) } catch (_: Exception) { null }
+
+private fun parseLocalTime(s: String): LocalTime? = try { LocalTime.parse(s) } catch (_: Exception) { null }
+
+private fun formatTime(t: LocalTime): String =
+    "${t.hour.toString().padStart(2, '0')}:${t.minute.toString().padStart(2, '0')}"
+
+@Composable
+private fun FormSectionHeader(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    trailing: String? = null
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = colors.accent, modifier = Modifier.size(15.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(
+            title,
+            style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent, fontSize = AmazeTheme.fontSize.xs)
+        )
+        Spacer(Modifier.weight(1f))
+        if (trailing != null) {
+            Text(
+                trailing,
+                style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro)
+            )
         }
     }
 }
@@ -1669,16 +2379,22 @@ fun TaskCard(
     showCourse: Boolean = true,
     modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp)
 ) {
-    TaskItemCard(
-        task = task,
-        colors = colors,
-        onToggle = onToggle,
-        onToggleSubtask = { AppState.toggleSubtaskCompleted(task.id, it) },
-        onStartFocus = {},
-        onEdit = {},
-        onDelete = onDelete,
-        modifier = modifier
-    )
+    AmazeCard(
+        modifier = modifier,
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        TaskItemCard(
+            task = task,
+            colors = colors,
+            tint = taskTypeTint(task.type, colors),
+            onToggle = onToggle,
+            onToggleSubtask = { AppState.toggleSubtaskCompleted(task.id, it) },
+            onStartFocus = {},
+            onEdit = {},
+            onDelete = onDelete,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
 }
 
 @Composable
@@ -1737,7 +2453,6 @@ private fun TasksHeroCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp)
             .clip(RoundedCornerShape(AmazeTheme.radius.large))
             .background(heroGradient)
             .padding(20.dp)

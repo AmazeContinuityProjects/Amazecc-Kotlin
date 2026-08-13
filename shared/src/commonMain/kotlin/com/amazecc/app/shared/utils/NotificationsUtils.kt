@@ -26,6 +26,8 @@ expect suspend fun createNotificationChannels()
 
 expect suspend fun testLocalNotification()
 
+expect suspend fun showDownloadCompleteNotification(fileName: String)
+
 object NotificationsUtils {
 
     const val CLASS_REMINDER_ID_BASE = 1000

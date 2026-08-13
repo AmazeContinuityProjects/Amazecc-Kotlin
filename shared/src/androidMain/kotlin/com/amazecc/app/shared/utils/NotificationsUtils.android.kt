@@ -2,6 +2,7 @@ package com.amazecc.app.shared.utils
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -96,6 +97,44 @@ private fun takeScheduledIds(): Set<Int> {
     return ids
 }
 
+actual suspend fun showDownloadCompleteNotification(fileName: String) {
+    val context = AndroidApp.context ?: return
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        context.checkCallingOrSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    ) return
+    createNotificationChannels()
+    val tapIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    } ?: Intent()
+    val pendingIntent = PendingIntent.getActivity(
+        context, 0, tapIntent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+    val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Notification.Builder(context, AlarmReceiver.CHANNEL_DOWNLOADS)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Download complete")
+            .setContentText(fileName)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+    } else {
+        Notification.Builder(context)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("Download complete")
+            .setContentText(fileName)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+            .build()
+    }
+    try {
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        manager.notify(DOWNLOAD_COMPLETE_NOTIFICATION_ID, notification)
+    } catch (_: SecurityException) {}
+}
+
+private const val DOWNLOAD_COMPLETE_NOTIFICATION_ID = 7701
+
 actual suspend fun testLocalNotification() {
     createNotificationChannels()
     val triggerTimeMs = kotlinx.datetime.Clock.System.now().toEpochMilliseconds() + 5_000L
@@ -135,7 +174,11 @@ actual suspend fun createNotificationChannels() {
             NotificationChannel(
                 AlarmReceiver.CHANNEL_TASKS, "Task Reminders",
                 NotificationManager.IMPORTANCE_HIGH
-            ).apply { description = "Reminders for homework and tasks" }
+            ).apply { description = "Reminders for homework and tasks" },
+            NotificationChannel(
+                AlarmReceiver.CHANNEL_DOWNLOADS, "Downloads",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply { description = "Download completion notifications" }
         )
         channels.forEach { manager.createNotificationChannel(it) }
     }

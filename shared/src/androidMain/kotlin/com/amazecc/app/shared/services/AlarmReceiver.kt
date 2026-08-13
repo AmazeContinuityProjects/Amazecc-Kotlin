@@ -66,5 +66,6 @@ class AlarmReceiver : BroadcastReceiver() {
         const val CHANNEL_VITOL = "amazecc_vitol"
         const val CHANNEL_TASKS = "amazecc_tasks"
         const val CHANNEL_SYNC = "amazecc_sync"
+        const val CHANNEL_DOWNLOADS = "amazecc_downloads"
     }
 }

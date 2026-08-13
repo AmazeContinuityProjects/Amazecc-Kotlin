@@ -469,7 +469,7 @@ fun FacultyDetailScreen(
                 AmazeCard(modifier = Modifier.fillMaxWidth()) {
                     Column {
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            Box(modifier = Modifier.width(52.dp))
+                            Box(modifier = Modifier.width(58.dp))
                             weekDays.forEach { day ->
                                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                                     Text(dayLabels[day] ?: day, style = AmazeTheme.typography.caption.copy(color = colors.accent, fontWeight = FontWeight.Bold))
@@ -480,8 +480,14 @@ fun FacultyDetailScreen(
 
                         timePeriods.forEach { time ->
                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
-                                Box(modifier = Modifier.width(52.dp), contentAlignment = Alignment.CenterStart) {
-                                    Text(time, style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
+                                Box(modifier = Modifier.width(58.dp), contentAlignment = Alignment.CenterStart) {
+                                    Text(
+                                        time.substringBefore("-").trim(),
+                                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted),
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Clip
+                                    )
                                 }
                                 weekDays.forEach { day ->
                                     val isOccupied = occupiedSlotKeys.contains("$day:$time")

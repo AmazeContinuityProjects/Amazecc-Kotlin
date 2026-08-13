@@ -3,6 +3,7 @@ package com.amazecc.app.shared.repository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.datetime.Clock
 
 object SessionManager {
     private val _cookies = MutableStateFlow<String?>(SettingsManager.getNullableString(SettingsManager.SESSION_COOKIES))
@@ -16,6 +17,9 @@ object SessionManager {
 
     private val _clubToken = MutableStateFlow<String?>(SettingsManager.getNullableString(SettingsManager.SESSION_CLUB_TOKEN))
     val clubToken: StateFlow<String?> = _clubToken.asStateFlow()
+
+    private val _sessionCreatedAt = MutableStateFlow(SettingsManager.getLong(SettingsManager.SESSION_CREATED_AT))
+    val sessionCreatedAt: StateFlow<Long> = _sessionCreatedAt.asStateFlow()
 
     // Settings
     val currentTheme = MutableStateFlow("system") // system, light, dark
@@ -33,6 +37,7 @@ object SessionManager {
         SettingsManager.setString(SettingsManager.SESSION_CSRF, csrf)
         SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, authorizedID)
         if (clubToken != null) SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, clubToken)
+        markSessionFresh()
     }
 
     fun saveInMemorySession(cookies: String, csrf: String, authorizedID: String, clubToken: String? = null) {
@@ -40,6 +45,7 @@ object SessionManager {
         _csrf.value = csrf
         _authorizedID.value = authorizedID
         _clubToken.value = clubToken
+        markSessionFresh()
     }
 
     fun saveEventHubSession(jsessionid: String) {
@@ -47,15 +53,29 @@ object SessionManager {
         SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, jsessionid)
     }
 
+    fun markSessionFresh() {
+        _sessionCreatedAt.value = Clock.System.now().toEpochMilliseconds()
+        SettingsManager.setLong(SettingsManager.SESSION_CREATED_AT, _sessionCreatedAt.value)
+    }
+
+    /** True when the session is older than [maxAgeMs] or its age is unknown (legacy install). */
+    fun isSessionStale(maxAgeMs: Long): Boolean {
+        val created = _sessionCreatedAt.value
+        if (created <= 0L) return true
+        return Clock.System.now().toEpochMilliseconds() - created > maxAgeMs
+    }
+
     fun clearSession() {
         _cookies.value = null
         _csrf.value = null
         _authorizedID.value = null
         _clubToken.value = null
+        _sessionCreatedAt.value = 0L
         SettingsManager.remove(SettingsManager.SESSION_COOKIES)
         SettingsManager.remove(SettingsManager.SESSION_CSRF)
         SettingsManager.remove(SettingsManager.SESSION_AUTHORIZED_ID)
         SettingsManager.remove(SettingsManager.SESSION_CLUB_TOKEN)
+        SettingsManager.remove(SettingsManager.SESSION_CREATED_AT)
     }
 }
 

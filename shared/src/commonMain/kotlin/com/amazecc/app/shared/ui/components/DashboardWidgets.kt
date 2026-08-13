@@ -163,37 +163,23 @@ fun WidgetDashboard(
                                 .background(colors.surface)
                                 .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
                                 .clickable { AppState.toggleDashboardEditMode() }
-                                .padding(14.dp),
+                                .padding(vertical = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Rounded.Edit, "Quick Reorder", tint = colors.textPrimary, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    "Quick Edit",
-                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                                )
-                            }
+                            Icon(Icons.Rounded.Edit, "Quick Edit", tint = colors.textPrimary, modifier = Modifier.size(18.dp))
                         }
 
                         Box(
                             modifier = Modifier
-                                .weight(1.2f)
+                                .weight(1f)
                                 .clip(RoundedCornerShape(AmazeTheme.radius.medium))
                                 .background(colors.accentSurface.copy(alpha = 0.25f))
                                 .border(1.dp, colors.accent.copy(alpha = 0.4f), RoundedCornerShape(AmazeTheme.radius.medium))
                                 .clickable { showManageDialog = true }
-                                .padding(14.dp),
+                                .padding(vertical = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Rounded.Tune, "Manage & Toggle Widgets", tint = colors.accent, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    "Manage Widgets",
-                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent)
-                                )
-                            }
+                            Icon(Icons.Rounded.Tune, "Manage & Toggle Widgets", tint = colors.accent, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -925,7 +911,7 @@ private fun MetricCardsWidget() {
             if (totalCls == 0) 0f else (totalAtt.toFloat() / totalCls.toFloat()) * 100f
         }
     }
-    val targetPct = if (isBusSubscriber) 85f else 75f
+    val targetPct = AppState.effectiveAttendanceTarget(isBusSubscriber)
     val attColor = when {
         overallAttendance >= targetPct -> colors.success
         overallAttendance >= 50f -> colors.warning
@@ -947,10 +933,14 @@ private fun MetricCardsWidget() {
     if (visibleCardKeys.isNotEmpty()) {
         Row(
             modifier = rowModifier,
-            horizontalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
+            horizontalArrangement = if (isScrollable) {
+                Arrangement.spacedBy(AmazeTheme.spacing.sm)
+            } else {
+                Arrangement.SpaceBetween
+            }
         ) {
             visibleCardKeys.forEach { key ->
-                val cardModifier = if (isScrollable) Modifier.width(120.dp) else Modifier.weight(1f)
+                val cardModifier = Modifier.widthIn(min = 100.dp)
                 when (key) {
                     "attendance" -> GlassMetricCard(
                         title = "Attendance",
@@ -1038,14 +1028,10 @@ private fun GlassMetricCard(
             ) { onClick?.invoke() }
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            // Top Row: Left corner icon indicator & category label
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Top: icon indicator
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
@@ -1063,17 +1049,6 @@ private fun GlassMetricCard(
                         modifier = Modifier.size(15.dp)
                     )
                 }
-                Text(
-                    text = title.uppercase(),
-                    style = AmazeTheme.typography.smallLabel.copy(
-                        color = colors.textSecondary,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.5.sp
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -1085,6 +1060,20 @@ private fun GlassMetricCard(
                     fontWeight = FontWeight.ExtraBold,
                     color = colors.textPrimary,
                     fontSize = 22.sp
+                ),
+                maxLines = 1
+            )
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            // Title below the value, left aligned
+            Text(
+                text = title.uppercase(),
+                style = AmazeTheme.typography.smallLabel.copy(
+                    color = colors.textSecondary,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -1118,13 +1107,15 @@ private fun AttendanceBunkWidget() {
         targetValue = overallAttendance / 100f,
         animationSpec = tween(1500)
     )
+    val isBusSubscriber by AppState.isBusSubscriber.collectAsState()
+    val targetPct = AppState.effectiveAttendanceTarget(isBusSubscriber)
     val attColor = when {
-        overallAttendance >= 75f -> colors.success
+        overallAttendance >= targetPct -> colors.success
         overallAttendance >= 50f -> colors.warning
         else -> colors.danger
     }
     val attLabel = when {
-        overallAttendance >= 75f -> "You're on track!"
+        overallAttendance >= targetPct -> "You're on track!"
         overallAttendance >= 50f -> "Needs improvement!"
         else -> "Critical!"
     }
@@ -1198,7 +1189,8 @@ private fun AttendanceBunkWidget() {
             BunkOMeterCard(
                 attendance = attendanceRes,
                 modifier = Modifier.fillMaxWidth(),
-                isInnerCard = true
+                isInnerCard = true,
+                targetPct = targetPct
             )
         }
     }
@@ -1329,9 +1321,7 @@ private fun UpcomingExamWidget(
 
     AmazeCard(
         modifier = Modifier.fillMaxWidth(),
-        onClick = { AppState.navigateTo(Screen.EXAM_SCHEDULE) },
-        variant = CardVariant.ACCENT_SURFACE,
-        accentStrip = true
+        onClick = { AppState.navigateTo(Screen.EXAM_SCHEDULE) }
     ) {
         Row(
             modifier = Modifier
@@ -1415,9 +1405,7 @@ private fun TodayQuizTasksWidget(
 ) {
     AmazeCard(
         modifier = Modifier.fillMaxWidth(),
-        onClick = { AppState.navigateTo(Screen.TASKS) },
-        variant = CardVariant.ACCENT_SURFACE,
-        accentStrip = true
+        onClick = { AppState.navigateTo(Screen.TASKS) }
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1496,6 +1484,7 @@ private fun TodayQuizTasksWidget(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ExamTimeWidget(
     exams: List<com.amazecc.app.shared.model.ExamItem>,
@@ -1505,9 +1494,7 @@ private fun ExamTimeWidget(
 
     AmazeCard(
         modifier = Modifier.fillMaxWidth(),
-        onClick = { AppState.navigateTo(Screen.EXAM_SCHEDULE) },
-        variant = CardVariant.ACCENT_SURFACE,
-        accentStrip = true
+        onClick = { AppState.navigateTo(Screen.EXAM_SCHEDULE) }
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1523,19 +1510,27 @@ private fun ExamTimeWidget(
 
             exams.forEach { exam ->
                 val status = examWidgetStatus(exam, now, colors)
+                val timeText = exam.examTime.ifBlank { exam.reportingTime.ifBlank { "Time TBD" } }
+                val venueText = exam.venue
+                val sessionText = exam.sessionDisplay.takeUnless { it == "TBD" }
+                val seatText = exam.seatLocationDisplay
+                val seatNoText = exam.seatNo
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(AmazeTheme.radius.small))
                         .background(status.color.copy(alpha = 0.07f))
                         .border(1.dp, status.color.copy(alpha = 0.35f), RoundedCornerShape(AmazeTheme.radius.small))
-                        .padding(12.dp)
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(3.dp)
+                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = exam.courseCode,
@@ -1546,51 +1541,46 @@ private fun ExamTimeWidget(
                                     )
                                 )
                                 Spacer(Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                        .background(status.color.copy(alpha = 0.14f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = status.label,
-                                        style = AmazeTheme.typography.smallLabel.copy(
-                                            color = status.color,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = AmazeTheme.fontSize.micro
-                                        )
-                                    )
-                                }
+                                Text(
+                                    text = exam.courseTitle,
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textPrimary),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                maxItemsInEachRow = 2
+                            ) {
+                                ExamMetaChip(Icons.Rounded.Schedule, timeText, colors)
+                                if (venueText.isNotBlank()) ExamMetaChip(Icons.Rounded.LocationOn, venueText, colors)
+                                if (sessionText != null) ExamMetaChip(Icons.Rounded.Numbers, sessionText, colors)
+                                ExamMetaChip(
+                                    Icons.Rounded.ConfirmationNumber,
+                                    seatText + if (seatNoText.isNotBlank()) " #$seatNoText" else "",
+                                    colors
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(6.dp))
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(
-                                text = exam.courseTitle,
-                                style = AmazeTheme.typography.caption.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    color = colors.textPrimary
-                                ),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = status.label,
+                                style = AmazeTheme.typography.smallLabel.copy(
+                                    color = status.color,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = AmazeTheme.fontSize.micro
+                                )
                             )
-                            Text(
-                                text = buildString {
-                                    append(exam.examTime.ifBlank { exam.reportingTime.ifBlank { "Time TBD" } })
-                                    if (exam.venue.isNotBlank()) append(" · ").append(exam.venue)
-                                    if (exam.sessionDisplay != "TBD") append(" · ").append(exam.sessionDisplay)
-                                    append(" · Seat ").append(exam.seatLocationDisplay)
-                                    if (exam.seatNo.isNotBlank()) append(" #").append(exam.seatNo)
-                                },
-                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                            Icon(
+                                Icons.Rounded.ChevronRight,
+                                null,
+                                tint = status.color,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        Spacer(Modifier.width(8.dp))
-                        Icon(
-                            Icons.Rounded.ChevronRight,
-                            null,
-                            tint = status.color,
-                            modifier = Modifier.size(20.dp)
-                        )
                     }
                 }
             }
@@ -1599,6 +1589,30 @@ private fun ExamTimeWidget(
 }
 
 private data class ExamWidgetStatus(val label: String, val color: Color)
+
+@Composable
+private fun ExamMetaChip(
+    icon: ImageVector,
+    text: String,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+            .background(colors.textMuted.copy(alpha = 0.06f))
+            .padding(horizontal = 5.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = colors.textSecondary, modifier = Modifier.size(10.dp))
+        Spacer(Modifier.width(3.dp))
+        Text(
+            text,
+            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
 
 private fun examWidgetStatus(
     exam: com.amazecc.app.shared.model.ExamItem,
@@ -2356,19 +2370,17 @@ private fun FreeClassroomsWidget() {
 
     AmazeCard(
         modifier = Modifier.fillMaxWidth(),
-        onClick = { AppState.navigateTo(Screen.FREE_CLASSROOMS) },
-        variant = CardVariant.ACCENT_SURFACE,
-        accentStrip = true
+        onClick = { AppState.navigateTo(Screen.FREE_CLASSROOMS) }
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                    .background(colors.accentSurface),
+                    .background(colors.textMuted.copy(alpha = 0.08f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.MeetingRoom, null, tint = colors.accent, modifier = Modifier.size(20.dp))
+                Icon(Icons.Rounded.MeetingRoom, null, tint = colors.textSecondary, modifier = Modifier.size(20.dp))
             }
             Spacer(Modifier.width(AmazeTheme.spacing.md))
             Column(modifier = Modifier.weight(1f)) {
@@ -2392,7 +2404,7 @@ private fun FreeClassroomsWidget() {
             Icon(
                 Icons.Rounded.ChevronRight,
                 null,
-                tint = colors.accent,
+                tint = colors.textMuted,
                 modifier = Modifier.size(20.dp)
             )
         }

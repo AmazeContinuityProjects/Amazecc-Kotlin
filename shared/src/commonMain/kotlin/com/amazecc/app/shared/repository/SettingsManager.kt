@@ -51,6 +51,8 @@ object SettingsManager {
     // Theme & Display preferences
     const val KEY_APP_THEME = "app_theme"
     const val KEY_APP_ACCENT = "app_accent"
+    const val KEY_CUSTOM_ACCENT = "app_accent_custom"
+    const val KEY_CUSTOM_PALETTE = "custom_palette"
     const val KEY_UI_SCALE = "app_ui_scale"
     const val KEY_HAPTIC_ENABLED = "haptic_enabled"
     const val KEY_ANIMATIONS_ENABLED = "animations_enabled"
@@ -65,6 +67,7 @@ object SettingsManager {
     const val SESSION_CSRF = "session_csrf"
     const val SESSION_AUTHORIZED_ID = "session_authorized_id"
     const val SESSION_CLUB_TOKEN = "session_club_token"
+    const val SESSION_CREATED_AT = "session_created_at"
 
     // Library credentials (separate from VTOP)
     const val KEY_LIBRARY_USERNAME = "library_username"
@@ -142,7 +145,18 @@ object SettingsManager {
 
     // Last-known FFCS registration slot (used for change detection + reminder re-scheduling)
     const val CACHE_FFCS_REG_INFO = "cache_ffcs_reg_info"
-    
+
+    // Custom attendance target percentage (overrides bus subscriber / standard defaults)
+    const val KEY_CUSTOM_ATTENDANCE_TARGET = "custom_attendance_target_pct"
+
+    fun setFloatString(key: String, value: Float) {
+        settings.putString(key, value.toString())
+    }
+
+    fun getFloatString(key: String): Float? {
+        return settings.getString(key, "")?.toFloatOrNull()
+    }
+
     fun setString(key: String, value: String) {
         settings.putString(key, value)
     }

@@ -119,6 +119,7 @@ fun AboutPage() {
         currentVersion = UpdateConfig.getCurrentVersion()
     }
     val updateStatus by AppState.updateStatus.collectAsState()
+    var showUpdateCheck by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SettingsGroupCard {
@@ -150,29 +151,16 @@ fun AboutPage() {
         }
 
         SettingsGroupCard {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AmazeButton(
-                        text = "Check for Updates",
-                        onClick = { AppState.forceCheckForUpdate() },
-                        icon = Icons.Rounded.Download,
-                        modifier = Modifier.weight(1f),
-                        enabled = updateStatus !is AppState.UpdateStatus.Checking
-                    )
-                    when (updateStatus) {
-                        is AppState.UpdateStatus.Checking -> {
-                            Text("Checking…", style = AmazeTheme.typography.body.copy(color = colors.accent, fontWeight = FontWeight.Medium), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
-                        }
-                        is AppState.UpdateStatus.UpToDate -> {
-                            Text("Up to date ✓", style = AmazeTheme.typography.body.copy(color = colors.success, fontWeight = FontWeight.Medium), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
-                        }
-                        is AppState.UpdateStatus.Error -> {
-                            Text("Check failed", style = AmazeTheme.typography.body.copy(color = colors.danger, fontWeight = FontWeight.Medium), modifier = Modifier.align(Alignment.CenterVertically).padding(16.dp))
-                        }
-                        else -> {}
-                    }
-                }
-            }
+            AmazeButton(
+                text = "Check for Updates",
+                onClick = {
+                    showUpdateCheck = true
+                    AppState.forceCheckForUpdate()
+                },
+                icon = Icons.Rounded.Download,
+                modifier = Modifier.fillMaxWidth(),
+                enabled = updateStatus !is AppState.UpdateStatus.Checking
+            )
         }
 
         SettingsGroupLabel("Resources")
@@ -201,6 +189,10 @@ fun AboutPage() {
                 onClick = { AppState.navigateTo(Screen.HALL_OF_FAME) }
             )
         }
+    }
+
+    if (showUpdateCheck) {
+        UpdateCheckModal(onDismiss = { showUpdateCheck = false })
     }
 }
 

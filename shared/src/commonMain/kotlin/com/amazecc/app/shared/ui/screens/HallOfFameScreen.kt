@@ -19,17 +19,17 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.utils.ContentData
+import com.amazecc.app.shared.utils.Contributor
 
 @Composable
 fun HallOfFameScreen() {
     val colors = AmazeTheme.colors
-    
-    val contributors = listOf(
-        Pair("Jane Doe", "Lead Developer & UI Designer"),
-        Pair("John Smith", "Backend & API Integrations"),
-        Pair("Alice Johnson", "Quality Assurance & Testing"),
-        Pair("Bob Williams", "Documentation & Support")
-    )
+
+    var contributors by remember { mutableStateOf(emptyList<Contributor>()) }
+    LaunchedEffect(Unit) {
+        contributors = ContentData.contributors()
+    }
 
     Column(
         modifier = Modifier
@@ -55,19 +55,19 @@ fun HallOfFameScreen() {
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = contributor.first.take(1),
+                                text = contributor.name.firstOrNull()?.toString() ?: "?",
                                 style = AmazeTheme.typography.heading.copy(color = colors.accent, fontWeight = FontWeight.Bold)
                             )
                         }
                         Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
                         Column {
                             Text(
-                                text = contributor.first,
+                                text = contributor.name,
                                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                             )
                             Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                             Text(
-                                text = contributor.second,
+                                text = contributor.role,
                                 style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                             )
                         }

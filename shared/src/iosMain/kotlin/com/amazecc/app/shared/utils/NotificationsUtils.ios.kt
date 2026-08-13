@@ -50,6 +50,20 @@ actual suspend fun testLocalNotification() {
     )
 }
 
+actual suspend fun showDownloadCompleteNotification(fileName: String) {
+    val content = UNMutableNotificationContent().apply {
+        setTitle("Download complete")
+        setBody(fileName)
+        setSound(UNNotificationSound.defaultSound())
+    }
+    val request = UNNotificationRequest.requestWithIdentifier(
+        "amazecc_download_$fileName",
+        content,
+        UNTimeIntervalNotificationTrigger.triggerWithTimeInterval(1.0, repeats = false)
+    )
+    UNUserNotificationCenter.currentNotificationCenter().addNotificationRequest(request) { _ -> }
+}
+
 actual suspend fun createNotificationChannels() {
     // iOS handles channels differently — categories are used instead
     // UNUserNotificationCenter categories would be configured here if needed

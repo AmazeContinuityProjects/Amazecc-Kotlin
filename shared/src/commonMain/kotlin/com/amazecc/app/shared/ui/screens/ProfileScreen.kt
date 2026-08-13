@@ -82,7 +82,6 @@ fun ProfileScreen() {
                         ProfileSubScreen.EPT_SCHEDULE -> EptSchedulePage()
                         ProfileSubScreen.REGISTRATION -> RegistrationSchedulePage()
                         ProfileSubScreen.UNIVERSITY_DAY -> UniversityDayPage()
-                        ProfileSubScreen.BANK_DETAILS -> BankDetailsPage()
                         ProfileSubScreen.DAYBOARDER -> DayboarderPage()
                         ProfileSubScreen.APAAR_ID -> ApaarIdPage()
                         ProfileSubScreen.CREDENTIALS -> CredentialsAndRanksPage()

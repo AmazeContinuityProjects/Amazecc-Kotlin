@@ -20,7 +20,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -41,9 +40,11 @@ import kotlinx.coroutines.delay
 private enum class SyncDialogTab(val title: String) {
     OVERVIEW("Overview"),
     MODULES("Modules"),
+    AUTOSYNC("Auto Sync"),
     LOGS("Activity Log")
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SyncProgressPopup(
     onDismiss: () -> Unit,
@@ -88,9 +89,9 @@ fun SyncProgressPopup(
 
     val isFinished = !isSyncing && (syncProgress.completedModules > 0 || !isAppStateSyncing)
 
-    // Auto-dismiss 2.5s after clean completion (only when dialog was explicitly opened)
-    LaunchedEffect(isSyncing, isFinished, syncProgress.errorCount) {
-        if (!isSyncing && showSyncDialog && syncProgress.errorCount == 0) {
+    // Auto-dismiss 2.5s after clean completion (only when dialog was explicitly opened and not minimized)
+    LaunchedEffect(isSyncing, isFinished, syncProgress.errorCount, isMinimized) {
+        if (!isSyncing && showSyncDialog && !isMinimized && syncProgress.errorCount == 0) {
             delay(2500L)
             SyncEngine.setShowSyncDialog(false)
         }
@@ -119,7 +120,11 @@ fun SyncProgressPopup(
                     .padding(end = 16.dp, bottom = 96.dp)
                     .width(270.dp)
                     .border(1.dp, colors.accent.copy(alpha = 0.4f), RoundedCornerShape(AmazeTheme.radius.large))
-                    .clickable { isMinimized = false }
+                    .clickable {
+                        userDismissed = false
+                        isMinimized = false
+                        SyncEngine.setShowSyncDialog(true, minimized = false)
+                    }
             ) {
                 Row(
                     modifier = Modifier.padding(12.dp),
@@ -169,139 +174,136 @@ fun SyncProgressPopup(
         return
     }
 
-    // Full Overlay Card
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .zIndex(120f)
-            .background(Color.Black.copy(alpha = 0.45f))
-            .clickable { onDismiss() },
-        contentAlignment = Alignment.Center
+    // Full Sheet (pulls up from the bottom like the rest of the app's sheets)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = colors.background,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
     ) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = colors.surface),
-            shape = RoundedCornerShape(24.dp),
+        Column(
             modifier = Modifier
-                .widthIn(max = 420.dp)
-                .padding(horizontal = 16.dp)
-                .border(1.dp, colors.border, RoundedCornerShape(24.dp))
-                .clickable(indication = null, interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }) { /* prevent dismiss */ }
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp)
         ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(colors.accent.copy(alpha = 0.12f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                if (isSyncing) Icons.Rounded.Sync else Icons.Rounded.CloudDone,
-                                null,
-                                tint = colors.accent,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = if (isSyncing) "Syncing Data" else "Sync Overview",
-                                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                            )
-                            Text(
-                                text = syncProgress.displayText,
-                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                            )
-                        }
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(colors.accent.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            if (isSyncing) Icons.Rounded.Sync else Icons.Rounded.CloudDone,
+                            null,
+                            tint = colors.accent,
+                            modifier = Modifier.size(26.dp)
+                        )
                     }
-                    Row {
-                        IconButton(onClick = { showSettingsDialog = true }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Rounded.Settings, "Sync Settings", tint = colors.textMuted)
-                        }
-                        IconButton(onClick = { isMinimized = true }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Rounded.KeyboardArrowDown, "Minimize", tint = colors.textMuted)
-                        }
-                        IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Rounded.Close, "Dismiss", tint = colors.textMuted)
-                        }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = if (isSyncing) "Syncing Data" else "Sync Overview",
+                            style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                        )
+                        Text(
+                            text = syncProgress.displayText,
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                        )
                     }
                 }
+                Row {
+                    IconButton(onClick = { showSettingsDialog = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.Settings, "Sync Settings", tint = colors.textMuted)
+                    }
+                    IconButton(onClick = { isMinimized = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.KeyboardArrowDown, "Minimize", tint = colors.textMuted)
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Rounded.Close, "Dismiss", tint = colors.textMuted)
+                    }
+                }
+            }
 
-                Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(14.dp))
 
-                // Segmented Tabs
-                TabRow(
-                    selectedTabIndex = selectedTab.ordinal,
-                    containerColor = colors.background.copy(alpha = 0.5f),
-                    contentColor = colors.accent,
-                    divider = {},
-                    indicator = { tabPositions ->
-                        if (selectedTab.ordinal < tabPositions.size) {
-                            TabRowDefaults.SecondaryIndicator(
-                                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab.ordinal]),
-                                color = colors.accent
-                            )
-                        }
-                    },
-                    modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                ) {
-                    SyncDialogTab.entries.forEach { tab ->
-                        Tab(
-                            selected = selectedTab == tab,
-                            onClick = { selectedTab = tab },
-                            text = {
-                                Text(
-                                    tab.title,
-                                    style = AmazeTheme.typography.caption.copy(
-                                        fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (selectedTab == tab) colors.accent else colors.textMuted
-                                    )
+            // Segmented Tabs
+            TabRow(
+                selectedTabIndex = selectedTab.ordinal,
+                containerColor = colors.background.copy(alpha = 0.5f),
+                contentColor = colors.accent,
+                divider = {},
+                indicator = { tabPositions ->
+                    if (selectedTab.ordinal < tabPositions.size) {
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab.ordinal]),
+                            color = colors.accent
+                        )
+                    }
+                },
+                modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.medium))
+            ) {
+                SyncDialogTab.entries.forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = {
+                            Text(
+                                tab.title,
+                                style = AmazeTheme.typography.caption.copy(
+                                    fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (selectedTab == tab) colors.accent else colors.textMuted
                                 )
-                            }
-                        )
-                    }
+                            )
+                        }
+                    )
                 }
+            }
 
-                Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(14.dp))
 
-                // Tab Content
-                when (selectedTab) {
-                    SyncDialogTab.OVERVIEW -> {
-                        OverviewTabContent(
-                            isSyncing = isSyncing,
-                            isFinished = isFinished,
-                            syncProgress = syncProgress,
-                            colors = colors,
-                            onSyncAll = onSyncAll,
-                            onCancel = { AppState.cancelSync() },
-                            onDismiss = onDismiss
-                        )
-                    }
-                    SyncDialogTab.MODULES -> {
-                        ModulesTabContent(
-                            moduleStates = moduleStates,
-                            colors = colors
-                        )
-                    }
-                    SyncDialogTab.LOGS -> {
-                        LogsTabContent(
-                            logLines = logLines,
-                            colors = colors,
-                            onCopyLogs = {
-                                val text = logLines.joinToString("\n") { "[${it.status.name}] ${it.module.displayName}: ${it.message}" }
-                                clipboard.setText(AnnotatedString(text))
-                                copiedLogsToast = true
-                            },
-                            copiedLogsToast = copiedLogsToast
-                        )
-                    }
+            // Tab Content
+            when (selectedTab) {
+                SyncDialogTab.OVERVIEW -> {
+                    OverviewTabContent(
+                        isSyncing = isSyncing,
+                        isFinished = isFinished,
+                        syncProgress = syncProgress,
+                        colors = colors,
+                        onSyncAll = onSyncAll,
+                        onCancel = { AppState.cancelSync() },
+                        onDismiss = onDismiss
+                    )
+                }
+                SyncDialogTab.MODULES -> {
+                    ModulesTabContent(
+                        moduleStates = moduleStates,
+                        colors = colors
+                    )
+                }
+                SyncDialogTab.AUTOSYNC -> {
+                    AutoSyncTabContent(colors = colors)
+                }
+                SyncDialogTab.LOGS -> {
+                    LogsTabContent(
+                        logLines = logLines,
+                        colors = colors,
+                        onCopyLogs = {
+                            val text = logLines.joinToString("\n") { "[${it.status.name}] ${it.module.displayName}: ${it.message}" }
+                            clipboard.setText(AnnotatedString(text))
+                            copiedLogsToast = true
+                        },
+                        copiedLogsToast = copiedLogsToast
+                    )
                 }
             }
         }

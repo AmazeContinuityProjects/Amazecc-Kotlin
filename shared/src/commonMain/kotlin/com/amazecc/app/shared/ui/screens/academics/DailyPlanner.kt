@@ -16,6 +16,8 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Assignment
 import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -253,6 +255,7 @@ fun DailyPlannerScreen() {
     }
 
     var showTimetable by remember { mutableStateOf(false) }
+    var tasksExpanded by remember { mutableStateOf(true) }
 
     fun minutesFromTime(timeStr: String): Int? {
         val parts = timeStr.trim().split(":")
@@ -463,24 +466,36 @@ fun DailyPlannerScreen() {
                     if (dayTasks.isNotEmpty()) {
                         item { Spacer(Modifier.height(AmazeTheme.spacing.sm)) }
                         item {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable { tasksExpanded = !tasksExpanded },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Icon(Icons.Rounded.CheckCircle, null, tint = colors.accent, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(AmazeTheme.spacing.sm))
                                 Text(
                                     if (selectedWeekDay.isToday) "Today's Tasks (${dayTasks.size})" else "Tasks on ${selectedWeekDay.fullDate} (${dayTasks.size})",
                                     style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                                 )
+                                Spacer(Modifier.weight(1f))
+                                Icon(
+                                    if (tasksExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                                    null,
+                                    tint = colors.textMuted,
+                                    modifier = Modifier.size(20.dp)
+                                )
                             }
                         }
-                        items(dayTasks, key = { it.id }) { task ->
-                            TaskCard(
-                                task = task,
-                                colors = colors,
-                                onToggle = { AppState.toggleTaskCompleted(task.id) },
-                                onDelete = { AppState.deleteTask(task.id) },
-                                showCourse = true,
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
-                            )
+                        if (tasksExpanded) {
+                            items(dayTasks, key = { it.id }) { task ->
+                                TaskCard(
+                                    task = task,
+                                    colors = colors,
+                                    onToggle = { AppState.toggleTaskCompleted(task.id) },
+                                    onDelete = { AppState.deleteTask(task.id) },
+                                    showCourse = true,
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)
+                                )
+                            }
                         }
                     }
                 }

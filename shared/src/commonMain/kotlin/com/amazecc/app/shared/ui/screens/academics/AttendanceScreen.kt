@@ -40,16 +40,20 @@ import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.utils.SlotInfo
 import com.amazecc.app.shared.utils.ExamUtils
 import com.amazecc.app.shared.utils.examDateParsed
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.input.KeyboardType
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.screens.settings.SettingsGroupLabel
 import kotlinx.datetime.*
 import com.amazecc.app.shared.utils.TimeMath
 import kotlinx.datetime.Clock
@@ -162,7 +166,7 @@ fun OverallPredictorScreen() {
     val examScheduleRes by AppState.examSchedule.collectAsState()
     val isBusSubscriber by AppState.isBusSubscriber.collectAsState()
 
-    val courses = attendanceRes?.attendance ?: emptyList()
+    val courses = attendanceRes?.attendance?.filter { it.courseCode.isNotBlank() } ?: emptyList()
     val calendarMonths = calendarRes?.months ?: emptyList()
     val examSchedule = examScheduleRes?.schedule ?: emptyMap()
 
@@ -171,7 +175,8 @@ fun OverallPredictorScreen() {
     var expandedCourse by remember { mutableStateOf<String?>(null) }
     var resetTrigger by remember { mutableStateOf(0) }
 
-    val targetPct = if (isBusSubscriber) 0.85 else 0.75
+    val customTarget by AppState.customAttendanceTarget.collectAsState()
+    val targetPct = (customTarget ?: if (isBusSubscriber) 85f else 75f) / 100f
     val targetPctDouble = targetPct * 100.0
 
     val impDates = remember(calendarMonths, examSchedule) {
@@ -227,7 +232,7 @@ fun OverallPredictorScreen() {
         computeFutureClasses(courses, dayCardsMap, allWorkingDays, selectedMode, impDates, calendarRes)
     }
 
-    val predictions = remember(skipDates, futureClassesMap, courses, isBusSubscriber) {
+    val predictions = remember(skipDates, futureClassesMap, courses, isBusSubscriber, customTarget) {
         courses.map { course ->
             val code = course.courseCode
             val attended = course.attendedClasses
@@ -277,6 +282,14 @@ fun OverallPredictorScreen() {
 
     val modes = listOf("CAT1", "CAT2", "FAT", "LID")
 
+    val totalWorkingDays = allWorkingDays.size
+    val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+    val todayVal = today.year * 10000 + today.month.number * 100 + today.dayOfMonth
+    val remainingDays = allWorkingDays.count { (y, m, d) ->
+        val dateVal = y * 10000 + m * 100 + d
+        dateVal >= todayVal && (cutoffDate == null || dateVal <= cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day)
+    }
+
     val scrollState = rememberScrollState()
     Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(bottom = 88.dp)) {
         // 1. Hero Gradient Header
@@ -286,6 +299,9 @@ fun OverallPredictorScreen() {
             totalPredictedTotal = totalPredictedTotal,
             selectedMode = selectedMode,
             isBusSubscriber = isBusSubscriber,
+            totalWorkingDays = totalWorkingDays,
+            remainingDays = remainingDays,
+            monthCount = calendarMonths.size,
             onToggleBusSubscriber = { AppState.setBusSubscriber(it) },
             colors = colors
         )
@@ -293,7 +309,7 @@ fun OverallPredictorScreen() {
         Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
         // 2. Cutoff Target Selector Bar
-        Text("Cutoff Target", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+        SettingsGroupLabel("Cutoff Target")
         Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             modes.forEach { mode ->
@@ -318,9 +334,9 @@ fun OverallPredictorScreen() {
                             scaleX = scale
                             scaleY = scale
                         }
-                        .clip(CircleShape)
+                        .clip(RoundedCornerShape(AmazeTheme.radius.small))
                         .background(if (isSelected) colors.accent else colors.surface)
-                        .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
+                        .border(1.dp, if (isSelected) colors.accent else colors.border, RoundedCornerShape(AmazeTheme.radius.small))
                         .clickable(
                             interactionSource = interactionSource,
                             indication = null,
@@ -354,148 +370,50 @@ fun OverallPredictorScreen() {
             )
         }
 
-        val totalWorkingDays = allWorkingDays.size
-        val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-        val todayVal = today.year * 10000 + today.month.number * 100 + today.dayOfMonth
-        val remainingDays = allWorkingDays.count { (y, m, d) ->
-            val dateVal = y * 10000 + m * 100 + d
-            dateVal >= todayVal && (cutoffDate == null || dateVal <= cutoffDate.year * 10000 + cutoffDate.month * 100 + cutoffDate.day)
-        }
-        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                .background(colors.accent.copy(alpha = 0.06f))
-                .border(1.dp, colors.accent.copy(alpha = 0.15f), RoundedCornerShape(AmazeTheme.radius.small))
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("$totalWorkingDays", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                Text("Cal. Days", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-            }
-            Box(modifier = Modifier.width(1.dp).height(32.dp).background(colors.border))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("$remainingDays", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Text("Remaining", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-            }
-            Box(modifier = Modifier.width(1.dp).height(32.dp).background(colors.border))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("${calendarMonths.size}", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                Text("Months", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-            }
-        }
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
-        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-
-        // 3. Multi-Day Batch Simulator Card
-        var batchBunkDays by remember { mutableStateOf(1f) }
-        AmazeCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Rounded.TaskAlt, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                    Text("Multi-Day Bunk Simulator", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+        // 3. Multi-Day Bunk Simulator (collapsible)
+        BunkSimulatorCard(
+            hasSkips = skipDates.isNotEmpty(),
+            onSimulate = { daysToBunk ->
+                val newSkipMap = mutableMapOf<String, Set<String>>()
+                predictions.forEach { pred ->
+                    val datesToSkip = pred.futureDates.take(daysToBunk).map { it.display }.toSet()
+                    newSkipMap[pred.course.courseCode] = datesToSkip
                 }
-                Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                Text("Simulate skipping upcoming working days across all courses at once.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Text("Skip Next ${batchBunkDays.toInt()} Working Day${if (batchBunkDays.toInt() > 1) "s" else ""}", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                    Slider(
-                        value = batchBunkDays,
-                        onValueChange = { batchBunkDays = it },
-                        valueRange = 1f..7f,
-                        steps = 5,
-                        modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                        colors = SliderDefaults.colors(thumbColor = colors.accent, activeTrackColor = colors.accent)
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    AmazeButton(
-                        text = "Simulate ${batchBunkDays.toInt()} Day Bunk",
-                        onClick = {
-                            val daysToBunkCount = batchBunkDays.toInt()
-                            val newSkipMap = mutableMapOf<String, Set<String>>()
-                            predictions.forEach { pred ->
-                                val datesToSkip = pred.futureDates.take(daysToBunkCount).map { it.display }.toSet()
-                                newSkipMap[pred.course.courseCode] = datesToSkip
-                            }
-                            skipDates = newSkipMap
-                        },
-                        modifier = Modifier.weight(1f),
-                        variant = ButtonVariant.PRIMARY
-                    )
-                    if (skipDates.isNotEmpty()) {
-                        AmazeButton(
-                            text = "Reset",
-                            onClick = { skipDates = emptyMap(); resetTrigger++ },
-                            modifier = Modifier.weight(0.4f),
-                            variant = ButtonVariant.SECONDARY
-                        )
-                    }
-                }
-            }
-        }
+                skipDates = newSkipMap
+            },
+            onReset = {
+                skipDates = emptyMap()
+                resetTrigger++
+            },
+            colors = colors
+        )
 
-        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                .background(colors.surface)
-                .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    "Tap a course to inspect bunk allowance & skip dates",
-                    style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
-                )
-                TextButton(onClick = {
-                    skipDates = emptyMap()
-                    resetTrigger++
-                }) {
-                    Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
-                    Text("Reset", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-
-        // 4. Per-Course Breakdown Cards
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            predictions.forEach { pred ->
-                val isExpanded = expandedCourse == pred.course.courseCode
-                ExpandedCoursePredictorCard(
-                    prediction = pred,
-                    selectedMode = selectedMode,
-                    targetPct = targetPctDouble,
-                    isExpanded = isExpanded,
-                    skipDates = skipDates[pred.course.courseCode] ?: emptySet(),
-                    onToggleExpand = {
-                        expandedCourse = if (isExpanded) null else pred.course.courseCode
-                    },
-                    onToggleSkipDate = { dateKey ->
-                        val current = skipDates[pred.course.courseCode]?.toMutableSet() ?: mutableSetOf()
-                        if (dateKey in current) current.remove(dateKey) else current.add(dateKey)
-                        skipDates = skipDates + (pred.course.courseCode to current)
-                    },
-                    colors = colors
-                )
-            }
-        }
+        // 4. Per-Course Breakdown (group card)
+        CoursePredictorGroupCard(
+            predictions = predictions,
+            selectedMode = selectedMode,
+            targetPct = targetPctDouble,
+            expandedCourse = expandedCourse,
+            skipDates = skipDates,
+            hasSkips = skipDates.isNotEmpty(),
+            onToggleExpand = { code ->
+                expandedCourse = if (expandedCourse == code) null else code
+            },
+            onToggleSkipDate = { code, dateKey ->
+                val current = skipDates[code]?.toMutableSet() ?: mutableSetOf()
+                if (dateKey in current) current.remove(dateKey) else current.add(dateKey)
+                skipDates = skipDates + (code to current)
+            },
+            onResetAll = {
+                skipDates = emptyMap()
+                resetTrigger++
+            },
+            colors = colors
+        )
     }
 }
 
@@ -506,6 +424,9 @@ private fun AttendancePredictorHeroCard(
     totalPredictedTotal: Int,
     selectedMode: String,
     isBusSubscriber: Boolean,
+    totalWorkingDays: Int,
+    remainingDays: Int,
+    monthCount: Int,
     onToggleBusSubscriber: (Boolean) -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
@@ -514,17 +435,22 @@ private fun AttendancePredictorHeroCard(
             colors = listOf(colors.accent, colors.accent.copy(alpha = 0.65f))
         )
     }
+    val customTarget by AppState.customAttendanceTarget.collectAsState()
     val targetPct = if (isBusSubscriber) 85.0 else 75.0
+    val effectiveTarget = customTarget?.toDouble() ?: targetPct
     val healthLabel = when {
-        overallPct >= targetPct -> "Safe Zone"
+        overallPct >= effectiveTarget -> "Safe Zone"
         overallPct >= 50.0 -> "Watch Zone"
         else -> "Critical"
     }
     val healthBg = when {
-        overallPct >= targetPct -> Color(0xFF10B981)
+        overallPct >= effectiveTarget -> Color(0xFF10B981)
         overallPct >= 50.0 -> Color(0xFFF59E0B)
         else -> Color(0xFFEF4444)
     }
+
+    var showTargetDialog by remember { mutableStateOf(false) }
+    var targetInput by remember { mutableStateOf("") }
 
     Box(
         modifier = Modifier
@@ -588,11 +514,54 @@ private fun AttendancePredictorHeroCard(
                         )
                     )
                     Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Target: ${targetPct.toInt()}% (${if (isBusSubscriber) "Bus Subscriber" else "Standard"})",
-                        style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.85f))
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                            .background(Color.White.copy(alpha = 0.14f))
+                            .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(AmazeTheme.radius.medium))
+                            .clickable {
+                                targetInput = customTarget?.let { it.toInt().toString() } ?: ""
+                                showTargetDialog = true
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.Adjust, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "${effectiveTarget.toInt()}% Target",
+                            style = AmazeTheme.typography.caption.copy(color = Color.White, fontWeight = FontWeight.Bold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.weight(1f))
+                        Icon(
+                            if (customTarget != null) Icons.Rounded.Edit else Icons.Rounded.Tune,
+                            "Set custom target",
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                PredictorHeroStat("Working Days", "$totalWorkingDays")
+                PredictorHeroStat("Remaining", "$remainingDays")
+                PredictorHeroStat("Months", "$monthCount")
             }
 
             Box(
@@ -606,27 +575,28 @@ private fun AttendancePredictorHeroCard(
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            if (isBusSubscriber) Icons.Rounded.DirectionsBus else Icons.Rounded.School,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                    Icon(
+                        if (isBusSubscriber) Icons.Rounded.DirectionsBus else Icons.Rounded.School,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(
+                            if (isBusSubscriber) "Bus Subscriber Target (85%)" else "Standard Student Target (75%)",
+                            style = AmazeTheme.typography.caption.copy(color = Color.White, fontWeight = FontWeight.Bold),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                if (isBusSubscriber) "Bus Subscriber Target (85%)" else "Standard Student Target (75%)",
-                                style = AmazeTheme.typography.caption.copy(color = Color.White, fontWeight = FontWeight.Bold)
-                            )
-                            Text(
-                                "Tap to toggle target criteria",
-                                style = AmazeTheme.typography.smallLabel.copy(color = Color.White.copy(alpha = 0.75f))
-                            )
-                        }
+                        Text(
+                            "Tap to toggle target criteria",
+                            style = AmazeTheme.typography.smallLabel.copy(color = Color.White.copy(alpha = 0.75f)),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                     Switch(
                         checked = isBusSubscriber,
@@ -641,6 +611,69 @@ private fun AttendancePredictorHeroCard(
                 }
             }
         }
+    }
+
+    if (showTargetDialog) {
+        AlertDialog(
+            onDismissRequest = { showTargetDialog = false },
+            title = { Text("Custom Attendance Target", color = colors.textPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        "Set your own minimum attendance target. Overrides the 75% / 85% defaults.",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                    )
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                    OutlinedTextField(
+                        value = targetInput,
+                        onValueChange = { input -> targetInput = input.filter { it.isDigit() || it == '.' }.take(5) },
+                        label = { Text("Target percentage", color = colors.textSecondary) },
+                        placeholder = { Text("e.g. 80", color = colors.textMuted) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colors.accent,
+                            cursorColor = colors.accent
+                        )
+                    )
+                    if (customTarget != null) {
+                        TextButton(onClick = {
+                            AppState.setCustomAttendanceTarget(null)
+                            showTargetDialog = false
+                        }) {
+                            Text("Clear custom target", color = colors.danger, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val pct = targetInput.toFloatOrNull()?.coerceIn(1f, 100f)
+                    if (pct != null) {
+                        AppState.setCustomAttendanceTarget(pct)
+                    }
+                    showTargetDialog = false
+                }) {
+                    Text("Save", color = colors.accent, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTargetDialog = false }) {
+                    Text("Cancel", color = colors.textSecondary)
+                }
+            },
+            containerColor = colors.surface,
+            shape = RoundedCornerShape(AmazeTheme.radius.large)
+        )
+    }
+}
+
+@Composable
+private fun PredictorHeroStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = Color.White)
+        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.8f))
     }
 }
 
@@ -658,7 +691,165 @@ private data class CoursePrediction(
 )
 
 @Composable
-private fun ExpandedCoursePredictorCard(
+private fun BunkSimulatorCard(
+    hasSkips: Boolean,
+    onSimulate: (Int) -> Unit,
+    onReset: () -> Unit,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    var batchBunkDays by remember { mutableStateOf(1f) }
+    var expanded by remember { mutableStateOf(false) }
+
+    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Rounded.TaskAlt, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Multi-Day Bunk Simulator",
+                        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    )
+                    Text(
+                        "Simulate skipping upcoming working days across all courses",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Icon(
+                    if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    null,
+                    tint = colors.textMuted,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            AnimatedVisibility(visible = expanded) {
+                Column {
+                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            "Skip Next ${batchBunkDays.toInt()} Working Day${if (batchBunkDays.toInt() > 1) "s" else ""}",
+                            style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold)
+                        )
+                        Slider(
+                            value = batchBunkDays,
+                            onValueChange = { batchBunkDays = it },
+                            valueRange = 1f..7f,
+                            steps = 5,
+                            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                            colors = SliderDefaults.colors(thumbColor = colors.accent, activeTrackColor = colors.accent)
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        AmazeButton(
+                            text = "Simulate ${batchBunkDays.toInt()} Day Bunk",
+                            onClick = { onSimulate(batchBunkDays.toInt()) },
+                            modifier = Modifier.weight(1f),
+                            variant = ButtonVariant.PRIMARY
+                        )
+                        if (hasSkips) {
+                            AmazeButton(
+                                text = "Reset",
+                                onClick = onReset,
+                                modifier = Modifier.weight(0.4f),
+                                variant = ButtonVariant.SECONDARY
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoursePredictorGroupCard(
+    predictions: List<CoursePrediction>,
+    selectedMode: String,
+    targetPct: Double,
+    expandedCourse: String?,
+    skipDates: Map<String, Set<String>>,
+    hasSkips: Boolean,
+    onToggleExpand: (String) -> Unit,
+    onToggleSkipDate: (String, String) -> Unit,
+    onResetAll: () -> Unit,
+    colors: com.amazecc.app.shared.theme.AmazeColors
+) {
+    val anyBelowTarget = predictions.any { !it.isExamSafe }
+    val headerTint = if (anyBelowTarget) colors.warning else colors.success
+
+    AmazeCard(
+        modifier = Modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(0.dp)
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier.size(36.dp).clip(CircleShape).background(headerTint.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        if (anyBelowTarget) Icons.Rounded.Warning else Icons.Rounded.CheckCircle,
+                        null,
+                        tint = headerTint,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Courses",
+                        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "${predictions.size} course${if (predictions.size != 1) "s" else ""} · tap to inspect bunk allowance & skip dates",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textMuted),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (hasSkips) {
+                    TextButton(onClick = onResetAll) {
+                        Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
+                        Text("Reset", style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Medium))
+                    }
+                }
+            }
+
+            predictions.forEachIndexed { index, pred ->
+                if (index > 0) {
+                    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
+                }
+                CoursePredictorRow(
+                    prediction = pred,
+                    selectedMode = selectedMode,
+                    targetPct = targetPct,
+                    isExpanded = expandedCourse == pred.course.courseCode,
+                    skipDates = skipDates[pred.course.courseCode] ?: emptySet(),
+                    onToggleExpand = { onToggleExpand(pred.course.courseCode) },
+                    onToggleSkipDate = { onToggleSkipDate(pred.course.courseCode, it) },
+                    colors = colors
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CoursePredictorRow(
     prediction: CoursePrediction,
     selectedMode: String,
     targetPct: Double,
@@ -671,191 +862,186 @@ private fun ExpandedCoursePredictorCard(
     val course = prediction.course
     val currentPct = course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0
     val projectedPct = prediction.predictedPct
-
     val isBelowTargetNow = currentPct < targetPct
 
-    AmazeCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onToggleExpand
+    val statusColor = when {
+        projectedPct >= targetPct -> colors.success
+        projectedPct >= 50.0 -> colors.warning
+        else -> colors.danger
+    }
+    val statusIcon = if (isBelowTargetNow) Icons.Rounded.Warning else Icons.Rounded.CheckCircle
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggleExpand)
+            .background(if (isExpanded) colors.surface.copy(alpha = 0.4f) else Color.Transparent)
     ) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            course.courseCode,
-                            style = AmazeTheme.typography.caption.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = colors.accent
-                            )
-                        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(statusColor.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(statusIcon, null, tint = statusColor, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(AmazeTheme.spacing.sm))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        course.courseCode,
+                        style = AmazeTheme.typography.smallLabel.copy(color = statusColor, fontWeight = FontWeight.Bold)
+                    )
+                    if (prediction.skipCount > 0) {
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            course.courseTitle,
-                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            "Attended: ${course.attendedClasses}/${course.totalClasses}",
-                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                        )
-                        if (prediction.skipCount > 0) {
-                            Text(
-                                "Skips: ${prediction.skipCount}",
-                                style = AmazeTheme.typography.caption.copy(color = colors.danger, fontWeight = FontWeight.Bold)
+                            "${prediction.skipCount} SKIP${if (prediction.skipCount > 1) "S" else ""}",
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = colors.danger,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = AmazeTheme.fontSize.micro
                             )
-                        }
-                    }
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = pctFormatted(projectedPct),
-                        style = AmazeTheme.typography.subheading.copy(
-                            color = when {
-                                projectedPct >= targetPct -> colors.success
-                                projectedPct >= 50.0 -> colors.warning
-                                else -> colors.danger
-                            },
-                            fontWeight = FontWeight.Black
-                        )
-                    )
-                    Text(
-                        text = "${pctFormatted(currentPct)} now",
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                    )
-                }
-                Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
-                Icon(
-                    if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    null,
-                    tint = colors.textMuted,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Bunk Allowance & Safe Zone Indicators Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Bunk allowance badge
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(if (prediction.maxBunk > 0) colors.success.copy(alpha = 0.12f) else colors.surface)
-                        .border(1.dp, if (prediction.maxBunk > 0) colors.success.copy(alpha = 0.3f) else colors.border, RoundedCornerShape(AmazeTheme.radius.xs))
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            if (prediction.maxBunk > 0) Icons.Rounded.CheckCircle else Icons.Rounded.Info,
-                            null,
-                            tint = if (prediction.maxBunk > 0) colors.success else colors.textMuted,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = if (prediction.maxBunk > 0) "Can bunk ${prediction.maxBunk} class${if (prediction.maxBunk > 1) "es" else ""}" else "Cannot bunk",
-                            style = AmazeTheme.typography.caption.copy(
-                                fontSize = AmazeTheme.fontSize.micro,
-                                fontWeight = FontWeight.Bold,
-                                color = if (prediction.maxBunk > 0) colors.success else colors.textMuted
-                            ),
-                            maxLines = 1
                         )
                     }
                 }
-
-                // Safe Zone / Consecutive classes requirement badge
-                Box(
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(if (isBelowTargetNow) colors.danger.copy(alpha = 0.12f) else colors.info.copy(alpha = 0.12f))
-                        .border(1.dp, if (isBelowTargetNow) colors.danger.copy(alpha = 0.3f) else colors.info.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
-                        .padding(horizontal = 8.dp, vertical = 6.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            if (isBelowTargetNow) Icons.Rounded.Warning else Icons.Rounded.CheckCircle,
-                            null,
-                            tint = if (isBelowTargetNow) colors.danger else colors.info,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = if (isBelowTargetNow) "Must attend next ${prediction.classesNeeded} cls" else "In Safe Zone (${targetPct.toInt()}%)",
-                            style = AmazeTheme.typography.caption.copy(
-                                fontSize = AmazeTheme.fontSize.micro,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isBelowTargetNow) colors.danger else colors.info
-                            ),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            }
-
-            if (isExpanded && prediction.futureDates.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                 Text(
-                    "Future classes up to $selectedMode — tap to mark skip",
-                    style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
+                    course.courseTitle,
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                prediction.futureDates.forEach { fd ->
-                    val isSkipped = fd.display in skipDates
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                            .clickable { onToggleSkipDate(fd.display) }
-                            .background(if (isSkipped) colors.danger.copy(alpha = 0.08f) else Color.Transparent)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Attended ${course.attendedClasses}/${course.totalClasses}",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = pctFormatted(projectedPct),
+                    style = AmazeTheme.typography.subheading.copy(
+                        color = statusColor,
+                        fontWeight = FontWeight.Black
+                    )
+                )
+                Text(
+                    text = "${pctFormatted(currentPct)} now",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                )
+            }
+            Spacer(modifier = Modifier.width(AmazeTheme.spacing.xs))
+            Icon(
+                if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                null,
+                tint = colors.textMuted,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        AnimatedVisibility(visible = isExpanded) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PredictorMetricTile(
+                        "Bunk Allowance",
+                        if (prediction.maxBunk > 0) "Can bunk ${prediction.maxBunk} class${if (prediction.maxBunk > 1) "es" else ""}" else "Cannot bunk",
+                        if (prediction.maxBunk > 0) colors.success else colors.textMuted,
+                        colors,
+                        Modifier.weight(1f)
+                    )
+                    PredictorMetricTile(
+                        "Must Attend",
+                        if (isBelowTargetNow) "Next ${prediction.classesNeeded} classes" else "Safe (${targetPct.toInt()}%)",
+                        if (isBelowTargetNow) colors.danger else colors.info,
+                        colors,
+                        Modifier.weight(1f)
+                    )
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PredictorMetricTile("Projected", pctFormatted(projectedPct), statusColor, colors, Modifier.weight(1f))
+                    PredictorMetricTile("Current", pctFormatted(currentPct), colors.textSecondary, colors, Modifier.weight(1f))
+                }
+
+                if (prediction.futureDates.isNotEmpty()) {
+                    HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
+                    Text(
+                        "Future classes up to $selectedMode — tap to mark skip",
+                        style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
+                    )
+                    prediction.futureDates.forEach { fd ->
+                        val isSkipped = fd.display in skipDates
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                .clickable { onToggleSkipDate(fd.display) }
+                                .background(if (isSkipped) colors.danger.copy(alpha = 0.08f) else Color.Transparent)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isSkipped) colors.danger else colors.success)
+                                )
+                                Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
+                                Column {
+                                    Text(fd.display, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
+                                    Text(fd.dayAbbr, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                                }
+                            }
                             Box(
                                 modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isSkipped) colors.danger else colors.success)
-                            )
-                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                            Column {
-                                Text(fd.display, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium, color = colors.textPrimary))
-                                Text(fd.dayAbbr, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                    .background(if (isSkipped) colors.danger.copy(alpha = 0.15f) else colors.success.copy(alpha = 0.12f))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    if (isSkipped) "SKIP" else "ATTEND",
+                                    color = if (isSkipped) colors.danger else colors.success,
+                                    fontSize = AmazeTheme.fontSize.xs,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                .background(if (isSkipped) colors.danger.copy(alpha = 0.15f) else colors.success.copy(alpha = 0.12f))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                if (isSkipped) "SKIP" else "ATTEND",
-                                color = if (isSkipped) colors.danger else colors.success,
-                                fontSize = AmazeTheme.fontSize.xs,
-                                fontWeight = FontWeight.Bold
-                            )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PredictorMetricTile(
+    label: String,
+    value: String,
+    valueColor: Color,
+    colors: com.amazecc.app.shared.theme.AmazeColors,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(AmazeTheme.radius.small))
+            .background(colors.surface)
+            .border(1.dp, colors.border.copy(alpha = 0.5f), RoundedCornerShape(AmazeTheme.radius.small))
+            .padding(10.dp)
+    ) {
+        Column {
+            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
+            Spacer(Modifier.height(2.dp))
+            Text(
+                value,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = valueColor, fontSize = AmazeTheme.fontSize.base),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

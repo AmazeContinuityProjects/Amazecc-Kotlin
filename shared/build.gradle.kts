@@ -81,6 +81,7 @@ kotlin {
             implementation(libs.kamel.image)
             implementation(libs.multiplatform.settings)
             implementation(libs.multiplatform.settings.no.arg)
+            implementation(libs.markdown.renderer.m3)
         }
         
         commonTest.dependencies {

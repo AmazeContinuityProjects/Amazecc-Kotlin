@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.api.SyllabusDownload
+import com.amazecc.app.shared.api.SyllabusResult
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.model.*
@@ -61,6 +62,7 @@ import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.bouncySpring
+import com.amazecc.app.shared.utils.toFixed
 import com.amazecc.app.shared.ui.components.QBankCourseWorkspace
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupCard
 import com.amazecc.app.shared.ui.screens.settings.SettingsRow
@@ -818,7 +820,7 @@ private fun GradeHistoryCard(semName: String, grade: GradeItem?, trendDiff: Doub
                         )
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            "${if (trendDiff > 0) "+" else ""}%.1f".format(trendDiff),
+                            "${if (trendDiff > 0) "+" else ""}${trendDiff.toFixed(1)}",
                             fontSize = AmazeTheme.fontSize.micro,
                             color = when {
                                 trendDiff > 0 -> colors.success
@@ -1523,19 +1525,14 @@ private fun CoursePlanTab(
     val lab = group.lab
     val mainAtt = group.theoryAtt ?: group.labAtt
 
-    var syllabusFile by remember { mutableStateOf<SyllabusDownload?>(null) }
+    var syllabusResult by remember { mutableStateOf<SyllabusResult?>(null) }
     var syllabusLoading by remember { mutableStateOf(false) }
-    var syllabusError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     val saveFile = rememberFileSaver()
 
     LaunchedEffect(courseCode) {
         syllabusLoading = true
-        try {
-            val download = AmazeClient.getSyllabusPdf(courseCode)
-            syllabusFile = download
-            if (download == null) syllabusError = "No syllabus available"
-        } catch (e: Exception) { syllabusError = e.message }
+        syllabusResult = AmazeClient.getSyllabusPdf(courseCode)
         syllabusLoading = false
     }
 
@@ -1560,8 +1557,8 @@ private fun CoursePlanTab(
                             Text("Course Details", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                             Text(courseCode, fontSize = AmazeTheme.fontSize.xs, color = colors.textMuted)
                         }
-                        val sb = syllabusFile
-                        val se = syllabusError
+                        val sb = syllabusResult?.download
+                        val se = syllabusResult?.error
                         when {
                             syllabusLoading -> CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
                             sb != null -> {

@@ -71,3 +71,32 @@ data class FeedbackStatusRes(
     val semesters: List<FeedbackSemester>? = null,
     val feedbackTable: List<FeedbackTableRow>? = null
 )
+
+@Serializable
+data class EffectiveGradeCourse(
+    val basketTitle: String? = null,
+    val courseType: String? = null,
+    val creditsEarned: String? = null,
+    val grade: String? = null,
+    val distributionType: String? = null
+)
+
+@Serializable
+data class FeedbackKindStatus(
+    val Curriculum: Boolean? = null,
+    val Course: Boolean? = null
+)
+
+@Serializable
+data class SemFeedbackDetails(
+    val MidSem: FeedbackKindStatus? = null,
+    val EndSem: FeedbackKindStatus? = null
+)
+
+@Serializable
+data class SemesterGradesRes(
+    val success: Boolean = true,
+    val error: String? = null,
+    val effectiveGrades: List<EffectiveGradeCourse>? = null,
+    val feedback: SemFeedbackDetails? = null
+)

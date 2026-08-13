@@ -1,12 +1,31 @@
 package com.amazecc.app.shared.theme
 
 import androidx.compose.ui.graphics.Color
+import kotlin.math.roundToInt
 
 // Accent Themes
 val AccentOcean = Color(0xFF0EA5E9)   // Blue
 val AccentForest = Color(0xFF10B981)  // Green
 val AccentLavender = Color(0xFF8B5CF6)// Purple
 val AccentSunset = Color(0xFFF97316)  // Orange
+
+fun Color.toHexString(): String {
+    val r = (red * 255f).roundToInt().coerceIn(0, 255)
+    val g = (green * 255f).roundToInt().coerceIn(0, 255)
+    val b = (blue * 255f).roundToInt().coerceIn(0, 255)
+    return "#" + (r.toString(16).padStart(2, '0') + g.toString(16).padStart(2, '0') + b.toString(16).padStart(2, '0')).uppercase()
+}
+
+fun parseHexColor(hex: String): Color? {
+    val clean = hex.trim().removePrefix("#").removePrefix("0x")
+    if (clean.length != 6) return null
+    val v = clean.toLongOrNull(16) ?: return null
+    return Color(
+        ((v shr 16) and 0xFF) / 255f,
+        ((v shr 8) and 0xFF) / 255f,
+        (v and 0xFF) / 255f
+    )
+}
 
 // Semantic Colors
 val ColorSuccess = Color(0xFF10B981)
