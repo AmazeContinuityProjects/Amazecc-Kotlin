@@ -71,15 +71,15 @@ fun LoginScreen() {
 
     LaunchedEffect(Unit) {
         val creds = SettingsManager.getCredentials()
-        if (creds != null && AppState.restoreSession()) {
+        if (creds != null) {
             username = creds.first
             password = creds.second
+        }
+        if (creds != null && AppState.restoreSession()) {
             val target = if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING
             AppState.navigateTo(target)
         } else {
             if (creds != null && SessionManager.authorizedID.value != null) {
-                username = creds.first
-                password = creds.second
                 scope.launch {
                     isSubmitting = true
                     val response = AmazeClient.login(creds.first, creds.second)
@@ -140,8 +140,8 @@ fun LoginScreen() {
                 Image(
                     painter = painterResource(Res.drawable.ic_launcher),
                     contentDescription = Strings.appName,
-                    modifier = Modifier.fillMaxSize().padding(8.dp),
-                    contentScale = ContentScale.Fit
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
                 )
             }
 

@@ -6,7 +6,8 @@ import kotlinx.serialization.Serializable
 data class ApiTable(
     val headers: List<String> = emptyList(),
     val rows: List<List<String>> = emptyList(),
-    val title: String? = null
+    val title: String? = null,
+    val caption: String? = null
 )
 
 @Serializable

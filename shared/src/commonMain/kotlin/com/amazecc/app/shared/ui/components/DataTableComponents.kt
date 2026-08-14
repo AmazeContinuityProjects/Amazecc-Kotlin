@@ -45,9 +45,10 @@ fun DataTableCard(
 ) {
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (table.title != null) {
+            val tableTitle = table.title ?: table.caption
+            if (tableTitle != null) {
                 Text(
-                    table.title,
+                    tableTitle,
                     style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                 )
             }

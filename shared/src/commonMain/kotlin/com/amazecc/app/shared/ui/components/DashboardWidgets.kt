@@ -933,14 +933,14 @@ private fun MetricCardsWidget() {
     if (visibleCardKeys.isNotEmpty()) {
         Row(
             modifier = rowModifier,
-            horizontalArrangement = if (isScrollable) {
-                Arrangement.spacedBy(AmazeTheme.spacing.sm)
-            } else {
-                Arrangement.SpaceBetween
-            }
+            horizontalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
         ) {
             visibleCardKeys.forEach { key ->
-                val cardModifier = Modifier.widthIn(min = 100.dp)
+                val cardModifier = when {
+                    isScrollable -> Modifier.widthIn(min = 100.dp)
+                    visibleCardKeys.size == 1 -> Modifier.widthIn(max = 200.dp)
+                    else -> Modifier.weight(1f)
+                }
                 when (key) {
                     "attendance" -> GlassMetricCard(
                         title = "Attendance",

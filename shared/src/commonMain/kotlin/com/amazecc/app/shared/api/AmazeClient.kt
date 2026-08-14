@@ -237,6 +237,51 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
         }
     }
 
+    private const val UNMESSIFY_BASE = "https://kanishka-developer.github.io/unmessify/json/en"
+
+    private fun messGenderLetter(gender: String?): String =
+        if (gender.equals("FEMALE", true)) "W" else "M"
+
+    private fun messTypeLetter(messType: String?): String = when {
+        messType?.contains("NON", ignoreCase = true) == true -> "N"
+        messType?.contains("SPECIAL", ignoreCase = true) == true -> "S"
+        else -> "V"
+    }
+
+    suspend fun getMessMenu(gender: String?, messType: String?): MessMenuRes {
+        if (useMockData) return DemoData.get("messMenu", MessMenuRes.serializer()) ?: MessMenuRes()
+        return try {
+            val url = "$UNMESSIFY_BASE/VITC-${messGenderLetter(gender)}-${messTypeLetter(messType)}.json"
+            httpClient.get(url).body()
+        } catch (e: Exception) {
+            MessMenuRes()
+        }
+    }
+
+    suspend fun getLaundrySchedule(gender: String?, blockPrefix: String): LaundryRes {
+        if (useMockData) return DemoData.get("laundry", LaundryRes.serializer()) ?: LaundryRes()
+        return try {
+            val block = blockPrefix.uppercase()
+            val file = when (block) {
+                "C" -> if (gender.equals("FEMALE", true)) "VITC-CG-L.json" else "VITC-CB-L.json"
+                else -> "VITC-$block-L.json"
+            }
+            httpClient.get("$UNMESSIFY_BASE/$file").body()
+        } catch (e: Exception) {
+            LaundryRes()
+        }
+    }
+
+    suspend fun getHostelCounselling(): ArrearResponse {
+        if (useMockData) return DemoData.get("hostelCounselling", ArrearResponse.serializer()) ?: ArrearResponse()
+        return try {
+            postAuthorized<ArrearResponse>("hostel-counselling")
+                ?: ArrearResponse(success = false, message = "Empty response")
+        } catch (e: Exception) {
+            ArrearResponse(success = false, message = e.message, error = e.toString())
+        }
+    }
+
     suspend fun getExamSchedule(semesterId: String? = null): ExamScheduleRes {
 if (useMockData) return DemoData.get("examSchedule", ExamScheduleRes.serializer()) ?: ExamScheduleRes()
         return try {

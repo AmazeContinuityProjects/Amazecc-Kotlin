@@ -1598,6 +1598,54 @@
       }
     ]
   },
+  "messMenu": {
+    "list": [
+      {
+        "Day": "Monday",
+        "Breakfast": "1. Idly 2. Vada 3. Sambar 4. Coconut Chutney 5. Tea / Coffee",
+        "Lunch": "1. Chapathi 2. Veg Kurma 3. Jeera Rice 4. Sambar 5. Rasam 6. Curd Rice 7. Sweet Pongal",
+        "Snacks": "1. Veg Sandwich 2. Tomato Ketchup 3. Tea / Coffee",
+        "Dinner": "1. Paneer Butter Masala 2. Roti 3. Steamed Rice 4. Dal Fry 5. Veg Salad"
+      },
+      {
+        "Day": "Tuesday",
+        "Breakfast": "1. Pongal 2. Medu Vada 3. Coconut Chutney 4. Sambar 5. Tea / Coffee",
+        "Lunch": "1. Veg Biryani 2. Onion Raita 3. Steamed Rice 4. Sambar 5. Rasam 6. Curd Rice 7. Gulab Jamun",
+        "Snacks": "1. Masala Vada 2. Green Chutney 3. Tea / Coffee",
+        "Dinner": "1. Chana Masala 2. Poori 3. Steamed Rice 4. Sambar 5. Sweet Pongal"
+      },
+      {
+        "Day": "Wednesday",
+        "Breakfast": "1. Chapathi 2. Veg Kurma 3. Banana 4. Tea / Coffee",
+        "Lunch": "1. Rajma Masala 2. Jeera Rice 3. Steamed Rice 4. Sambar 5. Rasam 6. Curd Rice 7. Ice Cream",
+        "Snacks": "1. Veg Puff 2. Tomato Sauce 3. Tea / Coffee",
+        "Dinner": "1. Mushroom Masala 2. Roti 3. Steamed Rice 4. Dal Fry 5. Veg Salad"
+      }
+    ]
+  },
+  "laundry": {
+    "list": [
+      { "Date": "1", "RoomNumber": "112 - 336" },
+      { "Date": "2", "RoomNumber": "337 - 561" },
+      { "Date": "3", "RoomNumber": "562 - 786" },
+      { "Date": "4", "RoomNumber": "787 - 1011" },
+      { "Date": "5", "RoomNumber": "1012 - 1236" }
+    ]
+  },
+  "hostelCounselling": {
+    "success": true,
+    "tables": [
+      {
+        "caption": "Hostel Counselling Schedule",
+        "headers": ["Date", "Time", "Counsellor", "Room"],
+        "rows": [
+          ["18-DEC-2025", "10:00 AM - 12:00 PM", "Dr. K. Srinivasan", "B Block - 102"],
+          ["19-DEC-2025", "10:00 AM - 12:00 PM", "Dr. K. Srinivasan", "B Block - 102"],
+          ["20-DEC-2025", "02:00 PM - 04:00 PM", "Dr. K. Srinivasan", "B Block - 102"]
+        ]
+      }
+    ]
+  },
   "calender": {
     "semesterId": "CH20252605",
     "calendars": [

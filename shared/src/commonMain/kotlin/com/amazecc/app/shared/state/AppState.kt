@@ -471,6 +471,9 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         loadCachedData<AllGradesRes>(SettingsManager.CACHE_GRADES, _allGrades)
         mergeSemestersFromAllGrades()
         loadCachedData<HostelDetails>(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails)
+        loadCachedData<MessMenuRes>(SettingsManager.CACHE_MESS_MENU, _messMenu)
+        loadCachedData<LaundryRes>(SettingsManager.CACHE_LAUNDRY, _laundrySchedule)
+        loadCachedData<ArrearResponse>(SettingsManager.CACHE_HOSTEL_COUNSELLING, _hostelCounselling)
         loadCachedData<ExamScheduleRes>(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule)
         loadCachedData<CalendarRes>(SettingsManager.CACHE_CALENDAR, _calendar)
         loadCachedData<CalendarsListRes>(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList)
@@ -699,6 +702,9 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         if (_allGrades.value != null) { cacheData(SettingsManager.CACHE_GRADES, _allGrades.value); saved++ }
         if (_curriculum.value != null) { cacheData(SettingsManager.CACHE_CURRICULUM, _curriculum.value); saved++ }
         if (_hostelDetails.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails.value); saved++ }
+        if (_messMenu.value != null) { cacheData(SettingsManager.CACHE_MESS_MENU, _messMenu.value); saved++ }
+        if (_laundrySchedule.value != null) { cacheData(SettingsManager.CACHE_LAUNDRY, _laundrySchedule.value); saved++ }
+        if (_hostelCounselling.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_COUNSELLING, _hostelCounselling.value); saved++ }
         if (_examSchedule.value != null) { cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule.value); saved++ }
         if (_calendar.value != null) { cacheData(SettingsManager.CACHE_CALENDAR, _calendar.value); saved++ }
         if (_calendarsList.value != null) { cacheData(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList.value); saved++ }
@@ -761,6 +767,15 @@ private val _commandPaletteOpen = MutableStateFlow(false)
 
     private val _hostelDetails = MutableStateFlow<HostelDetails?>(null)
     val hostelDetails: StateFlow<HostelDetails?> = _hostelDetails.asStateFlow()
+
+    private val _messMenu = MutableStateFlow<MessMenuRes?>(null)
+    val messMenu: StateFlow<MessMenuRes?> = _messMenu.asStateFlow()
+
+    private val _laundrySchedule = MutableStateFlow<LaundryRes?>(null)
+    val laundrySchedule: StateFlow<LaundryRes?> = _laundrySchedule.asStateFlow()
+
+    private val _hostelCounselling = MutableStateFlow<ArrearResponse?>(null)
+    val hostelCounselling: StateFlow<ArrearResponse?> = _hostelCounselling.asStateFlow()
 
     private val _examSchedule = MutableStateFlow<ExamScheduleRes?>(null)
     val examSchedule: StateFlow<ExamScheduleRes?> = _examSchedule.asStateFlow()
@@ -1941,6 +1956,48 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         }
     }
 
+    fun refreshMessMenu(gender: String?, messType: String?) {
+        val cached = settings.getString(SettingsManager.CACHE_MESS_MENU, "")
+        if (cached.isNotBlank()) {
+            try { _messMenu.value = jsonFormat.decodeFromString<MessMenuRes>(cached) } catch (_: Exception) {}
+        }
+        scope.launch {
+            val res = AmazeClient.getMessMenu(gender, messType)
+            if (res.list.isNotEmpty()) {
+                _messMenu.value = res
+                SettingsManager.setString(SettingsManager.CACHE_MESS_MENU, jsonFormat.encodeToString(MessMenuRes.serializer(), res))
+            }
+        }
+    }
+
+    fun refreshLaundrySchedule(gender: String?, blockPrefix: String) {
+        val cached = settings.getString(SettingsManager.CACHE_LAUNDRY, "")
+        if (cached.isNotBlank()) {
+            try { _laundrySchedule.value = jsonFormat.decodeFromString<LaundryRes>(cached) } catch (_: Exception) {}
+        }
+        scope.launch {
+            val res = AmazeClient.getLaundrySchedule(gender, blockPrefix)
+            if (res.list.isNotEmpty()) {
+                _laundrySchedule.value = res
+                SettingsManager.setString(SettingsManager.CACHE_LAUNDRY, jsonFormat.encodeToString(LaundryRes.serializer(), res))
+            }
+        }
+    }
+
+    fun refreshHostelCounselling() {
+        val cached = settings.getString(SettingsManager.CACHE_HOSTEL_COUNSELLING, "")
+        if (cached.isNotBlank()) {
+            try { _hostelCounselling.value = jsonFormat.decodeFromString<ArrearResponse>(cached) } catch (_: Exception) {}
+        }
+        scope.launch {
+            val res = AmazeClient.getHostelCounselling()
+            if (res.success) {
+                _hostelCounselling.value = res
+                SettingsManager.setString(SettingsManager.CACHE_HOSTEL_COUNSELLING, jsonFormat.encodeToString(ArrearResponse.serializer(), res))
+            }
+        }
+    }
+
     fun refreshCalendar() {
         if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
         launchSweep(setOf(SyncModule.CALENDAR)) {
@@ -2342,6 +2399,9 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         _allSemesterExams.value = emptyMap()
         _pastSemestersSynced.value = false
         _hostelDetails.value = null
+        _messMenu.value = null
+        _laundrySchedule.value = null
+        _hostelCounselling.value = null
         _examSchedule.value = null
         _calendar.value = null
         _payments.value = null
