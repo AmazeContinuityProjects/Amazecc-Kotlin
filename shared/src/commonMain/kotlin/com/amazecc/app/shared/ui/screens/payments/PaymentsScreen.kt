@@ -29,6 +29,7 @@ import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.BadgeVariant
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
+import com.amazecc.app.shared.ui.components.HeroCard
 import com.amazecc.app.shared.model.PaymentItem
 
 @Composable
@@ -50,78 +51,66 @@ fun PaymentsScreen() {
         Column(modifier = Modifier.fillMaxSize()) {
             com.amazecc.app.shared.ui.components.HeaderSpacer()
 
-            val walletCardGradient = remember(colors) {
-                androidx.compose.ui.graphics.Brush.linearGradient(
-                    colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
-                )
-            }
-
             val dues = payments.filter { it.status != "PAID" }
             val receipts = payments.filter { it.status == "PAID" }
 
             // Premium Wallet Card
-            Box(
+            HeroCard(
+                colors = colors,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
-                    .clip(RoundedCornerShape(AmazeTheme.radius.large))
-                    .background(walletCardGradient)
-                    .padding(20.dp)
-            ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Rounded.AccountBalanceWallet, null, tint = Color.White, modifier = Modifier.size(22.dp))
-                        }
-                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                        Text("VIT Wallet Balance", color = Color.White.copy(alpha = 0.9f), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium))
+            ) { p ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(40.dp).clip(CircleShape).background(p.iconBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.AccountBalanceWallet, null, tint = p.text, modifier = Modifier.size(22.dp))
                     }
-                    Spacer(Modifier.height(AmazeTheme.spacing.md))
-                    Text(
-                        paymentsRes?.walletBalance?.replace("Rs.", "\u20B9")?.replace("INR", "\u20B9") ?: "\u20B9 0.00",
-                        fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.display, color = Color.White
-                    )
-                    Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(
-                            onClick = { subTab = "due" },
-                            modifier = Modifier.weight(1f).height(42.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (subTab == "due") Color.White else Color.White.copy(alpha = 0.2f)
-                            ),
-                            elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
-                            shape = RoundedCornerShape(AmazeTheme.radius.small)
-                        ) {
-                            Icon(Icons.Rounded.Pending, null, tint = if (subTab == "due") colors.accent else Color.White, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                            Text(
-                                "Dues (${dues.size})",
-                                color = if (subTab == "due") colors.accent else Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = AmazeTheme.fontSize.base
-                            )
-                        }
-                        Button(
-                            onClick = { subTab = "receipts" },
-                            modifier = Modifier.weight(1f).height(42.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (subTab == "receipts") Color.White else Color.White.copy(alpha = 0.2f)
-                            ),
-                            elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
-                            shape = RoundedCornerShape(AmazeTheme.radius.small)
-                        ) {
-                            Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null, tint = if (subTab == "receipts") colors.accent else Color.White, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                            Text(
-                                "Receipts (${receipts.size})",
-                                color = if (subTab == "receipts") colors.accent else Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = AmazeTheme.fontSize.base
-                            )
-                        }
+                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                    Text("VIT Wallet Balance", color = p.textSecondary, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Medium))
+                }
+                Text(
+                    paymentsRes?.walletBalance?.replace("Rs.", "\u20B9")?.replace("INR", "\u20B9") ?: "\u20B9 0.00",
+                    fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.display, color = p.text
+                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(
+                        onClick = { subTab = "due" },
+                        modifier = Modifier.weight(1f).height(42.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (subTab == "due") p.text else p.text.copy(alpha = 0.2f)
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
+                        shape = RoundedCornerShape(AmazeTheme.radius.small)
+                    ) {
+                        Icon(Icons.Rounded.Pending, null, tint = if (subTab == "due") colors.accent else p.text, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                        Text(
+                            "Dues (${dues.size})",
+                            color = if (subTab == "due") colors.accent else p.text,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = AmazeTheme.fontSize.base
+                        )
+                    }
+                    Button(
+                        onClick = { subTab = "receipts" },
+                        modifier = Modifier.weight(1f).height(42.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (subTab == "receipts") p.text else p.text.copy(alpha = 0.2f)
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(0.dp, 0.dp),
+                        shape = RoundedCornerShape(AmazeTheme.radius.small)
+                    ) {
+                        Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null, tint = if (subTab == "receipts") colors.accent else p.text, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                        Text(
+                            "Receipts (${receipts.size})",
+                            color = if (subTab == "receipts") colors.accent else p.text,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = AmazeTheme.fontSize.base
+                        )
                     }
                 }
             }

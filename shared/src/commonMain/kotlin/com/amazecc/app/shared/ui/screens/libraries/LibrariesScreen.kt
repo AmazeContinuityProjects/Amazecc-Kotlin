@@ -54,6 +54,10 @@ import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.components.HeroCard
+import com.amazecc.app.shared.ui.components.HeroChip
+import com.amazecc.app.shared.ui.components.HeroPanel
+import com.amazecc.app.shared.ui.components.HeroStat
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupCard
 import com.amazecc.app.shared.ui.screens.settings.SettingsRow
 import com.amazecc.app.shared.ui.screens.settings.SettingsRowDivider
@@ -233,12 +237,6 @@ private fun LibraryHeroCard(
     loginRequired: Boolean,
     colors: AmazeColors
 ) {
-    val heroGradient = remember(colors) {
-        Brush.linearGradient(
-            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.65f))
-        )
-    }
-
     val overdueCount = remember(issuedBooks) {
         issuedBooks.count { it.dueDate != null && it.fineAmount != null && it.fineAmount != "Rs. 0.00" && it.fineAmount != "0" }
     }
@@ -254,103 +252,70 @@ private fun LibraryHeroCard(
         if (sum > 0) "Rs. ${sum.toFixed(2)}" else "Rs. 0.00"
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(heroGradient)
-            .padding(20.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Library Account",
-                    color = Color.White.copy(alpha = 0.95f),
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
-                )
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
+    HeroCard(colors = colors, modifier = Modifier.fillMaxWidth()) { p ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null, tint = p.text, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Library Account",
+                color = p.textSecondary,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
+            )
+            Spacer(Modifier.weight(1f))
+            HeroChip(
+                text = if (loginRequired) "Login Required" else if (overdueCount > 0) "$overdueCount Overdue" else "Active",
+                p = p
+            )
+        }
+
+        if (!loginRequired) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                HeroStat("Issued", "${issuedBooks.size}", p.text)
+                HeroStat("Overdue", "$overdueCount", if (overdueCount > 0) Color(0xFFFF8A80) else p.textSecondary)
+                HeroStat("Fines", totalFines, p.textSecondary)
+            }
+        }
+
+        HeroPanel(p = p, modifier = Modifier.fillMaxWidth()) {
+            if (loginRequired) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Lock, null, tint = p.textSecondary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
                     Text(
-                        if (loginRequired) "Login Required" else if (overdueCount > 0) "$overdueCount Overdue" else "Active",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = AmazeTheme.fontSize.micro
+                        "Sign in below to check issued books, due dates & renewals",
+                        color = p.textSecondary,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = AmazeTheme.fontSize.sm
+                    )
+                }
+            } else if (issuedBooks.isEmpty()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.CheckCircle, null, tint = p.textSecondary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "No books currently issued. Search catalog to explore books!",
+                        color = p.textSecondary,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = AmazeTheme.fontSize.sm
+                    )
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Schedule, null, tint = p.textSecondary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (overdueCount > 0) "$overdueCount book(s) past due date — please renew or return"
+                        else "All issued books are within due date",
+                        color = p.textSecondary,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = AmazeTheme.fontSize.sm
                     )
                 }
             }
-
-            if (!loginRequired) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    HeroStat("Issued", "${issuedBooks.size}", Color.White)
-                    HeroStat("Overdue", "$overdueCount", if (overdueCount > 0) Color(0xFFFF8A80) else Color.White.copy(alpha = 0.9f))
-                    HeroStat("Fines", totalFines, Color.White.copy(alpha = 0.9f))
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                    .background(Color.White.copy(alpha = 0.14f))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium))
-                    .padding(12.dp)
-            ) {
-                if (loginRequired) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Lock, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "Sign in below to check issued books, due dates & renewals",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontWeight = FontWeight.Medium,
-                            fontSize = AmazeTheme.fontSize.sm
-                        )
-                    }
-                } else if (issuedBooks.isEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.CheckCircle, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            "No books currently issued. Search catalog to explore books!",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontWeight = FontWeight.Medium,
-                            fontSize = AmazeTheme.fontSize.sm
-                        )
-                    }
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Schedule, null, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (overdueCount > 0) "$overdueCount book(s) past due date — please renew or return"
-                            else "All issued books are within due date",
-                            color = Color.White.copy(alpha = 0.95f),
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = AmazeTheme.fontSize.sm
-                        )
-                    }
-                }
-            }
         }
-    }
-}
-
-@Composable
-private fun HeroStat(label: String, value: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = color)
-        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.8f))
     }
 }
 

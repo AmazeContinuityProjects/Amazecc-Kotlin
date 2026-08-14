@@ -39,6 +39,7 @@ import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.model.displayCgpa
 import com.amazecc.app.shared.model.displayCreditsEarned
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.components.HeroCard
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupLabel
 
 private val gradePointMap = mapOf(
@@ -113,12 +114,6 @@ fun GPAPredictorScreen() {
         if (newTotalCredits > 0.0) newTotalPoints / newTotalCredits else currentCgpa
     }
 
-    val heroGradient = remember(colors) {
-        androidx.compose.ui.graphics.Brush.linearGradient(
-            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.70f))
-        )
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -136,63 +131,55 @@ fun GPAPredictorScreen() {
             HeaderSpacer()
 
             // Hero Gradient Card (Settings & Exam Schedule design language)
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(AmazeTheme.radius.large))
-                    .background(heroGradient)
-                    .padding(16.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("CGPA Predictor & Target", style = AmazeTheme.typography.heading.copy(color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold))
-                            Text("Simulate grades & track GPA goals", style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.85f)))
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.20f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                fmt2(projectedCgpa),
-                                style = AmazeTheme.typography.subheading.copy(
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White,
-                                    fontSize = 15.sp
-                                )
-                            )
-                        }
+            HeroCard(colors = colors, modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) { p ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("CGPA Predictor & Target", style = AmazeTheme.typography.heading.copy(color = p.text, fontSize = 20.sp, fontWeight = FontWeight.Bold))
+                        Text("Simulate grades & track GPA goals", style = AmazeTheme.typography.caption.copy(color = p.textSecondary))
                     }
 
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.25f))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(p.iconBg),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Current CGPA", color = Color.White.copy(alpha = 0.8f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
-                            Text(fmt2(currentCgpa), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-                        }
-                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color.White.copy(alpha = 0.3f)))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Credits Earned", color = Color.White.copy(alpha = 0.8f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
-                            Text(fmt0(creditsEarned), color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-                        }
-                        Box(modifier = Modifier.width(1.dp).height(24.dp).background(Color.White.copy(alpha = 0.3f)))
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Target Goal", color = Color.White.copy(alpha = 0.8f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
-                            Text(if (targetCgpa.isBlank()) "9.00" else targetCgpa, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-                        }
+                        Text(
+                            fmt2(projectedCgpa),
+                            style = AmazeTheme.typography.subheading.copy(
+                                fontWeight = FontWeight.Black,
+                                color = p.text,
+                                fontSize = 15.sp
+                            )
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = p.divider)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Current CGPA", color = p.statLabel, fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
+                        Text(fmt2(currentCgpa), color = p.text, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                    Box(modifier = Modifier.width(1.dp).height(24.dp).background(p.divider))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Credits Earned", color = p.statLabel, fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
+                        Text(fmt0(creditsEarned), color = p.text, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                    }
+                    Box(modifier = Modifier.width(1.dp).height(24.dp).background(p.divider))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Target Goal", color = p.statLabel, fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.Bold)
+                        Text(if (targetCgpa.isBlank()) "9.00" else targetCgpa, color = p.text, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }

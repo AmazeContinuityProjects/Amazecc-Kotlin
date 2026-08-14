@@ -53,7 +53,6 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
-import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeBadge
@@ -62,6 +61,11 @@ import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.bouncySpring
+import com.amazecc.app.shared.ui.components.HeroCard
+import com.amazecc.app.shared.ui.components.HeroChip
+import com.amazecc.app.shared.ui.components.HeroPalette
+import com.amazecc.app.shared.ui.components.HeroPanel
+import com.amazecc.app.shared.ui.components.HeroStat
 import com.amazecc.app.shared.utils.toFixed
 import com.amazecc.app.shared.ui.components.QBankCourseWorkspace
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupCard
@@ -393,12 +397,6 @@ private fun AttendanceHeroCard(
     isPastSemester: Boolean,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val heroGradient = remember(colors) {
-        androidx.compose.ui.graphics.Brush.linearGradient(
-            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
-        )
-    }
-
     val attItem = if (isEmbedded) theoryAtt else mainAtt
     val attPct = attItem?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
     val (healthLabel, _, _) = healthStatus(attPct, predictedGrade(0.0), isPastSemester, colors)
@@ -408,100 +406,75 @@ private fun AttendanceHeroCard(
     val totalWeightPct = assessments.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
     val projectedPct = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(heroGradient)
-            .padding(20.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.CheckCircle, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Attendance",
-                    color = Color.White.copy(alpha = 0.9f),
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
-                )
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(healthLabel, color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
-                }
-            }
+    HeroCard(colors = colors, modifier = Modifier.fillMaxWidth()) { p ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.CheckCircle, null, tint = p.text, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Attendance",
+                color = p.textSecondary,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
+            )
+            Spacer(Modifier.weight(1f))
+            HeroChip(text = healthLabel, p = p)
+        }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                if (isEmbedded) {
-                    HeroArc("Theory", theoryAtt, Modifier.weight(1f))
-                    HeroArc("Lab", labAtt, Modifier.weight(1f))
-                } else {
-                    HeroArc("Attendance", mainAtt, Modifier.weight(1f))
-                }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            if (isEmbedded) {
+                HeroArc("Theory", theoryAtt, p, Modifier.weight(1f))
+                HeroArc("Lab", labAtt, p, Modifier.weight(1f))
+            } else {
+                HeroArc("Attendance", mainAtt, p, Modifier.weight(1f))
             }
+        }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                    .background(Color.White.copy(alpha = 0.14f))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium))
-                    .padding(12.dp)
-            ) {
-                when {
-                    assessments.isNotEmpty() -> {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(
-                                "Marks Earned",
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = AmazeTheme.fontSize.sm
-                            )
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                HeroStat("Scored", "${totalWeighted.toInt()}", Color.White)
-                                HeroStat("Weight", "${totalWeightPct.toInt()}%", Color.White.copy(alpha = 0.9f))
-                                HeroStat("Projected", "$projectedPct%", Color.White.copy(alpha = 0.9f))
-                            }
-                            LinearProgressIndicator(
-                                progress = { if (totalWeightPct > 0) (totalWeighted / totalWeightPct).toFloat() else 0f },
-                                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                                color = Color.White,
-                                trackColor = Color.White.copy(alpha = 0.25f)
-                            )
+        HeroPanel(p = p, modifier = Modifier.fillMaxWidth()) {
+            when {
+                assessments.isNotEmpty() -> {
+                    Text(
+                        "Marks Earned",
+                        color = p.textSecondary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = AmazeTheme.fontSize.sm
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        HeroStat("Scored", "${totalWeighted.toInt()}", p.text)
+                        HeroStat("Weight", "${totalWeightPct.toInt()}%", p.textSecondary)
+                        HeroStat("Projected", "$projectedPct%", p.textSecondary)
+                    }
+                    LinearProgressIndicator(
+                        progress = { if (totalWeightPct > 0) (totalWeighted / totalWeightPct).toFloat() else 0f },
+                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                        color = p.progress,
+                        trackColor = p.progressTrack
+                    )
+                }
+                group.grade != null -> {
+                    val gradeItem = group.grade!!
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier.size(52.dp).clip(CircleShape).background(p.iconBg),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(gradeItem.grade, color = p.text, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl)
+                        }
+                        Spacer(Modifier.width(AmazeTheme.spacing.md))
+                        Column {
+                            Text("Grade Published", color = p.textSecondary, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
+                            Text("Total: ${gradeItem.grandTotal}%", color = p.text, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.md)
                         }
                     }
-                    group.grade != null -> {
-                        val gradeItem = group.grade!!
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier.size(52.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(gradeItem.grade, color = Color.White, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl)
-                            }
-                            Spacer(Modifier.width(AmazeTheme.spacing.md))
-                            Column {
-                                Text("Grade Published", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
-                                Text("Total: ${gradeItem.grandTotal}%", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.md)
-                            }
-                        }
-                    }
-                    else -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.Schedule, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                "Marks not published yet",
-                                color = Color.White.copy(alpha = 0.9f),
-                                fontWeight = FontWeight.SemiBold,
-                                fontSize = AmazeTheme.fontSize.sm
-                            )
-                        }
+                }
+                else -> {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Schedule, null, tint = p.textSecondary, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Marks not published yet",
+                            color = p.textSecondary,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = AmazeTheme.fontSize.sm
+                        )
                     }
                 }
             }
@@ -510,30 +483,22 @@ private fun AttendanceHeroCard(
 }
 
 @Composable
-private fun HeroArc(label: String, att: AttendanceItem?, modifier: Modifier = Modifier) {
+private fun HeroArc(label: String, att: AttendanceItem?, p: HeroPalette, modifier: Modifier = Modifier) {
     val pct = att?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
     val animatedPct by animateFloatAsState(targetValue = (pct / 100f).toFloat(), animationSpec = tween(1000))
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(64.dp)) {
             Canvas(modifier = Modifier.size(64.dp)) {
-                drawArc(color = Color.White.copy(alpha = 0.25f), startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
-                drawArc(color = Color.White, startAngle = -90f, sweepAngle = 360f * animatedPct, useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
+                drawArc(color = p.progressTrack, startAngle = -90f, sweepAngle = 360f, useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
+                drawArc(color = p.progress, startAngle = -90f, sweepAngle = 360f * animatedPct, useCenter = false, style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
             }
-            Text("${pct.toInt()}%", fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = Color.White)
+            Text("${pct.toInt()}%", fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = p.text)
         }
         Spacer(Modifier.height(AmazeTheme.spacing.xs))
-        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold)
+        Text(label, fontSize = AmazeTheme.fontSize.micro, color = p.textSecondary, fontWeight = FontWeight.Bold)
         if (att != null) {
-            Text("${att.attendedClasses}/${att.totalClasses}", fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.7f))
+            Text("${att.attendedClasses}/${att.totalClasses}", fontSize = AmazeTheme.fontSize.micro, color = p.statLabel)
         }
-    }
-}
-
-@Composable
-private fun HeroStat(label: String, value: String, color: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = color)
-        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.8f))
     }
 }
 
@@ -1012,84 +977,71 @@ private fun MarksHeroCard(
     grading: CourseGrading,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val heroGradient = remember(colors) {
-        androidx.compose.ui.graphics.Brush.linearGradient(
-            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
-        )
-    }
     val modeTint = if (grading.mode == GradingMode.ABSOLUTE) colors.success else colors.warning
 
     val totalWeighted = allAsms.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
     val totalWeightPct = allAsms.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
     val projectedPct = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(heroGradient)
-            .padding(20.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.Assessment, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Marks", color = Color.White.copy(alpha = 0.9f), style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold))
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(modeTint))
-                        Spacer(Modifier.width(6.dp))
-                        Text("${grading.mode.label} Grading", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
+    HeroCard(colors = colors, modifier = Modifier.fillMaxWidth()) { p ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Assessment, null, tint = p.text, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Marks", color = p.textSecondary, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold))
+            Spacer(Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                    .background(p.chipBg)
+                    .border(1.dp, p.chipBorder, RoundedCornerShape(AmazeTheme.radius.xs))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(modeTint))
+                    Spacer(Modifier.width(6.dp))
+                    Text("${grading.mode.label} Grading", color = p.text, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
+                }
+            }
+        }
+
+        when {
+            allAsms.isNotEmpty() -> {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Marks Earned", color = p.textSecondary, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        HeroStat("Scored", "${totalWeighted.toInt()}", p.text)
+                        HeroStat("Weight", "${totalWeightPct.toInt()}%", p.textSecondary)
+                        HeroStat("Projected", "$projectedPct%", p.textSecondary)
+                    }
+                    LinearProgressIndicator(
+                        progress = { if (totalWeightPct > 0) (totalWeighted / totalWeightPct).toFloat() else 0f },
+                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                        color = p.progress,
+                        trackColor = p.progressTrack
+                    )
+                }
+            }
+            group.grade != null -> {
+                val gradeItem = group.grade!!
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier.size(52.dp).clip(CircleShape).background(p.iconBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(gradeItem.grade, color = p.text, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl)
+                    }
+                    Spacer(Modifier.width(AmazeTheme.spacing.md))
+                    Column {
+                        Text("Grade Published", color = p.textSecondary, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
+                        Text("Total: ${gradeItem.grandTotal}%", color = p.text, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.md)
                     }
                 }
             }
-
-            when {
-                allAsms.isNotEmpty() -> {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Marks Earned", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            HeroStat("Scored", "${totalWeighted.toInt()}", Color.White)
-                            HeroStat("Weight", "${totalWeightPct.toInt()}%", Color.White.copy(alpha = 0.9f))
-                            HeroStat("Projected", "$projectedPct%", Color.White.copy(alpha = 0.9f))
-                        }
-                        LinearProgressIndicator(
-                            progress = { if (totalWeightPct > 0) (totalWeighted / totalWeightPct).toFloat() else 0f },
-                            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                            color = Color.White,
-                            trackColor = Color.White.copy(alpha = 0.25f)
-                        )
-                    }
-                }
-                group.grade != null -> {
-                    val gradeItem = group.grade!!
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier.size(52.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(gradeItem.grade, color = Color.White, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl)
-                        }
-                        Spacer(Modifier.width(AmazeTheme.spacing.md))
-                        Column {
-                            Text("Grade Published", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
-                            Text("Total: ${gradeItem.grandTotal}%", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.md)
-                        }
-                    }
-                }
-                else -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Schedule, null, tint = Color.White.copy(alpha = 0.8f), modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Marks not published yet", color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.SemiBold, fontSize = AmazeTheme.fontSize.sm)
-                    }
+            else -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Schedule, null, tint = p.textSecondary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Marks not published yet", color = p.textSecondary, fontWeight = FontWeight.SemiBold, fontSize = AmazeTheme.fontSize.sm)
                 }
             }
         }

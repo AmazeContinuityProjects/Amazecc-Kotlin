@@ -110,8 +110,6 @@ fun getScreenIconAndLabel(screen: Screen): Pair<ImageVector, String> {
         Screen.FFCS_PLANNER -> Icons.Rounded.ViewTimeline to "FFCS"
         Screen.FREE_CLASSROOMS -> Icons.Rounded.MeetingRoom to "Classes"
         Screen.CALENDAR -> Icons.Rounded.CalendarMonth to "Calendar"
-        Screen.PROJECTS -> Icons.Rounded.Folder to "Projects"
-        Screen.WISHLIST -> Icons.Rounded.FavoriteBorder to "Wishlist"
         else -> Icons.Rounded.Circle to "Unknown"
     }
 }

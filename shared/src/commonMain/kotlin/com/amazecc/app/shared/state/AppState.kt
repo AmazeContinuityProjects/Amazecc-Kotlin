@@ -60,7 +60,7 @@ enum class Screen { SPLASH,
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
     COURSE_ATTENDANCE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
-    FACULTY_INFO, COURSE_MANAGEMENT, PROJECTS, WISHLIST,
+    FACULTY_INFO, COURSE_MANAGEMENT,
     FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, CLUB_DETAIL,
     COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB, TASKS, EXAM_SCHEDULE,
     CHANGELOG, HALL_OF_FAME, ARREAR
@@ -147,6 +147,9 @@ object AppState {
 
     private val _animationsEnabled = MutableStateFlow(true)
     val animationsEnabled: StateFlow<Boolean> = _animationsEnabled.asStateFlow()
+
+    private val _heroColorEnabled = MutableStateFlow(true)
+    val heroColorEnabled: StateFlow<Boolean> = _heroColorEnabled.asStateFlow()
 
     private val _residentialStatus = MutableStateFlow(SettingsManager.getString(SettingsManager.RESIDENTIAL_STATUS, "Hosteller"))
     val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()
@@ -407,6 +410,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
 
         _hapticEnabled.value = SettingsManager.getBoolean(SettingsManager.KEY_HAPTIC_ENABLED, true)
         _animationsEnabled.value = SettingsManager.getBoolean(SettingsManager.KEY_ANIMATIONS_ENABLED, true)
+        _heroColorEnabled.value = SettingsManager.getBoolean(SettingsManager.KEY_HERO_COLOR_ENABLED, true)
 
         val savedNav = SettingsManager.getString(SettingsManager.KEY_NAVBAR_ITEMS, "")
         if (savedNav.isNotEmpty()) {
@@ -2386,6 +2390,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         _customAttendanceTarget.value = null
         _hapticEnabled.value = true
         _animationsEnabled.value = true
+        _heroColorEnabled.value = true
         _residentialStatus.value = "Hosteller"
         _statsCardsOrder.value = listOf("attendance", "cgpa", "credits", "od")
         _enabledStatsCards.value = setOf("attendance", "cgpa", "credits", "od")
@@ -3105,6 +3110,11 @@ fun updateMoodleData(data: MoodleRes?) {
     fun setAnimationsEnabled(enabled: Boolean) {
         _animationsEnabled.value = enabled
         SettingsManager.setBoolean(SettingsManager.KEY_ANIMATIONS_ENABLED, enabled)
+    }
+
+    fun setHeroColorEnabled(enabled: Boolean) {
+        _heroColorEnabled.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_HERO_COLOR_ENABLED, enabled)
     }
 
     fun updateStudentProfile(profile: StudentProfile?) {

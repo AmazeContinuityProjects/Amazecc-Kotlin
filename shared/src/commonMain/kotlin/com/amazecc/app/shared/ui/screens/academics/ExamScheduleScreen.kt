@@ -35,6 +35,10 @@ import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.ExamStatusChip
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.examStatusText
+import com.amazecc.app.shared.ui.components.HeroCard
+import com.amazecc.app.shared.ui.components.HeroChip
+import com.amazecc.app.shared.ui.components.HeroPanel
+import com.amazecc.app.shared.ui.components.HeroStat
 import com.amazecc.app.shared.utils.ExamUtils
 import com.amazecc.app.shared.utils.seatLocationDisplay
 import com.amazecc.app.shared.utils.sessionDisplay
@@ -171,101 +175,61 @@ private fun ExamHeroCard(schedule: Map<String, List<ExamItem>>, colors: AmazeCol
     )
     val upcoming = total - completed
 
-    val heroGradient = remember(colors) {
-        Brush.linearGradient(
-            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
-        )
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(heroGradient)
-            .padding(20.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.EventSeat, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Exam Schedule",
-                    color = Color.White.copy(alpha = 0.9f),
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
-                )
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text("$upcoming UPCOMING", color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
-                }
-            }
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                ExamHeroStat("Total", "$total")
-                ExamHeroStat("Completed", "$completed")
-                next?.let { (_, hours) ->
-                    ExamHeroStat("Next in", countdownShort(hours))
-                }
-            }
-
-            LinearProgressIndicator(
-                progress = { fraction },
-                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                color = Color.White,
-                trackColor = Color.White.copy(alpha = 0.25f)
+    HeroCard(colors = colors, modifier = Modifier.fillMaxWidth()) { p ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.EventSeat, null, tint = p.text, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Exam Schedule",
+                color = p.textSecondary,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
             )
+            Spacer(Modifier.weight(1f))
+            HeroChip(text = "$upcoming UPCOMING", p = p)
+        }
 
-            next?.let { (exam, _) ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                        .background(Color.White.copy(alpha = 0.14f))
-                        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium))
-                        .padding(12.dp)
-                ) {
-                    Column {
-                        Text(
-                            "NEXT EXAM",
-                            color = Color.White.copy(alpha = 0.85f),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = AmazeTheme.fontSize.sm
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            "${exam.courseCode} · ${exam.courseTitle}",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = AmazeTheme.fontSize.sm,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            buildString {
-                                append(exam.examDate.ifBlank { "Date TBD" })
-                                if (exam.examTime.isNotBlank()) append(" · ").append(exam.examTime)
-                                if (exam.sessionDisplay != "TBD") append(" · ").append(exam.sessionDisplay)
-                            },
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = AmazeTheme.fontSize.micro
-                        )
-                    }
-                }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            HeroStat("Total", "$total", p.text)
+            HeroStat("Completed", "$completed", p.text)
+            next?.let { (_, hours) ->
+                HeroStat("Next in", countdownShort(hours), p.text)
             }
         }
-    }
-}
 
-@Composable
-private fun ExamHeroStat(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = Color.White)
-        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.8f))
+        LinearProgressIndicator(
+            progress = { fraction },
+            modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+            color = p.progress,
+            trackColor = p.progressTrack
+        )
+
+        next?.let { (exam, _) ->
+            HeroPanel(p = p, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "NEXT EXAM",
+                    color = p.textSecondary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = AmazeTheme.fontSize.sm
+                )
+                Text(
+                    "${exam.courseCode} · ${exam.courseTitle}",
+                    color = p.text,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = AmazeTheme.fontSize.sm,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    buildString {
+                        append(exam.examDate.ifBlank { "Date TBD" })
+                        if (exam.examTime.isNotBlank()) append(" · ").append(exam.examTime)
+                        if (exam.sessionDisplay != "TBD") append(" · ").append(exam.sessionDisplay)
+                    },
+                    color = p.textSecondary,
+                    fontSize = AmazeTheme.fontSize.micro
+                )
+            }
+        }
     }
 }
 

@@ -2305,8 +2305,8 @@ private fun QuickActionsWidget() {
                 GlassActionCardWidget("Bus Routes", Icons.Rounded.DirectionsBus, colors.chart4) {
                     AppState.navigateTo(Screen.TRANSPORT)
                 }
-                GlassActionCardWidget("Wishlist", Icons.Rounded.FavoriteBorder, colors.chart5) {
-                    AppState.navigateTo(Screen.WISHLIST)
+                GlassActionCardWidget("Event Hub", Icons.Rounded.Event, colors.chart5) {
+                    AppState.navigateTo(Screen.EVENTS)
                 }
                 GlassActionCardWidget("Curriculum", Icons.Rounded.MenuBook, colors.chart1) {
                     AppState.navigateTo(Screen.CURRICULUM)

@@ -171,18 +171,6 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showBackButton = true,
         showSyncButton = false
     )
-    Screen.PROJECTS -> HeaderConfig(
-        title = "Projects",
-        description = "Academic projects and guides",
-        showBackButton = true,
-        showSyncButton = false
-    )
-    Screen.WISHLIST -> HeaderConfig(
-        title = "Wishlist",
-        description = "Course wishlist",
-        showBackButton = true,
-        showSyncButton = false
-    )
     Screen.FEEDBACK_STATUS -> HeaderConfig(
         title = "Feedback Status",
         description = "Course feedback status",

@@ -53,6 +53,9 @@ import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.components.HeroCard
+import com.amazecc.app.shared.ui.components.HeroPanel
+import com.amazecc.app.shared.ui.components.HeroStat
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupLabel
 import kotlinx.datetime.*
 import com.amazecc.app.shared.utils.TimeMath
@@ -430,11 +433,6 @@ private fun AttendancePredictorHeroCard(
     onToggleBusSubscriber: (Boolean) -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val heroGradient = remember(colors) {
-        androidx.compose.ui.graphics.Brush.linearGradient(
-            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.65f))
-        )
-    }
     val customTarget by AppState.customAttendanceTarget.collectAsState()
     val targetPct = if (isBusSubscriber) 85.0 else 75.0
     val effectiveTarget = customTarget?.toDouble() ?: targetPct
@@ -452,33 +450,26 @@ private fun AttendancePredictorHeroCard(
     var showTargetDialog by remember { mutableStateOf(false) }
     var targetInput by remember { mutableStateOf("") }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(heroGradient)
-            .padding(20.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.TrendingUp, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Overall Predictor ($selectedMode)",
-                    color = Color.White.copy(alpha = 0.9f),
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
-                )
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(healthBg.copy(alpha = 0.3f))
-                        .border(1.dp, healthBg, RoundedCornerShape(AmazeTheme.radius.xs))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(healthLabel, color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
-                }
+    HeroCard(colors = colors, modifier = Modifier.fillMaxWidth()) { p ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.TrendingUp, null, tint = p.text, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Overall Predictor ($selectedMode)",
+                color = p.textSecondary,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
+            )
+            Spacer(Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                    .background(healthBg.copy(alpha = 0.3f))
+                    .border(1.dp, healthBg, RoundedCornerShape(AmazeTheme.radius.xs))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(healthLabel, color = p.text, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
             }
+        }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -491,15 +482,15 @@ private fun AttendancePredictorHeroCard(
                     CircularProgressIndicator(
                         progress = { (overallPct / 100.0).toFloat().coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxSize(),
-                        color = Color.White,
-                        trackColor = Color.White.copy(alpha = 0.25f),
+                        color = p.progress,
+                        trackColor = p.progressTrack,
                         strokeWidth = 7.dp
                     )
                     Text(
                         text = pctFormatted(overallPct),
                         style = AmazeTheme.typography.subheading.copy(
                             fontWeight = FontWeight.Black,
-                            color = Color.White,
+                            color = p.text,
                             fontSize = AmazeTheme.fontSize.lg
                         )
                     )
@@ -509,48 +500,45 @@ private fun AttendancePredictorHeroCard(
                     Text(
                         "$totalPredictedAttended / $totalPredictedTotal classes",
                         style = AmazeTheme.typography.subheading.copy(
-                            color = Color.White,
+                            color = p.text,
                             fontWeight = FontWeight.Bold
                         )
                     )
                     Spacer(Modifier.height(4.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                            .background(Color.White.copy(alpha = 0.14f))
-                            .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(AmazeTheme.radius.medium))
-                            .clickable {
-                                targetInput = customTarget?.let { it.toInt().toString() } ?: ""
-                                showTargetDialog = true
-                            }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(26.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Rounded.Adjust, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    HeroPanel(
+                        p = p,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            targetInput = customTarget?.let { it.toInt().toString() } ?: ""
+                            showTargetDialog = true
                         }
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "${effectiveTarget.toInt()}% Target",
-                            style = AmazeTheme.typography.caption.copy(color = Color.White, fontWeight = FontWeight.Bold),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Spacer(Modifier.weight(1f))
-                        Icon(
-                            if (customTarget != null) Icons.Rounded.Edit else Icons.Rounded.Tune,
-                            "Set custom target",
-                            tint = Color.White.copy(alpha = 0.85f),
-                            modifier = Modifier.size(16.dp)
-                        )
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(26.dp)
+                                    .clip(CircleShape)
+                                    .background(p.iconBg),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Rounded.Adjust, null, tint = p.text, modifier = Modifier.size(16.dp))
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "${effectiveTarget.toInt()}% Target",
+                                style = AmazeTheme.typography.caption.copy(color = p.text, fontWeight = FontWeight.Bold),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.weight(1f))
+                            Icon(
+                                if (customTarget != null) Icons.Rounded.Edit else Icons.Rounded.Tune,
+                                "Set custom target",
+                                tint = p.textSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -559,19 +547,15 @@ private fun AttendancePredictorHeroCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                PredictorHeroStat("Working Days", "$totalWorkingDays")
-                PredictorHeroStat("Remaining", "$remainingDays")
-                PredictorHeroStat("Months", "$monthCount")
+                HeroStat("Working Days", "$totalWorkingDays", p.text)
+                HeroStat("Remaining", "$remainingDays", p.text)
+                HeroStat("Months", "$monthCount", p.text)
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                    .background(Color.White.copy(alpha = 0.14f))
-                    .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(AmazeTheme.radius.medium))
-                    .clickable { onToggleBusSubscriber(!isBusSubscriber) }
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            HeroPanel(
+                p = p,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = { onToggleBusSubscriber(!isBusSubscriber) }
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -580,20 +564,20 @@ private fun AttendancePredictorHeroCard(
                     Icon(
                         if (isBusSubscriber) Icons.Rounded.DirectionsBus else Icons.Rounded.School,
                         contentDescription = null,
-                        tint = Color.White,
+                        tint = p.text,
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
                         Text(
                             if (isBusSubscriber) "Bus Subscriber Target (85%)" else "Standard Student Target (75%)",
-                            style = AmazeTheme.typography.caption.copy(color = Color.White, fontWeight = FontWeight.Bold),
+                            style = AmazeTheme.typography.caption.copy(color = p.text, fontWeight = FontWeight.Bold),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             "Tap to toggle target criteria",
-                            style = AmazeTheme.typography.smallLabel.copy(color = Color.White.copy(alpha = 0.75f)),
+                            style = AmazeTheme.typography.smallLabel.copy(color = p.textSecondary),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -603,15 +587,14 @@ private fun AttendancePredictorHeroCard(
                         onCheckedChange = onToggleBusSubscriber,
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = colors.accent,
-                            checkedTrackColor = Color.White,
-                            uncheckedThumbColor = Color.White,
-                            uncheckedTrackColor = Color.White.copy(alpha = 0.3f)
+                            checkedTrackColor = p.text,
+                            uncheckedThumbColor = p.text,
+                            uncheckedTrackColor = p.text.copy(alpha = 0.3f)
                         )
                     )
                 }
             }
         }
-    }
 
     if (showTargetDialog) {
         AlertDialog(
@@ -666,14 +649,6 @@ private fun AttendancePredictorHeroCard(
             containerColor = colors.surface,
             shape = RoundedCornerShape(AmazeTheme.radius.large)
         )
-    }
-}
-
-@Composable
-private fun PredictorHeroStat(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = Color.White)
-        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.8f))
     }
 }
 

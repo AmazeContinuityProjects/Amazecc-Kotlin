@@ -38,6 +38,7 @@ fun AppearancePage(onOpenSubScreen: (SettingsSubScreen) -> Unit = {}) {
     val customPalette by AppState.customPalette.collectAsState()
     val hapticEnabled by AppState.hapticEnabled.collectAsState()
     val animationsEnabled by AppState.animationsEnabled.collectAsState()
+    val heroColorEnabled by AppState.heroColorEnabled.collectAsState()
     var showCustomAccent by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -142,6 +143,15 @@ fun AppearancePage(onOpenSubScreen: (SettingsSubScreen) -> Unit = {}) {
                 tint = colors.accent,
                 checked = hapticEnabled,
                 onCheckedChange = { AppState.setHapticEnabled(it) }
+            )
+            SettingsRowDivider()
+            SettingsSwitchRow(
+                icon = Icons.Rounded.Palette,
+                title = "Colorful Hero Cards",
+                subtitle = "Accent gradient summary cards; off uses a neutral surface",
+                tint = colors.accent,
+                checked = heroColorEnabled,
+                onCheckedChange = { AppState.setHeroColorEnabled(it) }
             )
             SettingsRowDivider()
             SettingsSwitchRow(
@@ -311,9 +321,7 @@ fun BottomNavPage() {
         com.amazecc.app.shared.state.Screen.FFCS_PLANNER,
         com.amazecc.app.shared.state.Screen.FREE_CLASSROOMS,
         com.amazecc.app.shared.state.Screen.QBANK,
-        com.amazecc.app.shared.state.Screen.SOCIAL,
-        com.amazecc.app.shared.state.Screen.PROJECTS,
-        com.amazecc.app.shared.state.Screen.WISHLIST
+        com.amazecc.app.shared.state.Screen.SOCIAL
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

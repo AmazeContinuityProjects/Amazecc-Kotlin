@@ -184,23 +184,28 @@ fun HsvColorPicker(
     }
 
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1.2f)
         ) {
-            SvArea(
-                hue = hsv.hue,
-                saturation = hsv.saturation,
-                value = hsv.value,
-                onChanged = { s, v -> applyColor(HsvColor(hsv.hue, s, v).toColor()) },
-                modifier = Modifier.weight(1f).aspectRatio(1f)
-            )
-            HueSlider(
-                hue = hsv.hue,
-                onHueChanged = { h -> applyColor(HsvColor(h, hsv.saturation, hsv.value).toColor()) },
-                modifier = Modifier.fillMaxHeight().width(26.dp)
-            )
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                SvArea(
+                    hue = hsv.hue,
+                    saturation = hsv.saturation,
+                    value = hsv.value,
+                    onChanged = { s, v -> applyColor(HsvColor(hsv.hue, s, v).toColor()) },
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+                HueSlider(
+                    hue = hsv.hue,
+                    onHueChanged = { h -> applyColor(HsvColor(h, hsv.saturation, hsv.value).toColor()) },
+                    modifier = Modifier.fillMaxHeight().width(26.dp)
+                )
+            }
         }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -229,11 +234,6 @@ fun HsvColorPicker(
                     unfocusedContainerColor = colors.surface,
                     cursorColor = colors.accent
                 )
-            )
-            Text(
-                current.toHexString(),
-                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                maxLines = 1
             )
         }
     }

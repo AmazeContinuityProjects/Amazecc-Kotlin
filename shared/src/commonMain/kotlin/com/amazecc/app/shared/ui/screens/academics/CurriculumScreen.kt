@@ -49,6 +49,10 @@ import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.DownloadProgressSheet
 import com.amazecc.app.shared.ui.components.ErrorReportSheet
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.components.HeroCard
+import com.amazecc.app.shared.ui.components.HeroChip
+import com.amazecc.app.shared.ui.components.HeroPalette
+import com.amazecc.app.shared.ui.components.HeroPanel
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupLabel
 import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.utils.rememberPdfOpener
@@ -433,112 +437,92 @@ private fun CurriculumHeroCard(
     expectedGrad: String,
     colors: AmazeColors
 ) {
-    val heroGradient = remember(colors) {
-        Brush.linearGradient(colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f)))
-    }
+    HeroCard(colors = colors, modifier = Modifier.fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)) { p ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.CheckCircle, null, tint = p.text, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Degree Progress",
+                color = p.textSecondary,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
+            )
+            Spacer(Modifier.weight(1f))
+            HeroChip(
+                text = if (remainingCredits <= 0) "Ready to Graduate" else "$expectedGrad left",
+                p = p
+            )
+        }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(heroGradient)
-            .padding(16.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.CheckCircle, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Degree Progress",
-                    color = Color.White.copy(alpha = 0.9f),
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
-                )
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        if (remainingCredits <= 0) "Ready to Graduate" else "$expectedGrad left",
-                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro
-                    )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.size(100.dp)) {
+                Canvas(modifier = Modifier.size(100.dp)) {
+                    val stroke = 28f
+                    val r = (size.minDimension - stroke) / 2
+                    val topLeft = Offset((size.width - r * 2 - stroke) / 2, (size.height - r * 2 - stroke) / 2)
+                    val arcSize = Size(r * 2 + stroke, r * 2 + stroke)
+                    drawArc(p.progressTrack, -90f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
+                    drawArc(p.progress, -90f, earnedPct * 360f, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
+                    if (ongoingPct > 0f)
+                        drawArc(p.progress.copy(alpha = 0.55f), -90f + earnedPct * 360f, ongoingPct * 360f, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
-            }
-
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(100.dp)) {
-                    Canvas(modifier = Modifier.size(100.dp)) {
-                        val stroke = 28f
-                        val r = (size.minDimension - stroke) / 2
-                        val topLeft = Offset((size.width - r * 2 - stroke) / 2, (size.height - r * 2 - stroke) / 2)
-                        val arcSize = Size(r * 2 + stroke, r * 2 + stroke)
-                        drawArc(Color.White.copy(alpha = 0.25f), -90f, 360f, false, topLeft, arcSize, style = Stroke(stroke))
-                        drawArc(Color.White, -90f, earnedPct * 360f, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
-                        if (ongoingPct > 0f)
-                            drawArc(Color.White.copy(alpha = 0.55f), -90f + earnedPct * 360f, ongoingPct * 360f, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
-                    }
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("${(earnedPct * 100).toInt()}%", fontWeight = FontWeight.Black, color = Color.White, fontSize = AmazeTheme.fontSize.xl)
-                            Text(Strings.done, color = Color.White.copy(alpha = 0.8f), fontSize = AmazeTheme.fontSize.micro)
-                        }
-                    }
-                }
-                Spacer(Modifier.width(20.dp))
-                Column(Modifier.weight(1f)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        HeroStatBox("Earned", fmtCredits(totalEarned), Modifier.weight(1f))
-                        HeroStatBox("In Progress", fmtCredits(ongoingCredits), Modifier.weight(1f))
-                    }
-                    Spacer(Modifier.height(8.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        HeroStatBox("Remaining", "$remainingCredits", Modifier.weight(1f))
-                        HeroStatBox("Required", "$totalRequired", Modifier.weight(1f))
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("${(earnedPct * 100).toInt()}%", fontWeight = FontWeight.Black, color = p.text, fontSize = AmazeTheme.fontSize.xl)
+                        Text(Strings.done, color = p.textSecondary, fontSize = AmazeTheme.fontSize.micro)
                     }
                 }
             }
-
-            Column {
-                LinearProgressIndicator(
-                    progress = { (earnedPct + ongoingPct).coerceAtMost(1f) },
-                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                    color = Color.White,
-                    trackColor = Color.White.copy(alpha = 0.25f)
-                )
-                Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    HeroLegendDot(1f, "Earned")
-                    HeroLegendDot(0.55f, "In Progress")
-                    HeroLegendDot(0.25f, "Remaining")
+            Spacer(Modifier.width(20.dp))
+            Column(Modifier.weight(1f)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HeroStatBox("Earned", fmtCredits(totalEarned), p, Modifier.weight(1f))
+                    HeroStatBox("In Progress", fmtCredits(ongoingCredits), p, Modifier.weight(1f))
                 }
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HeroStatBox("Remaining", "$remainingCredits", p, Modifier.weight(1f))
+                    HeroStatBox("Required", "$totalRequired", p, Modifier.weight(1f))
+                }
+            }
+        }
+
+        Column {
+            LinearProgressIndicator(
+                progress = { (earnedPct + ongoingPct).coerceAtMost(1f) },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                color = p.progress,
+                trackColor = p.progressTrack
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                HeroLegendDot(1f, "Earned", p)
+                HeroLegendDot(0.55f, "In Progress", p)
+                HeroLegendDot(0.25f, "Remaining", p)
             }
         }
     }
 }
 
 @Composable
-private fun HeroStatBox(label: String, value: String, modifier: Modifier = Modifier) {
+private fun HeroStatBox(label: String, value: String, p: HeroPalette, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-            .background(Color.White.copy(alpha = 0.14f))
-            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium))
+            .background(p.panelBg)
+            .border(1.dp, p.panelBorder, RoundedCornerShape(AmazeTheme.radius.medium))
             .padding(10.dp)
     ) {
-        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.md, color = Color.White)
-        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.8f), maxLines = 1)
+        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.md, color = p.text)
+        Text(label, fontSize = AmazeTheme.fontSize.micro, color = p.statLabel, maxLines = 1)
     }
 }
 
 @Composable
-private fun HeroLegendDot(alpha: Float, label: String) {
+private fun HeroLegendDot(alpha: Float, label: String, p: HeroPalette) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(Color.White.copy(alpha = alpha)))
+        Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(p.progress.copy(alpha = alpha)))
         Spacer(Modifier.width(AmazeTheme.spacing.xs))
-        Text(label, color = Color.White.copy(alpha = 0.8f), fontSize = AmazeTheme.fontSize.micro)
+        Text(label, color = p.statLabel, fontSize = AmazeTheme.fontSize.micro)
     }
 }
 

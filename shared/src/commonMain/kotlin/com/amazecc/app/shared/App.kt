@@ -68,6 +68,7 @@ fun App() {
     val uiScale by AppState.uiScale.collectAsState()
     val hapticEnabled by AppState.hapticEnabled.collectAsState()
     val animationsEnabled by AppState.animationsEnabled.collectAsState()
+    val heroColorEnabled by AppState.heroColorEnabled.collectAsState()
     val clipboardManager = LocalClipboardManager.current
 
     // Observe SyncEngine outside of AppState.init to avoid classloading deadlocks
@@ -92,7 +93,8 @@ fun App() {
         customAccent = customAccent,
         customPalette = customPalette,
         hapticEnabled = hapticEnabled,
-        animationsEnabled = animationsEnabled
+        animationsEnabled = animationsEnabled,
+        heroColorEnabled = heroColorEnabled
     ) {
         val colors = AmazeTheme.colors
         
@@ -182,8 +184,6 @@ fun App() {
                                 Screen.COURSE_DASHBOARD -> CourseDashboardScreen { AppState.navigateBackTo(Screen.ACADEMICS) }
                                 Screen.FACULTY_INFO -> FacultyInfoScreen()
                                 Screen.COURSE_MANAGEMENT -> CourseManagementScreen()
-                                Screen.PROJECTS -> ProjectsScreen()
-                                Screen.WISHLIST -> WishlistScreen()
                                 Screen.FEEDBACK_STATUS -> FeedbackStatusScreen()
                                 Screen.FRESHER_WELCOME -> FresherWelcomeScreen()
                                 Screen.DOCUMENTS -> DocumentsScreen()

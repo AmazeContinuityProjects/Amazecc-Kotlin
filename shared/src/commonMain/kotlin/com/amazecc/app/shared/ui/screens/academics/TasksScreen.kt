@@ -59,6 +59,11 @@ import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.SheetHeaderRow
 import com.amazecc.app.shared.ui.components.bouncySpring
+import com.amazecc.app.shared.ui.components.HeroCard
+import com.amazecc.app.shared.ui.components.HeroChip
+import com.amazecc.app.shared.ui.components.HeroPalette
+import com.amazecc.app.shared.ui.components.HeroPanel
+import com.amazecc.app.shared.ui.components.HeroStat
 import kotlinx.coroutines.delay
 import kotlinx.datetime.*
 
@@ -382,20 +387,20 @@ fun TasksScreen() {
     }
 }
 
-// ── View Tab Button (white chip on the hero gradient) ──
+// ── View Tab Button (chip on the hero card) ──
 @Composable
 private fun ViewTabButton(
-    key: String,
     label: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     isSelected: Boolean,
+    p: HeroPalette,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-            .background(if (isSelected) Color.White else Color.Transparent)
+            .background(if (isSelected) p.text else Color.Transparent)
             .clickable { onClick() }
             .padding(vertical = 7.dp),
         contentAlignment = Alignment.Center
@@ -404,7 +409,7 @@ private fun ViewTabButton(
             Icon(
                 icon,
                 null,
-                tint = if (isSelected) AmazeTheme.colors.accent else Color.White.copy(alpha = 0.8f),
+                tint = if (isSelected) AmazeTheme.colors.accent else p.textSecondary,
                 modifier = Modifier.size(14.dp)
             )
             Spacer(Modifier.width(5.dp))
@@ -412,7 +417,7 @@ private fun ViewTabButton(
                 label,
                 fontSize = AmazeTheme.fontSize.xs,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) AmazeTheme.colors.accent else Color.White.copy(alpha = 0.9f)
+                color = if (isSelected) AmazeTheme.colors.accent else p.textSecondary
             )
         }
     }
@@ -2443,123 +2448,82 @@ private fun TasksHeroCard(
     onViewModeChange: (String) -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val heroGradient = remember(colors) {
-        androidx.compose.ui.graphics.Brush.linearGradient(
-            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
-        )
-    }
     val doneRatio = if (totalCount > 0) completedCount.toFloat() / totalCount else 0f
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(heroGradient)
-            .padding(20.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.TaskAlt, null, tint = Color.White, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    "Tasks & Reminders",
-                    color = Color.White.copy(alpha = 0.9f),
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
-                )
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
+    HeroCard(colors = colors, modifier = Modifier.fillMaxWidth()) { p ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.TaskAlt, null, tint = p.text, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Tasks & Reminders",
+                color = p.textSecondary,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
+            )
+            Spacer(Modifier.weight(1f))
+            HeroChip(
+                text = when {
+                    overdueCount > 0 -> "$overdueCount OVERDUE"
+                    pendingCount == 0 -> "ALL CLEAR"
+                    else -> "$pendingCount PENDING"
+                },
+                p = p
+            )
+        }
+
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            HeroStat("Pending", "$pendingCount", p.text, Modifier.weight(1f), valueSize = AmazeTheme.fontSize.xl)
+            HeroStat("Today", "$todayCount", p.textSecondary, Modifier.weight(1f), valueSize = AmazeTheme.fontSize.xl)
+            HeroStat("Overdue", "$overdueCount", p.textSecondary, Modifier.weight(1f), valueSize = AmazeTheme.fontSize.xl)
+        }
+
+        HeroPanel(p = p, modifier = Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        when {
-                            overdueCount > 0 -> "$overdueCount OVERDUE"
-                            pendingCount == 0 -> "ALL CLEAR"
-                            else -> "$pendingCount PENDING"
-                        },
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = AmazeTheme.fontSize.micro
+                        "Est. Workload",
+                        color = p.textSecondary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = AmazeTheme.fontSize.sm
                     )
+                    Spacer(Modifier.height(4.dp))
+                    Text(workloadText, color = p.text, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "Completed",
+                        color = p.textSecondary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = AmazeTheme.fontSize.sm
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text("$completedCount/$totalCount", color = p.text, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl)
                 }
             }
+            LinearProgressIndicator(
+                progress = { doneRatio },
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+                color = p.progress,
+                trackColor = p.progressTrack
+            )
+        }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                TasksHeroStat("Pending", "$pendingCount", Color.White, Modifier.weight(1f))
-                TasksHeroStat("Today", "$todayCount", Color.White.copy(alpha = 0.9f), Modifier.weight(1f))
-                TasksHeroStat("Overdue", "$overdueCount", Color.White.copy(alpha = 0.9f), Modifier.weight(1f))
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                    .background(Color.White.copy(alpha = 0.14f))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium))
-                    .padding(12.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                "Est. Workload",
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = AmazeTheme.fontSize.sm
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(workloadText, color = Color.White, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl)
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                "Completed",
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = AmazeTheme.fontSize.sm
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text("$completedCount/$totalCount", color = Color.White, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl)
-                        }
-                    }
-                    LinearProgressIndicator(
-                        progress = { doneRatio },
-                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                        color = Color.White,
-                        trackColor = Color.White.copy(alpha = 0.25f)
-                    )
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                    .background(Color.White.copy(alpha = 0.14f))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                ViewTabButton("list", "List", Icons.Rounded.List, selectedViewMode == "list", Modifier.weight(1f)) { onViewModeChange("list") }
-                ViewTabButton("kanban", "Kanban", Icons.Rounded.ViewColumn, selectedViewMode == "kanban", Modifier.weight(1f)) { onViewModeChange("kanban") }
-                ViewTabButton("calendar", "Calendar", Icons.Rounded.CalendarMonth, selectedViewMode == "calendar", Modifier.weight(1f)) { onViewModeChange("calendar") }
-                ViewTabButton("workload", "Workload", Icons.Rounded.Analytics, selectedViewMode == "workload", Modifier.weight(1f)) { onViewModeChange("workload") }
-            }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                .background(p.panelBg)
+                .border(1.dp, p.panelBorder, RoundedCornerShape(AmazeTheme.radius.medium))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            ViewTabButton("List", Icons.Rounded.List, selectedViewMode == "list", p, Modifier.weight(1f)) { onViewModeChange("list") }
+            ViewTabButton("Kanban", Icons.Rounded.ViewColumn, selectedViewMode == "kanban", p, Modifier.weight(1f)) { onViewModeChange("kanban") }
+            ViewTabButton("Calendar", Icons.Rounded.CalendarMonth, selectedViewMode == "calendar", p, Modifier.weight(1f)) { onViewModeChange("calendar") }
+            ViewTabButton("Workload", Icons.Rounded.Analytics, selectedViewMode == "workload", p, Modifier.weight(1f)) { onViewModeChange("workload") }
         }
     }
 }
 
-@Composable
-private fun TasksHeroStat(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xl, color = color)
-        Text(label, fontSize = AmazeTheme.fontSize.micro, color = color.copy(alpha = 0.7f))
-    }
-}
-
-// ── Filter pill (design-language chip) ──
 @Composable
 private fun FilterPill(
     label: String,

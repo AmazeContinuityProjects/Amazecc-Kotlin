@@ -120,54 +120,40 @@ fun HostelDetailsSection(hostelInfo: HostelInfo?, leaves: List<com.amazecc.app.s
         return
     }
 
-    val infoGradient = remember(colors) {
-        androidx.compose.ui.graphics.Brush.linearGradient(
-            colors = listOf(colors.chart3, colors.chart3.copy(alpha = 0.6f))
-        )
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(infoGradient)
-            .padding(20.dp)
-    ) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier.size(36.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Rounded.Apartment, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                }
-                Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                Text("Hostel Allocation", color = Color.White.copy(alpha = 0.9f), style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
-            }
-            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+    HeroCard(colors = colors, tint = colors.chart3, modifier = Modifier.fillMaxWidth(), spacing = 0.dp) { p ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(36.dp).clip(CircleShape).background(p.iconBg),
+                contentAlignment = Alignment.Center
             ) {
-                Column {
-                    Text("Block / Room", style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.8f)))
-                    Text(
-                        if (hostelInfo.blockName.isNullOrEmpty()) "N/A" 
-                        else "${hostelInfo.blockName} / ${hostelInfo.roomNo}", 
-                        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = Color.White)
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("Gender", style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.8f)))
-                    val gender = hostelInfo.gender
-                    Text(if (gender.isNullOrEmpty()) "N/A" else gender, style = AmazeTheme.typography.body.copy(color = Color.White, fontWeight = FontWeight.SemiBold))
-                }
+                Icon(Icons.Rounded.Apartment, null, tint = p.text, modifier = Modifier.size(20.dp))
             }
-            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-            Text("Mess Facility", style = AmazeTheme.typography.caption.copy(color = Color.White.copy(alpha = 0.8f)))
-            val messInfo = hostelInfo.messInfo
-            Text(if (messInfo.isNullOrEmpty()) "Not Enrolled" else messInfo, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = Color.White))
+            Spacer(Modifier.width(AmazeTheme.spacing.sm))
+            Text("Hostel Allocation", color = p.textSecondary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
         }
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sectionGap))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text("Block / Room", style = AmazeTheme.typography.caption.copy(color = p.textSecondary))
+                Text(
+                    if (hostelInfo.blockName.isNullOrEmpty()) "N/A"
+                    else "${hostelInfo.blockName} / ${hostelInfo.roomNo}",
+                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = p.text)
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text("Gender", style = AmazeTheme.typography.caption.copy(color = p.textSecondary))
+                val gender = hostelInfo.gender
+                Text(if (gender.isNullOrEmpty()) "N/A" else gender, style = AmazeTheme.typography.body.copy(color = p.text, fontWeight = FontWeight.SemiBold))
+            }
+        }
+        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+        Text("Mess Facility", style = AmazeTheme.typography.caption.copy(color = p.textSecondary))
+        val messInfo = hostelInfo.messInfo
+        Text(if (messInfo.isNullOrEmpty()) "Not Enrolled" else messInfo, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = p.text))
     }
 
     Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))

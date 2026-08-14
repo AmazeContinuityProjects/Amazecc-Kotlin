@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.GradeItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.HeroCard
 import kotlin.math.*
 
 private val gradeColorIndex = mapOf(
@@ -103,16 +104,14 @@ fun GradesScreen() {
 
 @Composable
 private fun PerformanceHeader(gpa: String, courseCount: Int, assessmentCount: Int, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    Box(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-            .clip(RoundedCornerShape(AmazeTheme.radius.large)).background(colors.accent).padding(20.dp)
-    ) {
-        Column {
-            Text("Performance Analysis", style = AmazeTheme.typography.smallLabel.copy(color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Bold))
-            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
-            Text("$gpa GPA", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Black, color = Color.White))
-            Text("$courseCount Courses · $assessmentCount Assessments", style = AmazeTheme.typography.smallLabel.copy(color = Color.White.copy(alpha = 0.7f)))
-        }
+    HeroCard(
+        colors = colors,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp)
+    ) { p ->
+        Text("Performance Analysis", style = AmazeTheme.typography.smallLabel.copy(color = p.statLabel, fontWeight = FontWeight.Bold))
+        Text("$gpa GPA", style = AmazeTheme.typography.heading.copy(fontWeight = FontWeight.Black, color = p.text))
+        Text("$courseCount Courses · $assessmentCount Assessments", style = AmazeTheme.typography.smallLabel.copy(color = p.statLabel))
     }
 }
 

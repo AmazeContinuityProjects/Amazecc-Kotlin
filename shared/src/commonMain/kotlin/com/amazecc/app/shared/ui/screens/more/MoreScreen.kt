@@ -199,21 +199,21 @@ fun MoreScreen() {
                         }
                     }
 
-                    // Line 2: Active Semester Dropdown on its OWN NEW LINE with ample breathing room!
+                    // Line 2: Active Semester selector on its OWN NEW LINE with ample breathing room!
                     if (currentPanel == LibraryPanel.PRIMARY) {
                         Spacer(Modifier.height(10.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            var semExpanded by remember { mutableStateOf(false) }
+                            var showSemesterSheet by remember { mutableStateOf(false) }
                             Box {
                                 Row(
                                     modifier = Modifier
                                         .clip(CircleShape)
                                         .background(colors.accent.copy(alpha = 0.12f))
                                         .border(1.dp, colors.accent.copy(alpha = 0.28f), CircleShape)
-                                        .clickable { semExpanded = !semExpanded }
+                                        .clickable { showSemesterSheet = true }
                                         .padding(horizontal = 12.dp, vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -222,29 +222,18 @@ fun MoreScreen() {
                                     Spacer(Modifier.width(4.dp))
                                     Icon(Icons.Rounded.KeyboardArrowDown, null, tint = colors.accent, modifier = Modifier.size(16.dp))
                                 }
-                                DropdownMenu(
-                                    expanded = semExpanded,
-                                    onDismissRequest = { semExpanded = false },
-                                    modifier = Modifier.background(colors.surface)
-                                ) {
-                                    semIds.forEach { semId ->
-                                        val isSelected = semId == selectedSemester
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    text = semesterMap[semId] ?: semId,
-                                                    color = if (isSelected) colors.accent else colors.textPrimary,
-                                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                                    fontSize = AmazeTheme.fontSize.xs
-                                                )
-                                            },
-                                            onClick = {
-                                                semExpanded = false
-                                                if (semId != selectedSemester) AppState.selectSemester(semId)
-                                            }
-                                        )
+                            }
+                            if (showSemesterSheet) {
+                                SemesterPickerSheet(
+                                    semIds = semIds,
+                                    selectedId = selectedSemester,
+                                    colors = colors,
+                                    onDismiss = { showSemesterSheet = false },
+                                    onSelect = { semId ->
+                                        showSemesterSheet = false
+                                        if (semId != selectedSemester) AppState.selectSemester(semId)
                                     }
-                                }
+                                )
                             }
                         }
                     }
@@ -516,10 +505,7 @@ private fun AppLibraryCard(
                 Spacer(Modifier.width(2.dp))
                 IconButton(
                     onClick = onPinToggle,
-                    modifier = Modifier
-                        .size(26.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (isPinned) colors.accent.copy(alpha = 0.16f) else Color.Transparent)
+                    modifier = Modifier.size(26.dp).clip(RoundedCornerShape(4.dp))
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.PushPin,

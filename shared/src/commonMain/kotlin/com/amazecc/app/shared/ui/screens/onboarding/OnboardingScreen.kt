@@ -93,8 +93,7 @@ fun OnboardingScreen() {
     val availableModules = listOf(
         Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE,
         Screen.PAYMENTS, Screen.CABSHARE, Screen.TRANSPORT, Screen.CALENDAR,
-        Screen.FFCS_PLANNER, Screen.FREE_CLASSROOMS, Screen.QBANK, Screen.SOCIAL,
-        Screen.PROJECTS, Screen.WISHLIST
+        Screen.FFCS_PLANNER, Screen.FREE_CLASSROOMS, Screen.QBANK, Screen.SOCIAL
     )
     var selectedModules by remember { mutableStateOf(AppState.pinnedNavTabs.value) }
 
@@ -292,60 +291,31 @@ private fun OnboardingHeroCard(
     icon: ImageVector,
     title: String,
     badge: String?,
-    tint: Color,
     colors: com.amazecc.app.shared.theme.AmazeColors,
-    content: @Composable ColumnScope.() -> Unit
+    content: @Composable ColumnScope.(HeroPalette) -> Unit
 ) {
-    val heroGradient = remember(tint) {
-        Brush.linearGradient(colors = listOf(tint, tint.copy(alpha = 0.6f)))
-    }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(heroGradient)
-            .padding(20.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    title,
-                    color = Color.White.copy(alpha = 0.9f),
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
-                )
-                if (badge != null) {
-                    Spacer(Modifier.weight(1f))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                            .background(Color.White.copy(alpha = 0.18f))
-                            .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(badge, color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro)
-                    }
-                }
+    HeroCard(colors = colors, modifier = Modifier.fillMaxWidth()) { p ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = p.text, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(
+                title,
+                color = p.textSecondary,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
+            )
+            if (badge != null) {
+                Spacer(Modifier.weight(1f))
+                HeroChip(text = badge, p = p)
             }
-            content()
         }
+        content(p)
     }
 }
 
 @Composable
-private fun FrostedPanel(colors: com.amazecc.app.shared.theme.AmazeColors, content: @Composable ColumnScope.() -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-            .background(Color.White.copy(alpha = 0.14f))
-            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(AmazeTheme.radius.medium))
-            .padding(14.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            content()
-        }
+private fun FrostedPanel(p: HeroPalette, content: @Composable ColumnScope.() -> Unit) {
+    HeroPanel(p = p, modifier = Modifier.fillMaxWidth()) {
+        content()
     }
 }
 
@@ -357,30 +327,30 @@ private fun WelcomePage(colors: com.amazecc.app.shared.theme.AmazeColors, syncSt
         modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)
     ) {
         Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        OnboardingHeroCard(Icons.Rounded.AutoAwesome, "Welcome to AmazeCC", "DISCOVER", colors.accent, colors) {
+        OnboardingHeroCard(Icons.Rounded.AutoAwesome, "Welcome to AmazeCC", "DISCOVER", colors) { p ->
             Text(
                 "We're setting up everything for you in the background — attendance, timetable, grades & more.",
-                color = Color.White.copy(alpha = 0.85f),
+                color = p.textSecondary,
                 fontSize = AmazeTheme.fontSize.sm,
                 lineHeight = 20.sp
             )
-            FrostedPanel(colors) {
+            FrostedPanel(p) {
                 val doneCount = syncSteps.count { it.status == "done" }
                 val total = syncSteps.size
                 val progress = if (total > 0) doneCount.toFloat() / total else 0f
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "SYNC PROGRESS",
-                        style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = Color.White, letterSpacing = 1.sp)
+                        style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = p.text, letterSpacing = 1.sp)
                     )
                     Spacer(Modifier.weight(1f))
-                    Text("$doneCount/$total", color = Color.White.copy(alpha = 0.9f), fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs)
+                    Text("$doneCount/$total", color = p.textSecondary, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs)
                 }
                 LinearProgressIndicator(
                     progress = { progress },
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                    color = Color.White,
-                    trackColor = Color.White.copy(alpha = 0.25f)
+                    color = p.progress,
+                    trackColor = p.progressTrack
                 )
                 syncSteps.forEach { step ->
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -393,7 +363,7 @@ private fun WelcomePage(colors: com.amazecc.app.shared.theme.AmazeColors, syncSt
                         Icon(
                             icon,
                             null,
-                            tint = Color.White.copy(alpha = when (step.status) {
+                            tint = p.text.copy(alpha = when (step.status) {
                                 "done" -> 0.95f; "syncing" -> 0.9f; "failed" -> 0.6f; else -> 0.4f
                             }),
                             modifier = Modifier.size(14.dp)
@@ -401,15 +371,15 @@ private fun WelcomePage(colors: com.amazecc.app.shared.theme.AmazeColors, syncSt
                         Spacer(Modifier.width(8.dp))
                         Text(
                             step.name,
-                            color = Color.White.copy(alpha = if (step.status == "pending") 0.45f else 0.9f),
+                            color = p.text.copy(alpha = if (step.status == "pending") 0.45f else 0.9f),
                             fontSize = AmazeTheme.fontSize.xs,
                             modifier = Modifier.weight(1f)
                         )
                         if (step.status == "syncing") {
-                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(Color.White))
+                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(p.progress))
                         } else {
                             val label = when (step.status) { "done" -> "Synced"; "failed" -> "Failed"; else -> "Pending" }
-                            Text(label, color = Color.White.copy(alpha = 0.65f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.SemiBold)
+                            Text(label, color = p.text.copy(alpha = 0.65f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -454,27 +424,23 @@ private fun DiscoverPage(colors: com.amazecc.app.shared.theme.AmazeColors) {
 
 @Composable
 private fun DiscoverFeatureCard(feature: DiscoverFeature, modifier: Modifier = Modifier) {
-    val gradient = remember(feature.tint) {
-        Brush.linearGradient(colors = listOf(feature.tint, feature.tint.copy(alpha = 0.55f)))
-    }
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(gradient)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    HeroCard(
+        tint = feature.tint,
+        modifier = modifier,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+        spacing = 8.dp
+    ) { p ->
         Box(
             modifier = Modifier
                 .size(34.dp)
                 .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                .background(Color.White.copy(alpha = 0.18f)),
+                .background(p.chipBg),
             contentAlignment = Alignment.Center
         ) {
-            Icon(feature.icon, null, tint = Color.White, modifier = Modifier.size(18.dp))
+            Icon(feature.icon, null, tint = p.text, modifier = Modifier.size(18.dp))
         }
-        Text(feature.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
-        Text(feature.description, color = Color.White.copy(alpha = 0.8f), fontSize = AmazeTheme.fontSize.micro, lineHeight = 15.sp)
+        Text(feature.title, color = p.text, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
+        Text(feature.description, color = p.textSecondary, fontSize = AmazeTheme.fontSize.micro, lineHeight = 15.sp)
     }
 }
 
@@ -656,19 +622,44 @@ private fun AcademicPrefsPage(
             Text("Semesters are still syncing — your current semester stays selected", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
         }
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+        var showSemesterSheet by remember { mutableStateOf(false) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+                .background(colors.surface)
+                .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
+                .clickable { showSemesterSheet = true }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            semIds.forEach { semId ->
-                AmazePill(
-                    label = semesterMap[semId] ?: semId,
-                    selected = semId == selectedSemester,
-                    colors = colors,
-                    tint = colors.success,
-                    onClick = { onSemesterChange(semId) }
+            Icon(Icons.Rounded.CalendarMonth, null, tint = colors.success, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    semesterMap[selectedSemester] ?: selectedSemester,
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                 )
+                if (semIds.isNotEmpty()) {
+                    Text(
+                        "$selectedSemester is ${semesterMap[selectedSemester] ?: AppState.deriveSemesterName(selectedSemester)}",
+                        style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.xs)
+                    )
+                }
             }
+            Icon(Icons.Rounded.KeyboardArrowDown, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
+        }
+        if (showSemesterSheet) {
+            SemesterPickerSheet(
+                semIds = semIds,
+                selectedId = selectedSemester,
+                colors = colors,
+                onDismiss = { showSemesterSheet = false },
+                onSelect = { semId ->
+                    showSemesterSheet = false
+                    if (semId != selectedSemester) onSemesterChange(semId)
+                }
+            )
         }
 
         Spacer(Modifier.height(AmazeTheme.spacing.lg))
@@ -1263,31 +1254,31 @@ private fun CompletionPage(colors: com.amazecc.app.shared.theme.AmazeColors, syn
         modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)
     ) {
         Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        OnboardingHeroCard(Icons.Rounded.CheckCircle, "You're all set!", "TELL", colors.accent, colors) {
+        OnboardingHeroCard(Icons.Rounded.CheckCircle, "You're all set!", "TELL", colors) { p ->
             Text(
                 "Your preferences are saved. Tap Get Started to dive in!",
-                color = Color.White.copy(alpha = 0.85f),
+                color = p.textSecondary,
                 fontSize = AmazeTheme.fontSize.sm
             )
-            FrostedPanel(colors) {
+            FrostedPanel(p) {
                 val doneCount = syncSteps.count { it.status == "done" }
                 val failedCount = syncSteps.count { it.status == "failed" }
                 val activeCount = syncSteps.count { it.status == "syncing" }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    CompletionStat("Completed", "$doneCount", colors)
-                    CompletionStat("Failed", "$failedCount", colors)
-                    CompletionStat("In Progress", "$activeCount", colors)
+                    CompletionStat("Completed", "$doneCount", p)
+                    CompletionStat("Failed", "$failedCount", p)
+                    CompletionStat("In Progress", "$activeCount", p)
                 }
                 if (syncSteps.isNotEmpty()) {
                     Spacer(Modifier.height(AmazeTheme.spacing.xs))
                     syncSteps.forEach { step ->
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             val alpha = when (step.status) { "done" -> 0.95f; "syncing" -> 0.9f; "failed" -> 0.55f; else -> 0.4f }
-                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(Color.White.copy(alpha = alpha)))
+                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(p.progress.copy(alpha = alpha)))
                             Spacer(Modifier.width(10.dp))
-                            Text(step.name, color = Color.White.copy(alpha = if (step.status == "pending") 0.45f else 0.9f), fontSize = AmazeTheme.fontSize.xs, modifier = Modifier.weight(1f))
+                            Text(step.name, color = p.text.copy(alpha = if (step.status == "pending") 0.45f else 0.9f), fontSize = AmazeTheme.fontSize.xs, modifier = Modifier.weight(1f))
                             val label = when (step.status) { "done" -> "Synced"; "failed" -> "Failed"; "syncing" -> "Syncing"; else -> "Pending" }
-                            Text(label, color = Color.White.copy(alpha = if (step.status == "pending") 0.4f else 0.75f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.SemiBold)
+                            Text(label, color = p.text.copy(alpha = if (step.status == "pending") 0.4f else 0.75f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
@@ -1297,10 +1288,10 @@ private fun CompletionPage(colors: com.amazecc.app.shared.theme.AmazeColors, syn
 }
 
 @Composable
-private fun CompletionStat(label: String, value: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun CompletionStat(label: String, value: String, p: HeroPalette) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = Color.White))
-        Text(label, style = AmazeTheme.typography.smallLabel.copy(color = Color.White.copy(alpha = 0.7f)))
+        Text(value, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = p.text))
+        Text(label, style = AmazeTheme.typography.smallLabel.copy(color = p.textSecondary))
     }
 }
 

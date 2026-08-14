@@ -32,6 +32,7 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.CardVariant
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.components.HeroCard
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,6 +73,11 @@ fun AcademicsScreen() {
         HubCard("curriculum", "Curriculum", "Track your completed courses and credit requirements.", Icons.AutoMirrored.Rounded.MenuBook, colors.chart1, colors.chart1.copy(alpha = 0.12f)),
         HubCard("predictor", "CGPA Predictor", "Estimate your future CGPA based on expected grades.", Icons.AutoMirrored.Rounded.TrendingUp, colors.chart3, colors.chart3.copy(alpha = 0.12f)),
         HubCard("qbank", "Question Bank", "Access and search past year question papers.", Icons.Rounded.Storage, colors.chart5, colors.chart5.copy(alpha = 0.12f)),
+        HubCard("ffcs", "FFCS Planner", "Timetable builder & clash finder.", Icons.Rounded.ViewTimeline, colors.chart1, colors.chart1.copy(alpha = 0.12f)),
+        HubCard("free-classrooms", "Free Classrooms", "Empty classroom locator.", Icons.Rounded.MeetingRoom, colors.chart2, colors.chart2.copy(alpha = 0.12f)),
+        HubCard("faculty", "Faculty Directory", "Faculty cabin & ratings.", Icons.Rounded.People, colors.chart5, colors.chart5.copy(alpha = 0.12f)),
+        HubCard("moodle", "Moodle LMS", "Course materials & assignments.", Icons.AutoMirrored.Rounded.MenuBook, colors.chart2, colors.chart2.copy(alpha = 0.12f)),
+        HubCard("feedback", "Feedback Status", "VTOP faculty feedback status.", Icons.Rounded.RateReview, colors.chart3, colors.chart3.copy(alpha = 0.12f)),
         HubCard("exam-schedule", "Exam Schedule", "Upcoming exams, seating, and venue details.", Icons.Rounded.EventSeat, colors.chart3, colors.chart3.copy(alpha = 0.12f)),
         HubCard("circulars", "Circulars", "Academic notices and circulars from VTOP.", Icons.Rounded.Campaign, colors.chart4, colors.chart4.copy(alpha = 0.12f)),
         HubCard("od-tracker", "OD Tracker", "Track on-duty hours, lab and theory.", Icons.Rounded.TaskAlt, colors.chart4, colors.chart4.copy(alpha = 0.12f)),
@@ -126,6 +132,11 @@ fun AcademicsScreen() {
                                             "curriculum" -> AppState.navigateTo(Screen.CURRICULUM)
                                             "od-tracker" -> AppState.navigateTo(Screen.OD_TRACKER)
                                             "qbank" -> AppState.navigateTo(Screen.QBANK)
+                                            "ffcs" -> AppState.navigateTo(Screen.FFCS_PLANNER)
+                                            "free-classrooms" -> AppState.navigateTo(Screen.FREE_CLASSROOMS)
+                                            "faculty" -> AppState.navigateTo(Screen.FACULTY_INFO)
+                                            "moodle" -> AppState.navigateTo(Screen.MOODLE)
+                                            "feedback" -> AppState.navigateTo(Screen.FEEDBACK_STATUS)
                                             "tasks" -> AppState.navigateTo(Screen.TASKS)
                                         }
                                     })
@@ -230,38 +241,71 @@ data class HubCard(
 @Composable
 fun HubCardItem(card: HubCard, onClick: () -> Unit) {
     val colors = AmazeTheme.colors
-    AmazeCard(
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        backgroundColor = if (card.prominent) colors.accent else null,
-        variant = if (card.prominent) CardVariant.ACCENT else CardVariant.DEFAULT
-    ) {
-        Column {
+    if (card.prominent) {
+        HeroCard(
+            colors = colors,
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(AmazeTheme.spacing.cardPadding),
+            onClick = onClick
+        ) { p ->
             Box(
-                modifier = Modifier.size(40.dp).clip(CircleShape).background(if (card.prominent) colors.background.copy(alpha = 0.2f) else card.bgColor),
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(p.iconBg),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(card.icon, contentDescription = null, tint = card.color, modifier = Modifier.size(20.dp))
+                Icon(card.icon, contentDescription = null, tint = p.text, modifier = Modifier.size(20.dp))
             }
-            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
             Text(
                 text = card.title,
                 style = AmazeTheme.typography.subheading.copy(
                     fontWeight = FontWeight.Bold,
-                    color = if (card.prominent) colors.background else colors.textPrimary
+                    color = p.text
                 ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
             Text(
                 text = card.description,
                 style = AmazeTheme.typography.caption.copy(
-                    color = if (card.prominent) colors.background.copy(alpha = 0.8f) else colors.textSecondary
+                    color = p.textSecondary
                 ),
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+    } else {
+        AmazeCard(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onClick,
+            backgroundColor = null,
+            variant = CardVariant.DEFAULT
+        ) {
+            Column {
+                Box(
+                    modifier = Modifier.size(40.dp).clip(CircleShape).background(card.bgColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(card.icon, contentDescription = null, tint = card.color, modifier = Modifier.size(20.dp))
+                }
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
+                Text(
+                    text = card.title,
+                    style = AmazeTheme.typography.subheading.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textPrimary
+                    ),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
+                Text(
+                    text = card.description,
+                    style = AmazeTheme.typography.caption.copy(
+                        color = colors.textSecondary
+                    ),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }

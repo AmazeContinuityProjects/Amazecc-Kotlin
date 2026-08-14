@@ -3,6 +3,7 @@ package com.amazecc.app.shared.ui.screens.more
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.amazecc.app.shared.state.AppState
@@ -35,15 +36,19 @@ val appLibraryItems: List<AppLibraryItem> = listOf(
     AppLibraryItem("Attendance", "Class attendance & slot tracker", Icons.Rounded.EventAvailable, "Study", targetScreen = Screen.ATTENDANCE),
     AppLibraryItem("Timetable Calendar", "Daily schedule & exam calendar", Icons.Rounded.CalendarMonth, "Study", targetScreen = Screen.CALENDAR),
     AppLibraryItem("Academics Hub", "Academic sub-panel & grade tools", Icons.Rounded.School, "Study", type = "panel", panelTarget = LibraryPanel.ACADEMICS, pinnableScreen = null),
-    AppLibraryItem("Course Dashboard", "Attendance & marks per course", Icons.Rounded.Book, "Academics", targetScreen = Screen.ATTENDANCE),
-    AppLibraryItem("Grade History", "Semester SGPA & grade breakdown", Icons.Rounded.School, "Academics", targetScreen = Screen.ACADEMICS),
+    AppLibraryItem("Course Hub", "Courses, grades, arrears & more", Icons.Rounded.Dashboard, "Academics", targetScreen = Screen.COURSE_DASHBOARD),
+    AppLibraryItem("Grade History", "Semester SGPA & grade breakdown", Icons.Rounded.History, "Academics", targetScreen = Screen.GRADES),
+    AppLibraryItem("Curriculum", "Completed courses & credit requirements", Icons.AutoMirrored.Rounded.MenuBook, "Academics", targetScreen = Screen.CURRICULUM),
+    AppLibraryItem("CGPA Predictor", "Estimate future CGPA from expected grades", Icons.AutoMirrored.Rounded.TrendingUp, "Academics", targetScreen = Screen.GPA_PREDICTOR),
     AppLibraryItem("Question Bank", "CAT & FAT previous year papers", Icons.Rounded.Topic, "Academics", targetScreen = Screen.QBANK),
     AppLibraryItem("FFCS Planner", "Timetable builder & clash finder", Icons.Rounded.ViewTimeline, "Academics", targetScreen = Screen.FFCS_PLANNER),
     AppLibraryItem("Free Classrooms", "Empty classroom locator", Icons.Rounded.MeetingRoom, "Academics", targetScreen = Screen.FREE_CLASSROOMS),
     AppLibraryItem("Faculty Directory", "Faculty cabin & ratings", Icons.Rounded.People, "Academics", targetScreen = Screen.FACULTY_INFO),
     AppLibraryItem("Moodle LMS", "Course materials & assignments", Icons.AutoMirrored.Rounded.MenuBook, "Academics", targetScreen = Screen.MOODLE),
-    AppLibraryItem("Projects", "Academic projects & lab progress", Icons.Rounded.AccountTree, "Academics", targetScreen = Screen.PROJECTS),
-    AppLibraryItem("Wishlist", "Saved target courses & wishlist", Icons.Rounded.Bookmark, "Academics", targetScreen = Screen.WISHLIST),
+    AppLibraryItem("Exam Schedule", "Upcoming exams, seating & venues", Icons.Rounded.EventSeat, "Academics", targetScreen = Screen.EXAM_SCHEDULE),
+    AppLibraryItem("Circulars", "Academic notices from VTOP", Icons.Rounded.Campaign, "Academics", targetScreen = Screen.CIRCULARS),
+    AppLibraryItem("OD Tracker", "On-duty hours, lab & theory", Icons.Rounded.TaskAlt, "Academics", targetScreen = Screen.OD_TRACKER),
+    AppLibraryItem("Tasks & Reminders", "Homework, reminders & daily to-dos", Icons.Rounded.CheckCircle, "Academics", targetScreen = Screen.TASKS),
     AppLibraryItem("Feedback Status", "VTOP faculty feedback status", Icons.Rounded.RateReview, "Academics", targetScreen = Screen.FEEDBACK_STATUS),
 
     // CAMPUS

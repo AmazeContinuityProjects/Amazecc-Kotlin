@@ -22,6 +22,7 @@ import com.amazecc.app.shared.state.*
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
+import com.amazecc.app.shared.ui.components.SemesterPickerSheet
 import com.amazecc.app.shared.utils.ExportImportManager
 import com.amazecc.app.shared.utils.rememberFileImporter
 import com.amazecc.app.shared.utils.rememberFileSaver
@@ -50,19 +51,26 @@ fun AcademicsPage() {
                     fontSize = AmazeTheme.fontSize.sm
                 )
 
-                var semesterExpanded by remember { mutableStateOf(false) }
+                var showSemesterSheet by remember { mutableStateOf(false) }
                 Box(modifier = Modifier.fillMaxWidth()) {
                     OutlinedTextField(
                         value = semesterMap[selectedSemester] ?: selectedSemester,
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Target Semester", color = colors.textSecondary) },
+                        supportingText = {
+                            Text(
+                                "$selectedSemester is ${semesterMap[selectedSemester] ?: AppState.deriveSemesterName(selectedSemester)}",
+                                color = colors.textMuted,
+                                fontSize = AmazeTheme.fontSize.xs
+                            )
+                        },
                         trailingIcon = {
-                            IconButton(onClick = { semesterExpanded = !semesterExpanded }) {
-                                Icon(if (semesterExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown, null, tint = colors.accent)
+                            IconButton(onClick = { showSemesterSheet = true }) {
+                                Icon(Icons.Rounded.KeyboardArrowDown, null, tint = colors.accent)
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().clickable { semesterExpanded = !semesterExpanded },
+                        modifier = Modifier.fillMaxWidth().clickable { showSemesterSheet = true },
                         shape = RoundedCornerShape(AmazeTheme.radius.small),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = colors.surface,
@@ -73,31 +81,19 @@ fun AcademicsPage() {
                             unfocusedTextColor = colors.textPrimary
                         )
                     )
-                    DropdownMenu(
-                        expanded = semesterExpanded,
-                        onDismissRequest = { semesterExpanded = false },
-                        modifier = Modifier.fillMaxWidth(0.88f).background(colors.surface)
-                    ) {
-                        semIds.forEach { semId ->
-                            val isSelected = semId == selectedSemester
-                            DropdownMenuItem(
-                                text = {
-                                    Text(
-                                        text = semesterMap[semId] ?: semId,
-                                        color = if (isSelected) colors.accent else colors.textPrimary,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                },
-                                leadingIcon = if (isSelected) {
-                                    { Icon(Icons.Rounded.Check, null, tint = colors.accent) }
-                                } else null,
-                                onClick = {
-                                    semesterExpanded = false
-                                    if (semId != selectedSemester) AppState.selectSemester(semId)
-                                }
-                            )
+                }
+
+                if (showSemesterSheet) {
+                    SemesterPickerSheet(
+                        semIds = semIds,
+                        selectedId = selectedSemester,
+                        colors = colors,
+                        onDismiss = { showSemesterSheet = false },
+                        onSelect = { semId ->
+                            showSemesterSheet = false
+                            if (semId != selectedSemester) AppState.selectSemester(semId)
                         }
-                    }
+                    )
                 }
 
                 var calendarExpanded by remember { mutableStateOf(false) }

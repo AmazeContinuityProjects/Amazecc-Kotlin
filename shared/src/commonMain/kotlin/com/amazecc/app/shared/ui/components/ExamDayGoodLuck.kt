@@ -69,12 +69,6 @@ fun ExamDayGoodLuck(
         sorted.isNotEmpty() && sorted.all { isExamFinished(it, now) }
     }
 
-    val heroGradient = remember(colors) {
-        Brush.linearGradient(
-            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.6f))
-        )
-    }
-
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -83,19 +77,13 @@ fun ExamDayGoodLuck(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         // Hero
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(AmazeTheme.radius.large))
-                .background(heroGradient)
-                .padding(24.dp)
-        ) {
+        HeroCard(colors = colors, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(24.dp), spacing = 0.dp) { p ->
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
                         .size(64.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.2f)),
+                        .background(p.iconBg),
                     contentAlignment = Alignment.Center
                 ) {
                     Text("🎉", fontSize = 30.sp)
@@ -103,7 +91,7 @@ fun ExamDayGoodLuck(
                 Spacer(Modifier.height(AmazeTheme.spacing.md))
                 Text(
                     if (allDone) "Great Job!" else "Good Luck!",
-                    color = Color.White,
+                    color = p.text,
                     fontWeight = FontWeight.Black,
                     fontSize = AmazeTheme.fontSize.x2l
                 )
@@ -114,7 +102,7 @@ fun ExamDayGoodLuck(
                     } else {
                         "You have ${sorted.size} exam${if (sorted.size != 1) "s" else ""} today. You've got this!"
                     },
-                    color = Color.White.copy(alpha = 0.9f),
+                    color = p.textSecondary,
                     style = AmazeTheme.typography.body,
                     textAlign = TextAlign.Center
                 )
@@ -122,16 +110,16 @@ fun ExamDayGoodLuck(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .border(1.dp, Color.White.copy(alpha = 0.35f), RoundedCornerShape(AmazeTheme.radius.small))
+                        .background(p.chipBg)
+                        .border(1.dp, p.chipBorder, RoundedCornerShape(AmazeTheme.radius.small))
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.CalendarToday, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Rounded.CalendarToday, null, tint = p.text, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(
                             examDayLabel(sorted.first().examDate),
-                            color = Color.White,
+                            color = p.text,
                             fontWeight = FontWeight.Bold,
                             fontSize = AmazeTheme.fontSize.sm
                         )

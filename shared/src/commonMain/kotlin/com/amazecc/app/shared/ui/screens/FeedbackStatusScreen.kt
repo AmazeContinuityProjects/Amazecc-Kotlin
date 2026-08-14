@@ -398,86 +398,53 @@ private fun FeedbackHeroCard(semestersData: List<SemesterFeedbackState>, colors:
         animationSpec = tween(800)
     )
 
-    val heroGradient = remember(colors) {
-        Brush.linearGradient(
-            colors = listOf(colors.accent, colors.accent.copy(alpha = 0.65f))
-        )
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(AmazeTheme.radius.large))
-            .background(heroGradient)
-            .padding(20.dp)
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Rounded.AssignmentTurnedIn, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                }
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text(
-                        "Course Feedback Status",
-                        color = Color.White,
-                        style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.base)
-                    )
-                    Text(
-                        "VIT Academic Evaluation System",
-                        color = Color.White.copy(alpha = 0.8f),
-                        style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.micro)
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                        .background(Color.White.copy(alpha = 0.18f))
-                        .border(1.dp, Color.White.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        if (totalGiven == totalFeedbacksPossible && totalFeedbacksPossible > 0) "ALL GIVEN"
-                        else "${(completionFraction * 100).toInt()}% DONE",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = AmazeTheme.fontSize.micro
-                    )
-                }
-            }
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                HeroStatItem("Semesters", "$totalSemesters")
-                HeroStatItem("Mid Sem Done", "$midGivenCount/$totalSemesters")
-                HeroStatItem("TEE Done", "$teeGivenCount/$totalSemesters")
-            }
-
-            LinearProgressIndicator(
-                progress = { completionFraction },
+    HeroCard(colors = colors, modifier = Modifier.fillMaxWidth()) { p ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(5.dp)
-                    .clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                color = Color.White,
-                trackColor = Color.White.copy(alpha = 0.25f)
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(p.iconBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.AssignmentTurnedIn, null, tint = p.text, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(
+                    "Course Feedback Status",
+                    color = p.text,
+                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.base)
+                )
+                Text(
+                    "VIT Academic Evaluation System",
+                    color = p.textSecondary,
+                    style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.micro)
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            HeroChip(
+                text = if (totalGiven == totalFeedbacksPossible && totalFeedbacksPossible > 0) "ALL GIVEN"
+                else "${(completionFraction * 100).toInt()}% DONE",
+                p = p
             )
         }
-    }
-}
 
-@Composable
-private fun HeroStatItem(label: String, value: String, modifier: Modifier = Modifier) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
-        Text(value, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.lg, color = Color.White)
-        Spacer(Modifier.height(2.dp))
-        Text(label, fontSize = AmazeTheme.fontSize.micro, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+            HeroStat("Semesters", "$totalSemesters", p.text)
+            HeroStat("Mid Sem Done", "$midGivenCount/$totalSemesters", p.text)
+            HeroStat("TEE Done", "$teeGivenCount/$totalSemesters", p.text)
+        }
+
+        LinearProgressIndicator(
+            progress = { completionFraction },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp)
+                .clip(RoundedCornerShape(AmazeTheme.radius.xs)),
+            color = p.progress,
+            trackColor = p.progressTrack
+        )
     }
 }
 

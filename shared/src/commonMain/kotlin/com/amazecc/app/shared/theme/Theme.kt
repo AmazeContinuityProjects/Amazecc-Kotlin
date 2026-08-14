@@ -28,6 +28,7 @@ class AmazeColors(
     accent: Color,
     accentSurface: Color,
     accentContainer: Color,
+    onAccent: Color,
     success: Color,
     successSurface: Color,
     successText: Color,
@@ -69,6 +70,8 @@ class AmazeColors(
     var accentSurface by mutableStateOf(accentSurface)
         private set
     var accentContainer by mutableStateOf(accentContainer)
+        private set
+    var onAccent by mutableStateOf(onAccent)
         private set
     var success by mutableStateOf(success)
         private set
@@ -124,6 +127,7 @@ class AmazeColors(
         accent: Color = this.accent,
         accentSurface: Color = this.accentSurface,
         accentContainer: Color = this.accentContainer,
+        onAccent: Color = this.onAccent,
         success: Color = this.success,
         successSurface: Color = this.successSurface,
         successText: Color = this.successText,
@@ -147,7 +151,7 @@ class AmazeColors(
         glassBorder: Color = this.glassBorder
     ) = AmazeColors(
         background, surface, elevatedSurface, border, textPrimary, textSecondary, textMuted,
-        accent, accentSurface, accentContainer,
+        accent, accentSurface, accentContainer, onAccent,
         success, successSurface, successText,
         warning, warningSurface, warningText,
         danger, dangerSurface, dangerText,
@@ -167,6 +171,7 @@ class AmazeColors(
         accent = other.accent
         accentSurface = other.accentSurface
         accentContainer = other.accentContainer
+        onAccent = other.onAccent
         success = other.success
         successSurface = other.successSurface
         successText = other.successText
@@ -231,6 +236,8 @@ val LocalAmazeColors = staticCompositionLocalOf<AmazeColors> {
     error("No AmazeColors provided")
 }
 
+val LocalHeroColorEnabled = staticCompositionLocalOf { true }
+
 val LocalAmazeRadius = staticCompositionLocalOf { AmazeRadius() }
 val LocalAmazeSpacing = staticCompositionLocalOf { AmazeSpacing() }
 val LocalAmazeFontSize = staticCompositionLocalOf { AmazeFontSize() }
@@ -254,6 +261,7 @@ fun AmazeTheme(
     customPalette: CustomPalette? = null,
     hapticEnabled: Boolean = true,
     animationsEnabled: Boolean = true,
+    heroColorEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
     val accent = when (accentTheme) {
@@ -281,6 +289,7 @@ fun AmazeTheme(
             accent = accent,
             accentSurface = accent.copy(alpha = 0.12f),
             accentContainer = accent.copy(alpha = 0.25f),
+            onAccent = Color(0xFF111827),
             success = ColorSuccess,
             successSurface = ColorSuccessSurfaceLight,
             successText = ColorSuccessTextLight,
@@ -314,6 +323,7 @@ fun AmazeTheme(
             accent = accent,
             accentSurface = accent.copy(alpha = 0.15f),
             accentContainer = accent.copy(alpha = 0.30f),
+            onAccent = Color.White,
             success = ColorSuccess,
             successSurface = ColorSuccessSurfaceDark,
             successText = ColorSuccessTextDark,
@@ -347,6 +357,7 @@ fun AmazeTheme(
             accent = accent,
             accentSurface = accent.copy(alpha = 0.15f),
             accentContainer = accent.copy(alpha = 0.30f),
+            onAccent = Color.White,
             success = ColorSuccess,
             successSurface = ColorSuccessSurfaceDark,
             successText = ColorSuccessTextDark,
@@ -391,6 +402,7 @@ fun AmazeTheme(
         LocalAmazeSpacing provides spacing,
         LocalAmazeFontSize provides fontSize,
         LocalAmazeTypography provides typography,
+        LocalHeroColorEnabled provides heroColorEnabled,
     ) {
         com.amazecc.app.shared.ui.components.ProvideInteractionPrefs(
             hapticEnabled = hapticEnabled,
@@ -405,6 +417,11 @@ object AmazeTheme {
         @Composable
         @ReadOnlyComposable
         get() = LocalAmazeColors.current
+
+    val heroColorEnabled: Boolean
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalHeroColorEnabled.current
 
     val radius: AmazeRadius
         @Composable

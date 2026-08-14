@@ -15,10 +15,8 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.ui.screens.DashboardScreen
 import com.amazecc.app.shared.ui.screens.FfcsPlannerScreen
 import com.amazecc.app.shared.ui.screens.ProfileScreen
-import com.amazecc.app.shared.ui.screens.ProjectsScreen
 import com.amazecc.app.shared.ui.screens.QBankScreen
 import com.amazecc.app.shared.ui.screens.SocialScreen
-import com.amazecc.app.shared.ui.screens.WishlistScreen
 import com.amazecc.app.shared.ui.screens.academics.AcademicsScreen
 import com.amazecc.app.shared.ui.screens.academics.AttendanceScreen
 import com.amazecc.app.shared.ui.screens.academics.CalendarScreen
@@ -88,8 +86,6 @@ fun MainTabPager(
             Screen.FFCS_PLANNER -> FfcsPlannerScreen()
             Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateBackTo(Screen.ACADEMICS) }
             Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateBackTo(Screen.ACADEMICS) })
-            Screen.PROJECTS -> ProjectsScreen()
-            Screen.WISHLIST -> WishlistScreen()
             else -> {}
         }
     }
