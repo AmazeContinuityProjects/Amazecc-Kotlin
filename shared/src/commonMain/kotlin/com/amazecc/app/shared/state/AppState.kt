@@ -236,32 +236,10 @@ object AppState {
             .firstOrNull() ?: ""
     }
 
-    // Student profile data
-    private val _studentProfile = MutableStateFlow<StudentProfile?>(null)
-    val studentProfile: StateFlow<StudentProfile?> = _studentProfile.asStateFlow()
-    private val _cachedStudentProfile = MutableStateFlow<StudentProfileRes?>(null)
+    // Student identity lives in UserStore — the single source of truth
 
-    // Profile Extended Data
-    private val _profileImages = MutableStateFlow<ProfileImagesRes?>(null)
-    val profileImages: StateFlow<ProfileImagesRes?> = _profileImages.asStateFlow()
-
-    private val _pendingExamSeatAlerts = MutableStateFlow<List<ProfileImagesCredential>>(emptyList())
-    val pendingExamSeatAlerts: StateFlow<List<ProfileImagesCredential>> = _pendingExamSeatAlerts.asStateFlow()
-
-    private val _credentials = MutableStateFlow<CredentialsRes?>(null)
-    val credentials: StateFlow<CredentialsRes?> = _credentials.asStateFlow()
-    
-    private val _bankInfo = MutableStateFlow<BankInfoRes?>(null)
-    val bankInfo: StateFlow<BankInfoRes?> = _bankInfo.asStateFlow()
-    
-    private val _dayboarder = MutableStateFlow<DayboarderRes?>(null)
-    val dayboarder: StateFlow<DayboarderRes?> = _dayboarder.asStateFlow()
-    
-    private val _eptSchedule = MutableStateFlow<EptScheduleRes?>(null)
-    val eptSchedule: StateFlow<EptScheduleRes?> = _eptSchedule.asStateFlow()
-    
-    private val _registrationSchedule = MutableStateFlow<RegistrationScheduleRes?>(null)
-    val registrationSchedule: StateFlow<RegistrationScheduleRes?> = _registrationSchedule.asStateFlow()
+    private val _pendingExamSeatAlerts = MutableStateFlow<List<AccountCredential>>(emptyList())
+    val pendingExamSeatAlerts: StateFlow<List<AccountCredential>> = _pendingExamSeatAlerts.asStateFlow()
 
     private val _statsCardsOrder = MutableStateFlow(listOf("attendance", "cgpa", "credits", "od"))
     val statsCardsOrder: StateFlow<List<String>> = _statsCardsOrder.asStateFlow()
@@ -271,18 +249,12 @@ object AppState {
 
     private val _gpaGoal = MutableStateFlow("9.0")
     val gpaGoal: StateFlow<String> = _gpaGoal.asStateFlow()
-    
-    private val _universityDay = MutableStateFlow<UniversityDayRes?>(null)
-    val universityDay: StateFlow<UniversityDayRes?> = _universityDay.asStateFlow()
 
     private val _ffcsRegistration = MutableStateFlow<FfcsRegistrationInfo?>(null)
     val ffcsRegistration: StateFlow<FfcsRegistrationInfo?> = _ffcsRegistration.asStateFlow()
 
     private val _pendingFfcsAlert = MutableStateFlow<FfcsRegistrationInfo?>(null)
     val pendingFfcsAlert: StateFlow<FfcsRegistrationInfo?> = _pendingFfcsAlert.asStateFlow()
-    
-    private val _apaarId = MutableStateFlow<ApaarIdRes?>(null)
-    val apaarId: StateFlow<ApaarIdRes?> = _apaarId.asStateFlow()
 
     const val DEFAULT_SEMESTER_ID = "CH20262701"
 
@@ -486,15 +458,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         loadCachedData<LMSRes>(SettingsManager.CACHE_LMS, _lms)
         loadCachedData<EventHubRes>(SettingsManager.CACHE_EVENTS, _events)
         loadCachedData<ClubsRes>(SettingsManager.CACHE_CLUBS, _clubs)
-        loadCachedData<StudentProfileRes>(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile)
-        _studentProfile.value = _cachedStudentProfile.value?.data
-        loadCachedData<ProfileImagesRes>(SettingsManager.CACHE_PROFILE_IMAGES, _profileImages)
-        _credentials.value = loadCredentials()
+        UserStore.loadFromCache()
+        UserStore.merge(
+            IdentityExtractor.fromVtopPhoto(SettingsManager.getString(SettingsManager.CACHE_VTOP_PHOTO)),
+            IdentitySource.VTOP_PHOTO
+        )
         reconcileExamSeatAlerts()
-        loadCachedData<BankInfoRes>(SettingsManager.CACHE_BANK_INFO, _bankInfo)
-        loadCachedData<DayboarderRes>(SettingsManager.CACHE_DAYBOARDER, _dayboarder)
-        loadCachedData<EptScheduleRes>(SettingsManager.CACHE_EPT_SCHEDULE, _eptSchedule)
-        loadCachedData<RegistrationScheduleRes>(SettingsManager.CACHE_REGISTRATION_SCHEDULE, _registrationSchedule)
         _ffcsRegistration.value = try {
             settings.getString(SettingsManager.CACHE_FFCS_REG_INFO, "").let { raw ->
                 if (raw.isBlank()) null
@@ -503,8 +472,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         } catch (e: Exception) {
             null
         }
-        loadCachedData<UniversityDayRes>(SettingsManager.CACHE_UNIVERSITY_DAY, _universityDay)
-        loadCachedData<ApaarIdRes>(SettingsManager.CACHE_APAAR_ID, _apaarId)
         loadCachedData<CabShareUser>(SettingsManager.CACHE_CAB_USER, _cabShareUser)
         loadCachedData<CircularsRes>(SettingsManager.CACHE_CIRCULARS, _circulars)
 
@@ -545,40 +512,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         } catch (e: Exception) { println("AmazeCC: AppState cacheData — ${e.message}") }
     }
 
-    // Credentials contain passwords (defaultCredentials) — never persist them in the
-    // plain profile-images cache. The /credentials payload is stored separately, encrypted.
-    private fun persistProfileImages(res: ProfileImagesRes?) {
-        if (res == null) return
-        _profileImages.value = res
-        cacheData(SettingsManager.CACHE_PROFILE_IMAGES, res)
-    }
-
-    private fun persistCredentials(res: CredentialsRes?) {
-        if (res == null) return
-        _credentials.value = res
-        try {
-            val encoded = jsonFormat.encodeToString(CredentialsRes.serializer(), res)
-            settings[SettingsManager.CACHE_CREDENTIALS_SECURE] =
-                com.amazecc.app.shared.security.Encryption.encryptOrPlain(encoded)
-        } catch (e: Exception) {
-            println("AmazeCC: persistCredentials — ${e.message}")
-        }
-        reconcileExamSeatAlerts()
-    }
-
-    private fun loadCredentials(): CredentialsRes? {
-        val raw = settings.getString(SettingsManager.CACHE_CREDENTIALS_SECURE, "")
-        if (raw.isBlank()) return null
-        return try {
-            jsonFormat.decodeFromString(
-                CredentialsRes.serializer(),
-                com.amazecc.app.shared.security.Encryption.decryptOrPlain(raw)
-            )
-        } catch (e: Exception) {
-            println("AmazeCC: loadCredentials — ${e.message}")
-            null
-        }
-    }
+    // Credentials (incl. passwords) live in the encrypted UserStore cache; nothing
+    // identity-related is persisted in the plain per-endpoint caches anymore.
 
     fun dismissExamSeatAlerts() {
         _pendingExamSeatAlerts.value = emptyList()
@@ -587,7 +522,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     // Alert once per newly added exam venue/seat entry. Entries that disappear are
     // forgotten, so a returning entry alerts again.
     private fun reconcileExamSeatAlerts() {
-        val creds = _credentials.value?.credentials.orEmpty()
+        val creds = UserStore.identity.value.credentials
         val current = creds
             .filter { it.venueDate.isNotBlank() || it.seatLocation.isNotBlank() }
             .associateBy { it.account.lowercase() }
@@ -717,15 +652,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         if (_lms.value != null) { cacheData(SettingsManager.CACHE_LMS, _lms.value); saved++ }
         if (_events.value != null) { cacheData(SettingsManager.CACHE_EVENTS, _events.value); saved++ }
         if (_clubs.value != null) { cacheData(SettingsManager.CACHE_CLUBS, _clubs.value); saved++ }
-        if (_cachedStudentProfile.value != null) { cacheData(SettingsManager.CACHE_STUDENT_PROFILE, _cachedStudentProfile.value); saved++ }
-        if (_profileImages.value != null) { persistProfileImages(_profileImages.value); saved++ }
-        if (_credentials.value != null) { persistCredentials(_credentials.value); saved++ }
-        if (_bankInfo.value != null) { cacheData(SettingsManager.CACHE_BANK_INFO, _bankInfo.value); saved++ }
-        if (_dayboarder.value != null) { cacheData(SettingsManager.CACHE_DAYBOARDER, _dayboarder.value); saved++ }
-        if (_eptSchedule.value != null) { cacheData(SettingsManager.CACHE_EPT_SCHEDULE, _eptSchedule.value); saved++ }
-        if (_registrationSchedule.value != null) { cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, _registrationSchedule.value); saved++ }
-        if (_universityDay.value != null) { cacheData(SettingsManager.CACHE_UNIVERSITY_DAY, _universityDay.value); saved++ }
-        if (_apaarId.value != null) { cacheData(SettingsManager.CACHE_APAAR_ID, _apaarId.value); saved++ }
         if (_cabShareUser.value != null) { cacheData(SettingsManager.CACHE_CAB_USER, _cabShareUser.value); saved++ }
         if (_allSemesterAttendance.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value); saved++ }
         if (_allSemesterMarks.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value); saved++ }
@@ -1271,6 +1197,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
                             SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
                             loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
                         }
                     } catch (e: Exception) { println("AmazeCC: AppState loadAllData sessionRefresh — ${e.message}") }
                 }
@@ -1575,56 +1502,49 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                     listOf(
                                         async {
                                             syncModule("Student Profile", { AmazeClient.getStudentProfile() }, { it.success && it.data != null }, { it.error }) {
-                                                _studentProfile.value = it.data
-                                                _cachedStudentProfile.value = it
-                                                cacheData(SettingsManager.CACHE_STUDENT_PROFILE, it)
+                                                UserStore.merge(IdentityExtractor.fromStudentProfile(it), IdentitySource.STUDENT)
                                             }
                                         },
                                         async {
                                             syncModule("Profile Images", { AmazeClient.getProfileImages() }, { it.success }, { it.error }) {
-                                                persistProfileImages(it)
+                                                UserStore.merge(IdentityExtractor.fromProfileImages(it), IdentitySource.PROFILE_IMAGES)
                                             }
                                         },
                                         async {
                                             syncModule("Credentials", { AmazeClient.getCredentials() }, { it.success }, { it.error }) {
-                                                persistCredentials(it)
+                                                UserStore.merge(IdentityExtractor.fromCredentials(it), IdentitySource.CREDENTIALS)
+                                                reconcileExamSeatAlerts()
                                             }
                                         },
                                         async {
                                             syncModule("Bank Information", { AmazeClient.getBankInfo() }, { it.success }, { it.error }) {
-                                                _bankInfo.value = it
-                                                cacheData(SettingsManager.CACHE_BANK_INFO, it)
+                                                UserStore.merge(IdentityExtractor.fromBankInfo(it), IdentitySource.BANK)
                                             }
                                         },
                                         async {
                                             syncModule("Dayboarder Info", { AmazeClient.getDayboarderInfo() }, { it.success }, { it.error }) {
-                                                _dayboarder.value = it
-                                                cacheData(SettingsManager.CACHE_DAYBOARDER, it)
+                                                UserStore.merge(IdentityExtractor.fromDayboarder(it), IdentitySource.RECORDS)
                                             }
                                         },
                                         async {
                                             syncModule("EPT Schedule", { AmazeClient.getEptSchedule() }, { it.success }, { it.error }) {
-                                                _eptSchedule.value = it
-                                                cacheData(SettingsManager.CACHE_EPT_SCHEDULE, it)
+                                                UserStore.merge(IdentityExtractor.fromEptSchedule(it), IdentitySource.RECORDS)
                                             }
                                         },
                                         async {
                                             syncModule("Registration Schedule", { AmazeClient.getRegistrationSchedule() }, { it.success }, { it.error }) {
-                                                _registrationSchedule.value = it
-                                                cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, it)
+                                                UserStore.merge(IdentityExtractor.fromRegistrationSchedule(it), IdentitySource.RECORDS)
                                                 updateFfcsRegistration(parseFfcsRegistration(it))
                                             }
                                         },
                                         async {
                                             syncModule("University Day", { AmazeClient.getUniversityDay() }, { it.success }, { it.error }) {
-                                                _universityDay.value = it
-                                                cacheData(SettingsManager.CACHE_UNIVERSITY_DAY, it)
+                                                UserStore.merge(IdentityExtractor.fromUniversityDay(it), IdentitySource.RECORDS)
                                             }
                                         },
                                         async {
                                             syncModule("APAAR ID", { AmazeClient.getApaarId() }, { it.success }, { it.error }) {
-                                                _apaarId.value = it
-                                                cacheData(SettingsManager.CACHE_APAAR_ID, it)
+                                                UserStore.merge(IdentityExtractor.fromApaarId(it), IdentitySource.APAAR)
                                             }
                                         }
                                     ).awaitAll()
@@ -2098,56 +2018,49 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                     listOf(
                         async {
                             syncModule("Student Profile", { AmazeClient.getStudentProfile() }, { it.success && it.data != null }, { it.error }) {
-                                _studentProfile.value = it.data
-                                _cachedStudentProfile.value = it
-                                cacheData(SettingsManager.CACHE_STUDENT_PROFILE, it)
+                                UserStore.merge(IdentityExtractor.fromStudentProfile(it), IdentitySource.STUDENT)
                             }
                         },
                         async {
                             syncModule("Profile Images", { AmazeClient.getProfileImages() }, { it.success }, { it.error }) {
-                                persistProfileImages(it)
+                                UserStore.merge(IdentityExtractor.fromProfileImages(it), IdentitySource.PROFILE_IMAGES)
                             }
                         },
                         async {
                             syncModule("Credentials", { AmazeClient.getCredentials() }, { it.success }, { it.error }) {
-                                persistCredentials(it)
+                                UserStore.merge(IdentityExtractor.fromCredentials(it), IdentitySource.CREDENTIALS)
+                                reconcileExamSeatAlerts()
                             }
                         },
                         async {
                             syncModule("Bank Information", { AmazeClient.getBankInfo() }, { it.success }, { it.error }) {
-                                _bankInfo.value = it
-                                cacheData(SettingsManager.CACHE_BANK_INFO, it)
+                                UserStore.merge(IdentityExtractor.fromBankInfo(it), IdentitySource.BANK)
                             }
                         },
                         async {
                             syncModule("Dayboarder Info", { AmazeClient.getDayboarderInfo() }, { it.success }, { it.error }) {
-                                _dayboarder.value = it
-                                cacheData(SettingsManager.CACHE_DAYBOARDER, it)
+                                UserStore.merge(IdentityExtractor.fromDayboarder(it), IdentitySource.RECORDS)
                             }
                         },
                         async {
                             syncModule("EPT Schedule", { AmazeClient.getEptSchedule() }, { it.success }, { it.error }) {
-                                _eptSchedule.value = it
-                                cacheData(SettingsManager.CACHE_EPT_SCHEDULE, it)
+                                UserStore.merge(IdentityExtractor.fromEptSchedule(it), IdentitySource.RECORDS)
                             }
                         },
                         async {
                             syncModule("Registration Schedule", { AmazeClient.getRegistrationSchedule() }, { it.success }, { it.error }) {
-                                _registrationSchedule.value = it
-                                cacheData(SettingsManager.CACHE_REGISTRATION_SCHEDULE, it)
+                                UserStore.merge(IdentityExtractor.fromRegistrationSchedule(it), IdentitySource.RECORDS)
                                 updateFfcsRegistration(parseFfcsRegistration(it))
                             }
                         },
                         async {
                             syncModule("University Day", { AmazeClient.getUniversityDay() }, { it.success }, { it.error }) {
-                                _universityDay.value = it
-                                cacheData(SettingsManager.CACHE_UNIVERSITY_DAY, it)
+                                UserStore.merge(IdentityExtractor.fromUniversityDay(it), IdentitySource.RECORDS)
                             }
                         },
                         async {
                             syncModule("APAAR ID", { AmazeClient.getApaarId() }, { it.success }, { it.error }) {
-                                _apaarId.value = it
-                                cacheData(SettingsManager.CACHE_APAAR_ID, it)
+                                UserStore.merge(IdentityExtractor.fromApaarId(it), IdentitySource.APAAR)
                             }
                         }
                     ).awaitAll()
@@ -2260,6 +2173,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
                             SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
                             loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
                         }
                     } catch (e: Exception) { println("AmazeCC: refreshExamSchedule session refresh error — ${e.message}") }
                 }
@@ -2380,16 +2294,9 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         
         // Clear caches
         _attendance.value = null
-        _profileImages.value = null
-        _credentials.value = null
-        _bankInfo.value = null
-        _dayboarder.value = null
-        _eptSchedule.value = null
-        _registrationSchedule.value = null
+        UserStore.clear()
         _ffcsRegistration.value = null
         _pendingFfcsAlert.value = null
-        _universityDay.value = null
-        _apaarId.value = null
         _circulars.value = null
         _timetable.value = null
         _marks.value = null
@@ -2414,9 +2321,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         _clubs.value = null
         
         _moodleData.value = null
-        _cachedStudentProfile.value = null
-        _studentProfile.value = null
-        _vtopPhotoBase64.value = null
         _curriculum.value = null
         _selectedSemester.value = "CH20262701"
         _selectedCourseCode.value = null
@@ -2786,6 +2690,7 @@ fun updateMoodleData(data: MoodleRes?) {
                         SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
                         SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
                         loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
                     }
                 }
                 updateOnboardingStep("Session", "done")
@@ -2864,6 +2769,7 @@ fun updateMoodleData(data: MoodleRes?) {
                             SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
                             SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
                             loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
                         }
                     } catch (e: Exception) { println("AmazeCC: runLightReload sessionRefresh — ${e.message}") }
                 }
@@ -3177,19 +3083,12 @@ fun updateMoodleData(data: MoodleRes?) {
         SettingsManager.setBoolean(SettingsManager.KEY_HERO_COLOR_ENABLED, enabled)
     }
 
-    fun updateStudentProfile(profile: StudentProfile?) {
-        _studentProfile.value = profile
-    }
-
     fun setSyncStatus(isSyncing: Boolean, message: String? = null) {
         _isSyncing.value = isSyncing
         if (message != null) {
             _syncMessage.value = message
         }
     }
-
-    private val _vtopPhotoBase64 = MutableStateFlow<String?>(SettingsManager.getString(SettingsManager.CACHE_VTOP_PHOTO))
-    val vtopPhotoBase64: StateFlow<String?> = _vtopPhotoBase64.asStateFlow()
 
     private val _widgetOrder = MutableStateFlow<List<DashboardWidget>>(loadWidgetOrder())
     val widgetOrder: StateFlow<List<DashboardWidget>> = _widgetOrder.asStateFlow()

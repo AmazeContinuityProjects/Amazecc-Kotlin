@@ -22,8 +22,8 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.amazecc.app.shared.model.ProfileImagesCredential
-import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.model.AccountCredential
+import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
@@ -34,9 +34,9 @@ import com.amazecc.app.shared.ui.screens.settings.SettingsRowDivider
 @Composable
 fun CredentialsAndRanksPage() {
     val colors = AmazeTheme.colors
-    val credentialsRes by AppState.credentials.collectAsState()
-    val ranks = credentialsRes?.ranks.orEmpty()
-    val linked = credentialsRes?.credentials.orEmpty()
+    val identity by UserStore.identity.collectAsState()
+    val ranks = identity.ranks
+    val linked = identity.credentials
     var expandedAccount by rememberSaveable { mutableStateOf<String?>(null) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -104,14 +104,14 @@ fun CredentialsAndRanksPage() {
 
 @Composable
 private fun CredentialRow(
-    cred: ProfileImagesCredential,
+    cred: AccountCredential,
     expanded: Boolean,
     onToggle: () -> Unit
 ) {
     val colors = AmazeTheme.colors
     val uriHandler = LocalUriHandler.current
     val hasVenue = cred.venueDate.isNotBlank() || cred.seatLocation.isNotBlank()
-    val hasPassword = cred.defaultCredentials.isNotBlank()
+    val hasPassword = cred.password.isNotBlank()
     val hasUrl = cred.url?.isNotBlank() == true
 
     Column(
@@ -154,7 +154,7 @@ private fun CredentialRow(
                     Icon(Icons.Rounded.Visibility, null, tint = colors.textMuted, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        cred.defaultCredentials,
+                        cred.password,
                         style = AmazeTheme.typography.body.copy(color = colors.textPrimary),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis

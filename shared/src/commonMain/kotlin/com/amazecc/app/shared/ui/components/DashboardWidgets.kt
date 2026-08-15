@@ -49,6 +49,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.DashboardWidget
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
+import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.ui.screens.academics.AddTaskDialog
@@ -741,28 +742,16 @@ private fun WidgetContent(widget: DashboardWidget) {
 private fun ProfileHeaderWidget() {
     val colors = AmazeTheme.colors
     val authorizedID by SessionManager.authorizedID.collectAsState()
-    val profile by AppState.studentProfile.collectAsState()
-    val profileImages by AppState.profileImages.collectAsState()
-    val vtopPhotoBase64 by AppState.vtopPhotoBase64.collectAsState()
+    val identity by UserStore.identity.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
 
-    val nameToDisplay = remember(profile, authorizedID) {
-        val fullName = profile?.name ?: "Student"
-        val first = fullName.split(" ").firstOrNull() ?: fullName
+    val nameToDisplay = remember(identity.displayName, authorizedID) {
+        val first = identity.displayName.split(" ").firstOrNull() ?: identity.displayName
         if (first == authorizedID) "Student" else first
     }
-    val avatarText = remember(profile) {
-        val name = profile?.name ?: "?"
-        name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.first().uppercase() }.ifEmpty { "?" }
-    }
+    val avatarText = identity.initials
 
-    val rawBase64 = remember(profile, profileImages, vtopPhotoBase64) {
-        profile?.photoBase64
-            ?: profileImages?.student?.photoBase64
-            ?: profileImages?.profile?.photoBase64
-            ?: profileImages?.studentPhoto
-            ?: vtopPhotoBase64
-    }
+    val rawBase64 = identity.photoBase64
     var decodedBitmap by remember(rawBase64) { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     LaunchedEffect(rawBase64) {
         if (rawBase64 != null) {

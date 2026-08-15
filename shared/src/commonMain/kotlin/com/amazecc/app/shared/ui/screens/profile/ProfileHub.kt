@@ -18,11 +18,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.amazecc.app.shared.model.ProfileImagesRes
-import com.amazecc.app.shared.model.StudentProfile
-import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupCard
@@ -37,38 +35,31 @@ fun ProfileHub(
     onOpenSubScreen: (ProfileSubScreen) -> Unit
 ) {
     val colors = AmazeTheme.colors
-    val profile by AppState.studentProfile.collectAsState()
-    val profileImages by AppState.profileImages.collectAsState()
-    val credentials by AppState.credentials.collectAsState()
-    val dayboarder by AppState.dayboarder.collectAsState()
-    val eptSchedule by AppState.eptSchedule.collectAsState()
-    val registrationSchedule by AppState.registrationSchedule.collectAsState()
-    val universityDay by AppState.universityDay.collectAsState()
-    val apaarId by AppState.apaarId.collectAsState()
+    val identity by UserStore.identity.collectAsState()
 
-    val hasEpt = eptSchedule?.tables?.isNotEmpty() == true
-    val hasReg = registrationSchedule?.tables?.isNotEmpty() == true
-    val hasDay = dayboarder?.fields?.isNotEmpty() == true
-    val hasApaar = apaarId?.hasApaar == true
-    val viteeeRank = credentials?.ranks?.firstOrNull()?.rank
-    val hasCredentials = credentials?.credentials?.isNotEmpty() == true || credentials?.ranks?.isNotEmpty() == true
+    val hasEpt = identity.eptTables.isNotEmpty()
+    val hasReg = identity.registrationTables.isNotEmpty() || identity.registrationFields.isNotEmpty()
+    val hasDay = identity.dayboarder?.isDayboarder == true
+    val hasApaar = identity.apaar?.hasApaar == true
+    val viteeeRank = identity.ranks.firstOrNull()?.rank
+    val hasCredentials = identity.credentials.isNotEmpty() || identity.ranks.isNotEmpty()
 
     fun valueFor(sub: ProfileSubScreen): String? = when (sub) {
         ProfileSubScreen.PERSONAL_INFO -> null
-        ProfileSubScreen.ACADEMIC_DETAILS -> profile?.section
-        ProfileSubScreen.UNIVERSITY_OFFICIALS -> proctorName(profileImages) ?: officialsSummary(profileImages)
+        ProfileSubScreen.ACADEMIC_DETAILS -> identity.section
+        ProfileSubScreen.UNIVERSITY_OFFICIALS -> proctorName(identity.proctor?.name) ?: officialsSummary(identity.proctor != null, identity.hodDean.size)
         ProfileSubScreen.EPT_SCHEDULE -> if (hasEpt) "Scheduled" else "Not scheduled"
         ProfileSubScreen.REGISTRATION -> if (hasReg) "Available" else "No schedule"
-        ProfileSubScreen.UNIVERSITY_DAY -> if (universityDay?.tables?.isNotEmpty() == true) "Available" else "No details"
+        ProfileSubScreen.UNIVERSITY_DAY -> if (identity.universityDayTables.isNotEmpty() || identity.universityDayFields.isNotEmpty()) "Available" else "No details"
         ProfileSubScreen.DAYBOARDER -> if (hasDay) "Active" else "Not active"
         ProfileSubScreen.APAAR_ID -> if (hasApaar) "Generated" else "Pending"
         ProfileSubScreen.CREDENTIALS -> if (viteeeRank.isNullOrBlank()) (if (hasCredentials) "Linked" else null) else viteeeRank
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        ProfileHeroCard(profile = profile, profileImages = profileImages)
+        ProfileHeroCard()
 
-        if (profile == null) {
+        if (!identity.hasIdentity) {
             AmazeCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -118,13 +109,9 @@ fun ProfileHub(
 }
 
 @Composable
-private fun ProfileHeroCard(
-    profile: StudentProfile?,
-    profileImages: ProfileImagesRes?
-) {
+private fun ProfileHeroCard() {
     val colors = AmazeTheme.colors
-    val authorizedID by SessionManager.authorizedID.collectAsState()
-    val vtopPhotoBase64 by AppState.vtopPhotoBase64.collectAsState()
+    val identity by UserStore.identity.collectAsState()
 
     AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -136,11 +123,7 @@ private fun ProfileHeroCard(
                     .border(2.dp, colors.accent.copy(alpha = 0.5f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                val photoBase64 = profile?.photoBase64
-                    ?: profileImages?.student?.photoBase64
-                    ?: profileImages?.profile?.photoBase64
-                    ?: profileImages?.studentPhoto
-                    ?: vtopPhotoBase64
+                val photoBase64 = identity.photoBase64
                 val decodedBitmap = remember(photoBase64) {
                     if (photoBase64 != null) {
                         try {
@@ -162,7 +145,7 @@ private fun ProfileHeroCard(
                     )
                 } else {
                     Text(
-                        text = (authorizedID ?: "?").take(2).uppercase(),
+                        text = identity.initials,
                         style = AmazeTheme.typography.display.copy(
                             color = colors.accent,
                             fontWeight = FontWeight.Black,
@@ -174,7 +157,7 @@ private fun ProfileHeroCard(
             Spacer(Modifier.width(AmazeTheme.spacing.md))
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = profile?.name ?: authorizedID ?: "Student",
+                    text = identity.displayName,
                     style = AmazeTheme.typography.subheading.copy(
                         fontWeight = FontWeight.Bold,
                         color = colors.textPrimary
@@ -183,7 +166,7 @@ private fun ProfileHeroCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = profile?.regNo ?: authorizedID ?: "",
+                    text = identity.displayRegNo,
                     style = AmazeTheme.typography.body.copy(color = colors.textSecondary),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -191,8 +174,8 @@ private fun ProfileHeroCard(
                 Spacer(Modifier.height(AmazeTheme.spacing.xs))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     AmazeBadge(text = "ACTIVE ENROLLED", variant = BadgeVariant.SUCCESS)
-                    if (profile?.batch?.isNotBlank() == true) {
-                        AmazeBadge(text = profile?.batch ?: "", variant = BadgeVariant.INFO)
+                    if (identity.batch?.isNotBlank() == true) {
+                        AmazeBadge(text = identity.batch ?: "", variant = BadgeVariant.INFO)
                     }
                 }
             }
@@ -200,15 +183,11 @@ private fun ProfileHeroCard(
     }
 }
 
-private fun proctorName(profileImages: ProfileImagesRes?): String? =
-    profileImages?.proctor?.details?.get("name")?.takeIf { it.isNotBlank() }
+private fun proctorName(name: String?): String? = name?.takeIf { it.isNotBlank() }
 
-private fun officialsSummary(profileImages: ProfileImagesRes?): String? {
-    val people = profileImages?.hodDean?.people?.size ?: 0
-    return when {
-        profileImages?.proctor != null && people > 0 -> "Proctor · $people"
-        profileImages?.proctor != null -> "Proctor"
-        people > 0 -> "$people HoD/Dean"
-        else -> null
-    }
+private fun officialsSummary(hasProctor: Boolean, hodDeanCount: Int): String? = when {
+    hasProctor && hodDeanCount > 0 -> "Proctor · $hodDeanCount"
+    hasProctor -> "Proctor"
+    hodDeanCount > 0 -> "$hodDeanCount HoD/Dean"
+    else -> null
 }

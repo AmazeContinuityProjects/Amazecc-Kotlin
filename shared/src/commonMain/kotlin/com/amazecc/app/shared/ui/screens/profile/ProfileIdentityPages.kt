@@ -17,9 +17,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.amazecc.app.shared.model.ProfileImagesHodDeanPerson
-import com.amazecc.app.shared.model.ProfileImagesProctor
-import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.model.KeyValueRow
+import com.amazecc.app.shared.model.Official
+import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupCard
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupLabel
@@ -32,21 +32,24 @@ private data class ProfileDetailRow(val icon: ImageVector, val label: String, va
 @Composable
 fun PersonalInformationPage() {
     val colors = AmazeTheme.colors
-    val profile by AppState.studentProfile.collectAsState()
+    val identity by UserStore.identity.collectAsState()
 
     val rows = buildList {
-        val p = profile ?: return@buildList
-        add(ProfileDetailRow(Icons.Rounded.Email, "Email", p.email))
-        add(ProfileDetailRow(Icons.Rounded.School, "Program", p.program))
-        add(ProfileDetailRow(Icons.Rounded.LocationOn, "Campus", p.campus))
-        add(ProfileDetailRow(Icons.Rounded.DateRange, "Batch", p.batch))
-        p.nationality?.let { add(ProfileDetailRow(Icons.Rounded.Public, "Nationality", it)) }
-        p.nativeLanguage?.let { add(ProfileDetailRow(Icons.Rounded.Translate, "Mother Tongue", it)) }
-        p.religion?.let { add(ProfileDetailRow(Icons.Rounded.TempleHindu, "Religion", it)) }
-        p.community?.let { add(ProfileDetailRow(Icons.Rounded.Groups, "Community", it)) }
-        p.caste?.let { add(ProfileDetailRow(Icons.Rounded.AccountBox, "Caste", it)) }
-        p.physicallyChallenged?.let { add(ProfileDetailRow(Icons.Rounded.Accessible, "Physically Challenged", it)) }
-        p.aadharNumber?.let { add(ProfileDetailRow(Icons.Rounded.Assignment, "Aadhar Number", it)) }
+        identity.email?.let { add(ProfileDetailRow(Icons.Rounded.Email, "Email", it)) }
+        identity.mobile?.let { add(ProfileDetailRow(Icons.Rounded.Phone, "Mobile", it)) }
+        identity.dob?.let { add(ProfileDetailRow(Icons.Rounded.Cake, "Date of Birth", it)) }
+        identity.gender?.let { add(ProfileDetailRow(Icons.Rounded.Person, "Gender", it)) }
+        identity.program?.let { add(ProfileDetailRow(Icons.Rounded.School, "Program", it)) }
+        identity.campus?.let { add(ProfileDetailRow(Icons.Rounded.LocationOn, "Campus", it)) }
+        identity.batch?.let { add(ProfileDetailRow(Icons.Rounded.DateRange, "Batch", it)) }
+        identity.nationality?.let { add(ProfileDetailRow(Icons.Rounded.Public, "Nationality", it)) }
+        identity.nativeLanguage?.let { add(ProfileDetailRow(Icons.Rounded.Translate, "Mother Tongue", it)) }
+        identity.nativeState?.let { add(ProfileDetailRow(Icons.Rounded.Map, "Native State", it)) }
+        identity.religion?.let { add(ProfileDetailRow(Icons.Rounded.TempleHindu, "Religion", it)) }
+        identity.community?.let { add(ProfileDetailRow(Icons.Rounded.Groups, "Community", it)) }
+        identity.caste?.let { add(ProfileDetailRow(Icons.Rounded.AccountBox, "Caste", it)) }
+        identity.physicallyChallenged?.let { add(ProfileDetailRow(Icons.Rounded.Accessible, "Physically Challenged", it)) }
+        identity.aadharNumber?.let { add(ProfileDetailRow(Icons.Rounded.Assignment, "Aadhar Number", it)) }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -61,24 +64,41 @@ fun PersonalInformationPage() {
                 }
             }
         }
+
+        val familyRows = buildList {
+            identity.currentAddress.forEach { add(KeyValueRow("Current Address · ${it.label}", it.value)) }
+            identity.permanentAddress.forEach { add(KeyValueRow("Permanent Address · ${it.label}", it.value)) }
+            identity.father.forEach { add(KeyValueRow("Father · ${it.label}", it.value)) }
+            identity.mother.forEach { add(KeyValueRow("Mother · ${it.label}", it.value)) }
+            identity.guardian?.let { add(KeyValueRow("Guardian", it)) }
+        }
+        if (familyRows.isNotEmpty()) {
+            SettingsGroupLabel("Address & Family")
+            SettingsGroupCard {
+                familyRows.forEachIndexed { index, row ->
+                    ProfileDetailRowItem(ProfileDetailRow(Icons.Rounded.Home, row.label, row.value))
+                    if (index < familyRows.lastIndex) SettingsRowDivider()
+                }
+            }
+        }
     }
 }
 
 @Composable
 fun AcademicDetailsPage() {
     val colors = AmazeTheme.colors
-    val profile by AppState.studentProfile.collectAsState()
+    val identity by UserStore.identity.collectAsState()
 
     val rows = buildList {
-        val p = profile ?: return@buildList
-        p.section?.let { add(ProfileDetailRow(Icons.Rounded.Group, "Section", it)) }
-        p.advisorName?.let { add(ProfileDetailRow(Icons.Rounded.Person, "Advisor", it)) }
-        p.bloodGroup?.let { add(ProfileDetailRow(Icons.Rounded.Bloodtype, "Blood Group", it)) }
-        p.program?.let { add(ProfileDetailRow(Icons.Rounded.School, "Program", it)) }
-        p.campus?.let { add(ProfileDetailRow(Icons.Rounded.LocationOn, "Campus", it)) }
-        p.batch?.let { add(ProfileDetailRow(Icons.Rounded.DateRange, "Batch", it)) }
-        p.regNo?.let { add(ProfileDetailRow(Icons.Rounded.Badge, "Registration Number", it)) }
-        p.aadharNumber?.let { add(ProfileDetailRow(Icons.Rounded.Assignment, "Aadhar Number", it)) }
+        identity.section?.let { add(ProfileDetailRow(Icons.Rounded.Group, "Section", it)) }
+        identity.advisorName?.let { add(ProfileDetailRow(Icons.Rounded.Person, "Advisor", it)) }
+        identity.bloodGroup?.let { add(ProfileDetailRow(Icons.Rounded.Bloodtype, "Blood Group", it)) }
+        identity.program?.let { add(ProfileDetailRow(Icons.Rounded.School, "Program", it)) }
+        identity.campus?.let { add(ProfileDetailRow(Icons.Rounded.LocationOn, "Campus", it)) }
+        identity.batch?.let { add(ProfileDetailRow(Icons.Rounded.DateRange, "Batch", it)) }
+        identity.regNo?.let { add(ProfileDetailRow(Icons.Rounded.Badge, "Registration Number", it)) }
+        if (identity.isHosteller) add(ProfileDetailRow(Icons.Rounded.Apartment, "Residence", "Hosteller"))
+        identity.aadharNumber?.let { add(ProfileDetailRow(Icons.Rounded.Assignment, "Aadhar Number", it)) }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -99,10 +119,10 @@ fun AcademicDetailsPage() {
 @Composable
 fun UniversityOfficialsPage() {
     val colors = AmazeTheme.colors
-    val profileImages by AppState.profileImages.collectAsState()
+    val identity by UserStore.identity.collectAsState()
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        val proctor = profileImages?.proctor
+        val proctor = identity.proctor
         if (proctor != null) {
             SettingsGroupLabel("Proctor")
             SettingsGroupCard {
@@ -110,7 +130,7 @@ fun UniversityOfficialsPage() {
             }
         }
 
-        val people = profileImages?.hodDean?.people ?: emptyList()
+        val people = identity.hodDean
         if (people.isNotEmpty()) {
             SettingsGroupLabel("HoD & Dean")
             people.forEach { person ->
@@ -127,11 +147,11 @@ fun UniversityOfficialsPage() {
 }
 
 @Composable
-private fun OfficialDetailCard(proctor: ProfileImagesProctor) {
+private fun OfficialDetailCard(official: Official) {
     val colors = AmazeTheme.colors
     Column(modifier = Modifier.padding(14.dp)) {
-        val bitmap = remember(proctor.photoBase64) {
-            proctor.photoBase64?.let { src ->
+        val bitmap = remember(official.photoBase64) {
+            official.photoBase64?.let { src ->
                 val base64 = src.substringAfter("base64,")
                 val bytes = try { base64.decodeBase64Bytes() } catch (_: Exception) { null }
                 bytes?.toImageBitmap()
@@ -146,7 +166,7 @@ private fun OfficialDetailCard(proctor: ProfileImagesProctor) {
                 if (bitmap != null) {
                     Image(
                         bitmap = bitmap,
-                        contentDescription = "Proctor",
+                        contentDescription = official.role,
                         modifier = Modifier.fillMaxSize().clip(CircleShape),
                         contentScale = ContentScale.Crop
                     )
@@ -156,57 +176,32 @@ private fun OfficialDetailCard(proctor: ProfileImagesProctor) {
             }
             Spacer(Modifier.width(AmazeTheme.spacing.md))
             Column {
-                Text("PROCTOR DETAILS", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                proctor.details["name"]?.let {
+                Text(
+                    (official.role ?: "OFFICIAL").uppercase(),
+                    style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold)
+                )
+                official.name?.let {
                     Text(it, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                 }
             }
         }
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        proctor.details.forEach { (k, v) ->
-            if (k.lowercase() != "name") {
-                Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                OfficialDetailLine(label = k, value = v)
-            }
+        val details = buildList {
+            official.designation?.let { add(KeyValueRow("designation", it)) }
+            official.email?.let { add(KeyValueRow("email", it)) }
+            official.phone?.let { add(KeyValueRow("mobile", it)) }
+            official.school?.let { add(KeyValueRow("school", it)) }
+            official.cabin?.let { add(KeyValueRow("cabin", it)) }
+            official.department?.let { add(KeyValueRow("department", it)) }
+            official.intercom?.let { add(KeyValueRow("intercom", it)) }
+            official.facultyId?.let { add(KeyValueRow("Faculty ID", it)) }
+            official.extras.forEach { add(it) }
         }
-    }
-}
-
-@Composable
-private fun OfficialDetailCard(person: ProfileImagesHodDeanPerson) {
-    val colors = AmazeTheme.colors
-    Column(modifier = Modifier.padding(14.dp)) {
-        val bitmap = remember(person.photoBase64) {
-            person.photoBase64?.let { src ->
-                val base64 = src.substringAfter("base64,")
-                val bytes = try { base64.decodeBase64Bytes() } catch (_: Exception) { null }
-                bytes?.toImageBitmap()
+        if (details.isNotEmpty()) {
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+            details.forEachIndexed { index, row ->
+                OfficialDetailLine(label = row.label, value = row.value)
+                if (index < details.lastIndex) Spacer(Modifier.height(AmazeTheme.spacing.xs))
             }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier.size(48.dp).clip(CircleShape)
-                    .background(colors.accent.copy(alpha = 0.12f)),
-                contentAlignment = Alignment.Center
-            ) {
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap,
-                        contentDescription = person.role,
-                        modifier = Modifier.fillMaxSize().clip(CircleShape),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(Icons.Rounded.Person, null, tint = colors.accent, modifier = Modifier.size(24.dp))
-                }
-            }
-            Spacer(Modifier.width(AmazeTheme.spacing.md))
-            Text(person.role, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-        }
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        person.details.forEach { (k, v) ->
-            Spacer(Modifier.height(AmazeTheme.spacing.xs))
-            OfficialDetailLine(label = k, value = v)
         }
     }
 }

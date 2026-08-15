@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.FriendGroup
 import com.amazecc.app.shared.state.FriendsViewModel
+import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.strings.Strings
@@ -123,12 +124,12 @@ fun SocialScreen() {
 @Composable
 private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val attendance by AppState.attendance.collectAsState()
-    val studentProfile by AppState.studentProfile.collectAsState()
+    val identity by UserStore.identity.collectAsState()
     val authorizedID by com.amazecc.app.shared.repository.SessionManager.authorizedID.collectAsState()
     val clipboardManager = LocalClipboardManager.current
 
-    val name = studentProfile?.name ?: authorizedID ?: "Student"
-    val regNumber = studentProfile?.regNo ?: authorizedID ?: "0000"
+    val name = identity.displayName.ifBlank { authorizedID ?: "Student" }
+    val regNumber = identity.regNo ?: authorizedID ?: "0000"
     val attList = attendance?.attendance ?: emptyList()
 
     val scheduleCode = remember(attList, name, regNumber) {

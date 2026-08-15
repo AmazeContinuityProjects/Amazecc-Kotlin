@@ -456,7 +456,30 @@ data class StudentProfile(
     val religion: String? = null,
     val caste: String? = null,
     val physicallyChallenged: String? = null,
-    val aadharNumber: String? = null
+    val aadharNumber: String? = null,
+    val dob: String? = null,
+    val gender: String? = null,
+    val isHosteller: Boolean = false,
+    val nativeState: String? = null,
+    val currentAddress: Map<String, JsonElement> = emptyMap(),
+    val permanentAddress: Map<String, JsonElement> = emptyMap(),
+    val father: Map<String, JsonElement> = emptyMap(),
+    val mother: Map<String, JsonElement> = emptyMap(),
+    val guardian: String? = null,
+    val proctor: ProfileProctor? = null
+)
+
+@Serializable
+data class ProfileProctor(
+    val facultyId: String? = null,
+    val name: String? = null,
+    val designation: String? = null,
+    val school: String? = null,
+    val cabin: String? = null,
+    val department: String? = null,
+    val email: String? = null,
+    val intercom: String? = null,
+    val mobile: String? = null
 )
 
 @Serializable

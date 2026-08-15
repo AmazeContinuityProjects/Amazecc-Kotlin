@@ -144,6 +144,9 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
     // Securely stored linked-account credentials (encrypted at rest)
     const val CACHE_CREDENTIALS_SECURE = "cache_credentials_secure"
 
+    // Merged student identity (encrypted at rest — contains aadhar/bank/credential passwords)
+    const val CACHE_USER_IDENTITY = "cache_user_identity"
+
     // Accounts already shown an exam venue/seat alert (entries removed here re-alert if they return)
     const val KEY_EXAM_SEAT_ALERTED = "exam_seat_alerted"
 

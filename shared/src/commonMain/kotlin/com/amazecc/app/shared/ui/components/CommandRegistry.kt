@@ -14,6 +14,7 @@ import com.amazecc.app.shared.data.FfcsReportData
 import com.amazecc.app.shared.ffcs.FfcsCourseProcessor
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.screens.more.appLibraryItems
 import com.amazecc.app.shared.ui.screens.more.executeAppLibraryItem
 import com.amazecc.app.shared.ui.screens.settings.SettingsSubScreen
@@ -31,10 +32,10 @@ fun rememberGlobalCommands(): List<CommandItem> {
     val attendanceRes by AppState.attendance.collectAsState()
     val marksRes by AppState.marks.collectAsState()
     val tasks by AppState.tasks.collectAsState()
-    val profile by AppState.studentProfile.collectAsState()
+    val identity by UserStore.identity.collectAsState()
     val busesRes by AppState.buses.collectAsState()
 
-    return remember(attendanceRes, marksRes, tasks, profile, busesRes) {
+    return remember(attendanceRes, marksRes, tasks, identity, busesRes) {
         val result = mutableListOf<CommandItem>()
 
         // ── 1. Static Navigation Commands ──
@@ -56,12 +57,12 @@ fun rememberGlobalCommands(): List<CommandItem> {
         result.addAll(navCommands)
 
         // ── 2. Profile Details ──
-        profile?.let { p ->
+        if (identity.hasIdentity) {
             result.add(
                 CommandItem(
                     id = "profile-detail",
-                    label = "Profile: ${p.name.ifEmpty { "Student" }}",
-                    description = p.regNo,
+                    label = "Profile: ${identity.displayName.ifEmpty { "Student" }}",
+                    description = identity.regNo ?: identity.email ?: "",
                     icon = Icons.Rounded.Person,
                     category = "Profile",
                     onSelect = { AppState.navigateTo(Screen.PROFILE) }

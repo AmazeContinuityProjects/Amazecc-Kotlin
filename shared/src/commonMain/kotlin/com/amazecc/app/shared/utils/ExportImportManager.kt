@@ -87,11 +87,32 @@ object ExportImportManager {
         SettingsManager.PAST_SEMESTER_SYNCED
     )
 
+    /**
+     * Keys that must never leave the device, even in "full" backups.
+     * The legacy per-endpoint profile caches are no longer written, but pre-migration
+     * installs may still hold raw PII blobs under these keys — exclude them too.
+     */
+    private val neverExportKeys: List<String> = listOf(
+        SettingsManager.CACHE_USER_IDENTITY,     // encrypted identity (aadhar, bank, credential passwords)
+        SettingsManager.CACHE_CREDENTIALS_SECURE, // legacy raw credentials blob
+        SettingsManager.CACHE_STUDENT_PROFILE,    // legacy raw student profile
+        SettingsManager.CACHE_PROFILE_IMAGES,     // legacy raw profile images/proctor/HoD
+        SettingsManager.CACHE_BANK_INFO,          // legacy raw bank details
+        SettingsManager.CACHE_DAYBOARDER,         // legacy raw dayboarder form
+        SettingsManager.CACHE_EPT_SCHEDULE,       // legacy raw EPT schedule
+        SettingsManager.CACHE_REGISTRATION_SCHEDULE, // legacy raw registration schedule
+        SettingsManager.CACHE_UNIVERSITY_DAY,     // legacy raw university day
+        SettingsManager.CACHE_APAAR_ID,           // legacy raw APAAR response
+        SettingsManager.CACHE_VTOP_PHOTO          // legacy raw profile photo
+    )
+
     /** Builds the JSON backup string. [includeCache] selects custom vs full scope. */
     fun buildBackupJson(includeCache: Boolean): String {
         val allKeys = SettingsManager.allKeys()
         val settingKeys = if (includeCache) {
-            (preferenceKeys + allKeys.filter { it.startsWith("cache_") && it != SettingsManager.CACHE_TASKS }).distinct()
+            (preferenceKeys + allKeys.filter {
+                it.startsWith("cache_") && it != SettingsManager.CACHE_TASKS && it !in neverExportKeys
+            }).distinct()
         } else {
             preferenceKeys
         }
@@ -118,6 +139,7 @@ object ExportImportManager {
         val backup = json.decodeFromString<BackupFile>(raw)
         require(backup.app == "AmazeCC") { "Not an AmazeCC backup file" }
         backup.settings.forEach { entry ->
+            if (entry.key in neverExportKeys) return@forEach // never restore identity/password blobs
             SettingsManager.importExportEntry(entry.key, SettingsManager.ExportEntry(entry.type, entry.value))
         }
         if (backup.tasks.isNotEmpty()) {

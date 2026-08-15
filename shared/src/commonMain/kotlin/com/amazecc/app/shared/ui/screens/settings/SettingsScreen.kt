@@ -150,7 +150,11 @@ fun SettingsScreen() {
             title = { Text("Clear Local Cache?", color = colors.textPrimary, fontWeight = FontWeight.Bold) },
             text = { Text("This will remove all cached attendance, marks, calendar, and module data from device storage.", color = colors.textSecondary) },
             confirmButton = {
-                TextButton(onClick = { SettingsManager.clearAll(); showClearCacheConfirm = false }) {
+                TextButton(onClick = {
+                    SettingsManager.clearAll()
+                    UserStore.clear()
+                    showClearCacheConfirm = false
+                }) {
                     Text("Clear All", color = colors.danger, fontWeight = FontWeight.Bold)
                 }
             },
