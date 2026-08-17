@@ -12,6 +12,7 @@ import androidx.compose.runtime.remember
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.data.FfcsReportData
 import com.amazecc.app.shared.ffcs.FfcsCourseProcessor
+import com.amazecc.app.shared.state.AcademicData
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.UserStore
@@ -29,13 +30,12 @@ import kotlinx.coroutines.withContext
  */
 @Composable
 fun rememberGlobalCommands(): List<CommandItem> {
-    val attendanceRes by AppState.attendance.collectAsState()
-    val marksRes by AppState.marks.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val tasks by AppState.tasks.collectAsState()
     val identity by UserStore.identity.collectAsState()
     val busesRes by AppState.buses.collectAsState()
 
-    return remember(attendanceRes, marksRes, tasks, identity, busesRes) {
+    return remember(academic, tasks, identity, busesRes) {
         val result = mutableListOf<CommandItem>()
 
         // ── 1. Static Navigation Commands ──
@@ -98,34 +98,23 @@ fun rememberGlobalCommands(): List<CommandItem> {
             )
         }
 
-        // ── 5. Attendance + Marks courses (deduped by code) ──
+        // ── 5. Courses (deduped by code, from unified academic data) ──
         val seenCourseCodes = mutableSetOf<String>()
-        attendanceRes?.attendance?.forEach { course ->
-            if (seenCourseCodes.add(course.courseCode)) {
-                result.add(
-                    CommandItem(
-                        id = "att-${course.courseCode}",
-                        label = course.courseTitle,
-                        description = "Course · ${course.attendancePercentage}% attendance",
-                        icon = Icons.Rounded.Class,
-                        category = "Courses",
-                        onSelect = { AppState.openCourseDetail(course.courseCode) }
+        academic.semesters.values.forEach { sem ->
+            sem.courses.values.forEach { course ->
+                if (seenCourseCodes.add(course.courseCode)) {
+                    val pct = course.attendance?.attendancePercentage.orEmpty()
+                    result.add(
+                        CommandItem(
+                            id = "att-${course.courseCode}",
+                            label = course.courseTitle,
+                            description = if (pct.isNotBlank()) "Course · $pct% attendance" else "Course · ${course.courseCode}",
+                            icon = Icons.Rounded.Class,
+                            category = "Courses",
+                            onSelect = { AppState.openCourseDetail(course.courseCode) }
+                        )
                     )
-                )
-            }
-        }
-        marksRes?.marks?.forEach { m ->
-            if (seenCourseCodes.add(m.courseCode)) {
-                result.add(
-                    CommandItem(
-                        id = "marks-${m.courseCode}",
-                        label = m.courseTitle.ifEmpty { m.courseCode },
-                        description = "Course · ${m.courseCode}",
-                        icon = Icons.Rounded.School,
-                        category = "Courses",
-                        onSelect = { AppState.openCourseDetail(m.courseCode) }
-                    )
-                )
+                }
             }
         }
 

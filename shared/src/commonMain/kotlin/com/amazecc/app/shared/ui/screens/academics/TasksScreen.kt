@@ -45,6 +45,7 @@ import com.amazecc.app.shared.model.HomeworkTask
 import com.amazecc.app.shared.model.Subtask
 import com.amazecc.app.shared.model.WorkSession
 import com.mikepenz.markdown.m3.Markdown
+import com.amazecc.app.shared.state.AcademicDerivers
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazePill
@@ -79,7 +80,7 @@ data class CourseOption(
 fun TasksScreen() {
     val colors = AmazeTheme.colors
     val tasks by AppState.tasks.collectAsState()
-    val attendance by AppState.attendance.collectAsState()
+    val academic by AppState.academic.collectAsState()
 
     var showBottomSheet by remember { mutableStateOf(false) }
     var editingTask by remember { mutableStateOf<HomeworkTask?>(null) }
@@ -92,8 +93,10 @@ fun TasksScreen() {
 
     val todayStr = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString() }
 
-    val courseOptions = remember(attendance) {
-        val options = attendance?.attendance?.map { CourseOption(it.courseCode, it.courseTitle) }?.distinctBy { it.code } ?: emptyList()
+    val courseOptions = remember(academic) {
+        val options = AcademicDerivers.resolveCurrentSemester(academic)?.courses?.values
+            ?.map { CourseOption(it.courseCode, it.courseTitle) }?.distinctBy { it.code }
+            ?: emptyList()
         if (options.isEmpty()) listOf(
             CourseOption("GENERAL", "General Academic Task"),
             CourseOption("CSE1001", "Problem Solving and Programming"),
@@ -2351,9 +2354,11 @@ private fun AmazeFocusTimerModal(
 fun AddTaskDialog(
     onDismiss: () -> Unit
 ) {
-    val attendance by AppState.attendance.collectAsState()
-    val courseOptions = remember(attendance) {
-        val options = attendance?.attendance?.map { CourseOption(it.courseCode, it.courseTitle) }?.distinctBy { it.code } ?: emptyList()
+    val academic by AppState.academic.collectAsState()
+    val courseOptions = remember(academic) {
+        val options = AcademicDerivers.resolveCurrentSemester(academic)?.courses?.values
+            ?.map { CourseOption(it.courseCode, it.courseTitle) }?.distinctBy { it.code }
+            ?: emptyList()
         if (options.isEmpty()) listOf(
             CourseOption("GENERAL", "General Academic Task"),
             CourseOption("CSE1001", "Problem Solving and Programming"),

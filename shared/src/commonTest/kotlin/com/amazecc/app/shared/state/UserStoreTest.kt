@@ -150,6 +150,42 @@ class UserStoreTest {
         assertEquals("M1", UserStore.identity.value.registrationFields.first().value)
     }
 
+    @Test
+    fun meTierOverwritesAllLowerTiers() {
+        resetStore()
+        UserStore.merge(
+            StudentIdentity(name = "Stale", credentials = listOf(AccountCredential(account = "Old"))),
+            IdentitySource.RECORDS
+        )
+        UserStore.merge(
+            StudentIdentity(
+                name = "Aarav Kumar",
+                regNo = "25BYB1043",
+                credentials = listOf(AccountCredential(account = "VTOP", password = "secret")),
+                apaar = com.amazecc.app.shared.model.ApaarInfo(hasApaar = true)
+            ),
+            IdentitySource.ME
+        )
+        val identity = UserStore.identity.value
+        assertEquals("Aarav Kumar", identity.name)
+        assertEquals("25BYB1043", identity.regNo)
+        assertEquals(listOf("VTOP"), identity.credentials.map { it.account })
+        assertTrue(identity.apaar?.hasApaar == true)
+    }
+
+    @Test
+    fun meTierDataSurvivesLaterLowerTierMerges() {
+        resetStore()
+        UserStore.merge(
+            StudentIdentity(name = "Aarav Kumar", email = "aarav@vit.ac.in"),
+            IdentitySource.ME
+        )
+        UserStore.merge(StudentIdentity(name = "Session Name"), IdentitySource.SESSION)
+        UserStore.merge(StudentIdentity(name = "Profile Name"), IdentitySource.STUDENT)
+        assertEquals("Aarav Kumar", UserStore.identity.value.name)
+        assertEquals("aarav@vit.ac.in", UserStore.identity.value.email)
+    }
+
     // ── Persistence round-trip ──
 
     @Test

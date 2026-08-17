@@ -141,28 +141,35 @@ private data class CurriculumCategoryUi(
 fun CurriculumScreen() {
     val colors = AmazeTheme.colors
     val curriculumData by AppState.curriculum.collectAsState()
-    val allGrades by AppState.allGrades.collectAsState()
-    val marksRes by AppState.marks.collectAsState()
+    val academic by AppState.academic.collectAsState()
+    val selectedSem by AppState.selectedSemester.collectAsState()
 
     val categories = curriculumData?.categories ?: emptyList()
     val details = curriculumData?.details ?: emptyList()
-    val totalEarned = marksRes?.cgpa?.creditsEarned?.toFloatOrNull() ?: (curriculumData?.totalCredits ?: 0).toFloat()
+    val gradedCredits = academic.semesters.values.flatMap { it.courses.values }
+        .filter { it.grade != null && it.grade?.grade !in listOf("F", "N", "") }
+        .mapNotNull { it.credits?.trim()?.toFloatOrNull() }
+        .sum()
+    val totalEarned = if (gradedCredits > 0f) gradedCredits else (curriculumData?.totalCredits ?: 0).toFloat()
     val totalRequired = 160
 
-    val attendanceRes by AppState.attendance.collectAsState()
-    val ongoingCredits = attendanceRes?.attendance?.mapNotNull { it.credits?.toFloatOrNull() }?.sum() ?: 0f
+    val ongoingCredits = academic.semesters[selectedSem]?.courses?.values.orEmpty()
+        .filter { it.attendance != null }
+        .mapNotNull { it.credits?.trim()?.toFloatOrNull() }
+        .sum()
 
     val remainingCredits = (totalRequired.toFloat() - totalEarned - ongoingCredits).coerceAtLeast(0f).toInt()
     val earnedPct = if (totalRequired > 0) (totalEarned / totalRequired).coerceAtMost(1f) else 0f
     val ongoingPct = if (totalRequired > 0) (ongoingCredits / totalRequired).coerceAtMost(1f - earnedPct) else 0f
     val expectedGrad = if (remainingCredits <= 0) "Ready" else "${((remainingCredits + 23) / 24).coerceAtLeast(1)} sem"
 
-    val completedCourseCodes = remember(allGrades) {
+    val completedCourseCodes = remember(academic) {
         val codes = mutableSetOf<String>()
-        allGrades?.grades?.values?.forEach { semesterResult ->
-            semesterResult?.grades?.forEach { gradeItem ->
-                if (gradeItem.grade !in listOf("F", "N", "")) {
-                    codes.add(gradeItem.courseCode)
+        academic.semesters.values.forEach { semester ->
+            semester.courses.values.forEach { course ->
+                val grade = course.grade?.grade
+                if (!grade.isNullOrBlank() && grade !in listOf("F", "N")) {
+                    codes.add(course.courseCode)
                 }
             }
         }

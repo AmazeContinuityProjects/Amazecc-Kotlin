@@ -26,6 +26,8 @@ import com.amazecc.app.shared.model.ODEntry
 import com.amazecc.app.shared.model.ODListItem
 import com.amazecc.app.shared.model.ODTrackedEntry
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AcademicDerivers
+import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import androidx.compose.animation.core.animateFloatAsState
@@ -73,15 +75,11 @@ private data class ODDay(
 private fun extractODEntries(attendance: List<AttendanceItem>): List<ODDay> {
     val rawEntries = mutableListOf<Pair<String, ODEntry>>()
     for (course in attendance) {
-        val daily = try {
-            val arr = parseViewLink(course.viewLinkRaw)?.jsonArray
-            arr?.mapNotNull { elem ->
-                val obj = elem.jsonObject
-                val date = obj["date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                date to status
-            } ?: emptyList()
-        } catch (_: Exception) { emptyList() }
+        val daily = course.logs.mapNotNull { log ->
+            val date = log.date.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val status = log.status.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            date to status
+        }
 
         for ((date, status) in daily) {
             val normalizedStatus = status.trim().lowercase()
@@ -132,8 +130,8 @@ private fun computeMetrics(odDays: List<ODDay>, trackerState: Map<String, Map<St
 fun ODTrackerScreen() {
     val colors = AmazeTheme.colors
     var activeTab by remember { mutableStateOf(0) }
-    val attendanceRes by AppState.attendance.collectAsState()
-    val courses = attendanceRes?.attendance ?: emptyList()
+    val academic by AppState.academic.collectAsState()
+    val courses = AcademicDerivers.resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
 
     // Tracker state: date -> courseCode -> ODTrackedEntry
     val trackerState = remember {
@@ -163,15 +161,11 @@ fun ODTrackerScreen() {
     val currentStatusMap = remember(courses) {
         val map = mutableMapOf<String, MutableMap<String, String>>()
         for (course in courses) {
-            val daily = try {
-                val arr = parseViewLink(course.viewLinkRaw)?.jsonArray
-                arr?.mapNotNull { elem ->
-                    val obj = elem.jsonObject
-                    val date = obj["date"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                    val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
-                    date to status.trim().lowercase()
-                } ?: emptyList()
-            } catch (_: Exception) { emptyList() }
+            val daily = course.logs.mapNotNull { log ->
+                val date = log.date.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val status = log.status.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                date to status.trim().lowercase()
+            }
             for ((date, status) in daily) {
                 map.getOrPut(date) { mutableMapOf() }[course.courseCode] = status
             }

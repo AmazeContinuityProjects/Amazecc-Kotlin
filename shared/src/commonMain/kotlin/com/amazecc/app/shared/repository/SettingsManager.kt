@@ -58,6 +58,9 @@ object SettingsManager {
     const val KEY_ANIMATIONS_ENABLED = "animations_enabled"
     const val KEY_HERO_COLOR_ENABLED = "hero_color_enabled"
 
+    // Current semester selection (persisted across restarts)
+    const val KEY_SELECTED_SEMESTER = "selected_semester"
+
     // Update checker
     const val KEY_UPDATE_DISMISSED_VERSION = "update_dismissed_version"
     const val KEY_LAST_UPDATE_CHECK = "last_update_check"
@@ -146,6 +149,9 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
 
     // Merged student identity (encrypted at rest — contains aadhar/bank/credential passwords)
     const val CACHE_USER_IDENTITY = "cache_user_identity"
+
+    // Unified academic/campus data snapshot (encrypted at rest — replaces the per-module CACHE_* caches)
+    const val CACHE_APP_DATA = "cache_app_data"
 
     // Accounts already shown an exam venue/seat alert (entries removed here re-alert if they return)
     const val KEY_EXAM_SEAT_ALERTED = "exam_seat_alerted"

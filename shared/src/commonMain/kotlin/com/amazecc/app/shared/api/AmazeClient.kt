@@ -889,6 +889,18 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
         } catch (e: Exception) { ApaarIdRes(success = false, error = e.toString()) }
     }
 
+    /**
+     * Consolidated identity fetch — student + profile-images + credentials +
+     * apaar + bank in a single request. Demo mode reports failure so the caller
+     * falls back to the per-endpoint demo sweep.
+     */
+    suspend fun getMe(): MeRes {
+        if (useMockData) return MeRes(success = false, error = "demo mode")
+        return try {
+            postAuthorized<MeRes>("me") ?: MeRes(success = false, error = "Empty response")
+        } catch (e: Exception) { MeRes(success = false, error = e.toString()) }
+    }
+
     suspend fun getCirculars(): CircularsRes {
 if (useMockData) return DemoData.get("circulars", CircularsRes.serializer()) ?: CircularsRes()
         return postAuthorized<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")

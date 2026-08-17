@@ -288,15 +288,12 @@ fun ExamDayBanner(
 /** Exams for the semester selected in the Exam Schedule dropdown, fallback to all semesters. */
 @Composable
 fun rememberSelectedSemesterExams(): List<ExamItem> {
-    val allExams by AppState.allSemesterExams.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val selectedId by AppState.selectedExamSemester.collectAsState()
-    val examSchedule by AppState.examSchedule.collectAsState()
-    return remember(allExams, selectedId, examSchedule) {
-        val selected = allExams[selectedId]?.schedule?.values?.flatten().orEmpty()
-        val fromAll = if (selected.isNotEmpty()) selected
-            else allExams.values.mapNotNull { it }.flatMap { it.schedule.values.flatten() }
-        if (fromAll.isNotEmpty()) fromAll
-        else examSchedule?.schedule?.values?.flatten().orEmpty()
+    return remember(academic, selectedId) {
+        val fromSelected = academic.semesters[selectedId]?.exams.orEmpty()
+        if (fromSelected.isNotEmpty()) fromSelected
+        else academic.semesters.values.flatMap { it.exams }
     }
 }
 

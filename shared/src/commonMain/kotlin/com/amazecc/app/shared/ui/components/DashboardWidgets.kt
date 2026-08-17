@@ -45,6 +45,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.repository.SessionManager
+import com.amazecc.app.shared.state.AcademicDerivers
+import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
+import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.DashboardWidget
 import com.amazecc.app.shared.state.Screen
@@ -867,9 +870,13 @@ private fun ProfileHeaderWidget() {
 @Composable
 private fun MetricCardsWidget() {
     val colors = AmazeTheme.colors
-    val marksRes by AppState.marks.collectAsState()
-    val attendanceRes by AppState.attendance.collectAsState()
-    val courses = attendanceRes?.attendance ?: emptyList()
+    val academic by AppState.academic.collectAsState()
+    val selectedSemester by AppState.selectedSemester.collectAsState()
+    val semFromAppState = academic.semesters[selectedSemester] ?: null
+    // Prefer the app-state selected semester only if it actually holds courses;
+    // otherwise fall back to the resolver so an empty placeholder entry never masks real data.
+    val sem = semFromAppState?.takeIf { it.courses.isNotEmpty() } ?: WidgetDataUtils.currentSemesterData(academic)
+    val courses = sem?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
     val isCgpaHidden by AppState.cgpaHidden.collectAsState()
     val isBusSubscriber by AppState.isBusSubscriber.collectAsState()
 
@@ -880,11 +887,23 @@ private fun MetricCardsWidget() {
         statsCardsOrder.filter { enabledStatsCards.contains(it) }
     }
 
-    val cgpa = remember(marksRes) { marksRes.displayCgpa }
+    val cgpa = remember(sem) { sem?.gpa ?: "" }
     val cgpaDisplay = remember(cgpa, isCgpaHidden) {
-        if (isCgpaHidden) "\u2022\u2022\u2022" else cgpa.toFixed(2)
+        if (isCgpaHidden) "\u2022\u2022\u2022"
+        else cgpa.toDoubleOrNull()?.toFixed(2) ?: "—"
     }
-    val credits = remember(marksRes) { marksRes.displayCreditsEarned }
+    val graded = remember(sem) { sem?.courses?.values?.filter { it.grade != null }.orEmpty() }
+    // Credits arrive as decimal strings ("3.0") — parse as double, then round for display.
+    val credits = remember(graded) { graded.sumOf { it.credits?.trim()?.toDoubleOrNull()?.toInt() ?: 0 } }
+    val ongoingCredits = remember(sem) {
+        sem?.courses?.values?.filter { it.grade == null }
+            ?.mapNotNull { it.credits?.trim()?.toDoubleOrNull()?.toInt() }
+            ?.sum() ?: 0
+    }
+    // Show credits in progress for the current (ungraded) semester, earned credits otherwise.
+    val creditsDisplay = remember(credits, ongoingCredits) {
+        if (ongoingCredits > 0) ongoingCredits else credits
+    }
     val odCount = remember(courses) { WidgetDataUtils.computeODHours(courses) }
 
     val overallAttendance = remember(courses) {
@@ -952,8 +971,8 @@ private fun MetricCardsWidget() {
                         onClick = { AppState.setCgpaHidden(!isCgpaHidden) }
                     )
                     "credits" -> GlassMetricCard(
-                        title = "Credits",
-                        value = credits.toInt().toString(),
+                        title = if (ongoingCredits > 0) "Credits (in progress)" else "Credits",
+                        value = creditsDisplay.toString(),
                         icon = Icons.Rounded.Info,
                         colors = colors,
                         modifier = cardModifier,
@@ -1076,8 +1095,8 @@ private fun GlassMetricCard(
 @Composable
 private fun AttendanceBunkWidget() {
     val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
-    val courses = attendanceRes?.attendance ?: emptyList()
+    val academic by AppState.academic.collectAsState()
+    val courses = WidgetDataUtils.currentSemesterData(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
 
     val overallAttendance = remember(courses) {
         val validCourses = courses.filter { it.totalClasses > 0 }
@@ -1176,7 +1195,7 @@ private fun AttendanceBunkWidget() {
             }
             HorizontalDivider(color = colors.border.copy(alpha = 0.5f))
             BunkOMeterCard(
-                attendance = attendanceRes,
+                courses = courses,
                 modifier = Modifier.fillMaxWidth(),
                 isInnerCard = true,
                 targetPct = targetPct
@@ -1201,9 +1220,9 @@ private data class DashboardClassEvent(
 @Composable
 private fun ExamAndClassWidget() {
     val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
-    val courses = attendanceRes?.attendance ?: emptyList()
+    val courses = WidgetDataUtils.currentSemesterData(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
 
     val todayAbbrev = remember(calendarRes) {
         com.amazecc.app.shared.utils.AttendanceTimetable.getTodayAttendanceDay(calendarRes).name
@@ -1694,7 +1713,7 @@ private fun LiveNextClassContent(
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    "CURRENT • ${currentClass.course.courseCode}",
+                                    "CURRENT • ${currentClass.course.courseCode}${embeddedComponentLabel(currentClass.course.courseCode)?.let { " · $it" } ?: ""}",
                                     style = AmazeTheme.typography.smallLabel.copy(
                                         color = colors.success,
                                         fontWeight = FontWeight.Bold,
@@ -1737,7 +1756,7 @@ private fun LiveNextClassContent(
                         ) {
                             Column(Modifier.weight(1f)) {
                                 Text(
-                                    "NEXT • ${nextClass.course.courseCode}",
+                                    "NEXT • ${nextClass.course.courseCode}${embeddedComponentLabel(nextClass.course.courseCode)?.let { " · $it" } ?: ""}",
                                     style = AmazeTheme.typography.smallLabel.copy(
                                         color = colors.accent,
                                         fontWeight = FontWeight.Bold,
@@ -1771,9 +1790,9 @@ private fun LiveNextClassContent(
 @Composable
 private fun TodayClassesWidget() {
     val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
-    val courses = attendanceRes?.attendance ?: emptyList()
+    val courses = WidgetDataUtils.currentSemesterData(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
 
     val todayAbbrev = remember(calendarRes) {
         com.amazecc.app.shared.utils.AttendanceTimetable.getTodayAttendanceDay(calendarRes).name
@@ -2005,6 +2024,24 @@ private fun TodayClassesWidget() {
                                             fontWeight = FontWeight.Medium
                                         )
                                     )
+                                    embeddedComponentLabel(cls.course.courseCode)?.let { label ->
+                                        Spacer(Modifier.width(6.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
+                                                .background(colors.accent.copy(alpha = 0.12f))
+                                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                label,
+                                                style = AmazeTheme.typography.smallLabel.copy(
+                                                    color = colors.accent,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = AmazeTheme.fontSize.micro
+                                                )
+                                            )
+                                        }
+                                    }
                                     val venue = cls.course.slotVenue?.takeIf { it.isNotBlank() }
                                     if (venue != null) {
                                         Spacer(Modifier.width(6.dp))
@@ -2065,13 +2102,13 @@ private data class CourseStats(val total: Int, val safe: Int, val warn: Int, val
 @Composable
 private fun CourseAttendanceWidget() {
     val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
-    val allSemesterAttendance by AppState.allSemesterAttendance.collectAsState()
-    val courses = attendanceRes?.attendance ?: emptyList()
-    val stats by remember(allSemesterAttendance, courses) {
-        val allCourses = allSemesterAttendance.values
-            .filterNotNull()
-            .flatMap { it.attendance.orEmpty() } + courses
+    val academic by AppState.academic.collectAsState()
+    val sem = WidgetDataUtils.currentSemesterData(academic)
+    val courses = sem?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
+    val stats by remember(academic, courses) {
+        val allCourses = academic.semesters.values
+            .flatMap { it.courses.values }
+            .mapNotNull { it.attendance?.let { att -> it.toAttendanceItem() } } + courses
         var safe = 0; var warn = 0; var crit = 0
         var totalP = 0; var totalT = 0
         for (c in allCourses) {
@@ -2131,8 +2168,7 @@ private fun CourseAttendanceWidget() {
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
             } else {
-                val coursesList = attendanceRes?.attendance ?: emptyList()
-                val displayCourses = remember(coursesList) { coursesList.take(4) }
+                val displayCourses = remember(courses) { courses.take(4) }
                 displayCourses.forEach { course ->
                     ModernCourseCardWidget(
                         course = course,
@@ -2207,7 +2243,7 @@ private fun ModernCourseCardWidget(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                course.courseCode,
+                "${course.courseCode}${embeddedComponentLabel(course.courseCode)?.let { " · $it" } ?: ""}",
                 style = AmazeTheme.typography.smallLabel.copy(
                     fontWeight = FontWeight.Bold,
                     color = colors.textPrimary

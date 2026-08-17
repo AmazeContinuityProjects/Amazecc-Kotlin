@@ -36,8 +36,6 @@ import com.amazecc.app.shared.ui.components.HeroCard
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.ui.text.style.TextOverflow
-import com.amazecc.app.shared.model.displayCgpa
-import com.amazecc.app.shared.model.displayCreditsEarned
 import kotlin.math.roundToInt
 
 @Composable
@@ -48,23 +46,22 @@ fun MarksGradesScreen() = AcademicsScreen()
 @Composable
 fun AcademicsScreen() {
     val colors = AmazeTheme.colors
-    val marksRes by AppState.marks.collectAsState()
-    val attendanceRes by AppState.attendance.collectAsState()
-    val timetableRes by AppState.timetable.collectAsState()
-    val allGradesRes by AppState.allGrades.collectAsState()
-    val calendarRes by AppState.calendar.collectAsState()
+    val academic by AppState.academic.collectAsState()
+    val selectedSem by AppState.selectedSemester.collectAsState()
 
-    val courses = marksRes?.marks ?: emptyList()
-    val gpaRecords = allGradesRes?.grades ?: emptyMap()
-    val attendanceCourses = attendanceRes?.attendance ?: emptyList()
-    val months = calendarRes?.months ?: emptyList()
+    val sem = academic.semesters[selectedSem]
+    val attendanceRows = sem?.courses?.values?.filter { it.attendance != null }.orEmpty()
 
-    val currentCgpa = marksRes.displayCgpa
-    val creditsEarned = marksRes.displayCreditsEarned
+    val currentCgpa = sem?.gpa?.trim()?.toDoubleOrNull() ?: 0.0
+    val creditsEarned = sem?.courses?.values.orEmpty()
+        .filter { it.grade != null }
+        .mapNotNull { it.credits?.trim()?.toDoubleOrNull() }
+        .sum()
     val totalRequiredCredits = 160.0
-    val attendanceRows = attendanceRes?.attendance ?: emptyList()
     val avgAttendance = if (attendanceRows.isNotEmpty()) {
-        attendanceRows.sumOf { it.attendancePercentage.replace("%", "").trim().toDoubleOrNull() ?: 0.0 } / attendanceRows.size
+        attendanceRows.mapNotNull { it.attendance?.attendancePercentage?.trim()?.toDoubleOrNull() }.let { pcts ->
+            if (pcts.isEmpty()) 0.0 else pcts.sum() / pcts.size
+        }
     } else 0.0
 
     val hubCards = listOf(

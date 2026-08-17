@@ -24,11 +24,28 @@ gradlew.bat :shared:compileAndroidMain          (verified 2026-08-15)
 gradlew.bat :shared:iosSimulatorArm64Test       (unit tests — macOS host only)
 ```
 
-## Phase 2 — `/api/me` (AmazeCC-API, optional)
+## Phase 2 — `/api/me` (AmazeCC-API + client)
 
-- New `POST /api/me` in `src/app/api/me/route.ts`: parallel-scrape student + profile-images + credentials + apaarid + bank-info, normalize into the `StudentIdentity` shape (Phase 1's schema becomes the canonical server schema).
-- Client: `AmazeClient.getMe()`; the profile sweep becomes a single fetch → one `UserStore.merge(..., IdentitySource.ME)`.
-- Gate: only after Phase 1 lands and is stable. Reduces ~6 requests to 1; keeps VTOP session pressure unchanged.
+- **Server** — `AmazeCC-API/src/app/api/me/route.ts`: `POST /api/me` runs 6 VTOP scrapes in parallel (`StudentProfileAllView`, `viewProctorDetails`, `viewHodDeanDetails`, `viewStudentCredentials`, `apaarid/upload`, `BankInfoStudent`), normalizes them into the canonical `StudentIdentity` shape via `src/lib/identity.ts` (mirrors the Kotlin extractor semantics: filled-only values, typed officials + `extras`, tables passthrough), and returns `{ success, identity }`. ✅
+- **Shared parser** — student-page parse extracted to `src/lib/parsers/student-profile.ts`; `/api/student` refactored to use it (response contract unchanged). ✅
+- **Client** — `AmazeClient.getMe()` (`MeRes{ success, identity, error }`); the profile sweep becomes a single fetch → one `UserStore.merge(identity, IdentitySource.ME)` (tier 8, highest). Fallback: when `/api/me` is unavailable (older server, demo mode, partial failure), the five per-endpoint fetches (tiers 2–6) run as before. Both sync sites (`refreshProfile`, `loadAllData`) share one `syncIdentityModules()` helper. ✅
+- **Tests** — ME-tier cases added to `UserStoreTest` (ME overwrites lower tiers; lower tiers can't overwrite ME). ✅ written — ⚠️ run on macOS (`iosSimulatorArm64Test`) or CI.
+- **Verify** — `gradlew.bat :shared:compileAndroidMain` BUILD SUCCESSFUL; API repo typechecks (`npx tsc --noEmit`). Server-side scrape correctness needs a live VTOP session check against the deployed API.
+
+Reduces 5 client requests (7 VTOP calls) to 1 (6 VTOP calls); VTOP session pressure per refresh unchanged.
+
+## Phase 3 — Centralised app-data store (client)
+
+Ordered tasks, each verified before moving on.
+
+1. **Model** — `state/AppModels.kt`: `AppDataSnapshot` (30 fields) + `TimetableCourseInfo`/`TimetableSlot`/`StoredQcmRow`/`StoredQcmTable`; `MiscModels.kt` `TimetableRes` gained `courseInfo`+`slots`, `QcmViewRes` gained `tables`. ✅
+2. **Sanitizers** — `state/AppSanitizers.kt` (pure): `clean()`/`cleanPercent()` (trim + drop placeholders `-`,`--`,`—`,`–`,`not set`,`tbd`,`tba`,`nil`,`null`,`n/a` case-insensitive), drop-by-identity-key, `decodeAttendanceLogs`, per-module `sanitize*` (attendance incl. typed `logs` + `viewLinkRaw=null`, marks, grades, timetable via `courseInfo` slots + `SlotMap` fallback, exam schedule, calendar(s), QCM decode → `tables` + `data=null`, curriculum, hostel, mess, laundry, counselling, payments, library, transport, buses, lms, events, registered events, clubs, recursive circulars, moodle, cab user, FFCS, tasks). ✅
+3. **Store** — `state/AppDataStore.kt`: `object` with `StateFlow<AppDataSnapshot>`, 30 derived per-module flows (`distinctUntilChanged` + `stateIn(Eagerly)`), `update()` (equality guard + `persist()`), `restore()` (decrypt `CACHE_APP_DATA` else `migrateLegacyCaches()`), `loadPersistedSnapshot()` (side-effect-free, for widget/notification processes), `persistNow()`, `clear()`, `importSnapshot()`, `exportSnapshot()`, all `setX` setters (sanitize at the store boundary), task ops, `migrateLegacyCaches()` reading+deleting all 28 legacy `cache_*` keys. `SettingsManager.CACHE_APP_DATA` added. ✅
+4. **AmazeClient / API** — `getTimetable` already decodes `TimetableRes`; server `courseInfo` field names match — no changes needed. ✅
+5. **AppState rewiring** — all 30 module `StateFlow`s delegate to `AppDataStore`; every write site (`loadAllData`, `loadSemesterData`, `refreshCurrentSemester`, `refreshAllAcademic`, `refreshPastSemesters`, `runLightReload`, `syncOnboarding*`, `refresh*` family, `syncEventsAndClubs`, `updateAttendance/Marks/Moodle`, `saveLibrary/MoodleCredentials`, cab fns) now calls `AppDataStore.setX(...)`; `loadFromCache()` → `AppDataStore.restore()` + `UserStore.loadFromCache()` + VTOP-photo merge + `reconcileExamSeatAlerts()` + moodle/library auto-sync; `saveOffline()` → `SyncEngine.resetLogs()` + `AppDataStore.persistNow()`; `logout()` → `AppDataStore.clear()`; deleted `loadCachedData`/`cacheData`/`loadTasks`/`saveTasks`/task JSON plumbing. ✅
+6. **Consumers** — `WidgetDataUtils` (4 getters + `computeODHours` via typed `logs`), `NotificationsUtils.selectedSemesterExams`/`rescheduleFromCache` (via `loadPersistedSnapshot`), `ExportImportManager` (exports decrypted `appData` snapshot, imports it via `AppDataStore.importSnapshot`, legacy `cache_*` settings skipped when snapshot present), `CourseDetailScreen` QCM card renders `StoredQcmTable`/`StoredQcmRow`, `CourseAttendanceScreen`/`ODTrackerScreen` log parsing via `AttendanceItem.logs`. ✅
+7. **Verify** — `gradlew.bat :shared:compileAndroidMain` BUILD SUCCESSFUL (repeatedly during rewiring; final clean). ⚠️ Widget/notification processes + migration-from-old-install need device testing; unit tests on macOS/CI.
+8. **Legacy removal** — grep-verified: no reads of legacy per-endpoint `CACHE_*` keys outside `AppDataStore.migrateLegacyCaches()` + identity keys; constants kept as migration source + export blocklist. ✅
 
 ## Risks
 
@@ -40,3 +57,6 @@ gradlew.bat :shared:iosSimulatorArm64Test       (unit tests — macOS host only)
 | Old cached payloads (pre-store) decode differently after model extension | `ignoreUnknownKeys`; old caches are simply no longer read |
 | `VtopTable` normalisation changes record page appearance | Table rendering mirrors old `JsonTemplateTableCard`/`JsonTableCard` output cell-for-cell |
 | Tests can't run on Windows (no jvm target, Apple host restriction) | Added `commonTest` only; run `iosSimulatorArm64Test` on macOS or CI |
+| Sanitizer drops a legit value (aggressive placeholder rules) | Placeholder list is conservative; `clean()` only trims/drops blank-ish values |
+| Widget/notification processes read a stale snapshot | They always call `loadPersistedSnapshot()` before reading; main process `persist()` on every update |
+| Backup file from an old version has `cache_*` settings, no snapshot | Import still applies legacy entries; next `restore()` migrates them into the store |

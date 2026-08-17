@@ -36,6 +36,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.state.AcademicDerivers
+import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.FriendGroup
 import com.amazecc.app.shared.state.FriendsViewModel
@@ -123,14 +125,14 @@ fun SocialScreen() {
 
 @Composable
 private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
-    val attendance by AppState.attendance.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val identity by UserStore.identity.collectAsState()
     val authorizedID by com.amazecc.app.shared.repository.SessionManager.authorizedID.collectAsState()
     val clipboardManager = LocalClipboardManager.current
 
     val name = identity.displayName.ifBlank { authorizedID ?: "Student" }
     val regNumber = identity.regNo ?: authorizedID ?: "0000"
-    val attList = attendance?.attendance ?: emptyList()
+    val attList = AcademicDerivers.resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
 
     val scheduleCode = remember(attList, name, regNumber) {
         if (attList.isNotEmpty()) SocialUtils.exportScheduleCode(attList, name, regNumber) else ""
@@ -517,7 +519,7 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
 @Composable
 private fun CommonSlotsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     val friends by com.amazecc.app.shared.state.FriendsViewModel.friends.collectAsState()
-    val attendance by AppState.attendance.collectAsState()
+    val academic by AppState.academic.collectAsState()
     
     if (friends.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -526,7 +528,7 @@ private fun CommonSlotsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         return
     }
     
-    val attList = attendance?.attendance ?: emptyList()
+    val attList = AcademicDerivers.resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
     var commonSlots by remember { mutableStateOf(emptyList<String>()) }
 
     LaunchedEffect(attList, friends) {

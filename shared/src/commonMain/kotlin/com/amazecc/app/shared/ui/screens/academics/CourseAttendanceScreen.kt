@@ -24,6 +24,9 @@ import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AcademicDerivers
+import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
+import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -51,9 +54,10 @@ import kotlinx.serialization.json.*
 @Composable
 fun CourseAttendanceScreen() {
     val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val courseCode = AppState.selectedCourseCode.value
-    val course = attendanceRes?.attendance?.find { it.courseCode == courseCode }
+    val course = AcademicDerivers.resolveCurrentSemester(academic)
+        ?.courses?.values?.map { it.toAttendanceItem() }?.find { it.courseCode == courseCode }
 
     if (course == null) {
         Box(modifier = Modifier.fillMaxSize().background(colors.background), contentAlignment = Alignment.Center) {
@@ -75,7 +79,7 @@ fun CourseAttendanceScreen() {
     ) {
         ScreenHeader(
             title = course.courseTitle,
-            description = "${course.courseCode} • ${course.slotName ?: ""}",
+            description = "${course.courseCode}${embeddedComponentLabel(course.courseCode)?.let { " · $it" } ?: ""} • ${course.slotName ?: ""}",
             showBackButton = true,
             showSyncButton = false,
             enabledScreens = setOf(Screen.COURSE_ATTENDANCE)
@@ -92,7 +96,7 @@ fun CourseAttendanceScreen() {
 @Composable
 fun EmbeddedCourseAttendanceView(course: AttendanceItem) {
     val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
     val courseCode = course.courseCode
 
@@ -110,31 +114,33 @@ fun EmbeddedCourseAttendanceView(course: AttendanceItem) {
             inner.mapValues { (_, time) -> SlotInfo(time) }
         }
     }
-    val dayCardsMap = remember {
-        attendanceRes?.attendance?.let { att ->
-            AttendanceTimetable.buildAttendanceDayCardsMap(
-                attendance = att.map { item ->
-                    val shortType = when (item.courseType.lowercase()) {
-                        "embedded theory" -> "ETH"
-                        "embedded lab" -> "ELA"
-                        "theory only" -> "TO"
-                        "lab only" -> "LO"
-                        "soft skill" -> "SS"
-                        else -> item.courseType
-                    }
-                    mapOf(
-                        "courseCode" to item.courseCode,
-                        "courseTitle" to item.courseTitle,
-                        "courseType" to shortType,
-                        "faculty" to item.faculty,
-                        "slotName" to (item.slotName ?: ""),
-                        "attendancePercentage" to item.attendancePercentage,
-                        "venue" to (item.slotVenue ?: "")
-                    )
-                },
-                slotMap = slotMapTyped
-            )
-        } ?: emptyMap()
+    val dayCardsMap = remember(academic) {
+        AcademicDerivers.resolveCurrentSemester(academic)
+            ?.courses?.values?.map { it.toAttendanceItem() }
+            ?.let { att ->
+                AttendanceTimetable.buildAttendanceDayCardsMap(
+                    attendance = att.map { item ->
+                        val shortType = when (item.courseType.lowercase()) {
+                            "embedded theory" -> "ETH"
+                            "embedded lab" -> "ELA"
+                            "theory only" -> "TO"
+                            "lab only" -> "LO"
+                            "soft skill" -> "SS"
+                            else -> item.courseType
+                        }
+                        mapOf(
+                            "courseCode" to item.courseCode,
+                            "courseTitle" to item.courseTitle,
+                            "courseType" to shortType,
+                            "faculty" to item.faculty,
+                            "slotName" to (item.slotName ?: ""),
+                            "attendancePercentage" to item.attendancePercentage,
+                            "venue" to (item.slotVenue ?: "")
+                        )
+                    },
+                    slotMap = slotMapTyped
+                )
+            } ?: emptyMap()
     }
 
     // Find course days
@@ -565,23 +571,13 @@ private fun LogSection(
     course: AttendanceItem,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val historyList = remember(course.viewLinkRaw) {
+    val historyList = remember(course.logs) {
         try {
-            val raw = parseViewLink(course.viewLinkRaw)
-            val list = mutableListOf<Pair<String, String>>()
-            if (raw is JsonArray) {
-                raw.forEach { elem ->
-                    val obj = elem.jsonObject
-                    val date = obj["date"]?.jsonPrimitive?.contentOrNull ?: return@forEach
-                    val status = obj["status"]?.jsonPrimitive?.contentOrNull ?: return@forEach
-                    list.add(date to status)
-                }
-            } else if (raw is JsonObject) {
-                raw.forEach { (date, statusElem) ->
-                    val stat = statusElem.jsonPrimitive.content
-                    list.add(date to stat)
-                }
-            }
+            val list = course.logs.mapNotNull { log ->
+                val date = log.date.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val status = log.status.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                date to status
+            }.toMutableList()
             if (list.isEmpty() && course.totalClasses > 0) {
                 val attended = course.attendedClasses
                 val total = course.totalClasses

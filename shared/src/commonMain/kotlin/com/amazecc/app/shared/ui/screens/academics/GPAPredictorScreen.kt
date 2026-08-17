@@ -36,8 +36,7 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
-import com.amazecc.app.shared.model.displayCgpa
-import com.amazecc.app.shared.model.displayCreditsEarned
+import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.HeroCard
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupLabel
@@ -50,20 +49,25 @@ private val gradePointMap = mapOf(
 @Composable
 fun GPAPredictorScreen() {
     val colors = AmazeTheme.colors
-    val marksRes by AppState.marks.collectAsState()
-    val attendanceRes by AppState.attendance.collectAsState()
+    val academic by AppState.academic.collectAsState()
+    val selectedSem by AppState.selectedSemester.collectAsState()
 
-    val currentCgpa = marksRes.displayCgpa
-    val creditsEarned = marksRes.displayCreditsEarned
+    val sem = academic.semesters[selectedSem]
+    val currentCgpa = sem?.gpa?.trim()?.toDoubleOrNull() ?: 0.0
+    val creditsEarned = sem?.courses?.values.orEmpty()
+        .filter { it.grade != null }
+        .mapNotNull { it.credits?.trim()?.toDoubleOrNull() }
+        .sum()
 
     var activeMode by remember { mutableStateOf("project") }
 
     var coursesInitialized by remember { mutableStateOf(false) }
     var courses by remember { mutableStateOf(listOf<ProjectedCourse>()) }
 
-    LaunchedEffect(attendanceRes) {
+    val attendanceCourses = sem?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
+    LaunchedEffect(attendanceCourses) {
         if (!coursesInitialized) {
-            val att = attendanceRes?.attendance?.filter { it.courseCode.isNotBlank() } ?: emptyList()
+            val att = attendanceCourses.filter { it.courseCode.isNotBlank() }
             if (att.isNotEmpty()) {
                 courses = att
                     .distinctBy { "${it.courseCode}|${it.courseType}" }

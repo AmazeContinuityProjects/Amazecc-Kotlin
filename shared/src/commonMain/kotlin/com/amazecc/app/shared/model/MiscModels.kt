@@ -28,7 +28,11 @@ data class TimetableRes(
     val success: Boolean = true,
     val semesterId: String? = null,
     val error: String? = null,
-    val message: String? = null
+    val message: String? = null,
+    /** Raw timetable rows scraped from VTOP (courseCode/classId/slotVenue/facultyDetails). */
+    val courseInfo: List<com.amazecc.app.shared.state.TimetableCourseInfo>? = null,
+    /** Processed slots (day × slot × course with resolved time) — filled by the store sanitizer. */
+    val slots: List<com.amazecc.app.shared.state.TimetableSlot> = emptyList()
 )
 
 @Serializable
@@ -116,6 +120,8 @@ data class QcmViewRes(
     val success: Boolean = true,
     @Contextual
     val data: JsonElement? = null,
+    /** Typed tables deciphered from [data] — filled by the store sanitizer (raw [data] is dropped at the store boundary). */
+    val tables: List<com.amazecc.app.shared.state.StoredQcmTable> = emptyList(),
     val message: String? = null,
     val error: String? = null
 )

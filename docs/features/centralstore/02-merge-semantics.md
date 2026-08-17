@@ -14,10 +14,11 @@ enum class IdentitySource(val order: Int) {
     BANK(5),            // /api/bank-info
     APAAR(6),           // /api/apaarid
     RECORDS(7),         // ept / registration / university-day / dayboarder
+    ME(8),              // /api/me — consolidated snapshot of tiers 2–6, highest authority
 }
 ```
 
-Tiers are **fixed and deterministic**. The 9 profile fetches run in parallel; priority tiers make the final merged state independent of arrival order.
+Tiers are **fixed and deterministic**. The profile fetches run in parallel; priority tiers make the final merged state independent of arrival order. `ME` replaces the five per-endpoint identity fetches with a single `/api/me` call when the server supports it; when it fails, the client falls back to the individual fetches (tiers 2–6), which cannot overwrite a prior `ME` merge.
 
 ## Rules
 

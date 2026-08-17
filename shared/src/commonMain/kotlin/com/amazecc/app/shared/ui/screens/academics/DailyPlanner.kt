@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,6 +41,9 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
+import com.amazecc.app.shared.state.AcademicDerivers
+import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
+import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.utils.AttendanceDay
@@ -72,9 +76,9 @@ private data class WeekDay(
 @Composable
 fun DailyPlannerScreen() {
     val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
-    val attendance = attendanceRes?.attendance ?: emptyList()
+    val attendance = AcademicDerivers.resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
     val calendarMonths = calendarRes?.months ?: emptyList()
 
     val today = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
@@ -141,9 +145,14 @@ fun DailyPlannerScreen() {
             com.amazecc.app.shared.utils.ExamUtils.parseExamTimeRange(exam.examTime)
         }
 
+        // Guard: the same real class can surface under both the base key and a
+        // suffixed embedded key — schedule it exactly once per (course, slot).
+        val seen = mutableSetOf<String>()
         attendance.forEach { course ->
+            val courseBase = course.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
             val slots = course.slotName.split("+").map { it.trim() }.filter { it.isNotEmpty() }
             slots.forEach { slot ->
+                if (!seen.add("$courseBase|$slot")) return@forEach
                 val timeStr = dayMap[slot]
                 if (timeStr != null) {
                     val parts = timeStr.split("-")
@@ -459,7 +468,7 @@ fun DailyPlannerScreen() {
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
                 ) {
-                    items(scheduleData, key = { it.startMins }) { item ->
+                    itemsIndexed(scheduleData, key = { index, item -> "${item.startMins}_$index" }) { _, item ->
                         TimelineRow(item)
                     }
 
@@ -574,7 +583,7 @@ fun TimelineRow(item: TimelineEvent) {
                         val attPct = if (total > 0) ((attended.toFloat() / total) * 100).toInt() else 0
                         val isSafe = attPct >= 75
                         val typeColor = courseTypeColor(c.courseType, colors)
-                        val typeLabel = courseTypeLabel(c.courseType)
+                        val typeLabel = embeddedComponentLabel(c.courseCode) ?: courseTypeLabel(c.courseType)
 
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Box(

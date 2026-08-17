@@ -23,8 +23,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.*
+import com.amazecc.app.shared.state.AcademicData
+import com.amazecc.app.shared.state.AcademicDerivers
+import com.amazecc.app.shared.state.AcademicDerivers.isLabCourse
+import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
+import com.amazecc.app.shared.state.AcademicDerivers.toGradeItem
+import com.amazecc.app.shared.state.AcademicDerivers.toMarksCourseItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.SemesterData
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.theme.AmazeTheme
 import androidx.compose.animation.core.animateFloatAsState
@@ -40,17 +47,12 @@ import com.amazecc.app.shared.ui.components.HeaderSpacer
 fun CourseDashboardScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
     val semesterMap by AppState.semesterMap.collectAsState()
-    val allSemesterMarks by AppState.allSemesterMarks.collectAsState()
-    val allSemesterAttendance by AppState.allSemesterAttendance.collectAsState()
-    val attendanceRes by AppState.attendance.collectAsState()
-    val marksRes by AppState.marks.collectAsState()
-    val allGrades by AppState.allGrades.collectAsState()
-    val timetable by AppState.timetable.collectAsState()
+    val academic by AppState.academic.collectAsState()
 
     var selectedSemester by remember { mutableStateOf("All") }
 
-    val semesterGroups = remember(allSemesterMarks, allSemesterAttendance, marksRes, attendanceRes, allGrades, timetable) {
-        buildSemesterGroups(allSemesterMarks, allSemesterAttendance, marksRes, attendanceRes, allGrades, timetable)
+    val semesterGroups = remember(academic, selectedSemester) {
+        buildSemesterGroups(academic, selectedSemester)
     }
 
     val filteredGroups = remember(semesterGroups, selectedSemester) {
@@ -463,113 +465,63 @@ private fun embeddedRow(
     }
 }
 
-private fun buildSemesterGroups(
-    allSemesterMarks: Map<String, MarksRes>,
-    allSemesterAttendance: Map<String, AttendanceRes?>,
-    marksRes: MarksRes?,
-    attendanceRes: AttendanceRes?,
-    allGrades: AllGradesRes?,
-    timetable: TimetableRes?
-): List<CourseGroup> {
-    val seenCodes = mutableSetOf<String>()
+/** Builds one [CourseGroup] per base course code across all semesters, pairing embedded theory/lab components. */
+internal fun buildSemesterGroups(academic: AcademicData, selectedSemester: String = "All"): List<CourseGroup> {
     val allGroups = mutableListOf<CourseGroup>()
-
-    // Process current semester
-    val currentSemId = attendanceRes?.semesterId ?: AppState.DEFAULT_SEMESTER_ID
-    val currentMarks = marksRes?.marks ?: allSemesterMarks[currentSemId]?.marks ?: emptyList()
-    val currentAtt = attendanceRes?.attendance ?: allSemesterAttendance[currentSemId]?.attendance ?: emptyList()
-
-    val currentGroups = buildSemesterMap(currentMarks, currentAtt, currentSemId)
-    currentGroups.values.forEach { group ->
-        val key = group.courseCode + "_" + group.semesterSubId
-        seenCodes.add(key)
-        allGroups.add(group)
-    }
-
-    // Process past semesters
-    for ((semId, marks) in allSemesterMarks) {
-        if (semId == currentSemId) continue
-        val attList = allSemesterAttendance[semId]?.attendance ?: emptyList()
-        val groups = buildSemesterMap(marks.marks, attList, semId)
-        groups.values.forEach { group ->
-            val key = group.courseCode + "_" + group.semesterSubId
-            if (key !in seenCodes) {
-                seenCodes.add(key)
-                allGroups.add(group)
-            }
-        }
-    }
-
-    // Add grades-only semesters (with any available attendance/marks)
-    allGrades?.grades?.forEach { (semId, semResult) ->
-        if (semId == "curriculum" || semId == "effectiveGrades" || semId == currentSemId) return@forEach
-        if (allGroups.any { it.semesterSubId == semId }) return@forEach
-        // Check if this semester has attendance/marks data that wasn't caught by the marks loop
-        val attList = allSemesterAttendance[semId]?.attendance ?: emptyList()
-        val semMarks = allSemesterMarks[semId]?.marks ?: emptyList()
-        if (semMarks.isNotEmpty() || attList.isNotEmpty()) {
-            val groups = buildSemesterMap(semMarks, attList, semId)
-            groups.values.forEach { group ->
-                val key = group.courseCode + "_" + semId
-                if (key !in seenCodes) {
-                    seenCodes.add(key)
-                    allGroups.add(group)
-                }
-            }
-        } else {
-            semResult?.grades?.forEach { grade ->
-                if (grade.courseCode.isBlank()) return@forEach
-                val cleanCode = grade.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
-                val key = cleanCode + "_" + semId
-                if (key !in seenCodes) {
-                    seenCodes.add(key)
-                    allGroups.add(
-                        CourseGroup(
-                            courseCode = cleanCode,
-                            courseTitle = grade.courseTitle,
-                            semesterSubId = semId,
-                            semesterName = AppState.semesterMap.value[semId] ?: semId,
-                            theory = MarksCourseItem(courseCode = grade.courseCode, courseTitle = grade.courseTitle, courseType = grade.courseType),
-                            grade = grade
-                        )
+    academic.semesters.forEach { (semId, sem) ->
+        val semName = sem.semesterName ?: AppState.semesterMap.value[semId] ?: semId
+        val isCurrent = selectedSemester != "All" && semId == selectedSemester
+        sem.courses.values
+            .filter { it.courseCode.isNotBlank() }
+            .groupBy { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() }
+            .forEach { (baseCode, courses) ->
+                val theory = courses.firstOrNull { !it.isLabCourse() }
+                val lab = courses.firstOrNull { it.isLabCourse() }
+                allGroups.add(
+                    CourseGroup(
+                        courseCode = baseCode,
+                        courseTitle = theory?.courseTitle ?: lab?.courseTitle ?: baseCode,
+                        semesterSubId = semId,
+                        semesterName = semName,
+                        theory = theory?.toMarksCourseItem(),
+                        lab = lab?.toMarksCourseItem(),
+                        theoryAtt = theory?.toAttendanceItem(),
+                        labAtt = lab?.toAttendanceItem(),
+                        // Prioritise marks for current semester, grades for previous semesters.
+                        grade = if (isCurrent) null else theory?.toGradeItem() ?: lab?.toGradeItem()
                     )
-                }
+                )
             }
-        }
     }
-
     return allGroups
 }
 
-private fun buildSemesterMap(marks: List<MarksCourseItem>, attendance: List<AttendanceItem>, semId: String): Map<String, CourseGroup> {
-    val map = mutableMapOf<String, CourseGroup>()
-    val semName = AppState.semesterMap.value[semId] ?: semId
-
-    marks.forEach { c ->
-        if (c.courseCode.isBlank()) return@forEach
-        val isLab = c.courseType.lowercase().contains("lab")
-        val key = c.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
-        val existing = map[key]
-        if (existing == null) {
-            map[key] = CourseGroup(key, c.courseTitle, semId, semName, theory = if (!isLab) c else null, lab = if (isLab) c else null)
-        } else {
-            if (isLab) map[key] = existing.copy(lab = c)
-            else map[key] = existing.copy(theory = c)
+/** Resolves the [CourseGroup] for a course code, preferring the given semester, falling back to any semester. */
+internal fun findCourseGroup(courseCode: String, semesterId: String, academic: AcademicData, selectedSemester: String = "All"): CourseGroup? {
+    val cleanCode = courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
+    fun courseToGroup(semId: String, sem: SemesterData): CourseGroup? {
+        val matches = sem.courses.values.filter {
+            it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode
         }
+        if (matches.isEmpty()) return null
+        val theory = matches.firstOrNull { !it.isLabCourse() }
+        val lab = matches.firstOrNull { it.isLabCourse() }
+        val isCurrent = selectedSemester != "All" && semId == selectedSemester
+        return CourseGroup(
+            courseCode = cleanCode,
+            courseTitle = theory?.courseTitle ?: lab?.courseTitle ?: cleanCode,
+            semesterSubId = semId,
+            semesterName = sem.semesterName ?: AppState.semesterMap.value[semId] ?: semId,
+            theory = theory?.toMarksCourseItem(),
+            lab = lab?.toMarksCourseItem(),
+            theoryAtt = theory?.toAttendanceItem(),
+            labAtt = lab?.toAttendanceItem(),
+            // Prioritise marks for current semester, grades for previous semesters.
+            grade = if (isCurrent) null else theory?.toGradeItem() ?: lab?.toGradeItem()
+        )
     }
 
-    attendance.forEach { a ->
-        if (a.courseCode.isBlank()) return@forEach
-        val isLab = a.courseType.lowercase().contains("lab") || a.slotName.lowercase().startsWith("l")
-        val key = a.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
-        val existing = map[key]
-        if (existing == null) {
-            map[key] = CourseGroup(key, a.courseTitle, semId, semName, theoryAtt = if (!isLab) a else null, labAtt = if (isLab) a else null)
-        } else {
-            if (isLab) map[key] = existing.copy(labAtt = a)
-            else map[key] = existing.copy(theoryAtt = a, courseTitle = a.courseTitle)
-        }
-    }
-
-    return map
+    academic.semesters[semesterId]?.let { sem -> courseToGroup(semesterId, sem)?.let { return it } }
+    academic.semesters.forEach { (semId, sem) -> courseToGroup(semId, sem)?.let { return it } }
+    return null
 }

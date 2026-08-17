@@ -18,21 +18,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.model.AttendanceRes
+import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.theme.AmazeTheme
 import kotlin.math.floor
 
 @Composable
 fun BunkOMeterCard(
-    attendance: AttendanceRes?,
+    courses: List<AttendanceItem>,
     modifier: Modifier = Modifier,
     isInnerCard: Boolean = false,
     targetPct: Float = 75f
 ) {
     val colors = AmazeTheme.colors
 
-    val stats = remember(attendance, targetPct) {
-        val courseList = attendance?.attendance ?: emptyList()
+    val stats = remember(courses, targetPct) {
+        val courseList = courses
         if (courseList.isEmpty()) {
             return@remember BunkStats(0, 0, 0, false)
         }

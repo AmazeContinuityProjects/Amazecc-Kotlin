@@ -48,22 +48,20 @@ import kotlinx.datetime.Clock
 fun ExamScheduleScreen() {
     val colors = AmazeTheme.colors
     val semesterMap by AppState.semesterMap.collectAsState()
-    val allExams by AppState.allSemesterExams.collectAsState()
-    val examData by AppState.examSchedule.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val selectedSemId by AppState.selectedExamSemester.collectAsState()
     val isAppLoading by AppState.isLoading.collectAsState()
 
-    val schedule = examData?.schedule ?: emptyMap()
-
-    val availableSemesters = remember(allExams) {
-        val filtered = AppState.semesterIDs.filter {
-            val res = allExams[it]
-            res != null && res.schedule.isNotEmpty()
-        }
-        if (filtered.isNotEmpty()) filtered else AppState.semesterIDs
+    val availableSemesters = remember(academic) {
+        val withExams = academic.semesters.filterValues { it.exams.isNotEmpty() }.keys.toList()
+        if (withExams.isNotEmpty()) withExams else AppState.semesterIDs
     }
 
-    val allExamsFlat = remember(schedule) { schedule.values.flatten() }
+    val selectedExams = academic.semesters[selectedSemId]?.exams.orEmpty()
+    val schedule = remember(selectedExams) {
+        if (selectedExams.isEmpty()) emptyMap() else mapOf("Exams" to selectedExams)
+    }
+    val allExamsFlat = schedule.values.flatten()
     val now = Clock.System.now()
     val nextExam = remember(allExamsFlat, now) {
         allExamsFlat

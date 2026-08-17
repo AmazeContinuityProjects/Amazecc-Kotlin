@@ -34,6 +34,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.GradeItem
+import com.amazecc.app.shared.model.SemesterGradeResult
+import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.HeroCard
@@ -53,12 +55,28 @@ private data class RadarPoint(val label: String, val score: Float)
 @Composable
 fun GradesScreen() {
     val colors = AmazeTheme.colors
-    val allGradesRes by AppState.allGrades.collectAsState()
-    val marksRes by AppState.marks.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val semesterMap by AppState.semesterMap.collectAsState()
 
-    val gpaRecords = allGradesRes?.grades ?: emptyMap()
-    val semesterIds = gpaRecords.filter { (_, v) -> v?.gpa != null && v?.grades?.isNotEmpty() == true }
+    val gpaRecords = academic.semesters.mapValues { (_, sem) ->
+        val grades = sem.courses.values
+            .filter { it.grade != null }
+            .sortedBy { it.courseCode }
+            .map { course ->
+                val g = course.grade
+                GradeItem(
+                    courseCode = course.courseCode,
+                    courseTitle = course.courseTitle,
+                    courseType = course.courseType,
+                    grandTotal = g?.grandTotal ?: "",
+                    grade = g?.grade ?: "",
+                    details = g?.details,
+                    range = g?.range
+                )
+            }
+        SemesterGradeResult(gpa = sem.gpa, grades = grades)
+    }
+    val semesterIds = gpaRecords.filter { (_, v) -> v.gpa != null && v.grades.isNotEmpty() }
         .keys.toList().sortedDescending()
 
     var selectedSemesterId by remember { mutableStateOf(semesterIds.firstOrNull() ?: "") }
@@ -348,7 +366,7 @@ private fun GradeCourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> 
                     }
                     Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("${course.courseCode} · ${course.courseTitle}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${course.courseCode}${embeddedComponentLabel(course.courseCode)?.let { " · $it" } ?: ""} · ${course.courseTitle}", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
                         if (!course.courseType.isBlank()) {
                             Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = 8.dp, vertical = 2.dp)) {

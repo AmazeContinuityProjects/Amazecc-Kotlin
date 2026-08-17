@@ -156,3 +156,15 @@ data class StudentIdentity(
     val hasIdentity: Boolean
         get() = regNo != null || name != null || photoBase64 != null
 }
+
+/**
+ * Response of the consolidated `/api/me` endpoint. [identity] is already in the
+ * canonical [StudentIdentity] shape and is merged into the store as a whole
+ * under [com.amazecc.app.shared.state.IdentitySource.ME].
+ */
+@Serializable
+data class MeRes(
+    val success: Boolean = false,
+    val identity: StudentIdentity? = null,
+    val error: String? = null
+)

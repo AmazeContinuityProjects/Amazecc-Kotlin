@@ -48,6 +48,9 @@ import com.amazecc.app.shared.api.SyllabusResult
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.model.*
+import com.amazecc.app.shared.state.AcademicData
+import com.amazecc.app.shared.state.AcademicDerivers
+import com.amazecc.app.shared.state.AcademicDerivers.toGradeItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -186,19 +189,15 @@ fun CourseDetailScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
     val courseCode = AppState.selectedCourseCode.value ?: ""
     val semesterId = AppState.selectedCourseSemester.value
-    val allSemesterMarks by AppState.allSemesterMarks.collectAsState()
-    val allSemesterAttendance by AppState.allSemesterAttendance.collectAsState()
-    val attendanceRes by AppState.attendance.collectAsState()
-    val marksRes by AppState.marks.collectAsState()
-    val allGrades by AppState.allGrades.collectAsState()
-    val timetable by AppState.timetable.collectAsState()
+    val academic by AppState.academic.collectAsState()
+    val selectedSemester by AppState.selectedSemester.collectAsState()
     val calendar by AppState.calendar.collectAsState()
 
-    val currentSemesterId = attendanceRes?.semesterId ?: AppState.DEFAULT_SEMESTER_ID
+    val currentSemesterId = selectedSemester
     val mainSemesterId = semesterId ?: currentSemesterId
 
-    val group = remember(courseCode, mainSemesterId, allSemesterMarks, allSemesterAttendance, marksRes, attendanceRes) {
-        findCourseGroup(courseCode, mainSemesterId, allSemesterMarks, allSemesterAttendance, marksRes, attendanceRes, timetable)
+    val group = remember(courseCode, mainSemesterId, academic, selectedSemester) {
+        findCourseGroup(courseCode, mainSemesterId, academic, selectedSemester)
     }
 
     val isEmbedded = (group?.theory != null && group?.lab != null) || (group?.theoryAtt != null && group?.labAtt != null)
@@ -308,7 +307,7 @@ fun CourseDetailScreen(onBack: () -> Unit) {
                         )
                     } else {
                         when (sub) {
-                            CourseSubPage.GRADES -> GradeHistoryTab(courseCode, allGrades, group, colors)
+                            CourseSubPage.GRADES -> GradeHistoryTab(courseCode, academic, group, colors)
                             CourseSubPage.MARKS -> MarksTab(group, isEmbedded, colors)
                             CourseSubPage.ATTENDANCE -> AttendanceTab(courseCode, group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, calendar, colors)
                             CourseSubPage.PLAN -> CoursePlanTab(group, colors)
@@ -629,7 +628,7 @@ private fun MoodleAssignmentsCard(
 
 @Composable
 private fun QcmCard(
-    qcmTables: List<QcmTable>,
+    qcmTables: List<com.amazecc.app.shared.state.StoredQcmTable>,
     qcmLoading: Boolean,
     refreshQcm: () -> Unit,
     colors: com.amazecc.app.shared.theme.AmazeColors
@@ -647,12 +646,11 @@ private fun QcmCard(
                 qcmLoading -> CircularProgressIndicator(color = colors.accent, strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
                 qcmTables.isEmpty() -> Text("No QCM data available", color = colors.textMuted, fontSize = AmazeTheme.fontSize.sm)
                 else -> qcmTables.forEach { table ->
-                    table.rows.forEach { rowJson ->
-                        val obj = rowJson.jsonObject
-                        val qcmNo = obj["qcmNo"]?.jsonPrimitive?.contentOrNull ?: obj["QCM No"]?.jsonPrimitive?.contentOrNull
-                        val action = obj["actionTaken"]?.jsonPrimitive?.contentOrNull ?: obj["Action Taken"]?.jsonPrimitive?.contentOrNull
-                        val suggestions = obj["suggestions"]?.jsonPrimitive?.contentOrNull ?: obj["Suggestions"]?.jsonPrimitive?.contentOrNull
-                        val facultyReply = obj["facultyReply"]?.jsonPrimitive?.contentOrNull ?: obj["Faculty Reply"]?.jsonPrimitive?.contentOrNull
+                    table.rows.forEach { row ->
+                        val qcmNo = row.qcmNo
+                        val action = row.action
+                        val suggestions = row.suggestions
+                        val facultyReply = row.facultyReply
                         Box(
                             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.surface).padding(12.dp)
                         ) {
@@ -708,14 +706,15 @@ private fun MetricTile(label: String, value: String, colors: com.amazecc.app.sha
 }
 
 @Composable
-private fun GradeHistoryTab(courseCode: String, allGrades: AllGradesRes?, group: CourseGroup, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun GradeHistoryTab(courseCode: String, academic: AcademicData, group: CourseGroup, colors: com.amazecc.app.shared.theme.AmazeColors) {
     val semesterMap by AppState.semesterMap.collectAsState()
-    val gradeItems = remember(allGrades) {
+    val cleanCode = courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
+    val gradeItems = remember(academic, cleanCode) {
         val items = mutableListOf<Pair<String, GradeItem?>>()
-        allGrades?.grades?.forEach { (semId, semResult) ->
-            semResult?.grades?.forEach { grade ->
-                if (grade.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == courseCode) {
-                    items.add(semId to grade)
+        academic.semesters.forEach { (semId, sem) ->
+            sem.courses.values.forEach { course ->
+                if (course.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode) {
+                    items.add(semId to course.toGradeItem())
                 }
             }
         }
@@ -1690,7 +1689,7 @@ private fun FacultyTab(
     var facultyLoading by remember { mutableStateOf(false) }
     var facultyProfile by remember { mutableStateOf<FacultyProfile?>(null) }
     val qcmViewRes by AppState.qcmView.collectAsState()
-    val qcmTables = remember(qcmViewRes) { extractQcmTables(qcmViewRes?.data) }
+    val qcmTables = remember(qcmViewRes) { qcmViewRes?.tables ?: emptyList() }
     val qcmLoading = AppState.isLoading.collectAsState().value
 
     LaunchedEffect(parsedFac.name, parsedFac.id) {
@@ -1977,114 +1976,5 @@ private fun FreeSlotsTab(
                 variant = ButtonVariant.SECONDARY
             )
         }
-    }
-}
-
-private fun findCourseGroup(
-    courseCode: String,
-    semesterId: String,
-    allSemesterMarks: Map<String, MarksRes>,
-    allSemesterAttendance: Map<String, AttendanceRes?>,
-    marksRes: MarksRes?,
-    attendanceRes: AttendanceRes?,
-    timetable: TimetableRes?
-): CourseGroup? {
-    val cleanCode = courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
-
-    val currentMarksCourses = marksRes?.marks ?: allSemesterMarks[semesterId]?.marks ?: emptyList()
-    val currentAttList = attendanceRes?.attendance ?: allSemesterAttendance[semesterId]?.attendance ?: emptyList()
-
-    // For marks: match by base courseCode + courseType (marks don't have T/L suffix in courseCode)
-    // For attendance: match by base courseCode (with suffix removal) + courseType
-    fun isTheoryMarks(m: MarksCourseItem) = m.courseCode == cleanCode && (m.courseType.contains("Theory", true) || m.courseType.contains("Online", true))
-    fun isLabMarks(m: MarksCourseItem) = m.courseCode == cleanCode && m.courseType.contains("Lab", true)
-    fun isTheoryAtt(a: AttendanceItem) = a.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && (a.courseType.contains("Theory", true) || a.courseType.contains("Online", true))
-    fun isLabAtt(a: AttendanceItem) = a.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode && a.courseType.contains("Lab", true)
-
-    val theoryM = currentMarksCourses.find { isTheoryMarks(it) }
-    val labM = currentMarksCourses.find { isLabMarks(it) }
-    val theoryA = currentAttList.find { isTheoryAtt(it) }
-    val labA = currentAttList.find { isLabAtt(it) }
-
-    if (theoryM != null || labM != null || theoryA != null || labA != null) {
-        val semName = AppState.semesterMap.value[semesterId] ?: semesterId
-        return CourseGroup(cleanCode, (theoryM?.courseTitle ?: labM?.courseTitle ?: theoryA?.courseTitle ?: labA?.courseTitle ?: cleanCode), semesterId, semName, theoryM, labM, theoryA, labA)
-    }
-
-    for ((semId, marks) in allSemesterMarks) {
-        val attList = allSemesterAttendance[semId]?.attendance ?: emptyList()
-        val tM = marks.marks.find { isTheoryMarks(it) }
-        val lM = marks.marks.find { isLabMarks(it) }
-        val tA = attList.find { isTheoryAtt(it) }
-        val lA = attList.find { isLabAtt(it) }
-        if (tM != null || lM != null || tA != null || lA != null) {
-            val semName = AppState.semesterMap.value[semId] ?: semId
-            return CourseGroup(cleanCode, (tM?.courseTitle ?: lM?.courseTitle ?: tA?.courseTitle ?: lA?.courseTitle ?: cleanCode), semId, semName, tM, lM, tA, lA)
-        }
-    }
-
-    // Check allSemesterAttendance for semesters not in allSemesterMarks
-    for ((semId, att) in allSemesterAttendance) {
-        if (semId in allSemesterMarks) continue
-        val attList = att?.attendance ?: emptyList()
-        val tA = attList.find { isTheoryAtt(it) }
-        val lA = attList.find { isLabAtt(it) }
-        if (tA != null || lA != null) {
-            val semName = AppState.semesterMap.value[semId] ?: semId
-            return CourseGroup(cleanCode, (tA?.courseTitle ?: lA?.courseTitle ?: cleanCode), semId, semName, theoryAtt = tA, labAtt = lA)
-        }
-    }
-
-    val allGradesRes = AppState.allGrades.value
-    val gradesMap = allGradesRes?.grades
-    if (gradesMap != null) {
-        for ((semId, semResult) in gradesMap) {
-            if (semId == "curriculum" || semId == "effectiveGrades") continue
-            semResult?.grades?.forEach { grade ->
-                val gCleanCode = grade.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
-                if (gCleanCode == cleanCode) {
-                    val semName = AppState.semesterMap.value[semId] ?: semId
-                    val semMarks = allSemesterMarks[semId]?.marks ?: emptyList()
-                    val semAtt = allSemesterAttendance[semId]?.attendance ?: emptyList()
-                    val tM = semMarks.find { isTheoryMarks(it) }
-                    val lM = semMarks.find { isLabMarks(it) }
-                    val tA = semAtt.find { isTheoryAtt(it) }
-                    val lA = semAtt.find { isLabAtt(it) }
-                    return CourseGroup(
-                        courseCode = cleanCode,
-                        courseTitle = grade.courseTitle,
-                        semesterSubId = semId,
-                        semesterName = semName,
-                        theory = tM ?: MarksCourseItem(courseCode = gCleanCode, courseTitle = grade.courseTitle, courseType = grade.courseType),
-                        lab = lM,
-                        theoryAtt = tA,
-                        labAtt = lA,
-                        grade = grade
-                    )
-                }
-            }
-        }
-    }
-
-    return null
-}
-
-private fun extractQcmTables(data: JsonElement?): List<QcmTable> {
-    if (data == null) return emptyList()
-    return when (data) {
-        is JsonArray -> data.map { element ->
-            val obj = element.jsonObject
-            QcmTable(
-                caption = obj["caption"]?.jsonPrimitive?.contentOrNull ?: "",
-                rows = (obj["rows"]?.jsonArray?.toList() ?: emptyList())
-            )
-        }
-
-        is JsonObject -> data.values.flatMap { value ->
-            val rows = value.jsonObject["rows"]?.jsonArray?.toList() ?: emptyList()
-            if (rows.isNotEmpty()) listOf(QcmTable(rows = rows)) else emptyList()
-        }
-
-        else -> emptyList()
     }
 }

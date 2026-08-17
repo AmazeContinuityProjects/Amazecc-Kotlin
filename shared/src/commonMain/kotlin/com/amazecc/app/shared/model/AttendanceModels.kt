@@ -4,6 +4,13 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
+/** One day's attendance record deciphered from the raw `viewLink` payload. */
+@Serializable
+data class AttendanceLog(
+    val date: String,
+    val status: String
+)
+
 @Serializable
 data class AttendanceItem(
     val courseCode: String = "",
@@ -18,7 +25,9 @@ data class AttendanceItem(
     val viewLinkRaw: JsonElement? = null,
     val credits: String? = null,
     val slotVenue: String? = null,
-    val category: String? = null
+    val category: String? = null,
+    /** Typed daily history; filled by the store sanitizer (raw [viewLinkRaw] is dropped at the store boundary). */
+    val logs: List<AttendanceLog> = emptyList()
 )
 
 @Serializable

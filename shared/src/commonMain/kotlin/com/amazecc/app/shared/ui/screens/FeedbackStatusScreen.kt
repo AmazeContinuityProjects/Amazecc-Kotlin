@@ -36,6 +36,7 @@ import com.amazecc.app.shared.model.FeedbackSemester
 import com.amazecc.app.shared.model.FeedbackTableRow
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeColors
@@ -283,10 +284,8 @@ private suspend fun refreshSession() {
 private suspend fun loadFeedback(onResult: (List<SemesterFeedbackState>, String?) -> Unit) {
     try {
         // ── Prefer locally-cached data for the semester list ──
-        val cachedGrades = AppState.allGrades.value
-        val localSemIds = cachedGrades?.grades?.keys
-            ?.filter { it != "curriculum" && it != "effectiveGrades" }
-            ?.toList() ?: emptyList()
+        val academic = AppDataStore.academic.value
+        val localSemIds = academic.semesters.keys.toList()
 
         val selectedSem = AppState.selectedSemester.value
         val sems: List<FeedbackSemester>
@@ -308,7 +307,7 @@ private suspend fun loadFeedback(onResult: (List<SemesterFeedbackState>, String?
                 async {
                     // Feedback is per semester, not per course: one status set per semester
                     // covering Course (Mid/End) and Curriculum (Mid/End) submissions.
-                    val localGradeList = cachedGrades?.grades?.get(sem.value)?.grades
+                    val localGradeList = academic.semesters[sem.value]?.courses?.values?.toList()
                     var courseCount = localGradeList?.size ?: 0
 
                     var midCourseGiven = false

@@ -27,8 +27,9 @@ import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.model.ExamItem
-import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
+import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.ExamDayBanner
 import com.amazecc.app.shared.ui.components.rememberSelectedSemesterExams
@@ -164,14 +165,16 @@ fun FreePeriodBlock(title: String, time: String) {
 @Composable
 fun OverallPredictorScreen() {
     val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
+    val academic by AppState.academic.collectAsState()
+    val selectedSem by AppState.selectedSemester.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
-    val examScheduleRes by AppState.examSchedule.collectAsState()
     val isBusSubscriber by AppState.isBusSubscriber.collectAsState()
 
-    val courses = attendanceRes?.attendance?.filter { it.courseCode.isNotBlank() } ?: emptyList()
+    val sem = academic.semesters[selectedSem]
+    val courses = sem?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
     val calendarMonths = calendarRes?.months ?: emptyList()
-    val examSchedule = examScheduleRes?.schedule ?: emptyMap()
+    val semExams = sem?.exams.orEmpty()
+    val examSchedule = if (semExams.isEmpty()) emptyMap() else mapOf("selected" to semExams)
 
     var selectedMode by remember { mutableStateOf("LID") }
     var skipDates by remember { mutableStateOf<Map<String, Set<String>>>(emptyMap()) }
@@ -869,6 +872,17 @@ private fun CoursePredictorRow(
                         course.courseCode,
                         style = AmazeTheme.typography.smallLabel.copy(color = statusColor, fontWeight = FontWeight.Bold)
                     )
+                    embeddedComponentLabel(course.courseCode)?.let { label ->
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            label,
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                color = colors.accent,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = AmazeTheme.fontSize.micro
+                            )
+                        )
+                    }
                     if (prediction.skipCount > 0) {
                         Spacer(Modifier.width(6.dp))
                         Text(
@@ -1234,9 +1248,10 @@ private data class FutureClassInfo(val total: Int, val dates: List<FutureDate> =
 @Composable
 fun TimetableGridScreen() {
     val colors = AmazeTheme.colors
-    val attendanceRes by AppState.attendance.collectAsState()
-    val timetableRes by AppState.timetable.collectAsState()
-    val courses = attendanceRes?.attendance ?: emptyList()
+    val academic by AppState.academic.collectAsState()
+    val selectedSem by AppState.selectedSemester.collectAsState()
+    val sem = academic.semesters[selectedSem]
+    val courses = sem?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
 
     val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT")
     val dayFull = mapOf("MON" to "Monday", "TUE" to "Tuesday", "WED" to "Wednesday", "THU" to "Thursday", "FRI" to "Friday", "SAT" to "Saturday")
@@ -1266,7 +1281,7 @@ fun TimetableGridScreen() {
     }
 
     // Build a map: day -> (slotCode -> courseInfo)
-    val daySlotMap = remember(courses, timetableRes, weekDayOverrides) {
+    val daySlotMap = remember(courses, weekDayOverrides) {
         val map = mutableMapOf<String, MutableMap<String, AttendanceItem>>()
         for (day in days) {
             map[day] = mutableMapOf()
@@ -1444,7 +1459,7 @@ fun TimetableGridScreen() {
                                         Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
                                         Column(modifier = Modifier.weight(1f)) {
                                             val venueStr = course.slotVenue?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""
-                                            Text("${course.courseCode}$venueStr", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                            Text("${course.courseCode}${embeddedComponentLabel(course.courseCode)?.let { " · $it" } ?: ""}$venueStr", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                             Text(course.courseTitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary), maxLines = 1)
                                         }
                                         Text(timeStr, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent))
@@ -1541,7 +1556,7 @@ fun TimetableGridScreen() {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(course.courseTitle, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary), maxLines = 1)
                                     val venueStr = course.slotVenue?.takeIf { it.isNotBlank() }?.let { " • $it" } ?: ""
-                                    Text("${course.courseCode} • ${course.attendedClasses}/${course.totalClasses}$venueStr", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                                    Text("${course.courseCode}${embeddedComponentLabel(course.courseCode)?.let { " · $it" } ?: ""} • ${course.attendedClasses}/${course.totalClasses}$venueStr", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                                 }
                                 Box(
                                     modifier = Modifier

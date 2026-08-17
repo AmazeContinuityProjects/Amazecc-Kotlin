@@ -2,12 +2,12 @@ package com.amazecc.app.shared.utils
 
 import com.amazecc.app.shared.model.HomeworkTask
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -21,7 +21,8 @@ data class BackupFile(
     val type: String,
     val exportedAt: String,
     val settings: List<BackupSetting> = emptyList(),
-    val tasks: List<HomeworkTask> = emptyList()
+    val tasks: List<HomeworkTask> = emptyList(),
+    val appData: String? = null
 )
 
 data class ImportResult(val settingsImported: Int, val tasksImported: Int)
@@ -108,28 +109,19 @@ object ExportImportManager {
 
     /** Builds the JSON backup string. [includeCache] selects custom vs full scope. */
     fun buildBackupJson(includeCache: Boolean): String {
-        val allKeys = SettingsManager.allKeys()
-        val settingKeys = if (includeCache) {
-            (preferenceKeys + allKeys.filter {
-                it.startsWith("cache_") && it != SettingsManager.CACHE_TASKS && it !in neverExportKeys
-            }).distinct()
-        } else {
-            preferenceKeys
-        }
-        val settings = settingKeys.mapNotNull { key ->
+        // Full backups carry the decrypted app-data snapshot (the encrypted blob
+        // is device-bound and useless on another install); legacy per-endpoint
+        // caches are no longer written, so they are not exported either.
+        val settings = preferenceKeys.mapNotNull { key ->
             SettingsManager.getExportValue(key)?.let { BackupSetting(key, it.type, it.value) }
         }
-        val tasks = try {
-            val raw = SettingsManager.getString(SettingsManager.CACHE_TASKS, "[]")
-            json.decodeFromString(ListSerializer(HomeworkTask.serializer()), raw)
-        } catch (_: Exception) {
-            emptyList()
-        }
+        val tasks = AppDataStore.tasks.value
         val backup = BackupFile(
             type = if (includeCache) "full" else "custom",
             exportedAt = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).toString(),
             settings = settings,
-            tasks = tasks
+            tasks = tasks,
+            appData = if (includeCache) AppDataStore.exportSnapshot() else null
         )
         return json.encodeToString(backup)
     }
@@ -140,7 +132,12 @@ object ExportImportManager {
         require(backup.app == "AmazeCC") { "Not an AmazeCC backup file" }
         backup.settings.forEach { entry ->
             if (entry.key in neverExportKeys) return@forEach // never restore identity/password blobs
+            if (entry.key.startsWith("cache_") && backup.appData != null) return@forEach // superseded by the snapshot
             SettingsManager.importExportEntry(entry.key, SettingsManager.ExportEntry(entry.type, entry.value))
+        }
+        backup.appData?.let { rawSnapshot ->
+            val snapshot = json.decodeFromString<com.amazecc.app.shared.state.AppDataSnapshot>(rawSnapshot)
+            AppDataStore.importSnapshot(snapshot)
         }
         if (backup.tasks.isNotEmpty()) {
             AppState.applyImportedTasks(backup.tasks)

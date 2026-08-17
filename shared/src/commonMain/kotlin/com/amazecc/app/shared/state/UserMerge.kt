@@ -15,7 +15,8 @@ enum class IdentitySource(val order: Int) {
     CREDENTIALS(4),     // /api/credentials — linked accounts + ranks
     BANK(5),            // /api/bank-info
     APAAR(6),           // /api/apaarid
-    RECORDS(7)          // ept / registration / university-day / dayboarder
+    RECORDS(7),          // ept / registration / university-day / dayboarder
+    ME(8)                // /api/me — consolidated snapshot of tiers 2–6, highest authority
 }
 
 /**

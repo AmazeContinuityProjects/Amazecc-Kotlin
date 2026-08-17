@@ -2,15 +2,13 @@ package com.amazecc.app.shared.utils
 
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
-import com.amazecc.app.shared.model.AttendanceRes
-import com.amazecc.app.shared.model.HomeworkTask
-import com.amazecc.app.shared.model.MarksRes
-import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AcademicDerivers
+import com.amazecc.app.shared.state.AppDataStore
+import com.amazecc.app.shared.state.AcademicData
+import com.amazecc.app.shared.state.SemesterData
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.json.*
 
 data class AppWidgetClassEvent(
     val code: String,
@@ -56,41 +54,39 @@ object WidgetDataUtils {
     /**
      * Total on-duty hours across all courses (lab = 2h, theory = 1h).
      * Mirrors the OD Tracker screen counter: statuses "on duty"/"od"/"onduty" count as OD.
+     * Lab detection: prefers slotName starting with "L", falls back to courseType.
      */
     fun computeODHours(courses: List<AttendanceItem>): Int {
         var hours = 0
         for (course in courses) {
-            val statuses = try {
-                val arr = parseViewLink(course.viewLinkRaw)?.jsonArray
-                arr?.mapNotNull { elem ->
-                    val obj = elem.jsonObject
-                    obj["status"]?.jsonPrimitive?.contentOrNull?.trim()?.lowercase()
-                } ?: emptyList()
-            } catch (_: Exception) { emptyList() }
+            val statuses = course.logs.mapNotNull { log -> log.status.trim().lowercase() }
             val odCount = statuses.count { it == "on duty" || it == "od" || it == "onduty" }
             if (odCount > 0) {
-                val isLab = course.slotName?.startsWith("L") == true
+                val isLab = course.courseType.contains("Lab", ignoreCase = true) || course.slotName?.startsWith("L") == true
                 hours += odCount * (if (isLab) 2 else 1)
             }
         }
         return hours
     }
 
+    /**
+     * Widget processes have no AppState, so the "current semester" is resolved
+     * deterministically (see AcademicDerivers.resolveCurrentSemester). Falls back
+     * to the app-state selected semester when available; self-heals to the real
+     * current semester after the next app sync.
+     */
+    fun currentSemesterData(): SemesterData? =
+        AcademicDerivers.resolveCurrentSemester(AppDataStore.academic.value)
+
+    /** Resolves the current semester against a given snapshot (used by app-process widgets). */
+    fun currentSemesterData(academic: AcademicData): SemesterData? =
+        AcademicDerivers.resolveCurrentSemester(academic)
+
     fun getScheduleData(): AppWidgetScheduleData {
-        val rawAttendance = SettingsManager.getString(SettingsManager.CACHE_ATTENDANCE, "")
-        if (rawAttendance.isBlank()) return AppWidgetScheduleData(null, null, 0, false)
+        AppDataStore.loadPersistedSnapshot()
+        val sem = currentSemesterData() ?: return AppWidgetScheduleData(null, null, 0, false)
+        val calendarRes = AppDataStore.calendar.value
 
-        val json = Json { ignoreUnknownKeys = true }
-        val attendanceRes = try {
-            json.decodeFromString<AttendanceRes>(rawAttendance)
-        } catch (_: Exception) { null }
-
-        val rawCalendar = SettingsManager.getString(SettingsManager.CACHE_CALENDAR, "")
-        val calendarRes = try {
-            if (rawCalendar.isNotBlank()) json.decodeFromString<com.amazecc.app.shared.model.CalendarRes>(rawCalendar) else null
-        } catch (_: Exception) { null }
-
-        val courses = attendanceRes?.attendance ?: emptyList()
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         val currentMins = now.hour * 60 + now.minute
 
@@ -104,10 +100,8 @@ object WidgetDataUtils {
         val dayMap = SlotMap.map[dayOfWeek] ?: emptyMap()
         val dayClasses = mutableListOf<AppWidgetClassEvent>()
 
-        courses.forEach { course ->
-            val slotStr = course.slotName
-            val slots = slotStr.split("+").map { it.trim() }.filter { it.isNotEmpty() }
-            slots.forEach { slot ->
+        sem.courses.values.forEach { course ->
+            course.slots.forEach { slot ->
                 val timeStr = dayMap[slot]
                 if (timeStr != null) {
                     val parts = timeStr.split("-")
@@ -119,7 +113,7 @@ object WidgetDataUtils {
                                 code = course.courseCode,
                                 title = course.courseTitle,
                                 slot = slot,
-                                venue = course.slotVenue?.takeIf { it.isNotBlank() } ?: "N/A",
+                                venue = course.venue?.takeIf { it.isNotBlank() } ?: "N/A",
                                 startMins = start,
                                 endMins = end
                             )
@@ -143,45 +137,38 @@ object WidgetDataUtils {
     }
 
     fun getAttendanceStats(): AppWidgetStatsData {
-        val rawAttendance = SettingsManager.getString(SettingsManager.CACHE_ATTENDANCE, "")
-        val rawMarks = SettingsManager.getString(SettingsManager.CACHE_MARKS, "")
-        val json = Json { ignoreUnknownKeys = true }
+        AppDataStore.loadPersistedSnapshot()
+        val sem = currentSemesterData()
+        val courses = sem?.courses?.values ?: emptyList()
 
-        val attendanceRes = try {
-            if (rawAttendance.isNotBlank()) json.decodeFromString<AttendanceRes>(rawAttendance) else null
-        } catch (_: Exception) { null }
-
-        val marksRes = try {
-            if (rawMarks.isNotBlank()) json.decodeFromString<MarksRes>(rawMarks) else null
-        } catch (_: Exception) { null }
-        val cgpaObj = marksRes?.cgpa
-
-        val courses = (attendanceRes?.attendance ?: emptyList()).filter { it.totalClasses > 0 }
-        val totalAttended = courses.sumOf { it.attendedClasses }
-        val totalClasses = courses.sumOf { it.totalClasses }
+        val validCourses = courses.filter { (it.attendance?.totalClasses ?: 0) > 0 }
+        val totalAttended = validCourses.sumOf { it.attendance?.attendedClasses ?: 0 }
+        val totalClasses = validCourses.sumOf { it.attendance?.totalClasses ?: 0 }
 
         val overallPctNum = if (totalClasses > 0) (totalAttended.toDouble() / totalClasses.toDouble()) * 100.0 else 0.0
         val overallPctStr = if (totalClasses > 0) "${overallPctNum.toInt()}%" else "N/A"
 
-        val cgpaStr = cgpaObj?.cgpa?.takeIf { it.isNotBlank() } ?: "N/A"
-        val creditsStr = cgpaObj?.creditsEarned?.takeIf { it.isNotBlank() } ?: "N/A"
+        val cgpaStr = sem?.gpa?.takeIf { it.isNotBlank() } ?: "N/A"
+        val earnedCredits = courses
+            .filter { it.grade != null }
+            .mapNotNull { it.credits?.trim()?.toDoubleOrNull() }
+            .sum()
+        val creditsStr = if (earnedCredits > 0) earnedCredits.toString() else "N/A"
+
+        val odHours = if (sem != null) AcademicDerivers.computeODHours(sem) else 0
 
         return AppWidgetStatsData(
             overallPercentage = overallPctStr,
             cgpa = cgpaStr,
             earnedCredits = creditsStr,
-            odHours = "${computeODHours(attendanceRes?.attendance ?: emptyList())} hrs",
+            odHours = "$odHours hrs",
             isSafe = overallPctNum >= 75.0 || totalClasses == 0
         )
     }
 
     fun getUpcomingTasks(): List<AppWidgetTaskItem> {
-        val rawTasks = SettingsManager.getString(SettingsManager.CACHE_TASKS, "[]")
-        val json = Json { ignoreUnknownKeys = true }
-
-        val tasks = try {
-            json.decodeFromString(ListSerializer(HomeworkTask.serializer()), rawTasks)
-        } catch (_: Exception) { emptyList() }
+        AppDataStore.loadPersistedSnapshot()
+        val tasks = AppDataStore.tasks.value
 
         val pending = tasks.filter { !it.completed }.sortedBy { it.dueDate }
         return pending.take(4).map { t ->
@@ -200,13 +187,9 @@ object WidgetDataUtils {
     }
 
     fun getFreeClassroomsSample(): List<AppWidgetRoomItem> {
-        val rawAttendance = SettingsManager.getString(SettingsManager.CACHE_ATTENDANCE, "")
-        val json = Json { ignoreUnknownKeys = true }
-        val attendanceRes = try {
-            if (rawAttendance.isNotBlank()) json.decodeFromString<AttendanceRes>(rawAttendance) else null
-        } catch (_: Exception) { null }
-
-        val courses = attendanceRes?.attendance ?: emptyList()
+        AppDataStore.loadPersistedSnapshot()
+        val sem = currentSemesterData()
+        val courses = sem?.courses?.values ?: emptyList()
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         val dayOfWeek = now.dayOfWeek.name.take(3).uppercase()
 
@@ -215,16 +198,15 @@ object WidgetDataUtils {
         val currentMins = now.hour * 60 + now.minute
 
         courses.forEach { c ->
-            val slots = c.slotName.split("+").map { it.trim() }
-            slots.forEach { s ->
+            c.slots.forEach { s ->
                 val timeStr = dayMap[s]
                 if (timeStr != null) {
                     val parts = timeStr.split("-")
                     if (parts.size == 2) {
                         val start = TimeMath.toMinutes(parts[0])
                         val end = TimeMath.toMinutes(parts[1])
-                        if (currentMins in start..end && !c.slotVenue.isNullOrBlank()) {
-                            occupiedRooms.add(c.slotVenue.trim().uppercase())
+                        if (currentMins in start..end && !c.venue.isNullOrBlank()) {
+                            occupiedRooms.add(c.venue.trim().uppercase())
                         }
                     }
                 }

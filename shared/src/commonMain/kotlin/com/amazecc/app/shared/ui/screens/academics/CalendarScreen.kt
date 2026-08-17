@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.ExamItem
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AcademicData
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -229,7 +230,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
     val radius = AmazeTheme.radius
     val spacing = AmazeTheme.spacing
     val moodleData by AppState.moodleData.collectAsState()
-    val examData by AppState.examSchedule.collectAsState()
+    val academic by AppState.academic.collectAsState()
     val selectedSemester by AppState.selectedSemester.collectAsState()
     // Use cached calendarsList from AppState — survives app closes/opens
     val calendarsListRes by AppState.calendarsList.collectAsState()
@@ -301,7 +302,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
     var filterTasks by remember { mutableStateOf(true) }
     val tasks by AppState.tasks.collectAsState()
 
-    val activeMonthEvents = remember(activeMonth, moodleData, examData, tasks, filterHolidays, filterExams, filterODs, filterClasses, filterTasks) {
+    val activeMonthEvents = remember(activeMonth, moodleData, academic, tasks, filterHolidays, filterExams, filterODs, filterClasses, filterTasks) {
         val map = mutableMapOf<Int, MutableList<ConsolidatedEvent>>()
         if (activeMonth == null) return@remember map
 
@@ -427,29 +428,29 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
             } catch (e: Exception) { println("AmazeCC: CalendarScreen moodleEvents — ${e.message}") }
         }
 
-        examData?.schedule?.forEach { (type, exams) ->
-            exams.forEach { ex ->
-                try {
-                    val (exDay, exMonth, exYear) = parseExamDateParts(ex.examDate)
-                    if (exYear == yearNum && exMonth == monthNum) {
-                        if (filterExams) {
-                            val list = map.getOrPut(exDay) { mutableListOf() }
-                            list.add(
-                                ConsolidatedEvent(
-                                    "${ex.courseCode} ($type)",
-                                    "Exam",
-                                    "${ex.examTime} · ${ex.venue}",
-                                    colors.chart1,
-                                    startDay = exDay,
-                                    endDay = exDay,
-                                    exam = ex,
-                                    examType = type
-                                )
+        val selectedExams = academic.semesters[selectedSemester]?.exams
+            ?: academic.semesters.values.flatMap { it.exams }
+        selectedExams.forEach { ex ->
+            try {
+                val (exDay, exMonth, exYear) = parseExamDateParts(ex.examDate)
+                if (exYear == yearNum && exMonth == monthNum) {
+                    if (filterExams) {
+                        val list = map.getOrPut(exDay) { mutableListOf() }
+                        list.add(
+                            ConsolidatedEvent(
+                                ex.courseCode,
+                                "Exam",
+                                "${ex.examTime} · ${ex.venue}",
+                                colors.chart1,
+                                startDay = exDay,
+                                endDay = exDay,
+                                exam = ex,
+                                examType = ""
                             )
-                        }
+                        )
                     }
-                } catch (e: Exception) { println("AmazeCC: CalendarScreen examEvents — ${e.message}") }
-            }
+                }
+            } catch (e: Exception) { println("AmazeCC: CalendarScreen examEvents — ${e.message}") }
         }
 
         tasks.forEach { t ->

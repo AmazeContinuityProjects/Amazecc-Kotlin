@@ -3,6 +3,9 @@ package com.amazecc.app.shared.utils
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AcademicDerivers
+import com.amazecc.app.shared.state.AppDataStore
+import com.amazecc.app.shared.state.StoredCourse
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -306,53 +309,42 @@ object NotificationsUtils {
         } catch (_: Exception) { null }
     }
 
-    fun buildAttendanceMaps(items: List<AttendanceItem>?): List<Map<String, Any>> =
-        items?.map { item ->
+    fun buildAttendanceMaps(courses: List<StoredCourse>): List<Map<String, Any>> =
+        courses.map { course ->
             mapOf(
-                "courseCode" to item.courseCode,
-                "courseTitle" to item.courseTitle,
-                "courseType" to item.courseType,
-                "faculty" to item.faculty,
-                "slotName" to (item.slotName ?: ""),
-                "attendancePercentage" to item.attendancePercentage,
-                "venue" to (item.slotVenue ?: "")
+                "courseCode" to course.courseCode,
+                "courseTitle" to course.courseTitle,
+                "courseType" to course.courseType,
+                "faculty" to (course.faculty ?: ""),
+                "slotName" to course.slots.joinToString("+"),
+                "attendancePercentage" to (course.attendance?.attendancePercentage ?: ""),
+                "venue" to (course.venue ?: "")
             )
-        } ?: emptyList()
+        }
 
     fun typedSlotMap(): Map<String, Map<String, SlotInfo>> =
         SlotMap.map.mapValues { (_, inner) -> inner.mapValues { (_, time) -> SlotInfo(time) } }
 
     /** Exams of the semester selected in the Exam Schedule dropdown, falling back to all synced semesters. */
     fun selectedSemesterExams(): List<ExamItem> {
-        val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
-        val all = SettingsManager.getString(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, "").let { raw ->
-            if (raw.isBlank()) emptyMap()
-            else try { json.decodeFromString<Map<String, ExamScheduleRes>>(raw) } catch (_: Exception) { emptyMap() }
-        }
+        val sems = AppDataStore.loadPersistedSnapshot().academic.semesters
         val selectedId = com.amazecc.app.shared.state.AppState.selectedExamSemester.value
-        val fromSelected = all[selectedId]?.schedule?.values?.flatten().orEmpty()
+        val fromSelected = sems[selectedId]?.exams.orEmpty()
         if (fromSelected.isNotEmpty()) return fromSelected
-        return all.values.mapNotNull { it }.flatMap { it.schedule.values.flatten() }
+        return sems.values.flatMap { it.exams }
     }
 
     suspend fun rescheduleFromCache() {
         if (SettingsManager.getString(SettingsManager.SESSION_AUTHORIZED_ID, "").isBlank()) return
-        val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
-        val attendanceItems = SettingsManager.getString(SettingsManager.CACHE_ATTENDANCE, "").let { raw ->
-            if (raw.isBlank()) null else try { json.decodeFromString<AttendanceRes>(raw).attendance } catch (_: Exception) { null }
-        }
-        val assignments = SettingsManager.getString(SettingsManager.CACHE_LMS, "").let { raw ->
-            if (raw.isBlank()) null else try { json.decodeFromString<LMSRes>(raw).assignments } catch (_: Exception) { null }
-        }
-        val tasks = SettingsManager.getString(SettingsManager.CACHE_TASKS, "[]").let { raw ->
-            if (raw.isBlank()) emptyList() else try { json.decodeFromString<List<HomeworkTask>>(raw) } catch (_: Exception) { emptyList() }
-        }
+        val snapshot = AppDataStore.loadPersistedSnapshot()
+        val currentSem = AcademicDerivers.resolveCurrentSemester(snapshot.academic)
+        val courses = currentSem?.courses?.values?.toList().orEmpty()
+        val assignments = snapshot.lms?.assignments
+        val tasks = snapshot.tasks
         val exams = selectedSemesterExams()
-        val registration = SettingsManager.getString(SettingsManager.CACHE_FFCS_REG_INFO, "").let { raw ->
-            if (raw.isBlank()) null else try { json.decodeFromString<FfcsRegistrationInfo>(raw) } catch (_: Exception) { null }
-        }
-        if (attendanceItems == null && assignments == null && tasks.isEmpty() && exams.isEmpty() && registration == null) return
-        scheduleAll(attendanceItems?.let { buildAttendanceMaps(it) }, typedSlotMap(), assignments, if (tasks.isEmpty()) null else tasks, if (exams.isEmpty()) null else exams, registration)
+        val registration = snapshot.ffcsRegistration
+        if (courses.isEmpty() && assignments == null && tasks.isEmpty() && exams.isEmpty() && registration == null) return
+        scheduleAll(buildAttendanceMaps(courses).takeIf { it.isNotEmpty() }, typedSlotMap(), assignments, if (tasks.isEmpty()) null else tasks, if (exams.isEmpty()) null else exams, registration)
     }
 
     fun scheduleAll(

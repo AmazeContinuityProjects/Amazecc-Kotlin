@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
@@ -137,7 +138,15 @@ fun TimetableDialog(
                                     }
                                     Spacer(Modifier.width(AmazeTheme.spacing.sm))
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(course.courseCode, style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
+                                            embeddedComponentLabel(course.courseCode)?.let { label ->
+                                                Spacer(Modifier.width(6.dp))
+                                                Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.accent.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 1.dp)) {
+                                                    Text(label, style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.micro))
+                                                }
+                                            }
+                                        }
                                         Text(course.courseTitle, fontWeight = FontWeight.Bold, color = colors.textPrimary, maxLines = 1)
                                     }
                                     Column(horizontalAlignment = Alignment.End) {

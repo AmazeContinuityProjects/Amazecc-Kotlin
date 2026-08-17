@@ -251,7 +251,7 @@ object AppState {
     val gpaGoal: StateFlow<String> = _gpaGoal.asStateFlow()
 
     private val _ffcsRegistration = MutableStateFlow<FfcsRegistrationInfo?>(null)
-    val ffcsRegistration: StateFlow<FfcsRegistrationInfo?> = _ffcsRegistration.asStateFlow()
+    val ffcsRegistration: StateFlow<FfcsRegistrationInfo?> = AppDataStore.ffcsRegistration
 
     private val _pendingFfcsAlert = MutableStateFlow<FfcsRegistrationInfo?>(null)
     val pendingFfcsAlert: StateFlow<FfcsRegistrationInfo?> = _pendingFfcsAlert.asStateFlow()
@@ -271,7 +271,9 @@ object AppState {
     private val _semesterMap = MutableStateFlow(fallbackSemesterMap)
     val semesterMap: StateFlow<Map<String, String>> = _semesterMap.asStateFlow()
     val semesterIDs: List<String> get() = _semesterMap.value.keys.toList()
-    private val _selectedSemester = MutableStateFlow(DEFAULT_SEMESTER_ID)
+    private val _selectedSemester = MutableStateFlow(
+        SettingsManager.getString(SettingsManager.KEY_SELECTED_SEMESTER, DEFAULT_SEMESTER_ID)
+    )
     val selectedSemester: StateFlow<String> = _selectedSemester.asStateFlow()
 
     // Loading & Error states (driven by SyncEngine for backward compat)
@@ -311,9 +313,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     /** Header search icon tapped on a local-search screen: bump the tick so the active screen reveals its search. */
     fun requestLocalSearch() { _localSearchTick.value++ }
 
-    // Cached Data
-    private val _attendance = MutableStateFlow<AttendanceRes?>(null)
-    val attendance: StateFlow<AttendanceRes?> = _attendance.asStateFlow()
+    // Cached Data (all reads/writes go through AppDataStore — the single source of truth)
+    val academic: StateFlow<AcademicData> = AppDataStore.academic
 
     private val _currentLiveClass = MutableStateFlow<CourseAttendanceInfo?>(null)
     val currentLiveClass: StateFlow<CourseAttendanceInfo?> = _currentLiveClass.asStateFlow()
@@ -321,20 +322,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     private val _liveClassTick = MutableStateFlow(0)
     val liveClassTick: StateFlow<Int> = _liveClassTick.asStateFlow()
 
-    private val _allSemesterAttendance = MutableStateFlow<Map<String, AttendanceRes?>>(emptyMap())
-    val allSemesterAttendance: StateFlow<Map<String, AttendanceRes?>> = _allSemesterAttendance.asStateFlow()
-
-    private val _timetable = MutableStateFlow<TimetableRes?>(null)
-    val timetable: StateFlow<TimetableRes?> = _timetable.asStateFlow()
-
-    private val _marks = MutableStateFlow<MarksRes?>(null)
-    val marks: StateFlow<MarksRes?> = _marks.asStateFlow()
-
     private val settings = Settings()
     private val jsonFormat = Json { ignoreUnknownKeys = true }
 
-    private val _moodleData = MutableStateFlow<MoodleRes?>(null)
-    val moodleData: StateFlow<MoodleRes?> = _moodleData.asStateFlow()
+    val moodleData: StateFlow<MoodleRes?> = AppDataStore.moodleData
 
     init {
         // Load persisted settings
@@ -396,12 +387,25 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     }
 
     /**
-     * Load cached data from local storage.
+     * Load cached data from local storage (single encrypted snapshot via [AppDataStore]).
      * Must be called from an [androidx.compose.runtime.LaunchedEffect] in App() — NOT from init,
      * because many referenced StateFlow properties are declared after the init block.
      */
     fun loadFromCache() {
-        loadCachedData()
+        AppDataStore.restore()
+        UserStore.loadFromCache()
+        UserStore.merge(
+            IdentityExtractor.fromVtopPhoto(SettingsManager.getString(SettingsManager.CACHE_VTOP_PHOTO)),
+            IdentitySource.VTOP_PHOTO
+        )
+        reconcileExamSeatAlerts()
+        // Auto-sync Moodle & Library in background if credentials are saved
+        if (AppDataStore.moodleData.value == null && SettingsManager.getMoodleCredentials() != null) {
+            syncMoodle()
+        }
+        if ((AppDataStore.library.value == null || _libraryLoginRequired.value) && SettingsManager.getLibraryCredentials() != null) {
+            syncLibrary()
+        }
     }
 
     /**
@@ -425,91 +429,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     private fun loadCachedString(key: String): String? {
         val cached = settings.getString(key, "")
         return if (cached.isNotBlank()) cached else null
-    }
-
-    private inline fun <reified T> loadCachedData(key: String, state: MutableStateFlow<T?>) {
-        val cached = settings.getString(key, "")
-        if (cached.isNotBlank()) {
-            try {
-                state.value = jsonFormat.decodeFromString<T>(cached)
-            } catch (e: Exception) { println("AmazeCC: AppState loadCachedData — ${e.message}") }
-        }
-    }
-
-    private fun loadCachedData() {
-        loadCachedData<AttendanceRes>(SettingsManager.CACHE_ATTENDANCE, _attendance)
-        loadCachedData<TimetableRes>(SettingsManager.CACHE_TIMETABLE, _timetable)
-        loadCachedData<MarksRes>(SettingsManager.CACHE_MARKS, _marks)
-        loadCachedData<AllGradesRes>(SettingsManager.CACHE_GRADES, _allGrades)
-        mergeSemestersFromAllGrades()
-        loadCachedData<HostelDetails>(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails)
-        loadCachedData<MessMenuRes>(SettingsManager.CACHE_MESS_MENU, _messMenu)
-        loadCachedData<LaundryRes>(SettingsManager.CACHE_LAUNDRY, _laundrySchedule)
-        loadCachedData<ArrearResponse>(SettingsManager.CACHE_HOSTEL_COUNSELLING, _hostelCounselling)
-        loadCachedData<ExamScheduleRes>(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule)
-        loadCachedData<CalendarRes>(SettingsManager.CACHE_CALENDAR, _calendar)
-        loadCachedData<CalendarsListRes>(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList)
-        loadCachedData<QcmViewRes>(SettingsManager.CACHE_QCM_VIEW, _qcmView)
-        loadCachedData<CurriculumRes>(SettingsManager.CACHE_CURRICULUM, _curriculum)
-        loadCachedData<PaymentsRes>(SettingsManager.CACHE_PAYMENTS, _payments)
-        loadCachedData<LibraryRes>(SettingsManager.CACHE_LIBRARY, _library)
-        loadCachedData<TransportDataRes>(SettingsManager.CACHE_TRANSPORT_DATA, _transportData)
-        loadCachedData<BusesRes>(SettingsManager.CACHE_BUSES, _buses)
-        loadCachedData<LMSRes>(SettingsManager.CACHE_LMS, _lms)
-        loadCachedData<EventHubRes>(SettingsManager.CACHE_EVENTS, _events)
-        loadCachedData<ClubsRes>(SettingsManager.CACHE_CLUBS, _clubs)
-        UserStore.loadFromCache()
-        UserStore.merge(
-            IdentityExtractor.fromVtopPhoto(SettingsManager.getString(SettingsManager.CACHE_VTOP_PHOTO)),
-            IdentitySource.VTOP_PHOTO
-        )
-        reconcileExamSeatAlerts()
-        _ffcsRegistration.value = try {
-            settings.getString(SettingsManager.CACHE_FFCS_REG_INFO, "").let { raw ->
-                if (raw.isBlank()) null
-                else jsonFormat.decodeFromString(FfcsRegistrationInfo.serializer(), raw)
-            }
-        } catch (e: Exception) {
-            null
-        }
-        loadCachedData<CabShareUser>(SettingsManager.CACHE_CAB_USER, _cabShareUser)
-        loadCachedData<CircularsRes>(SettingsManager.CACHE_CIRCULARS, _circulars)
-
-        // Auto-sync Moodle & Library in background if credentials are saved
-        if (_moodleData.value == null && SettingsManager.getMoodleCredentials() != null) {
-            syncMoodle()
-        }
-        if ((_library.value == null || _libraryLoginRequired.value) && SettingsManager.getLibraryCredentials() != null) {
-            syncLibrary()
-        }
-        // Load all semesters attendance & marks cache
-        try {
-            val cachedAtt = settings.getString(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, "")
-            if (cachedAtt.isNotBlank()) _allSemesterAttendance.value = jsonFormat.decodeFromString(cachedAtt)
-        } catch (e: Exception) { println("AmazeCC: AppState loadCachedData allSemesterAttendance — ${e.message}") }
-        try {
-            val cachedMarks = settings.getString(SettingsManager.CACHE_ALL_SEMESTER_MARKS, "")
-            if (cachedMarks.isNotBlank()) _allSemesterMarks.value = jsonFormat.decodeFromString(cachedMarks)
-        } catch (e: Exception) { println("AmazeCC: AppState loadCachedData allSemesterMarks — ${e.message}") }
-        try {
-            val cachedExams = settings.getString(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, "")
-            if (cachedExams.isNotBlank()) _allSemesterExams.value = jsonFormat.decodeFromString(cachedExams)
-        } catch (e: Exception) { println("AmazeCC: AppState loadCachedData allSemesterExams — ${e.message}") }
-        // Also load moodle
-        val cachedMoodle = settings.getString(SettingsManager.CACHE_MOODLE, "")
-        if (cachedMoodle.isNotBlank()) {
-            try {
-                _moodleData.value = jsonFormat.decodeFromString<MoodleRes>(cachedMoodle)
-            } catch (e: Exception) { println("AmazeCC: AppState loadCachedData moodle — ${e.message}") }
-        }
-        // Module states are left IDLE until an actual sync writes SUCCESS/ERROR
-        loadTasks()
-    }
-
-    private inline fun <reified T> cacheData(key: String, value: T) {
-        try {
-            settings[key] = jsonFormat.encodeToString(value)
-        } catch (e: Exception) { println("AmazeCC: AppState cacheData — ${e.message}") }
     }
 
     // Credentials (incl. passwords) live in the encrypted UserStore cache; nothing
@@ -580,16 +499,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
 
     // Tracked on change + persisted so a returned/changed slot re-alerts; also re-arms reminders.
     private fun updateFfcsRegistration(info: FfcsRegistrationInfo?) {
-        val prev = _ffcsRegistration.value
-        _ffcsRegistration.value = info
-        try {
-            if (info != null) {
-                settings[SettingsManager.CACHE_FFCS_REG_INFO] =
-                    jsonFormat.encodeToString(FfcsRegistrationInfo.serializer(), info)
-            } else {
-                settings.remove(SettingsManager.CACHE_FFCS_REG_INFO)
-            }
-        } catch (e: Exception) { println("AmazeCC: updateFfcsRegistration — ${e.message}") }
+        val prev = AppDataStore.ffcsRegistration.value
+        AppDataStore.setFfcsRegistration(info)
         if (info != null && info != prev) {
             _pendingFfcsAlert.value = info
         }
@@ -601,13 +512,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     }
 
     private fun applyAllGrades(res: AllGradesRes) {
-        _allGrades.value = res
+        AppDataStore.upsertGrades(res)
         mergeSemestersFromAllGrades()
     }
 
     private fun mergeSemestersFromAllGrades() {
-        val grades = _allGrades.value?.grades ?: return
-        val ids = (grades.keys.filter { it != "curriculum" && it != "effectiveGrades" } + _selectedSemester.value).distinct()
+        val ids = (AppDataStore.academic.value.semesters.keys + _selectedSemester.value).distinct()
         if (ids.isEmpty()) return
         val merged = ids.associateWith { fallbackSemesterMap[it] ?: deriveSemesterName(it) }
         if (merged.keys.containsAll(_semesterMap.value.keys) && _semesterMap.value.keys.containsAll(merged.keys)) return
@@ -627,36 +537,11 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         }
     }
 
-    // ── Save Offline: persists all currently-loaded in-memory data to cache ──
+    // ── Save Offline: the store persists every update automatically ──
     fun saveOffline() {
         SyncEngine.resetLogs()
-        var saved = 0
-        if (_attendance.value != null) { cacheData(SettingsManager.CACHE_ATTENDANCE, _attendance.value); saved++ }
-        if (_timetable.value != null) { cacheData(SettingsManager.CACHE_TIMETABLE, _timetable.value); saved++ }
-        if (_marks.value != null) { cacheData(SettingsManager.CACHE_MARKS, _marks.value); saved++ }
-        if (_allGrades.value != null) { cacheData(SettingsManager.CACHE_GRADES, _allGrades.value); saved++ }
-        if (_curriculum.value != null) { cacheData(SettingsManager.CACHE_CURRICULUM, _curriculum.value); saved++ }
-        if (_hostelDetails.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, _hostelDetails.value); saved++ }
-        if (_messMenu.value != null) { cacheData(SettingsManager.CACHE_MESS_MENU, _messMenu.value); saved++ }
-        if (_laundrySchedule.value != null) { cacheData(SettingsManager.CACHE_LAUNDRY, _laundrySchedule.value); saved++ }
-        if (_hostelCounselling.value != null) { cacheData(SettingsManager.CACHE_HOSTEL_COUNSELLING, _hostelCounselling.value); saved++ }
-        if (_examSchedule.value != null) { cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, _examSchedule.value); saved++ }
-        if (_calendar.value != null) { cacheData(SettingsManager.CACHE_CALENDAR, _calendar.value); saved++ }
-        if (_calendarsList.value != null) { cacheData(SettingsManager.CACHE_CALENDARS_LIST, _calendarsList.value); saved++ }
-        if (_qcmView.value != null) { cacheData(SettingsManager.CACHE_QCM_VIEW, _qcmView.value); saved++ }
-        if (_payments.value != null) { cacheData(SettingsManager.CACHE_PAYMENTS, _payments.value); saved++ }
-        if (_library.value != null) { cacheData(SettingsManager.CACHE_LIBRARY, _library.value); saved++ }
-        if (_libraryLoginRequired.value) { /* skip — no data to cache */ }
-        if (_transportData.value != null) { cacheData(SettingsManager.CACHE_TRANSPORT_DATA, _transportData.value); saved++ }
-        if (_buses.value != null) { cacheData(SettingsManager.CACHE_BUSES, _buses.value); saved++ }
-        if (_lms.value != null) { cacheData(SettingsManager.CACHE_LMS, _lms.value); saved++ }
-        if (_events.value != null) { cacheData(SettingsManager.CACHE_EVENTS, _events.value); saved++ }
-        if (_clubs.value != null) { cacheData(SettingsManager.CACHE_CLUBS, _clubs.value); saved++ }
-        if (_cabShareUser.value != null) { cacheData(SettingsManager.CACHE_CAB_USER, _cabShareUser.value); saved++ }
-        if (_allSemesterAttendance.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value); saved++ }
-        if (_allSemesterMarks.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value); saved++ }
-        if (_allSemesterExams.value.isNotEmpty()) { cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value); saved++ }
-        SyncEngine.addLog(SyncModule.ATTENDANCE, "Saved $saved modules offline", SyncStatus.SUCCESS)
+        AppDataStore.persistNow()
+        SyncEngine.addLog(SyncModule.ATTENDANCE, "Saved data offline", SyncStatus.SUCCESS)
     }
 
     fun restoreSession(): Boolean {
@@ -688,69 +573,29 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         }
     }
 
-    private val _allGrades = MutableStateFlow<AllGradesRes?>(null)
-    val allGrades: StateFlow<AllGradesRes?> = _allGrades.asStateFlow()
-
-    private val _hostelDetails = MutableStateFlow<HostelDetails?>(null)
-    val hostelDetails: StateFlow<HostelDetails?> = _hostelDetails.asStateFlow()
-
-    private val _messMenu = MutableStateFlow<MessMenuRes?>(null)
-    val messMenu: StateFlow<MessMenuRes?> = _messMenu.asStateFlow()
-
-    private val _laundrySchedule = MutableStateFlow<LaundryRes?>(null)
-    val laundrySchedule: StateFlow<LaundryRes?> = _laundrySchedule.asStateFlow()
-
-    private val _hostelCounselling = MutableStateFlow<ArrearResponse?>(null)
-    val hostelCounselling: StateFlow<ArrearResponse?> = _hostelCounselling.asStateFlow()
-
-    private val _examSchedule = MutableStateFlow<ExamScheduleRes?>(null)
-    val examSchedule: StateFlow<ExamScheduleRes?> = _examSchedule.asStateFlow()
-    private val _allSemesterExams = MutableStateFlow<Map<String, ExamScheduleRes?>>(emptyMap())
-    val allSemesterExams: StateFlow<Map<String, ExamScheduleRes?>> = _allSemesterExams.asStateFlow()
+    val hostelDetails: StateFlow<HostelDetails?> = AppDataStore.hostelDetails
+    val messMenu: StateFlow<MessMenuRes?> = AppDataStore.messMenu
+    val laundrySchedule: StateFlow<LaundryRes?> = AppDataStore.laundrySchedule
+    val hostelCounselling: StateFlow<ArrearResponse?> = AppDataStore.hostelCounselling
     private val _selectedExamSemester = MutableStateFlow("CH20262701")
     val selectedExamSemester: StateFlow<String> = _selectedExamSemester.asStateFlow()
 
-    private val _calendar = MutableStateFlow<CalendarRes?>(null)
-    val calendar: StateFlow<CalendarRes?> = _calendar.asStateFlow()
-
-    private val _calendarsList = MutableStateFlow<CalendarsListRes?>(null)
-    val calendarsList: StateFlow<CalendarsListRes?> = _calendarsList.asStateFlow()
-
-    private val _qcmView = MutableStateFlow<QcmViewRes?>(null)
-    val qcmView: StateFlow<QcmViewRes?> = _qcmView.asStateFlow()
-
-    private val _curriculum = MutableStateFlow<CurriculumRes?>(null)
-    val curriculum: StateFlow<CurriculumRes?> = _curriculum.asStateFlow()
-
-    private val _payments = MutableStateFlow<PaymentsRes?>(null)
-    val payments: StateFlow<PaymentsRes?> = _payments.asStateFlow()
-
-    private val _library = MutableStateFlow<LibraryRes?>(null)
-    val library: StateFlow<LibraryRes?> = _library.asStateFlow()
+    val calendar: StateFlow<CalendarRes?> = AppDataStore.calendar
+    val calendarsList: StateFlow<CalendarsListRes?> = AppDataStore.calendarsList
+    val qcmView: StateFlow<QcmViewRes?> = AppDataStore.qcmView
+    val curriculum: StateFlow<CurriculumRes?> = AppDataStore.curriculum
+    val payments: StateFlow<PaymentsRes?> = AppDataStore.payments
+    val library: StateFlow<LibraryRes?> = AppDataStore.library
 
     private val _libraryLoginRequired = MutableStateFlow(false)
     val libraryLoginRequired: StateFlow<Boolean> = _libraryLoginRequired.asStateFlow()
 
-    private val _transportData = MutableStateFlow<TransportDataRes?>(null)
-    val transportData: StateFlow<TransportDataRes?> = _transportData.asStateFlow()
-
-    private val _buses = MutableStateFlow<BusesRes?>(null)
-    val buses: StateFlow<BusesRes?> = _buses.asStateFlow()
-
-    private val _lms = MutableStateFlow<LMSRes?>(null)
-    val lms: StateFlow<LMSRes?> = _lms.asStateFlow()
-
-    private val _events = MutableStateFlow<EventHubRes?>(null)
-    val events: StateFlow<EventHubRes?> = _events.asStateFlow()
-
-    private val _registeredEvents = MutableStateFlow<EventHubRegisteredEventsRes?>(null)
-    val registeredEvents: StateFlow<EventHubRegisteredEventsRes?> = _registeredEvents.asStateFlow()
-
-    private val _clubs = MutableStateFlow<ClubsRes?>(null)
-    val clubs: StateFlow<ClubsRes?> = _clubs.asStateFlow()
-
-    private val _allSemesterMarks = MutableStateFlow<Map<String, MarksRes>>(emptyMap())
-    val allSemesterMarks: StateFlow<Map<String, MarksRes>> = _allSemesterMarks.asStateFlow()
+    val transportData: StateFlow<TransportDataRes?> = AppDataStore.transportData
+    val buses: StateFlow<BusesRes?> = AppDataStore.buses
+    val lms: StateFlow<LMSRes?> = AppDataStore.lms
+    val events: StateFlow<EventHubRes?> = AppDataStore.events
+    val registeredEvents: StateFlow<EventHubRegisteredEventsRes?> = AppDataStore.registeredEvents
+    val clubs: StateFlow<ClubsRes?> = AppDataStore.clubs
 
     private val _pastSemestersSynced = MutableStateFlow(SettingsManager.getBoolean(SettingsManager.PAST_SEMESTER_SYNCED, false))
     val pastSemestersSynced: StateFlow<Boolean> = _pastSemestersSynced.asStateFlow()
@@ -913,69 +758,43 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     private val _cabLoading = MutableStateFlow(false)
     val cabLoading: StateFlow<Boolean> = _cabLoading.asStateFlow()
 
-    private val _cabShareUser = MutableStateFlow<CabShareUser?>(null)
-    val cabShareUser: StateFlow<CabShareUser?> = _cabShareUser.asStateFlow()
+    val cabShareUser: StateFlow<CabShareUser?> = AppDataStore.cabShareUser
 
     private val _cabShareAuthLoading = MutableStateFlow(false)
     val cabShareAuthLoading: StateFlow<Boolean> = _cabShareAuthLoading.asStateFlow()
 
-    private val _cabHubs = MutableStateFlow<List<CabShareHub>>(emptyList())
-    val cabHubs: StateFlow<List<CabShareHub>> = _cabHubs.asStateFlow()
+    val cabHubs: StateFlow<List<CabShareHub>> = AppDataStore.cabHubs
 
     // Circulars state
-    private val _circulars = MutableStateFlow<CircularsRes?>(null)
-    val circulars: StateFlow<CircularsRes?> = _circulars.asStateFlow()
+    val circulars: StateFlow<CircularsRes?> = AppDataStore.circulars
 
-    // Tasks state
-    private val _tasks = MutableStateFlow<List<HomeworkTask>>(emptyList())
-    val tasks: StateFlow<List<HomeworkTask>> = _tasks.asStateFlow()
+    // Tasks state (all task CRUD lives in AppDataStore)
+    val tasks: StateFlow<List<HomeworkTask>> = AppDataStore.tasks
 
-
-    private val tasksJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-    private val taskListSerializer = ListSerializer(HomeworkTask.serializer())
-
-    private fun loadTasks() {
-        val raw = SettingsManager.getString(SettingsManager.CACHE_TASKS, "[]")
-        _tasks.value = try {
-            tasksJson.decodeFromString(taskListSerializer, raw)
-        } catch (_: Exception) { emptyList() }
-    }
-
-    private fun saveTasks() {
-        val raw = tasksJson.encodeToString(taskListSerializer, _tasks.value)
-        SettingsManager.setString(SettingsManager.CACHE_TASKS, raw)
-    }
 
     fun addTask(task: HomeworkTask) {
-        _tasks.value = _tasks.value + task
-        saveTasks()
+        AppDataStore.addTask(task)
     }
 
     /** Merges imported backup tasks into the current list (imported wins on id conflict). */
     fun applyImportedTasks(imported: List<HomeworkTask>) {
-        val importedIds = imported.map { it.id }.toSet()
-        val merged = imported + _tasks.value.filter { it.id !in importedIds }
-        _tasks.value = merged
-        saveTasks()
+        AppDataStore.mergeImportedTasks(imported)
     }
 
     fun updateTask(id: String, transform: (HomeworkTask) -> HomeworkTask) {
-        _tasks.value = _tasks.value.map { if (it.id == id) transform(it) else it }
-        saveTasks()
+        AppDataStore.updateTask(id, transform)
     }
 
     fun deleteTask(id: String) {
-        _tasks.value = _tasks.value.filter { it.id != id }
-        saveTasks()
+        AppDataStore.removeTask(id)
     }
 
     fun toggleTaskCompleted(id: String) {
-        _tasks.value = _tasks.value.map { if (it.id == id) it.copy(completed = !it.completed) else it }
-        saveTasks()
+        AppDataStore.toggleTask(id)
     }
 
     fun toggleSubtaskCompleted(taskId: String, subtaskId: String) {
-        _tasks.value = _tasks.value.map { task ->
+        AppDataStore.updateTask(taskId) { task ->
             if (task.id == taskId) {
                 val updatedSubtasks = task.subtasks.map { sub ->
                     if (sub.id == subtaskId) sub.copy(completed = !sub.completed) else sub
@@ -984,22 +803,18 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 task.copy(subtasks = updatedSubtasks, completed = if (allDone) true else task.completed)
             } else task
         }
-        saveTasks()
     }
 
     fun addFocusTime(taskId: String, additionalMinutes: Int) {
-        _tasks.value = _tasks.value.map { task ->
-            if (task.id == taskId) {
-                task.copy(actualMinutesSpent = task.actualMinutesSpent + additionalMinutes)
-            } else task
+        AppDataStore.updateTask(taskId) { task ->
+            task.copy(actualMinutesSpent = task.actualMinutesSpent + additionalMinutes)
         }
-        saveTasks()
     }
 
     val todayTasks: List<HomeworkTask>
         get() {
             val today = kotlinx.datetime.Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.toString()
-            return _tasks.value.filter { it.dueDate == today && !it.completed }
+            return AppDataStore.tasks.value.filter { it.dueDate == today && !it.completed }
         }
 
     fun navigateTo(screen: Screen) {
@@ -1054,7 +869,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     fun selectSemester(semesterId: String) {
         _selectedSemester.value = semesterId
         _selectedExamSemester.value = semesterId
-        _examSchedule.value = _allSemesterExams.value[semesterId]
+        SettingsManager.setString(SettingsManager.KEY_SELECTED_SEMESTER, semesterId)
         // Refresh semester-specific data (chains after any in-flight sweep)
         if (SessionManager.isLoggedIn) {
             loadSemesterData(semesterId)
@@ -1079,16 +894,14 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                         syncModule(
                             name = "Attendance and CGPA",
                             fetch = { AmazeClient.getAcademicData(semesterId) },
-                            isSuccess = { it.attendance.error == null && it.marks?.error == null },
-                            errorMessage = { it.attendance.error ?: it.marks?.error },
+                            isSuccess = { it.attendance.error == null },
+                            errorMessage = { it.attendance.error },
                             update = {
-                                _attendance.value = it.attendance
-                                _allSemesterAttendance.value = _allSemesterAttendance.value + (semesterId to it.attendance)
-                                cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
-                                it.marks?.let { marks ->
-                                    _marks.value = marks
-                                    _allSemesterMarks.value = _allSemesterMarks.value + (semesterId to marks)
-                                    cacheData(SettingsManager.CACHE_MARKS, marks)
+                                AppDataStore.upsertAttendance(semesterId, it.attendance)
+                                if (it.marks?.error == null) {
+                                    it.marks?.let { marks ->
+                                        AppDataStore.upsertMarks(semesterId, marks)
+                                    }
                                 }
                             }
                         )
@@ -1100,8 +913,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             isSuccess = { it.error == null },
                             errorMessage = { it.error },
                             update = {
-                                _timetable.value = it
-                                cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                                AppDataStore.upsertTimetable(semesterId, it)
                             }
                         )
                     },
@@ -1112,8 +924,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             isSuccess = { it.success },
                             errorMessage = { it.message },
                             update = {
-                                _calendarsList.value = it
-                                cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                                AppDataStore.setCalendarsList(it)
                             }
                         )
                     }
@@ -1212,20 +1023,14 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             syncModule(
                                 name = "Attendance",
                                 fetch = { AmazeClient.getAcademicData(sem) },
-                                isSuccess = { it.attendance.error == null && it.marks?.error == null },
-                                errorMessage = { it.attendance.error ?: it.marks?.error },
+                                isSuccess = { it.attendance.error == null },
+                                errorMessage = { it.attendance.error },
                                 update = {
-                                    _attendance.value = it.attendance
-                                    cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
-                                    val attMap = _allSemesterAttendance.value.toMutableMap()
-                                    attMap[sem] = it.attendance
-                                    _allSemesterAttendance.value = attMap
-                                    it.marks?.let { marks ->
-                                        _marks.value = marks
-                                        cacheData(SettingsManager.CACHE_MARKS, marks)
-                                        val marksMap = _allSemesterMarks.value.toMutableMap()
-                                        marksMap[sem] = marks
-                                        _allSemesterMarks.value = marksMap
+                                    AppDataStore.upsertAttendance(sem, it.attendance)
+                                    if (it.marks?.error == null) {
+                                        it.marks?.let { marks ->
+                                            AppDataStore.upsertMarks(sem, marks)
+                                        }
                                     }
                                 }
                             )
@@ -1238,27 +1043,20 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 SyncModuleResult("All Semesters Attendance", true)
                             } else {
                                 var failed = false
-                                val gradeSemIds = _allGrades.value?.grades?.keys
-                                    ?.filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
-                                    ?: emptyList()
+                                val gradeSemIds = AppDataStore.academic.value.semesters.keys
+                                    .filter { it != sem }
                                 val allSemIds = (gradeSemIds + semesterIDs).distinct().filter { it != sem }
-                                val newAttMap = _allSemesterAttendance.value.toMutableMap()
-                                val newMarksMap = _allSemesterMarks.value.toMutableMap()
                                 for (semId in allSemIds) {
                                     try {
                                         val res = AmazeClient.getAcademicData(semId)
                                         if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
-                                            newAttMap[semId] = res.attendance
+                                            AppDataStore.upsertAttendance(semId, res.attendance)
                                         }
-                                        if (res.marks?.marks?.isNotEmpty() == true) {
-                                            newMarksMap[semId] = res.marks
+                                        if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
+                                            AppDataStore.upsertMarks(semId, res.marks)
                                         }
                                     } catch (_: Exception) { failed = true }
                                 }
-                                _allSemesterAttendance.value = newAttMap
-                                _allSemesterMarks.value = newMarksMap
-                                cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
-                                cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
                                 if (failed) SyncEngine.markModuleError(SyncModule.ALL_SEMESTER_ATTENDANCE, "Some past semesters failed")
                                 else SyncEngine.markModuleSuccess(SyncModule.ALL_SEMESTER_ATTENDANCE)
                                 SyncModuleResult("All Semesters Attendance", !failed)
@@ -1271,8 +1069,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _timetable.value = it
-                                    cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                                    AppDataStore.upsertTimetable(sem, it)
                                 }
                             )
                         },
@@ -1284,7 +1081,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 errorMessage = { it.error },
                                 update = {
                                     applyAllGrades(it)
-                                    cacheData(SettingsManager.CACHE_GRADES, it)
                                 }
                             )
                         },
@@ -1295,8 +1091,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _curriculum.value = it
-                                    cacheData(SettingsManager.CACHE_CURRICULUM, it)
+                                    AppDataStore.setCurriculum(it)
                                 }
                             )
                         },
@@ -1307,8 +1102,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _hostelDetails.value = it
-                                    cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
+                                    AppDataStore.setHostelDetails(it)
                                 }
                             )
                         },
@@ -1319,11 +1113,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _examSchedule.value = it
-                                    cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, it)
-                                    val examMap = _allSemesterExams.value.toMutableMap()
-                                    examMap[sem] = it
-                                    _allSemesterExams.value = examMap
+                                    AppDataStore.upsertExams(sem, it)
                                 }
                             )
                         },
@@ -1337,13 +1127,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                     try {
                                         val res = AmazeClient.getExamSchedule(semesterId = semId)
                                         if (res.error == null && res.schedule.isNotEmpty()) {
-                                            val examCurrent = _allSemesterExams.value.toMutableMap()
-                                            examCurrent[semId] = res
-                                            _allSemesterExams.value = examCurrent
+                                            AppDataStore.upsertExams(semId, res)
                                         }
                                     } catch (_: Exception) { examFailed = true }
                                 }
-                                cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value)
                                 if (examFailed) SyncEngine.markModuleError(SyncModule.EXAM_SCHEDULE, "Some past semester schedules failed")
                                 else SyncEngine.markModuleSuccess(SyncModule.EXAM_SCHEDULE)
                                 SyncModuleResult("All Semesters Exam Schedule", !examFailed)
@@ -1356,8 +1143,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _calendar.value = it
-                                    cacheData(SettingsManager.CACHE_CALENDAR, it)
+                                    AppDataStore.setCalendar(it)
                                 }
                             )
                         },
@@ -1368,8 +1154,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.success },
                                 errorMessage = { it.message },
                                 update = {
-                                    _calendarsList.value = it
-                                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                                    AppDataStore.setCalendarsList(it)
                                 }
                             )
                         },
@@ -1380,8 +1165,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _payments.value = it
-                                    cacheData(SettingsManager.CACHE_PAYMENTS, it)
+                                    AppDataStore.setPayments(it)
                                 }
                             )
                         },
@@ -1392,9 +1176,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _library.value = it
+                                    AppDataStore.setLibrary(it)
                                     _libraryLoginRequired.value = false
-                                    cacheData(SettingsManager.CACHE_LIBRARY, it)
                                 }
                             )
                             if (!libRes.success && libRes.message == "NO_LIB_CREDS") {
@@ -1409,8 +1192,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _transportData.value = it
-                                    cacheData(SettingsManager.CACHE_TRANSPORT_DATA, it)
+                                    AppDataStore.setTransportData(it)
                                 }
                             )
                         },
@@ -1421,8 +1203,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _buses.value = it
-                                    cacheData(SettingsManager.CACHE_BUSES, it)
+                                    AppDataStore.setBuses(it)
                                 }
                             )
                         },
@@ -1433,8 +1214,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _lms.value = it
-                                    cacheData(SettingsManager.CACHE_LMS, it)
+                                    AppDataStore.setLms(it)
                                 }
                             )
                         },
@@ -1450,8 +1230,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                     isSuccess = { it.success },
                                     errorMessage = { it.error ?: it.message },
                                     update = {
-                                        _moodleData.value = it
-                                        cacheData(SettingsManager.CACHE_MOODLE, it)
+                                    AppDataStore.setMoodle(it)
                                     }
                                 )
                             }
@@ -1465,7 +1244,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                     isSuccess = { it.error == null },
                                     errorMessage = { it.error },
                                     update = {
-                                        _registeredEvents.value = it
+                                        AppDataStore.setRegisteredEvents(it)
                                     }
                                 )
                             } else {
@@ -1480,8 +1259,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _clubs.value = it
-                                    cacheData(SettingsManager.CACHE_CLUBS, it)
+                                    AppDataStore.setClubs(it)
                                 }
                             )
                         },
@@ -1492,64 +1270,13 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _qcmView.value = it
-                                    cacheData(SettingsManager.CACHE_QCM_VIEW, it)
+                                    AppDataStore.setQcmView(it)
                                 }
                             )
                         },
                         async {
-                            val profResults = supervisorScope {
-                                    listOf(
-                                        async {
-                                            syncModule("Student Profile", { AmazeClient.getStudentProfile() }, { it.success && it.data != null }, { it.error }) {
-                                                UserStore.merge(IdentityExtractor.fromStudentProfile(it), IdentitySource.STUDENT)
-                                            }
-                                        },
-                                        async {
-                                            syncModule("Profile Images", { AmazeClient.getProfileImages() }, { it.success }, { it.error }) {
-                                                UserStore.merge(IdentityExtractor.fromProfileImages(it), IdentitySource.PROFILE_IMAGES)
-                                            }
-                                        },
-                                        async {
-                                            syncModule("Credentials", { AmazeClient.getCredentials() }, { it.success }, { it.error }) {
-                                                UserStore.merge(IdentityExtractor.fromCredentials(it), IdentitySource.CREDENTIALS)
-                                                reconcileExamSeatAlerts()
-                                            }
-                                        },
-                                        async {
-                                            syncModule("Bank Information", { AmazeClient.getBankInfo() }, { it.success }, { it.error }) {
-                                                UserStore.merge(IdentityExtractor.fromBankInfo(it), IdentitySource.BANK)
-                                            }
-                                        },
-                                        async {
-                                            syncModule("Dayboarder Info", { AmazeClient.getDayboarderInfo() }, { it.success }, { it.error }) {
-                                                UserStore.merge(IdentityExtractor.fromDayboarder(it), IdentitySource.RECORDS)
-                                            }
-                                        },
-                                        async {
-                                            syncModule("EPT Schedule", { AmazeClient.getEptSchedule() }, { it.success }, { it.error }) {
-                                                UserStore.merge(IdentityExtractor.fromEptSchedule(it), IdentitySource.RECORDS)
-                                            }
-                                        },
-                                        async {
-                                            syncModule("Registration Schedule", { AmazeClient.getRegistrationSchedule() }, { it.success }, { it.error }) {
-                                                UserStore.merge(IdentityExtractor.fromRegistrationSchedule(it), IdentitySource.RECORDS)
-                                                updateFfcsRegistration(parseFfcsRegistration(it))
-                                            }
-                                        },
-                                        async {
-                                            syncModule("University Day", { AmazeClient.getUniversityDay() }, { it.success }, { it.error }) {
-                                                UserStore.merge(IdentityExtractor.fromUniversityDay(it), IdentitySource.RECORDS)
-                                            }
-                                        },
-                                        async {
-                                            syncModule("APAAR ID", { AmazeClient.getApaarId() }, { it.success }, { it.error }) {
-                                                UserStore.merge(IdentityExtractor.fromApaarId(it), IdentitySource.APAAR)
-                                            }
-                                        }
-                                    ).awaitAll()
-                                }
-                                profResults.firstOrNull { !it.success } ?: SyncModuleResult("Student Profile", true)
+                            val profResults = syncIdentityModules()
+                            profResults.firstOrNull { !it.success } ?: SyncModuleResult("Student Profile", true)
                         },
                         async {
                             syncModule(
@@ -1558,37 +1285,31 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.success },
                                 errorMessage = { it.error ?: it.message },
                                 update = {
-                                    _circulars.value = it
-                                    cacheData(SettingsManager.CACHE_CIRCULARS, it)
+                                    AppDataStore.setCirculars(it)
                                 }
                             )
                         }
                     ).awaitAll()
 
-                    // ── Gap-fill: fetch attendance/marks for any semester in allGrades that we missed ──
-                    val grades = _allGrades.value
-                    if (grades?.grades != null) {
-                        val missingSemIds = grades.grades.keys
-                            .filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
-                            .filter { it !in _allSemesterMarks.value.keys }
+                    // ── Gap-fill: fetch attendance/marks for any semester in academic that we missed ──
+                    val grades = AppDataStore.academic.value.semesters.keys
+                    if (grades.isNotEmpty()) {
+                        val missingSemIds = grades
+                            .filter { it != sem }
+                            .filter { semId ->
+                                val semData = AppDataStore.academic.value.semesters[semId]
+                                semData == null || semData.courses.values.none { it.marks != null }
+                            }
                         for (semId in missingSemIds) {
                             try {
                                 val res = AmazeClient.getAcademicData(semId)
                                 if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
-                                    val attCurrent = _allSemesterAttendance.value.toMutableMap()
-                                    attCurrent[semId] = res.attendance
-                                    _allSemesterAttendance.value = attCurrent
+                                    AppDataStore.upsertAttendance(semId, res.attendance)
                                 }
-                                if (res.marks?.marks?.isNotEmpty() == true) {
-                                    val marksCurrent = _allSemesterMarks.value.toMutableMap()
-                                    marksCurrent[semId] = res.marks
-                                    _allSemesterMarks.value = marksCurrent
+                                if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
+                                    AppDataStore.upsertMarks(semId, res.marks)
                                 }
                             } catch (_: Exception) { }
-                        }
-                        if (missingSemIds.isNotEmpty()) {
-                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
-                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
                         }
                         SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
                         _pastSemestersSynced.value = true
@@ -1619,22 +1340,23 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     }
 
     private fun scheduleReminders() {
-        val attendanceItems = _attendance.value?.attendance
-        val assignments = _lms.value?.assignments
-        val moodleAssignments = _moodleData.value?.data?.filter { !it.done }?.map { a ->
+        val courses = AppDataStore.academic.value.semesters[_selectedSemester.value]?.courses?.values?.toList().orEmpty()
+        val assignments = AppDataStore.lms.value?.assignments
+        val moodleAssignments = AppDataStore.moodleData.value?.data?.filter { !it.done }?.map { a ->
             LMSAssignment("moodle_${a.hashCode()}", a.courseCode, a.taskTitle, "", a.due, "Pending")
         } ?: emptyList()
         val allAssignments = (assignments ?: emptyList()) + moodleAssignments
-        val selectedExams = _allSemesterExams.value[_selectedExamSemester.value]?.schedule?.values?.flatten().orEmpty()
+        val examsForSem = AppDataStore.academic.value.semesters[_selectedExamSemester.value]?.exams
+        val selectedExams = examsForSem.orEmpty()
         val exams = if (selectedExams.isNotEmpty()) selectedExams
-            else _allSemesterExams.value.values.mapNotNull { it }.flatMap { it.schedule.values.flatten() }
+            else AppDataStore.academic.value.semesters.values.flatMap { it.exams }
         com.amazecc.app.shared.utils.NotificationsUtils.scheduleAll(
-            attendance = com.amazecc.app.shared.utils.NotificationsUtils.buildAttendanceMaps(attendanceItems),
+            attendance = com.amazecc.app.shared.utils.NotificationsUtils.buildAttendanceMaps(courses).takeIf { it.isNotEmpty() },
             slotMap = com.amazecc.app.shared.utils.NotificationsUtils.typedSlotMap(),
             assignments = allAssignments,
-            tasks = _tasks.value,
+            tasks = AppDataStore.tasks.value,
             exams = if (exams.isEmpty()) null else exams,
-            registration = _ffcsRegistration.value
+            registration = AppDataStore.ffcsRegistration.value
         )
         com.amazecc.app.shared.utils.pushWidgetUpdates()
     }
@@ -1659,7 +1381,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         launchSweep(setOf(SyncModule.ATTENDANCE, SyncModule.TIMETABLE)) {
             _syncStatus.value = "Syncing current semester..."
             val sem = _selectedSemester.value
-            val results = supervisorScope {
+val results = supervisorScope {
                     listOf(
                         async {
                             syncModule(
@@ -1668,11 +1390,11 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.attendance.error == null },
                                 errorMessage = { it.attendance.error },
                                 update = {
-                                    _attendance.value = it.attendance
-                                    cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
-                                    it.marks?.let { m ->
-                                        _marks.value = m
-                                        cacheData(SettingsManager.CACHE_MARKS, m)
+                                    AppDataStore.upsertAttendance(sem, it.attendance)
+                                    if (it.marks?.error == null) {
+                                        it.marks?.let { marks ->
+                                            AppDataStore.upsertMarks(sem, marks)
+                                        }
                                     }
                                 }
                             )
@@ -1684,8 +1406,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _timetable.value = it
-                                    cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                                    AppDataStore.upsertTimetable(sem, it)
                                 }
                             )
                         }
@@ -1709,11 +1430,11 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.attendance.error == null },
                                 errorMessage = { it.attendance.error },
                                 update = {
-                                    _attendance.value = it.attendance
-                                    cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
-                                    it.marks?.let { m ->
-                                        _marks.value = m
-                                        cacheData(SettingsManager.CACHE_MARKS, m)
+                                    AppDataStore.upsertAttendance(sem, it.attendance)
+                                    if (it.marks?.error == null) {
+                                        it.marks?.let { m ->
+                                            AppDataStore.upsertMarks(sem, m)
+                                        }
                                     }
                                 }
                             )
@@ -1723,27 +1444,19 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 SyncModuleResult("All Semesters", true)
                             } else {
                                 var failed = false
-                                val gradeSemIds = _allGrades.value?.grades?.keys
-                                    ?.filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
-                                    ?: emptyList()
+                                val gradeSemIds = AppDataStore.academic.value.semesters.keys.filter { it != sem }
                                 val allSemIds = (gradeSemIds + semesterIDs).distinct().filter { it != sem }
                                 for (semId in allSemIds) {
                                     try {
                                         val res = AmazeClient.getAcademicData(semId)
                                         if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
-                                            val attCurrent = _allSemesterAttendance.value.toMutableMap()
-                                            attCurrent[semId] = res.attendance
-                                            _allSemesterAttendance.value = attCurrent
+                                            AppDataStore.upsertAttendance(semId, res.attendance)
                                         }
-                                        if (res.marks?.marks?.isNotEmpty() == true) {
-                                            val marksCurrent = _allSemesterMarks.value.toMutableMap()
-                                            marksCurrent[semId] = res.marks
-                                            _allSemesterMarks.value = marksCurrent
+                                        if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
+                                            AppDataStore.upsertMarks(semId, res.marks)
                                         }
                                     } catch (_: Exception) { failed = true }
                                 }
-                                cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
-                                cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
                                 SyncModuleResult("All Semesters", !failed)
                             }
                         },
@@ -1754,8 +1467,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _timetable.value = it
-                                    cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                                    AppDataStore.upsertTimetable(sem, it)
                                 }
                             )
                         },
@@ -1767,36 +1479,30 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 errorMessage = { it.error },
                                 update = {
                                     applyAllGrades(it)
-                                    cacheData(SettingsManager.CACHE_GRADES, it)
                                 }
                             )
                         }
                     ).awaitAll()
 
                     // ── Gap-fill for refreshAllAcademic ──
-                    val grades = _allGrades.value
-                    if (grades?.grades != null) {
-                        val missingSemIds = grades.grades.keys
-                            .filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
-                            .filter { it !in _allSemesterMarks.value.keys }
+                    val grades = AppDataStore.academic.value.semesters.keys
+                    if (grades.isNotEmpty()) {
+                        val missingSemIds = grades
+                            .filter { it != sem }
+                            .filter { semId ->
+                                val semData = AppDataStore.academic.value.semesters[semId]
+                                semData == null || semData.courses.values.none { it.marks != null }
+                            }
                         for (semId in missingSemIds) {
                             try {
                                 val res = AmazeClient.getAcademicData(semId)
                                 if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
-                                    val attCurrent = _allSemesterAttendance.value.toMutableMap()
-                                    attCurrent[semId] = res.attendance
-                                    _allSemesterAttendance.value = attCurrent
+                                    AppDataStore.upsertAttendance(semId, res.attendance)
                                 }
-                                if (res.marks?.marks?.isNotEmpty() == true) {
-                                    val marksCurrent = _allSemesterMarks.value.toMutableMap()
-                                    marksCurrent[semId] = res.marks
-                                    _allSemesterMarks.value = marksCurrent
+                                if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
+                                    AppDataStore.upsertMarks(semId, res.marks)
                                 }
                             } catch (_: Exception) { }
-                        }
-                        if (missingSemIds.isNotEmpty()) {
-                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
-                            cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
                         }
                         SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
                         _pastSemestersSynced.value = true
@@ -1812,28 +1518,20 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         launchSweep(setOf(SyncModule.ALL_SEMESTER_ATTENDANCE)) {
             _syncStatus.value = "Refreshing past semester data..."
             val sem = _selectedSemester.value
-                val gradeSemIds = _allGrades.value?.grades?.keys
-                    ?.filter { it != "curriculum" && it != "effectiveGrades" && it != sem }
-                    ?: emptyList()
+                val gradeSemIds = AppDataStore.academic.value.semesters.keys.filter { it != sem }
                 val allSemIds = (gradeSemIds + semesterIDs).distinct().filter { it != sem }
                 var failed = false
                 for (semId in allSemIds) {
                     try {
                         val res = AmazeClient.getAcademicData(semId)
                         if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
-                            val attCurrent = _allSemesterAttendance.value.toMutableMap()
-                            attCurrent[semId] = res.attendance
-                            _allSemesterAttendance.value = attCurrent
+                            AppDataStore.upsertAttendance(semId, res.attendance)
                         }
-                        if (res.marks?.marks?.isNotEmpty() == true) {
-                            val marksCurrent = _allSemesterMarks.value.toMutableMap()
-                            marksCurrent[semId] = res.marks
-                            _allSemesterMarks.value = marksCurrent
+                        if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
+                            AppDataStore.upsertMarks(semId, res.marks)
                         }
                     } catch (_: Exception) { failed = true }
                 }
-                cacheData(SettingsManager.CACHE_ALL_SEMESTER_ATTENDANCE, _allSemesterAttendance.value)
-                cacheData(SettingsManager.CACHE_ALL_SEMESTER_MARKS, _allSemesterMarks.value)
                 SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
                 _pastSemestersSynced.value = true
                 updateSyncSummary(listOf(SyncModuleResult("All Semesters Attendance", !failed)))
@@ -1850,8 +1548,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 isSuccess = { it.error == null },
                 errorMessage = { it.error },
                 update = {
-                    _payments.value = it
-                    cacheData(SettingsManager.CACHE_PAYMENTS, it)
+                    AppDataStore.setPayments(it)
                 }
             )
             updateSyncSummary(listOf(result))
@@ -1868,8 +1565,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 isSuccess = { it.error == null },
                 errorMessage = { it.error },
                 update = {
-                    _hostelDetails.value = it
-                    cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
+                    AppDataStore.setHostelDetails(it)
                 }
             )
             updateSyncSummary(listOf(result))
@@ -1877,43 +1573,28 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     }
 
     fun refreshMessMenu(gender: String?, messType: String?) {
-        val cached = settings.getString(SettingsManager.CACHE_MESS_MENU, "")
-        if (cached.isNotBlank()) {
-            try { _messMenu.value = jsonFormat.decodeFromString<MessMenuRes>(cached) } catch (_: Exception) {}
-        }
         scope.launch {
             val res = AmazeClient.getMessMenu(gender, messType)
             if (res.list.isNotEmpty()) {
-                _messMenu.value = res
-                SettingsManager.setString(SettingsManager.CACHE_MESS_MENU, jsonFormat.encodeToString(MessMenuRes.serializer(), res))
+                AppDataStore.setMessMenu(res)
             }
         }
     }
 
     fun refreshLaundrySchedule(gender: String?, blockPrefix: String) {
-        val cached = settings.getString(SettingsManager.CACHE_LAUNDRY, "")
-        if (cached.isNotBlank()) {
-            try { _laundrySchedule.value = jsonFormat.decodeFromString<LaundryRes>(cached) } catch (_: Exception) {}
-        }
         scope.launch {
             val res = AmazeClient.getLaundrySchedule(gender, blockPrefix)
             if (res.list.isNotEmpty()) {
-                _laundrySchedule.value = res
-                SettingsManager.setString(SettingsManager.CACHE_LAUNDRY, jsonFormat.encodeToString(LaundryRes.serializer(), res))
+                AppDataStore.setLaundrySchedule(res)
             }
         }
     }
 
     fun refreshHostelCounselling() {
-        val cached = settings.getString(SettingsManager.CACHE_HOSTEL_COUNSELLING, "")
-        if (cached.isNotBlank()) {
-            try { _hostelCounselling.value = jsonFormat.decodeFromString<ArrearResponse>(cached) } catch (_: Exception) {}
-        }
         scope.launch {
             val res = AmazeClient.getHostelCounselling()
             if (res.success) {
-                _hostelCounselling.value = res
-                SettingsManager.setString(SettingsManager.CACHE_HOSTEL_COUNSELLING, jsonFormat.encodeToString(ArrearResponse.serializer(), res))
+                AppDataStore.setHostelCounselling(res)
             }
         }
     }
@@ -1928,8 +1609,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 isSuccess = { it.error == null },
                 errorMessage = { it.error },
                 update = {
-                    _calendar.value = it
-                    cacheData(SettingsManager.CACHE_CALENDAR, it)
+                    AppDataStore.setCalendar(it)
                 }
             )
             updateSyncSummary(listOf(result))
@@ -1947,8 +1627,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 isSuccess = { it.success },
                 errorMessage = { it.message },
                 update = {
-                    _calendarsList.value = it
-                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                    AppDataStore.setCalendarsList(it)
                 }
             )
             updateSyncSummary(listOf(res))
@@ -1965,8 +1644,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 isSuccess = { it.success },
                 errorMessage = { it.message },
                 update = {
-                    _qcmView.value = it
-                    cacheData(SettingsManager.CACHE_QCM_VIEW, it)
+                    AppDataStore.setQcmView(it)
                 }
             )
             updateSyncSummary(listOf(res))
@@ -1983,8 +1661,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 isSuccess = { it.error == null },
                 errorMessage = { it.error },
                 update = {
-                    _curriculum.value = it
-                    cacheData(SettingsManager.CACHE_CURRICULUM, it)
+                    AppDataStore.setCurriculum(it)
                 }
             )
             updateSyncSummary(listOf(result))
@@ -2002,7 +1679,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 errorMessage = { it.error },
                 update = {
                     applyAllGrades(it)
-                    cacheData(SettingsManager.CACHE_GRADES, it)
                 }
             )
             updateSyncSummary(listOf(result))
@@ -2016,27 +1692,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             _syncStatus.value = "Syncing profile..."
             val results = supervisorScope {
                     listOf(
-                        async {
-                            syncModule("Student Profile", { AmazeClient.getStudentProfile() }, { it.success && it.data != null }, { it.error }) {
-                                UserStore.merge(IdentityExtractor.fromStudentProfile(it), IdentitySource.STUDENT)
-                            }
-                        },
-                        async {
-                            syncModule("Profile Images", { AmazeClient.getProfileImages() }, { it.success }, { it.error }) {
-                                UserStore.merge(IdentityExtractor.fromProfileImages(it), IdentitySource.PROFILE_IMAGES)
-                            }
-                        },
-                        async {
-                            syncModule("Credentials", { AmazeClient.getCredentials() }, { it.success }, { it.error }) {
-                                UserStore.merge(IdentityExtractor.fromCredentials(it), IdentitySource.CREDENTIALS)
-                                reconcileExamSeatAlerts()
-                            }
-                        },
-                        async {
-                            syncModule("Bank Information", { AmazeClient.getBankInfo() }, { it.success }, { it.error }) {
-                                UserStore.merge(IdentityExtractor.fromBankInfo(it), IdentitySource.BANK)
-                            }
-                        },
                         async {
                             syncModule("Dayboarder Info", { AmazeClient.getDayboarderInfo() }, { it.success }, { it.error }) {
                                 UserStore.merge(IdentityExtractor.fromDayboarder(it), IdentitySource.RECORDS)
@@ -2058,12 +1713,13 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 UserStore.merge(IdentityExtractor.fromUniversityDay(it), IdentitySource.RECORDS)
                             }
                         },
-                        async {
-                            syncModule("APAAR ID", { AmazeClient.getApaarId() }, { it.success }, { it.error }) {
-                                UserStore.merge(IdentityExtractor.fromApaarId(it), IdentitySource.APAAR)
-                            }
+                        async { syncIdentityModules() }
+                    ).awaitAll().flatMap { result ->
+                        when (result) {
+                            is List<*> -> @Suppress("UNCHECKED_CAST") (result as List<SyncModuleResult>)
+                            else -> listOf(result as SyncModuleResult)
                         }
-                    ).awaitAll()
+                    }
                 }
                 updateSyncSummary(results)
         }
@@ -2079,9 +1735,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                     isSuccess = { it.error == null },
                     errorMessage = { it.error },
                     update = {
-                        _library.value = it
+                        AppDataStore.setLibrary(it)
                         _libraryLoginRequired.value = false
-                        cacheData(SettingsManager.CACHE_LIBRARY, it)
                     }
                 )
                 if (!result.success && result.message == "NO_LIB_CREDS") {
@@ -2104,8 +1759,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _transportData.value = it
-                                    cacheData(SettingsManager.CACHE_TRANSPORT_DATA, it)
+                                    AppDataStore.setTransportData(it)
                                 }
                             )
                         },
@@ -2116,8 +1770,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _buses.value = it
-                                    cacheData(SettingsManager.CACHE_BUSES, it)
+                                    AppDataStore.setBuses(it)
                                 }
                             )
                         }
@@ -2137,8 +1790,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                     isSuccess = { it.error == null },
                     errorMessage = { it.error },
                     update = {
-                        _lms.value = it
-                        cacheData(SettingsManager.CACHE_LMS, it)
+                        AppDataStore.setLms(it)
                     }
                 )
                 updateSyncSummary(listOf(result))
@@ -2147,8 +1799,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
 
     fun selectExamSemester(semesterId: String) {
         _selectedExamSemester.value = semesterId
-        _examSchedule.value = _allSemesterExams.value[semesterId]
-        if (_allSemesterExams.value[semesterId]?.schedule?.isEmpty() != false) {
+        if (AppDataStore.academic.value.semesters[semesterId]?.exams?.isEmpty() != false) {
             refreshExamSchedule()
         }
     }
@@ -2185,11 +1836,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                     isSuccess = { it.error == null },
                     errorMessage = { it.error },
                     update = {
-                        _examSchedule.value = it
-                        cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, it)
-                        val map = _allSemesterExams.value.toMutableMap()
-                        map[semId] = it
-                        _allSemesterExams.value = map
+                        AppDataStore.upsertExams(semId, it)
                     }
                 )
                 
@@ -2199,13 +1846,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                     try {
                         val res = AmazeClient.getExamSchedule(semesterId = otherSemId)
                         if (res.error == null && res.schedule.isNotEmpty()) {
-                            val examCurrent = _allSemesterExams.value.toMutableMap()
-                            examCurrent[otherSemId] = res
-                            _allSemesterExams.value = examCurrent
+                            AppDataStore.upsertExams(otherSemId, res)
                         }
                     } catch (_: Exception) {}
                 }
-                cacheData(SettingsManager.CACHE_ALL_SEMESTER_EXAMS, _allSemesterExams.value)
                 updateSyncSummary(listOf(result))
         }
     }
@@ -2220,8 +1864,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                     isSuccess = { it.success },
                     errorMessage = { it.error ?: it.message },
                     update = {
-                        _circulars.value = it
-                        cacheData(SettingsManager.CACHE_CIRCULARS, it)
+                        AppDataStore.setCirculars(it)
                     }
                 )
                 updateSyncSummary(listOf(result))
@@ -2270,6 +1913,63 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         }
     }
 
+    /**
+     * Identity sync: one consolidated `/api/me` fetch merged under the ME tier,
+     * replacing the five per-endpoint identity fetches (tiers 2–6). Falls back
+     * to those individual fetches when `/api/me` is unavailable (old server,
+     * demo mode, partial failure).
+     */
+    private suspend fun syncIdentityModules(): List<SyncModuleResult> {
+        val me = AmazeClient.getMe()
+        if (me.success && me.identity != null) {
+            UserStore.merge(me.identity, IdentitySource.ME)
+            reconcileExamSeatAlerts()
+            val names = listOf(
+                "Student Profile", "Profile Images", "Credentials",
+                "Bank Information", "APAAR ID"
+            ).filter { name ->
+                SyncEngine.moduleOf(name)?.let { SyncEngine.isModuleEnabled(it) } ?: true
+            }
+            names.forEach { name ->
+                SyncEngine.moduleOf(name)?.let {
+                    SyncEngine.markModuleSuccess(it)
+                    SyncEngine.addLog(it, "Synced via /api/me", SyncStatus.SUCCESS)
+                }
+            }
+            return names.map { SyncModuleResult(it, true) }
+        }
+        return supervisorScope {
+            listOf(
+                async {
+                    syncModule("Student Profile", { AmazeClient.getStudentProfile() }, { it.success && it.data != null }, { it.error }) {
+                        UserStore.merge(IdentityExtractor.fromStudentProfile(it), IdentitySource.STUDENT)
+                    }
+                },
+                async {
+                    syncModule("Profile Images", { AmazeClient.getProfileImages() }, { it.success }, { it.error }) {
+                        UserStore.merge(IdentityExtractor.fromProfileImages(it), IdentitySource.PROFILE_IMAGES)
+                    }
+                },
+                async {
+                    syncModule("Credentials", { AmazeClient.getCredentials() }, { it.success }, { it.error }) {
+                        UserStore.merge(IdentityExtractor.fromCredentials(it), IdentitySource.CREDENTIALS)
+                        reconcileExamSeatAlerts()
+                    }
+                },
+                async {
+                    syncModule("Bank Information", { AmazeClient.getBankInfo() }, { it.success }, { it.error }) {
+                        UserStore.merge(IdentityExtractor.fromBankInfo(it), IdentitySource.BANK)
+                    }
+                },
+                async {
+                    syncModule("APAAR ID", { AmazeClient.getApaarId() }, { it.success }, { it.error }) {
+                        UserStore.merge(IdentityExtractor.fromApaarId(it), IdentitySource.APAAR)
+                    }
+                }
+            ).awaitAll()
+        }
+    }
+
     private fun updateSyncSummary(results: List<SyncModuleResult>) {
         val failures = results.filterNot { it.success }
             .filter { it.message != "NO_LIB_CREDS" }
@@ -2293,45 +1993,16 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         _currentScreen.value = Screen.LOGIN
         
         // Clear caches
-        _attendance.value = null
+        AppDataStore.clear()
         UserStore.clear()
-        _ffcsRegistration.value = null
         _pendingFfcsAlert.value = null
-        _circulars.value = null
-        _timetable.value = null
-        _marks.value = null
-        _allGrades.value = null
-        _allSemesterAttendance.value = emptyMap()
-        _allSemesterMarks.value = emptyMap()
-        _allSemesterExams.value = emptyMap()
         _pastSemestersSynced.value = false
-        _hostelDetails.value = null
-        _messMenu.value = null
-        _laundrySchedule.value = null
-        _hostelCounselling.value = null
-        _examSchedule.value = null
-        _calendar.value = null
-        _payments.value = null
-        _library.value = null
-        _transportData.value = null
-        _buses.value = null
-        _lms.value = null
-        _events.value = null
-        _registeredEvents.value = null
-        _clubs.value = null
-        
-        _moodleData.value = null
-        _curriculum.value = null
-        _selectedSemester.value = "CH20262701"
+        _selectedSemester.value = DEFAULT_SEMESTER_ID
+        _selectedExamSemester.value = DEFAULT_SEMESTER_ID
         _selectedCourseCode.value = null
         _selectedCourseSemester.value = null
         clearTargets()
         _isLoading.value = false
-        _cabShareUser.value = null
-        _cabHubs.value = emptyList()
-        _allSemesterMarks.value = emptyMap()
-        _allSemesterAttendance.value = emptyMap()
-        _allSemesterExams.value = emptyMap()
         _libraryLoginRequired.value = false
         _error.value = null
         _syncStatus.value = null
@@ -2367,27 +2038,16 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     }
 
     fun updateAttendance(data: AttendanceRes?) {
-        _attendance.value = data
-    }
-
-    fun updateMarks(data: MarksRes?) {
-        _marks.value = data
+        AppDataStore.upsertAttendance(_selectedSemester.value, data)
     }
 
 fun updateMoodleData(data: MoodleRes?) {
-        _moodleData.value = data
-        if (data != null) {
-            try {
-                settings[SettingsManager.CACHE_MOODLE] = jsonFormat.encodeToString(data)
-            } catch (e: Exception) { println("AmazeCC: AppState updateMoodleData — ${e.message}") }
-        } else {
-            settings.remove(SettingsManager.CACHE_MOODLE)
-        }
+        AppDataStore.setMoodle(data)
         scope.launch { scheduleReminders() }
     }
 
     fun getMoodleAssignmentsForCourse(courseCode: String): List<MoodleAssignment> {
-        return _moodleData.value?.data?.filter { a ->
+        return AppDataStore.moodleData.value?.data?.filter { a ->
             a.courseCode.equals(courseCode, ignoreCase = true) ||
             a.name.contains(courseCode, ignoreCase = true)
         } ?: emptyList()
@@ -2399,8 +2059,7 @@ fun updateMoodleData(data: MoodleRes?) {
             try {
                 val res = AmazeClient.cabShareAuth(username, password, phoneNumber)
                 if (res.success && res.user != null) {
-                    _cabShareUser.value = res.user
-                    cacheData(SettingsManager.CACHE_CAB_USER, res.user)
+                    AppDataStore.setCabShareUser(res.user)
                     onResult(true, "Authenticated!")
                 } else {
                     onResult(false, res.error ?: "Authentication failed")
@@ -2413,17 +2072,16 @@ fun updateMoodleData(data: MoodleRes?) {
     }
 
     fun cabShareLogout() {
-        _cabShareUser.value = null
-        settings.remove(SettingsManager.CACHE_CAB_USER)
+        AppDataStore.setCabShareUser(null)
     }
 
     fun fetchCabHubs() {
         scope.launch {
             try {
                 val hubs = AmazeClient.getCabHubs()
-                _cabHubs.value = hubs
+                AppDataStore.setCabHubs(hubs)
             } catch (_: Exception) {
-                _cabHubs.value = fallbackCabHubs
+                AppDataStore.setCabHubs(fallbackCabHubs)
             }
         }
     }
@@ -2467,7 +2125,7 @@ fun updateMoodleData(data: MoodleRes?) {
     fun cabRefreshMyTripsNew(onResult: (myTrips: List<CabShareTrip>, joinedTrips: List<CabShareTrip>) -> Unit = { _, _ -> }) {
         scope.launch {
             try {
-                val user = _cabShareUser.value
+                val user = AppDataStore.cabShareUser.value
                 if (user == null) {
                     onResult(emptyList(), emptyList())
                     return@launch
@@ -2483,7 +2141,7 @@ fun updateMoodleData(data: MoodleRes?) {
     fun cabRequestJoinNew(tripId: Long, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
         scope.launch {
             try {
-                val user = _cabShareUser.value ?: run {
+                val user = AppDataStore.cabShareUser.value ?: run {
                     onResult(false, "Not authenticated")
                     return@launch
                 }
@@ -2498,7 +2156,7 @@ fun updateMoodleData(data: MoodleRes?) {
     fun cabHandleMatchAction(matchId: Long, action: String, onResult: (Boolean, String) -> Unit = { _, _ -> }) {
         scope.launch {
             try {
-                val user = _cabShareUser.value ?: run {
+                val user = AppDataStore.cabShareUser.value ?: run {
                     onResult(false, "Not authenticated")
                     return@launch
                 }
@@ -2516,8 +2174,7 @@ fun updateMoodleData(data: MoodleRes?) {
             try {
                 val eventsRes = AmazeClient.getEvents()
                 if (eventsRes.error == null) {
-                    _events.value = eventsRes
-                    cacheData(SettingsManager.CACHE_EVENTS, eventsRes)
+                    AppDataStore.setEvents(eventsRes)
                     SyncEngine.markModuleSuccess(SyncModule.EVENTS)
                     SyncEngine.addLog(SyncModule.EVENTS, "Synced", SyncStatus.SUCCESS)
                 } else {
@@ -2531,8 +2188,7 @@ fun updateMoodleData(data: MoodleRes?) {
             try {
                 val clubsRes = AmazeClient.getClubsDetails()
                 if (clubsRes.error == null) {
-                    _clubs.value = clubsRes
-                    cacheData(SettingsManager.CACHE_CLUBS, clubsRes)
+                    AppDataStore.setClubs(clubsRes)
                     SyncEngine.markModuleSuccess(SyncModule.CLUBS)
                     SyncEngine.addLog(SyncModule.CLUBS, "Synced", SyncStatus.SUCCESS)
                 } else {
@@ -2560,11 +2216,9 @@ fun updateMoodleData(data: MoodleRes?) {
             isSuccess = { it.attendance.error == null },
             errorMessage = { it.attendance.error },
             update = {
-                _attendance.value = it.attendance
-                cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
+                AppDataStore.upsertAttendance(sem, it.attendance)
                 it.marks?.let { m ->
-                    _marks.value = m
-                    cacheData(SettingsManager.CACHE_MARKS, m)
+                    AppDataStore.upsertMarks(sem, m)
                 }
             }
         )
@@ -2579,8 +2233,7 @@ fun updateMoodleData(data: MoodleRes?) {
             isSuccess = { it.error == null },
             errorMessage = { it.error },
             update = {
-                _timetable.value = it
-                cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                AppDataStore.upsertTimetable(sem, it)
             }
         )
         updateOnboardingStep("Timetable", if (res.success) "done" else "failed")
@@ -2595,7 +2248,6 @@ fun updateMoodleData(data: MoodleRes?) {
             errorMessage = { it.error },
             update = {
                 applyAllGrades(it)
-                cacheData(SettingsManager.CACHE_GRADES, it)
             }
         )
         updateOnboardingStep("Grades", if (res.success) "done" else "failed")
@@ -2609,8 +2261,7 @@ fun updateMoodleData(data: MoodleRes?) {
             isSuccess = { it.error == null },
             errorMessage = { it.error },
             update = {
-                _curriculum.value = it
-                cacheData(SettingsManager.CACHE_CURRICULUM, it)
+                AppDataStore.setCurriculum(it)
             }
         )
         updateOnboardingStep("Curriculum", if (res.success) "done" else "failed")
@@ -2624,8 +2275,7 @@ fun updateMoodleData(data: MoodleRes?) {
             isSuccess = { it.error == null },
             errorMessage = { it.error },
             update = {
-                _hostelDetails.value = it
-                cacheData(SettingsManager.CACHE_HOSTEL_DETAILS, it)
+                AppDataStore.setHostelDetails(it)
             }
         )
         updateOnboardingStep("Hostel", if (res.success) "done" else "failed")
@@ -2639,8 +2289,7 @@ fun updateMoodleData(data: MoodleRes?) {
             isSuccess = { it.error == null },
             errorMessage = { it.error },
             update = {
-                _payments.value = it
-                cacheData(SettingsManager.CACHE_PAYMENTS, it)
+                AppDataStore.setPayments(it)
             }
         )
         updateOnboardingStep("Payments", if (res.success) "done" else "failed")
@@ -2654,8 +2303,7 @@ fun updateMoodleData(data: MoodleRes?) {
             isSuccess = { it.error == null },
             errorMessage = { it.error },
             update = {
-                _events.value = it
-                cacheData(SettingsManager.CACHE_EVENTS, it)
+                AppDataStore.setEvents(it)
             }
         )
         updateOnboardingStep("Events", if (res.success) "done" else "failed")
@@ -2781,20 +2429,14 @@ fun updateMoodleData(data: MoodleRes?) {
                             syncModule(
                                 name = "Attendance",
                                 fetch = { AmazeClient.getAcademicData(sem) },
-                                isSuccess = { it.attendance.error == null && it.marks?.error == null },
-                                errorMessage = { it.attendance.error ?: it.marks?.error },
+                                isSuccess = { it.attendance.error == null },
+                                errorMessage = { it.attendance.error },
                                 update = {
-                                    _attendance.value = it.attendance
-                                    cacheData(SettingsManager.CACHE_ATTENDANCE, it.attendance)
-                                    val attMap = _allSemesterAttendance.value.toMutableMap()
-                                    attMap[sem] = it.attendance
-                                    _allSemesterAttendance.value = attMap
-                                    it.marks?.let { marks ->
-                                        _marks.value = marks
-                                        cacheData(SettingsManager.CACHE_MARKS, marks)
-                                        val marksMap = _allSemesterMarks.value.toMutableMap()
-                                        marksMap[sem] = marks
-                                        _allSemesterMarks.value = marksMap
+                                    AppDataStore.upsertAttendance(sem, it.attendance)
+                                    if (it.marks?.error == null) {
+                                        it.marks?.let { marks ->
+                                            AppDataStore.upsertMarks(sem, marks)
+                                        }
                                     }
                                 }
                             )
@@ -2806,8 +2448,7 @@ fun updateMoodleData(data: MoodleRes?) {
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _timetable.value = it
-                                    cacheData(SettingsManager.CACHE_TIMETABLE, it)
+                                    AppDataStore.upsertTimetable(sem, it)
                                 }
                             )
                         },
@@ -2819,7 +2460,6 @@ fun updateMoodleData(data: MoodleRes?) {
                                 errorMessage = { it.error },
                                 update = {
                                     applyAllGrades(it)
-                                    cacheData(SettingsManager.CACHE_GRADES, it)
                                 }
                             )
                         },
@@ -2830,11 +2470,7 @@ fun updateMoodleData(data: MoodleRes?) {
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _examSchedule.value = it
-                                    cacheData(SettingsManager.CACHE_EXAM_SCHEDULE, it)
-                                    val examMap = _allSemesterExams.value.toMutableMap()
-                                    examMap[sem] = it
-                                    _allSemesterExams.value = examMap
+                                    AppDataStore.upsertExams(sem, it)
                                 }
                             )
                         },
@@ -2845,8 +2481,7 @@ fun updateMoodleData(data: MoodleRes?) {
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _calendar.value = it
-                                    cacheData(SettingsManager.CACHE_CALENDAR, it)
+                                    AppDataStore.setCalendar(it)
                                 }
                             )
                         },
@@ -2857,8 +2492,7 @@ fun updateMoodleData(data: MoodleRes?) {
                                 isSuccess = { it.success },
                                 errorMessage = { it.message },
                                 update = {
-                                    _calendarsList.value = it
-                                    cacheData(SettingsManager.CACHE_CALENDARS_LIST, it)
+                                    AppDataStore.setCalendarsList(it)
                                 }
                             )
                         },
@@ -2869,8 +2503,7 @@ fun updateMoodleData(data: MoodleRes?) {
                                 isSuccess = { it.error == null },
                                 errorMessage = { it.error },
                                 update = {
-                                    _lms.value = it
-                                    cacheData(SettingsManager.CACHE_LMS, it)
+                                    AppDataStore.setLms(it)
                                 }
                             )
                         },
@@ -2881,8 +2514,7 @@ fun updateMoodleData(data: MoodleRes?) {
                                 isSuccess = { it.success },
                                 errorMessage = { it.error ?: it.message },
                                 update = {
-                                    _circulars.value = it
-                                    cacheData(SettingsManager.CACHE_CIRCULARS, it)
+                                    AppDataStore.setCirculars(it)
                                 }
                             )
                         },
@@ -2898,8 +2530,7 @@ fun updateMoodleData(data: MoodleRes?) {
                                     isSuccess = { it.success },
                                     errorMessage = { it.error ?: it.message },
                                     update = {
-                                        _moodleData.value = it
-                                        cacheData(SettingsManager.CACHE_MOODLE, it)
+                                    AppDataStore.setMoodle(it)
                                     }
                                 )
                             }
@@ -2926,8 +2557,7 @@ fun updateMoodleData(data: MoodleRes?) {
             _isSyncing.value = true
             val res = AmazeClient.getLibrary(username, password)
             if (res.error == null) {
-                _library.value = res
-                cacheData(SettingsManager.CACHE_LIBRARY, res)
+                AppDataStore.setLibrary(res)
             } else if (res.error == "NO_LIB_CREDS") {
                 _libraryLoginRequired.value = true
             }
@@ -2941,7 +2571,7 @@ fun updateMoodleData(data: MoodleRes?) {
             _isSyncing.value = true
             val res = AmazeClient.fetchMoodleData(username, password)
             if (res.success) {
-                _moodleData.value = res
+                AppDataStore.setMoodle(res)
             }
             _isSyncing.value = false
         }
