@@ -24,6 +24,7 @@ import com.amazecc.app.shared.ui.components.NotificationPermissionManager
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AndroidApp.attachActivity(this)
         val nfcManager = AndroidNfcManager(this)
 
         AppState.checkDueSync()
@@ -73,5 +74,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         AppState.checkDueSync()
+    }
+
+    override fun onDestroy() {
+        AndroidApp.detachActivity(this)
+        super.onDestroy()
     }
 }

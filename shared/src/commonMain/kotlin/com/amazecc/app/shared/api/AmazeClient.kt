@@ -65,6 +65,17 @@ object AmazeClient {
     val baseUrl = "https://api.amazecc.com"
     private var useMockData = false // Toggle for offline testing
 
+    /**
+     * Where VTOP-backed data is fetched from. `LOCAL` uses the on-device WebView engine,
+     * `REMOTE` proxies through [baseUrl].
+     */
+    val vtopSource: com.amazecc.app.shared.vtop.VtopSource
+        get() = com.amazecc.app.shared.vtop.VtopSource
+            .fromName(SettingsManager.getVtopSourceName())
+
+    fun setVtopSource(source: com.amazecc.app.shared.vtop.VtopSource) {
+        SettingsManager.setVtopSourceName(source.name)
+    }
 
     fun setUseMockData(enable: Boolean) {
         useMockData = enable
@@ -86,8 +97,12 @@ object AmazeClient {
         }
     }
 
-    suspend fun login(username: String, password: String): LoginResponse {
-if (useMockData) return DemoData.get("login", LoginResponse.serializer()) ?: LoginResponse(success = true, message = "Demo login successful")
+    suspend fun login(username: String, password: String, captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler? = null): LoginResponse {
+        if (useMockData) return DemoData.get("login", LoginResponse.serializer()) ?: LoginResponse(success = true, message = "Demo login successful")
+
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return loginLocal(username, password, captchaHandler)
+        }
 
         return try {
             val response: HttpResponse = httpClient.post("$baseUrl/api/login") {
@@ -104,8 +119,64 @@ if (useMockData) return DemoData.get("login", LoginResponse.serializer()) ?: Log
         }
     }
 
+    /**
+     * On-device VTOP login.
+     *
+     * Reaches VTOP directly because the server cannot: VTOP accepts connections only from
+     * Indian IP space and this API is served from Singapore. Returns the same [LoginResponse]
+     * shape the remote path does, so callers are unchanged. The cookie field carries
+     * [SessionManager.LOCAL_SESSION_MARKER] because the real `JSESSIONID` stays in the WebView.
+     */
+    private suspend fun loginLocal(
+        username: String,
+        password: String,
+        captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler?
+    ): LoginResponse {
+        if (!com.amazecc.app.shared.vtop.Vtop.isSupported) {
+            return LoginResponse(
+                success = false,
+                message = "On-device VTOP is not supported on this platform. Switch the VTOP source to Remote in Settings.",
+                error = "unsupported_platform"
+            )
+        }
+        if (captchaHandler == null) {
+            return LoginResponse(
+                success = false,
+                message = "A captcha handler is required for on-device login.",
+                error = "missing_captcha_handler"
+            )
+        }
+
+        return when (val result = com.amazecc.app.shared.vtop.Vtop.login(username, password, captchaHandler)) {
+            is com.amazecc.app.shared.vtop.LoginResult.Success -> LoginResponse(
+                success = true,
+                message = "Login successful!",
+                cookies = SessionManager.LOCAL_SESSION_MARKER,
+                csrf = result.csrf,
+                authorizedID = result.authorizedID,
+                clubToken = null
+            )
+            is com.amazecc.app.shared.vtop.LoginResult.InvalidCaptcha ->
+                LoginResponse(false, "Invalid Captcha", error = "invalid_captcha")
+            is com.amazecc.app.shared.vtop.LoginResult.InvalidCredentials ->
+                LoginResponse(false, "Invalid Username / Password", error = "invalid_credentials")
+            is com.amazecc.app.shared.vtop.LoginResult.AccountLocked ->
+                LoginResponse(false, "Account is locked. Contact the VTOP administrator.", error = "account_locked")
+            is com.amazecc.app.shared.vtop.LoginResult.MaxAttempts ->
+                LoginResponse(false, "Maximum login attempts reached. Try again later.", error = "max_attempts")
+            is com.amazecc.app.shared.vtop.LoginResult.Failure ->
+                LoginResponse(false, result.message, error = "vtop_failure")
+            else ->
+                LoginResponse(false, "Login failed for an unknown reason.", error = "unknown")
+        }
+    }
+
     // Helper for POST requests carrying cookies, authorizedID, and csrf
     private suspend inline fun <reified T> postAuthorized(endpoint: String, extraParams: Map<String, String> = emptyMap()): T? {
+        // In LOCAL mode the real JSESSIONID lives in the WebView cookie jar and was never
+        // meant to leave the device. There is nothing valid to send.
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) return null
+        if (!SessionManager.hasRemoteCookies) return null
         val cookies = SessionManager.cookies.value ?: return null
         val authorizedID = SessionManager.authorizedID.value ?: return null
         val csrf = SessionManager.csrf.value ?: return null
@@ -127,6 +198,8 @@ if (useMockData) return DemoData.get("login", LoginResponse.serializer()) ?: Log
     }
 
     private suspend inline fun <reified T> postAuthorizedBody(endpoint: String, body: String): T? {
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) return null
+        if (!SessionManager.hasRemoteCookies) return null
         val cookies = SessionManager.cookies.value ?: return null
         val authorizedID = SessionManager.authorizedID.value ?: return null
         val csrf = SessionManager.csrf.value ?: return null

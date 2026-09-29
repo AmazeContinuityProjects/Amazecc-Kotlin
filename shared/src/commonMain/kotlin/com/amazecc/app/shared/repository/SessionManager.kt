@@ -6,6 +6,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.datetime.Clock
 
 object SessionManager {
+    /**
+     * Stand-in for the cookie string when the session is held on-device.
+     *
+     * In `VtopSource.LOCAL` the real `JSESSIONID` never leaves the WebView's `CookieManager`,
+     * so there is nothing to store here. The marker keeps `isLoggedIn` and the existing login
+     * screen checks working without a second session shape.
+     */
+    const val LOCAL_SESSION_MARKER = "vtop-local"
+
     private val _cookies = MutableStateFlow<String?>(SettingsManager.getNullableString(SettingsManager.SESSION_COOKIES))
     val cookies: StateFlow<String?> = _cookies.asStateFlow()
 
@@ -27,6 +36,14 @@ object SessionManager {
 
     val isLoggedIn: Boolean
         get() = _cookies.value != null && _csrf.value != null && _authorizedID.value != null
+
+    /** True when the active session is held in the on-device VTOP engine rather than a cookie string. */
+    val isLocalSession: Boolean
+        get() = _cookies.value == LOCAL_SESSION_MARKER
+
+    /** True when there is a real cookie string to send to the server. */
+    val hasRemoteCookies: Boolean
+        get() = !_cookies.value.isNullOrBlank() && !isLocalSession
 
     fun saveSession(cookies: String, csrf: String, authorizedID: String, clubToken: String?) {
         _cookies.value = cookies

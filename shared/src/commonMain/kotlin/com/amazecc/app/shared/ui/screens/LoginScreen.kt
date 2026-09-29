@@ -49,7 +49,12 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeTextField
+import com.amazecc.app.shared.ui.components.VtopCaptchaPrompt
 import com.amazecc.app.shared.ui.strings.Strings
+import com.amazecc.app.shared.vtop.AutoCaptchaHandler
+import com.amazecc.app.shared.vtop.UiCaptchaHandler
+import com.amazecc.app.shared.vtop.Vtop
+import com.amazecc.app.shared.vtop.VtopSource
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.launch
@@ -69,6 +74,12 @@ fun LoginScreen() {
     var isRestoring by remember { mutableStateOf(true) }
     var logoScale by remember { mutableStateOf(0f) }
 
+    // On-device VTOP login parks here waiting for a captcha answer when the recogniser is not
+    // confident enough to submit on its own.
+    val captchaRequest by Vtop.captchaRequest.collectAsState()
+    val isLocalVtop = AmazeClient.vtopSource == VtopSource.LOCAL
+    val captchaHandler = remember { AutoCaptchaHandler(delegate = UiCaptchaHandler) }
+
     LaunchedEffect(Unit) {
         val creds = SettingsManager.getCredentials()
         if (creds != null) {
@@ -82,7 +93,7 @@ fun LoginScreen() {
             if (creds != null && SessionManager.authorizedID.value != null) {
                 scope.launch {
                     isSubmitting = true
-                    val response = AmazeClient.login(creds.first, creds.second)
+                    val response = AmazeClient.login(creds.first, creds.second, captchaHandler)
                     if (response.success && response.cookies != null && response.csrf != null && response.authorizedID != null) {
                         SessionManager.saveSession(response.cookies, response.csrf, response.authorizedID, response.clubToken)
                         SettingsManager.setString(SettingsManager.SESSION_COOKIES, response.cookies)
@@ -316,7 +327,7 @@ fun LoginScreen() {
                                 isSubmitting = true
                                 errorMessage = null
                                 try {
-                                    val response = AmazeClient.login(username, password)
+                                    val response = AmazeClient.login(username, password, captchaHandler)
                                     if (response.success && response.cookies != null && response.csrf != null && response.authorizedID != null) {
                                         AmazeClient.setUseMockData(false)
                                         SessionManager.saveSession(
@@ -388,5 +399,9 @@ fun LoginScreen() {
 
             Spacer(Modifier.height(AmazeTheme.spacing.lg))
         }
+    }
+
+    if (isLocalVtop && captchaRequest != null) {
+        VtopCaptchaPrompt(challenge = captchaRequest!!)
     }
 }

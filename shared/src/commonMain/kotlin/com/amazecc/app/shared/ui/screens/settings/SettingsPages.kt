@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.AttendanceDisplayMode
 import com.amazecc.app.shared.state.DashboardWidget
@@ -29,6 +30,7 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.theme.verdantAccentFor
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.vtop.VtopSource
 
 @Composable
 fun AppearancePage(onOpenSubScreen: (SettingsSubScreen) -> Unit = {}) {
@@ -557,6 +559,55 @@ private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme
                 fontSize = AmazeTheme.fontSize.xs,
                 maxLines = 1,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/**
+ * Where VTOP data is fetched from.
+ *
+ * `LOCAL` talks to VTOP from the device. That is the only working option today: VTOP accepts
+ * connections exclusively from Indian IP space, and api.amazecc.com is served from Singapore
+ * where every VTOP connection is dropped. `REMOTE` remains for the endpoints backed by our own
+ * Postgres (qbank, clubs, cabshare, transport, wishlist), which are unaffected.
+ *
+ * See docs/sep-29-2026/vtop-local-integration-plan.md
+ */
+@Composable
+fun VtopSourcePage() {
+    val colors = AmazeTheme.colors
+    var source by remember { mutableStateOf(AmazeClient.vtopSource) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SettingsGroupLabel("VTOP Connection")
+        SettingsGroupCard {
+            SettingsRow(
+                icon = Icons.Rounded.CloudSync,
+                title = "Data Source",
+                subtitle = when (source) {
+                    VtopSource.LOCAL -> "On this device. Required while the server cannot reach VTOP."
+                    VtopSource.REMOTE -> "Via api.amazecc.com. VTOP routes will fail."
+                },
+                value = source.name,
+                tint = if (source == VtopSource.LOCAL) colors.success else colors.warning,
+                onClick = {
+                    val next = if (source == VtopSource.LOCAL) VtopSource.REMOTE else VtopSource.LOCAL
+                    AmazeClient.setVtopSource(next)
+                    source = next
+                }
+            )
+            SettingsRowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.Info,
+                title = "Supported on this platform",
+                subtitle = if (com.amazecc.app.shared.vtop.Vtop.isSupported) {
+                    "On-device VTOP is available."
+                } else {
+                    "On-device VTOP is not available here. Use Remote."
+                },
+                tint = colors.info,
+                onClick = {}
             )
         }
     }

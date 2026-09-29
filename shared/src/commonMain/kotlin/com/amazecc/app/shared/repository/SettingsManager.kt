@@ -73,6 +73,14 @@ object SettingsManager {
     const val SESSION_CLUB_TOKEN = "session_club_token"
     const val SESSION_CREATED_AT = "session_created_at"
 
+    // Where VTOP data is fetched from: "LOCAL" (on-device) or "REMOTE" (api.amazecc.com).
+    // VTOP only accepts Indian IP space, so LOCAL is the default — the server proxy cannot
+    // reach it. See docs/sep-29-2026/vtop-local-integration-plan.md
+    const val KEY_VTOP_SOURCE = "vtop_source"
+
+    // Cached User-Agent currently in use by the local VTOP engine
+    const val KEY_VTOP_LAST_UA = "vtop_last_ua"
+
     // Library credentials (separate from VTOP)
     const val KEY_LIBRARY_USERNAME = "library_username"
     const val KEY_LIBRARY_PASSWORD = "library_password"
@@ -307,6 +315,17 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
     }
 
     fun getPreferredCalendar(): String? = getNullableString(KEY_PREFERRED_CALENDAR)
+
+    // ── VTOP data source ────────────────────────────────────────────────────
+
+    fun getVtopSourceName(): String = getString(KEY_VTOP_SOURCE, "LOCAL")
+
+    fun setVtopSourceName(name: String) = setString(KEY_VTOP_SOURCE, name)
+
+    /** False until the user has explicitly confirmed the migration prompt. */
+    fun isVtopSourcePrompted(): Boolean = getBoolean("vtop_source_prompted", false)
+
+    fun setVtopSourcePrompted(value: Boolean) = setBoolean("vtop_source_prompted", value)
 
     // ── Attendance Notes (per-course per-date "Got Notes?" tracking) ──
     const val CACHE_ATTENDANCE_NOTES = "cache_attendance_notes"

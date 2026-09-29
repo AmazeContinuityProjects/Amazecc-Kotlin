@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  VIT TLS trust-anchor augmentation for the on-device VTOP layer.
+
+  These are additional trust anchors, NOT pinning: "system" remains in every list, so a
+  valid public certificate still validates. The bundled PEMs exist so the WebView keeps
+  working if Sectigo's root is misissued, expired, or absent from the device's store.
+
+  Required by the local VTOP engine (docs/sep-29-2026/vtop-local-integration-plan.md).
+-->
+<network-security-config>
+    <domain-config>
+        <domain includeSubdomains="true">vit.ac.in</domain>
+        <trust-anchors>
+            <certificates src="@raw/vtop_cert" />
+            <certificates src="@raw/sectigo_ca_chain" />
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+    <domain-config>
+        <domain includeSubdomains="true">eventhubcc.vit.ac.in</domain>
+        <trust-anchors>
+            <certificates src="@raw/eventhub_cert" />
+            <certificates src="@raw/sectigo_ca_chain" />
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>
