@@ -88,6 +88,7 @@ private fun themeLabel(theme: AppTheme): String = when (theme) {
 private fun accentLabel(accent: AccentTheme): String = when (accent) {
     AccentTheme.OCEAN -> "Ocean"
     AccentTheme.FOREST -> "Forest"
+    AccentTheme.VERDANT -> "Verdant"
     AccentTheme.LAVENDER -> "Lavender"
     AccentTheme.SUNSET -> "Sunset"
     AccentTheme.CUSTOM -> "Custom"

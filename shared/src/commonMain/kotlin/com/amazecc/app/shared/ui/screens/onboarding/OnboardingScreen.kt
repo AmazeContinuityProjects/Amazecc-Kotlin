@@ -42,6 +42,7 @@ import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
+import com.amazecc.app.shared.theme.verdantAccentFor
 import com.amazecc.app.shared.ui.components.*
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalTime
@@ -488,32 +489,44 @@ private fun PersonalizationPage(
         Spacer(Modifier.height(AmazeTheme.spacing.lg))
         OnboardingSectionLabel("ACCENT COLOR", colors)
         Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOf(AccentTheme.OCEAN to colors.accent, AccentTheme.FOREST to colors.success, AccentTheme.LAVENDER to colors.info, AccentTheme.SUNSET to colors.chart1).forEach { (accent, accentColor) ->
-                val isSelected = selectedAccent == accent
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onAccentChange(accent); AppState.changeAccent(accent) }) {
-                    Box(
-                        modifier = Modifier.size(44.dp).clip(CircleShape).background(accentColor).border(if (isSelected) 3.dp else 0.dp, if (isSelected) colors.textPrimary else Color.Transparent, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isSelected) Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+        val accentOptions = listOf(
+            AccentTheme.OCEAN to colors.accent,
+            AccentTheme.FOREST to colors.success,
+            AccentTheme.VERDANT to verdantAccentFor(colors.background),
+            AccentTheme.LAVENDER to colors.info,
+            AccentTheme.SUNSET to colors.chart1,
+            AccentTheme.CUSTOM to customAccent
+        ).chunked(4)
+        accentOptions.forEach { accentRow ->
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                accentRow.forEach { (accent, accentColor) ->
+                    val isSelected = selectedAccent == accent
+                    val isCustom = accent == AccentTheme.CUSTOM
+                    val circleBrush = if (isCustom) {
+                        Brush.linearGradient(listOf(accentColor, accentColor.copy(alpha = 0.45f)))
+                    } else {
+                        Brush.linearGradient(listOf(accentColor, accentColor))
                     }
-                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                    Text(accent.name, style = AmazeTheme.typography.smallLabel.copy(color = if (isSelected) colors.textPrimary else colors.textSecondary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal))
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
+                        if (isCustom) showCustomAccent = true else { onAccentChange(accent); AppState.changeAccent(accent) }
+                    }) {
+                        Box(
+                            modifier = Modifier.size(44.dp).clip(CircleShape).background(circleBrush)
+                                .border(if (isSelected) 3.dp else 0.dp, if (isSelected) colors.textPrimary else Color.Transparent, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isCustom) {
+                                Icon(Icons.Rounded.Palette, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            } else if (isSelected) {
+                                Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                        Text(accent.name, style = AmazeTheme.typography.smallLabel.copy(color = if (isSelected) colors.textPrimary else colors.textSecondary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal))
+                    }
                 }
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { showCustomAccent = true }) {
-                Box(
-                    modifier = Modifier.size(44.dp).clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(customAccent, customAccent.copy(alpha = 0.45f))))
-                        .border(if (selectedAccent == AccentTheme.CUSTOM) 3.dp else 0.dp, if (selectedAccent == AccentTheme.CUSTOM) colors.textPrimary else Color.Transparent, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Rounded.Palette, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                }
-                Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                Text("Custom", style = AmazeTheme.typography.smallLabel.copy(color = if (selectedAccent == AccentTheme.CUSTOM) colors.textPrimary else colors.textSecondary, fontWeight = if (selectedAccent == AccentTheme.CUSTOM) FontWeight.Bold else FontWeight.Normal))
-            }
+            if (accentRow !== accentOptions.last()) Spacer(Modifier.height(AmazeTheme.spacing.md))
         }
         if (showCustomAccent) {
             ColorPickerSheet(

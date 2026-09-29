@@ -66,6 +66,14 @@ val Chart3Dark = Color(0xFFFBBF24)  // Amber
 val Chart4Dark = Color(0xFFC084FC)  // Purple
 val Chart5Dark = Color(0xFFFB7185)  // Rose
 
+// Verdant Accent - Botanical Emerald
+val VerdantLight = Color(0xFF006C4C)          // Deep Botanical Emerald
+val VerdantDark = Color(0xFF4EDE9A)           // Luminous Mint / Neon Sage
+val VerdantAccentContainerLight = Color(0xFFD5F2E3)  // Soft Mint Tint
+val VerdantAccentContainerDark = Color(0xFF005238)   // Rich Pine Container
+val VerdantOnAccentLight = Color(0xFFFFFFFF)  // Light emerald needs white label
+val VerdantOnAccentDark = Color(0xFF003824)   // Mint accent needs dark label
+
 // Neutral Colors - Light Mode
 val NeutralBgLight = Color(0xFFF1F5F9)
 val NeutralSurfaceLight = Color(0xFFF8FAFC)

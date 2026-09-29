@@ -27,6 +27,7 @@ import com.amazecc.app.shared.state.DashboardWidget
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
+import com.amazecc.app.shared.theme.verdantAccentFor
 import com.amazecc.app.shared.ui.components.*
 
 @Composable
@@ -75,17 +76,22 @@ fun AppearancePage(onOpenSubScreen: (SettingsSubScreen) -> Unit = {}) {
 
         SettingsGroupLabel("Accent Colors")
         SettingsGroupCard {
-            Row(
+            Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                AccentSwatch("Ocean", AccentTheme.OCEAN, activeAccent, colors, Modifier.weight(1f))
-                AccentSwatch("Forest", AccentTheme.FOREST, activeAccent, colors, Modifier.weight(1f))
-                AccentSwatch("Lavender", AccentTheme.LAVENDER, activeAccent, colors, Modifier.weight(1f))
-                AccentSwatch("Sunset", AccentTheme.SUNSET, activeAccent, colors, Modifier.weight(1f))
-                AccentSwatch("Custom", AccentTheme.CUSTOM, activeAccent, colors, Modifier.weight(1f),
-                    customColor = customAccent,
-                    onClick = { showCustomAccent = true })
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AccentSwatch("Ocean", AccentTheme.OCEAN, activeAccent, colors, Modifier.weight(1f))
+                    AccentSwatch("Forest", AccentTheme.FOREST, activeAccent, colors, Modifier.weight(1f))
+                    AccentSwatch("Verdant", AccentTheme.VERDANT, activeAccent, colors, Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AccentSwatch("Lavender", AccentTheme.LAVENDER, activeAccent, colors, Modifier.weight(1f))
+                    AccentSwatch("Sunset", AccentTheme.SUNSET, activeAccent, colors, Modifier.weight(1f))
+                    AccentSwatch("Custom", AccentTheme.CUSTOM, activeAccent, colors, Modifier.weight(1f),
+                        customColor = customAccent,
+                        onClick = { showCustomAccent = true })
+                }
             }
         }
 
@@ -501,6 +507,7 @@ private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme
     val swatchColor = when (accent) {
         AccentTheme.OCEAN -> colors.accent
         AccentTheme.FOREST -> colors.success
+        AccentTheme.VERDANT -> verdantAccentFor(colors.background)
         AccentTheme.LAVENDER -> colors.info
         AccentTheme.SUNSET -> colors.warning
         AccentTheme.CUSTOM -> customColor

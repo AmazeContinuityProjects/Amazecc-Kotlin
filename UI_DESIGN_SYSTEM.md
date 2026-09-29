@@ -9,7 +9,8 @@ This document outlines the design philosophy, visual tokens, spring motion specs
 1. **Pitch-Black Dark Mode Palette**:
    - **Background (`NeutralBgDark`)**: Absolute pitch black (`#000000`) for OLED power efficiency and deep contrast.
    - **Surface Layer (`NeutralSurfaceDark`)**: Sleek ultra-dark elevation (`#0A0A0E`) with dynamic `1.dp` borders (`#1A1A22`).
-   - **Subtle Neon Accent Tinting**: Tailored neon themes (Ocean Blue, Forest Green, Lavender Purple, Sunset Orange) applied softly via low-opacity backgrounds (`alpha = 0.12f` – `0.18f`) and glowing accent rings to avoid visual clutter.
+   - **Subtle Neon Accent Tinting**: Tailored accent themes (Ocean Blue, Forest Green, Verdant Emerald, Lavender Purple, Sunset Orange) applied softly via low-opacity backgrounds (`alpha = 0.12f` – `0.18f`) and glowing accent rings to avoid visual clutter.
+   - **Verdant Accent (`AccentTheme.VERDANT`)**: The only accent with tonal containers instead of flat alpha tints — deep botanical emerald (`#006C4C`) with soft mint container (`#D5F2E3`) in light mode, and luminous mint (`#4EDE9A`) with rich pine container (`#005238`) plus a dark label color (`#003824`) in dark/AMOLED mode.
 
 2. **Juicy & Bouncy Tactile Motion Physics**:
    - **`bouncySpring()`**: High-bounce spring spec (`DampingRatioHighBouncy`, `StiffnessMedium`) powering tap, press, tile, and card scale-down animations (`0.90f` – `0.96f` target scale).

@@ -3,6 +3,7 @@ package com.amazecc.app.shared.theme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -13,7 +14,7 @@ enum class AppTheme {
 }
 
 enum class AccentTheme {
-    OCEAN, FOREST, LAVENDER, SUNSET, CUSTOM
+    OCEAN, FOREST, VERDANT, LAVENDER, SUNSET, CUSTOM
 }
 
 @Stable
@@ -264,18 +265,25 @@ fun AmazeTheme(
     heroColorEnabled: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    val resolvedTheme = when (appTheme) {
+        AppTheme.SYSTEM -> if (isSystemInDarkTheme()) AppTheme.DARK else AppTheme.LIGHT
+        else -> appTheme
+    }
+
+    val isVerdant = accentTheme == AccentTheme.VERDANT
+
     val accent = when (accentTheme) {
         AccentTheme.OCEAN -> AccentOcean
         AccentTheme.FOREST -> AccentForest
+        AccentTheme.VERDANT -> if (resolvedTheme == AppTheme.LIGHT) VerdantLight else VerdantDark
         AccentTheme.LAVENDER -> AccentLavender
         AccentTheme.SUNSET -> AccentSunset
         AccentTheme.CUSTOM -> customAccent
     }
 
-    val resolvedTheme = when (appTheme) {
-        AppTheme.SYSTEM -> if (isSystemInDarkTheme()) AppTheme.DARK else AppTheme.LIGHT
-        else -> appTheme
-    }
+    val verdantContainer = if (isVerdant) {
+        if (resolvedTheme == AppTheme.LIGHT) VerdantAccentContainerLight else VerdantAccentContainerDark
+    } else null
 
     val baseColors = when (resolvedTheme) {
         AppTheme.LIGHT -> AmazeColors(
@@ -288,8 +296,8 @@ fun AmazeTheme(
             textMuted = NeutralTextMutedLight,
             accent = accent,
             accentSurface = accent.copy(alpha = 0.12f),
-            accentContainer = accent.copy(alpha = 0.25f),
-            onAccent = Color(0xFF111827),
+            accentContainer = verdantContainer ?: accent.copy(alpha = 0.25f),
+            onAccent = if (isVerdant) VerdantOnAccentLight else Color(0xFF111827),
             success = ColorSuccess,
             successSurface = ColorSuccessSurfaceLight,
             successText = ColorSuccessTextLight,
@@ -322,8 +330,8 @@ fun AmazeTheme(
             textMuted = NeutralTextMutedDark,
             accent = accent,
             accentSurface = accent.copy(alpha = 0.15f),
-            accentContainer = accent.copy(alpha = 0.30f),
-            onAccent = Color.White,
+            accentContainer = verdantContainer ?: accent.copy(alpha = 0.30f),
+            onAccent = if (isVerdant) VerdantOnAccentDark else Color.White,
             success = ColorSuccess,
             successSurface = ColorSuccessSurfaceDark,
             successText = ColorSuccessTextDark,
@@ -356,8 +364,8 @@ fun AmazeTheme(
             textMuted = NeutralTextMutedDark,
             accent = accent,
             accentSurface = accent.copy(alpha = 0.15f),
-            accentContainer = accent.copy(alpha = 0.30f),
-            onAccent = Color.White,
+            accentContainer = verdantContainer ?: accent.copy(alpha = 0.30f),
+            onAccent = if (isVerdant) VerdantOnAccentDark else Color.White,
             success = ColorSuccess,
             successSurface = ColorSuccessSurfaceDark,
             successText = ColorSuccessTextDark,
@@ -411,6 +419,9 @@ fun AmazeTheme(
         )
     }
 }
+
+fun verdantAccentFor(background: Color): Color =
+    if (background.luminance() > 0.5f) VerdantLight else VerdantDark
 
 object AmazeTheme {
     val colors: AmazeColors
