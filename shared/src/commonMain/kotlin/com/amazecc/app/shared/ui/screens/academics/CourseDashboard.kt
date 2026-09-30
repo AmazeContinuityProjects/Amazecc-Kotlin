@@ -1,5 +1,6 @@
 ﻿package com.amazecc.app.shared.ui.screens.academics
 
+import com.amazecc.app.shared.vtop.VtopCourseCode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -498,26 +499,29 @@ internal fun buildSemesterGroups(academic: AcademicData, selectedSemester: Strin
 
 /** Resolves the [CourseGroup] for a course code, preferring the given semester, falling back to any semester. */
 internal fun findCourseGroup(courseCode: String, semesterId: String, academic: AcademicData, selectedSemester: String = "All"): CourseGroup? {
-    val cleanCode = courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
+    // Keys are bare course codes now; normalise anyway so a stale suffixed key still resolves.
+    val cleanCode = VtopCourseCode.base(courseCode).ifEmpty { courseCode.trim() }
     fun courseToGroup(semId: String, sem: SemesterData): CourseGroup? {
-        val matches = sem.courses.values.filter {
-            it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode
-        }
+        val matches = sem.courses.values.filter { VtopCourseCode.base(it.courseCode) == cleanCode }
         if (matches.isEmpty()) return null
-        val theory = matches.firstOrNull { !it.isLabCourse() }
-        val lab = matches.firstOrNull { it.isLabCourse() }
+        // An embedded ETH/ELA pair is merged at the store, so there is normally one course.
+        // Legacy snapshots may still hold two rows; fold them the same way.
+        val main = matches.firstOrNull { !it.isLabCourse() } ?: matches.first()
+        val labLegacy = matches.firstOrNull { it.isLabCourse() && it !== main }
         val isCurrent = selectedSemester != "All" && semId == selectedSemester
+        val embedded = main.courseType.contains("ETH", true) && main.courseType.contains("ELA", true)
+
         return CourseGroup(
             courseCode = cleanCode,
-            courseTitle = theory?.courseTitle ?: lab?.courseTitle ?: cleanCode,
+            courseTitle = main.courseTitle.ifBlank { cleanCode },
             semesterSubId = semId,
             semesterName = sem.semesterName ?: AppState.semesterMap.value[semId] ?: semId,
-            theory = theory?.toMarksCourseItem(),
-            lab = lab?.toMarksCourseItem(),
-            theoryAtt = theory?.toAttendanceItem(),
-            labAtt = lab?.toAttendanceItem(),
+            theory = (if (embedded) main else main)?.toMarksCourseItem(),
+            lab = labLegacy?.toMarksCourseItem(),
+            theoryAtt = main.toAttendanceItem(),
+            labAtt = labLegacy?.toAttendanceItem(),
             // Prioritise marks for current semester, grades for previous semesters.
-            grade = if (isCurrent) null else theory?.toGradeItem() ?: lab?.toGradeItem()
+            grade = if (isCurrent) null else main.toGradeItem()
         )
     }
 

@@ -36,6 +36,8 @@ data class ArrearResponse(
 data class CircularItem(
     val id: String? = null,
     val title: String? = null,
+    /** Group nodes carry a name; leaves carry [id] + [title]. Only one shape is ever populated. */
+    val name: String? = null,
     val children: List<CircularItem>? = null
 )
 

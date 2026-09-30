@@ -62,6 +62,9 @@ fun App() {
     val customAccent by AppState.customAccentColor.collectAsState()
     val customPalette by AppState.customPalette.collectAsState()
     val currentScreen by AppState.currentScreen.collectAsState()
+    // Which home the Home tab renders. Read as a flow so switching the style in
+    // Settings repaints the tab rather than waiting for the next navigation.
+    val homeViewMode by AppState.homeViewMode.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
     val syncError by AppState.error.collectAsState()
 
@@ -196,7 +199,12 @@ fun App() {
                                 Screen.CHANGELOG -> ChangelogScreen()
                                 Screen.HALL_OF_FAME -> HallOfFameScreen()
                                 Screen.ARREAR -> ArrearTabScreen()
-                                Screen.HOME -> DashboardScreen()
+                                Screen.HOME -> if (homeViewMode == com.amazecc.app.shared.state.HomeViewMode.SIMPLIFIED) {
+                                    com.amazecc.app.shared.ui.screens.home.SimplifiedHomeScreen()
+                                } else {
+                                    LegacyHomeScreen()
+                                }
+                                Screen.HOME_LEGACY -> LegacyHomeScreen()
                                 Screen.ATTENDANCE -> AttendanceScreen()
                                 Screen.ACADEMICS -> AcademicsScreen()
                                 Screen.LIBRARIES -> LibrariesScreen()

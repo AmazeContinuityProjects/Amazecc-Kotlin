@@ -30,7 +30,11 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.theme.verdantAccentFor
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.vtop.VtopDiagnosticResult
+import com.amazecc.app.shared.vtop.VtopDiagnosticStatus
+import com.amazecc.app.shared.vtop.VtopDiagnostics
 import com.amazecc.app.shared.vtop.VtopSource
+import kotlinx.coroutines.launch
 
 @Composable
 fun AppearancePage(onOpenSubScreen: (SettingsSubScreen) -> Unit = {}) {
@@ -254,19 +258,140 @@ fun DisplayPage() {
 fun DashboardPage() {
     val colors = AmazeTheme.colors
     val widgetOrder by AppState.widgetOrder.collectAsState()
+    val homeViewMode by AppState.homeViewMode.collectAsState()
+    val homePillStyle by AppState.homePillStyle.collectAsState()
+    val homeTasksInline by AppState.homeTasksInline.collectAsState()
+    var showViewModeDialog by remember { mutableStateOf(false) }
+    var showPillStyleDialog by remember { mutableStateOf(false) }
     val hiddenWidgets = remember(widgetOrder) {
         DashboardWidget.entries.filter { it !in widgetOrder }
     }
+    val isClassicHome = homeViewMode == com.amazecc.app.shared.state.HomeViewMode.CLASSIC
+
+    if (showViewModeDialog) {
+        AlertDialog(
+            onDismissRequest = { showViewModeDialog = false },
+            containerColor = colors.surface,
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    "Home Screen",
+                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HomeViewModeOption(
+                        title = "Simplified",
+                        subtitle = "Greeting, two stat tiles, the week strip and today's sessions",
+                        selected = homeViewMode == com.amazecc.app.shared.state.HomeViewMode.SIMPLIFIED,
+                        onClick = {
+                            AppState.setHomeViewMode(com.amazecc.app.shared.state.HomeViewMode.SIMPLIFIED)
+                            showViewModeDialog = false
+                        }
+                    )
+                    HomeViewModeOption(
+                        title = "Classic widgets",
+                        subtitle = "The original dashboard, with configurable widgets",
+                        selected = isClassicHome,
+                        onClick = {
+                            AppState.setHomeViewMode(com.amazecc.app.shared.state.HomeViewMode.CLASSIC)
+                            showViewModeDialog = false
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showViewModeDialog = false }) {
+                    Text("Close", color = colors.accent)
+                }
+            }
+        )
+    }
+
+    if (showPillStyleDialog) {
+        AlertDialog(
+            onDismissRequest = { showPillStyleDialog = false },
+            containerColor = colors.surface,
+            shape = RoundedCornerShape(24.dp),
+            title = {
+                Text(
+                    "Session Card Density",
+                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    com.amazecc.app.shared.state.HomePillStyle.entries.forEach { option ->
+                        HomeViewModeOption(
+                            title = if (option == com.amazecc.app.shared.state.HomePillStyle.COMPACT) "Compact" else "Detailed",
+                            subtitle = if (option == com.amazecc.app.shared.state.HomePillStyle.COMPACT) {
+                                "Two lines: slot, title, time, venue and percentage"
+                            } else {
+                                "Spacious, with faculty and a bunkable subtext"
+                            },
+                            selected = homePillStyle == option,
+                            onClick = {
+                                AppState.setHomePillStyle(option)
+                                showPillStyleDialog = false
+                            }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showPillStyleDialog = false }) {
+                    Text("Close", color = colors.accent)
+                }
+            }
+        )
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SettingsGroupLabel("Home Screen Widgets")
+        SettingsGroupLabel("Home Screen")
+        SettingsGroupCard {
+            Column(modifier = Modifier.padding(vertical = 4.dp)) {
+                SettingsRow(
+                    icon = Icons.Rounded.DashboardCustomize,
+                    title = "Home Layout",
+                    subtitle = if (isClassicHome) "Classic widgets" else "Simplified",
+                    value = if (isClassicHome) "Widgets" else "Minimal",
+                    tint = colors.accent,
+                    onClick = { showViewModeDialog = true }
+                )
+                SettingsRowDivider()
+                SettingsRow(
+                    icon = Icons.Rounded.FormatListBulleted,
+                    title = "Session Card Density",
+                    subtitle = "How much a timetable session shows at once",
+                    value = if (homePillStyle == com.amazecc.app.shared.state.HomePillStyle.COMPACT) "Compact" else "Detailed",
+                    tint = colors.accent,
+                    onClick = { showPillStyleDialog = true }
+                )
+                SettingsRowDivider()
+                SettingsSwitchRow(
+                    icon = Icons.Rounded.CheckCircle,
+                    title = "Show Tasks on Home",
+                    subtitle = "Today's tasks as their own section under the timetable",
+                    tint = colors.accent,
+                    checked = homeTasksInline,
+                    onCheckedChange = { AppState.setHomeTasksInline(it) }
+                )
+            }
+        }
+
+        SettingsGroupLabel(if (isClassicHome) "Home Screen Widgets" else "Classic Widgets")
         SettingsGroupCard {
             Column(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    "Toggle widgets on/off and reorder them for your home screen.",
+                    if (isClassicHome) {
+                        "Toggle widgets on/off and reorder them for your home screen."
+                    } else {
+                        "The classic dashboard is still here. These settings apply when you switch to it, or open it from the App Library."
+                    },
                     style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
                     modifier = Modifier.padding(bottom = 4.dp)
                 )
@@ -306,6 +431,62 @@ fun DashboardPage() {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HomeViewModeOption(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val colors = AmazeTheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(AmazeTheme.radius.medium))
+            .background(if (selected) colors.accent.copy(alpha = 0.10f) else colors.elevatedSurface)
+            .border(
+                1.dp,
+                if (selected) colors.accent.copy(alpha = 0.4f) else colors.border,
+                RoundedCornerShape(AmazeTheme.radius.medium)
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(colors.accent)
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .border(1.dp, colors.textMuted, CircleShape)
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                title,
+                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+            )
+            Text(
+                subtitle,
+                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+            )
         }
     }
 }
@@ -609,6 +790,116 @@ fun VtopSourcePage() {
                 tint = colors.info,
                 onClick = {}
             )
+        }
+
+        VtopDiagnosticsSection()
+    }
+}
+
+/**
+ * Runs the on-device VTOP health checks and shows the outcome.
+ *
+ * The `vtop_source` switch is manual by design, so when the local path breaks nothing tells the
+ * user why. This is the compensation: a one-tap pass/fail per layer, and the escape hatch.
+ * The module checks make real VTOP calls, so they only run when explicitly tapped.
+ */
+@Composable
+private fun VtopDiagnosticsSection() {
+    val colors = AmazeTheme.colors
+    val scope = rememberCoroutineScope()
+
+    var results by remember { mutableStateOf<Map<String, VtopDiagnosticResult>>(emptyMap()) }
+    var running by remember { mutableStateOf(false) }
+    var showModules by remember { mutableStateOf(false) }
+
+    val allChecks = remember(showModules) {
+        if (showModules) VtopDiagnostics.moduleChecks() else VtopDiagnostics.checks()
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SettingsGroupLabel("Diagnostics")
+        SettingsGroupCard {
+            SettingsRow(
+                icon = Icons.Rounded.BugReport,
+                title = if (showModules) "Run module checks" else "Run connection checks",
+                subtitle = if (showModules) {
+                    "Makes real requests to VTOP. One pass only."
+                } else {
+                    "Platform, session and reachability. No marks or grades."
+                },
+                value = if (running) "Running" else null,
+                tint = colors.info,
+                onClick = {
+                    if (running) return@SettingsRow
+                    scope.launch {
+                        running = true
+                        results = emptyMap()
+                        for (check in allChecks) {
+                            results = results + (check.name to VtopDiagnosticResult(
+                                check.name, VtopDiagnosticStatus.RUNNING
+                            ))
+                            val outcome = VtopDiagnostics.run(check)
+                            results = results + (check.name to outcome)
+                        }
+                        running = false
+                    }
+                }
+            )
+            SettingsRowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.SwapVert,
+                title = "Check type",
+                subtitle = "Switch between connection-only and per-module checks",
+                value = if (showModules) "Modules" else "Connection",
+                tint = colors.accent,
+                onClick = {
+                    showModules = !showModules
+                    results = emptyMap()
+                }
+            )
+        }
+
+        if (results.isNotEmpty()) {
+            SettingsGroupCard {
+                results.values.forEach { result ->
+                    val (tint, icon) = when (result.status) {
+                        VtopDiagnosticStatus.PASS -> colors.success to Icons.Rounded.CheckCircleOutline
+                        VtopDiagnosticStatus.FAIL -> colors.danger to Icons.Rounded.ErrorOutline
+                        VtopDiagnosticStatus.SKIP -> colors.textMuted to Icons.Rounded.RemoveCircleOutline
+                        VtopDiagnosticStatus.RUNNING -> colors.textMuted to Icons.Rounded.Schedule
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = result.name,
+                                style = AmazeTheme.typography.body.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textPrimary
+                                )
+                            )
+                            if (result.detail.isNotBlank()) {
+                                Text(
+                                    text = result.detail,
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                )
+                            }
+                        }
+                        if (result.durationMs > 0) {
+                            Text(
+                                text = "${result.durationMs}ms",
+                                style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

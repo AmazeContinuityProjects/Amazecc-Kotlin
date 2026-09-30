@@ -135,7 +135,17 @@ data class StoredAttendance(
 @Serializable
 data class StoredMarks(
     val classNbr: String? = null,
-    val assessments: List<AssessmentItem> = emptyList()
+    val assessments: List<AssessmentItem> = emptyList(),
+    /**
+     * Credit-weighted total out of [maxMark], produced when an embedded ETH/ELA pair is merged.
+     *
+     * A naive sum of the pair's weightage marks is wrong: a 3-credit theory half and a 2-credit
+     * lab half must be weighted 3:2. Null until the merge has computed it.
+     */
+    val totalMark: Double? = null,
+    val maxMark: Double? = null,
+    /** ETH / ELA / Theory Only / Lab Only when this course is one embedded pair, else null. */
+    val mergedFrom: String? = null
 )
 
 @Serializable

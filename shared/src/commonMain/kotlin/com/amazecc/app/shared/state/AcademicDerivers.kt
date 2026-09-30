@@ -2,6 +2,8 @@ package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.model.TimetableRes
+import com.amazecc.app.shared.vtop.VtopComponent
+import com.amazecc.app.shared.vtop.VtopCourseCode
 
 /**
  * Pure derivation helpers over the unified academic schema.
@@ -76,8 +78,8 @@ object AcademicDerivers {
     fun buildWeeklyTimetable(sem: SemesterData): List<TimetableSlot> {
         val slots = mutableListOf<TimetableSlot>()
         sem.courses.values.forEach { course ->
-            val type = courseTypeOf(course.courseCode)
-                ?: course.category?.takeIf { it.contains("Lab", true) }?.let { "Lab Only" }
+            val type = componentLabel(course.courseType)
+                ?: course.category?.takeIf { it.contains("Lab", true) }?.let { VtopComponent.LO.label }
                 ?: course.courseType
             course.slots.forEach { slotCode ->
                 val (day, time) = slotIndex[slotCode] ?: return@forEach
@@ -135,18 +137,30 @@ object AcademicDerivers {
             logs = attendance?.logs.orEmpty()
         )
 
-    /** "Embedded Theory" / "Embedded Lab" for suffixed embedded course codes, else null. */
-    fun embeddedComponentLabel(rawCode: String): String? = when {
-        rawCode.endsWith("(T)", ignoreCase = true) -> "Embedded Theory"
-        rawCode.endsWith("(L)", ignoreCase = true) -> "Embedded Lab"
-        else -> null
-    }
+    /**
+     * "ETH" / "ELA" / "Theory Only" / "Lab Only" for a course's component, else null.
+     *
+     * Read from `courseType` rather than the code: keys are bare course codes, so the code no
+     * longer encodes which half this is.
+     */
+    fun componentLabel(courseType: String?): String? =
+        VtopComponent.entries.firstOrNull { it.label.isNotEmpty() && courseType?.contains(it.label, true) == true }?.label
 
-    /** True when the stored course is the lab component of an embedded pair. */
-    fun StoredCourse.isLabCourse(): Boolean =
-        courseType.contains("Lab", ignoreCase = true) ||
-            slots.any { it.uppercase().startsWith("L") } ||
-            courseCode.endsWith("(L)", ignoreCase = true)
+    /** "ETH" / "ELA" for an embedded component, else null. */
+    fun embeddedComponentLabel(rawCode: String, courseType: String? = null): String? =
+        componentLabel(courseType)?.takeIf { VtopCourseCode.fromTypeLabel(it).isEmbedded }
+
+    /**
+     * True when this course is a lab component.
+     *
+     * Prefers the resolved `courseType`; falls back to slot codes only when the type is
+     * unlabelled, since a lab sharing a slot with its theory half would otherwise be misread.
+     */
+    fun StoredCourse.isLabCourse(): Boolean {
+        val label = componentLabel(courseType)
+        if (label != null) return VtopCourseCode.fromTypeLabel(label).isLab
+        return slots.any { it.uppercase().startsWith("L") }
+    }
 
     /** Adapts a stored course into the transport [MarksCourseItem] shape for UI pipelines that still consume it. */
     fun StoredCourse.toMarksCourseItem(): com.amazecc.app.shared.model.MarksCourseItem =
@@ -158,6 +172,10 @@ object AcademicDerivers {
             courseSystem = courseSystem ?: "",
             faculty = faculty ?: "",
             slot = slots.joinToString("+"),
+            credits = credits,
+            component = componentLabel(courseType),
+            totalMark = marks?.totalMark,
+            maxMark = marks?.maxMark,
             assessments = marks?.assessments.orEmpty()
         )
 

@@ -227,6 +227,21 @@ object AmazeClient {
                 marks = marks
             )
         }
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                val semester = semesterId
+                    ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value
+                    ?: return AcademicSyncResult(AttendanceRes(success = false, error = "No semester selected"))
+                AcademicSyncResult(
+                    attendance = com.amazecc.app.shared.vtop.VtopDataSource.fetchAttendance(semester),
+                    // The server folded marks into the attendance response; reproduce that so
+                    // callers reading `marksRes` off one round trip still work.
+                    marks = com.amazecc.app.shared.vtop.VtopDataSource.fetchMarks(semester)
+                )
+            } catch (e: Exception) {
+                AcademicSyncResult(AttendanceRes(success = false, error = e.message ?: e.toString()))
+            }
+        }
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
             val response = postAuthorized<AttendanceSyncResponse>("attendance", params)
@@ -252,6 +267,16 @@ object AmazeClient {
 
     suspend fun getTimetable(semesterId: String? = null): TimetableRes {
 if (useMockData) return DemoData.get("timetable", TimetableRes.serializer()) ?: TimetableRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                val semester = semesterId
+                    ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value
+                    ?: return TimetableRes(success = false, error = "No semester selected")
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchTimetable(semester)
+            } catch (e: Exception) {
+                TimetableRes(success = false, error = e.message ?: e.toString())
+            }
+        }
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
             postAuthorized<TimetableRes>("timetable", params) ?: TimetableRes(success = false, message = "Empty response")
@@ -262,6 +287,17 @@ if (useMockData) return DemoData.get("timetable", TimetableRes.serializer()) ?: 
 
     suspend fun getMarks(semesterId: String? = null): MarksRes {
 if (useMockData) return DemoData.get("marks", MarksRes.serializer()) ?: MarksRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                val semester = semesterId
+                    ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value
+                    ?: return MarksRes(success = false, error = "No semester selected")
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchMarks(semester)
+                    ?: MarksRes(success = false, error = "VTOP marks unavailable")
+            } catch (e: Exception) {
+                MarksRes(success = false, error = e.message ?: e.toString())
+            }
+        }
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
             postAuthorized<MarksRes>("marks", params) ?: MarksRes(success = false, message = "Empty response")
@@ -303,6 +339,14 @@ if (useMockData) return DemoData.get("allGrades", AllGradesRes.serializer()) ?: 
 
     suspend fun getHostelDetails(): HostelDetails {
 if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: HostelDetails()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchHostel()
+                    ?: HostelDetails(success = false, error = "VTOP hostel details unavailable")
+            } catch (e: Exception) {
+                HostelDetails(success = false, error = e.message ?: e.toString())
+            }
+        }
         return try {
             postAuthorized<HostelDetails>("hostel") ?: HostelDetails(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -357,6 +401,14 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
 
     suspend fun getExamSchedule(semesterId: String? = null): ExamScheduleRes {
 if (useMockData) return DemoData.get("examSchedule", ExamScheduleRes.serializer()) ?: ExamScheduleRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && semesterId != null) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchExamSchedule(semesterId)
+                    ?: ExamScheduleRes(success = false, error = "VTOP exam schedule unavailable")
+            } catch (e: Exception) {
+                ExamScheduleRes(success = false, error = e.toString())
+            }
+        }
         return try {
             val params = mutableMapOf<String, String>()
             if (semesterId != null) params["semesterId"] = semesterId
@@ -368,6 +420,14 @@ if (useMockData) return DemoData.get("examSchedule", ExamScheduleRes.serializer(
 
     suspend fun getCurriculum(semesterId: String? = null): CurriculumRes {
 if (useMockData) return DemoData.get("curriculum", CurriculumRes.serializer()) ?: CurriculumRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchCurriculum()
+                    ?: CurriculumRes(success = false, error = "VTOP curriculum unavailable")
+            } catch (e: Exception) {
+                CurriculumRes(success = false, error = e.toString())
+            }
+        }
         return try {
             val params = mutableMapOf<String, String>()
             if (semesterId != null) params["semesterId"] = semesterId
@@ -380,9 +440,14 @@ if (useMockData) return DemoData.get("curriculum", CurriculumRes.serializer()) ?
     suspend fun getCalendar(type: String = "ALL", semesterId: String? = null): CalendarRes {
 if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: CalendarRes()
         return try {
-            val params = mutableMapOf("type" to type)
-            if (semesterId != null) params["semesterId"] = semesterId
-            val rawJson = postAuthorized<JsonElement>("calendar", params)
+            val rawJson = if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && semesterId != null) {
+                // Same analysis path as REMOTE — only the transport differs.
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchCalendarRaw(semesterId, type)
+            } else {
+                val params = mutableMapOf("type" to type)
+                if (semesterId != null) params["semesterId"] = semesterId
+                postAuthorized<JsonElement>("calendar", params)
+            }
             if (rawJson != null) {
                 val analysis = AnalyzeCalendar.analyzeAllCalendars(rawJson)
                 if (analysis.results.isNotEmpty()) {
@@ -445,6 +510,14 @@ if (useMockData) return DemoData.get("calendars", CalendarsListRes.serializer())
 
     suspend fun getPayments(): PaymentsRes {
 if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: PaymentsRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchPayments()
+                    ?: PaymentsRes(success = false, error = "VTOP payments unavailable")
+            } catch (e: Exception) {
+                PaymentsRes(success = false, error = e.message ?: e.toString())
+            }
+        }
         return try {
             val duesResp = postAuthorized<JsonObject>("payments")
             val receiptsResp = postAuthorized<JsonObject>("payment-receipts")
@@ -738,6 +811,14 @@ if (useMockData) return DemoData.get("qbankPapers", QBankPapersRes.serializer())
 
     suspend fun getQcmView(): QcmViewRes {
 if (useMockData) return DemoData.get("qcmView", QcmViewRes.serializer()) ?: QcmViewRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchQcmView()
+                    ?: QcmViewRes(success = false, error = "VTOP QCM view unavailable")
+            } catch (e: Exception) {
+                QcmViewRes(success = false, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<QcmViewRes>("qcm-view") ?: QcmViewRes(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -747,6 +828,16 @@ if (useMockData) return DemoData.get("qcmView", QcmViewRes.serializer()) ?: QcmV
 
     suspend fun getEvents(): EventHubRes {
 if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: EventHubRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            // EventHub is public, so there are no credentials to check here.
+            return try {
+                val local = com.amazecc.app.shared.vtop.VtopEventHub.fetchEvents()
+                    ?: return EventHubRes(success = false, message = "EventHub unavailable")
+                EventHubRes(success = true, events = local)
+            } catch (e: Exception) {
+                EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
+            }
+        }
         return try {
             val response = httpClient.get("$baseUrl/api/events") {
                 contentType(ContentType.Application.Json)
@@ -841,6 +932,15 @@ if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: Even
 
     suspend fun getEventsProfile(): EventHubRegisteredEventsRes {
 if (useMockData) return DemoData.get("eventsProfile", EventHubRegisteredEventsRes.serializer()) ?: EventHubRegisteredEventsRes()
+        val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && creds != null) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopEventHub.fetchEventsProfile(creds.first, creds.second)
+                    ?: EventHubRegisteredEventsRes(success = false, error = "EventHub unavailable")
+            } catch (e: Exception) {
+                EventHubRegisteredEventsRes(success = false, message = "Network error: ${e.message}", error = e.toString())
+            }
+        }
         return try {
             val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
             val extraParams = mutableMapOf<String, String>()
@@ -895,6 +995,14 @@ if (useMockData) return DemoData.get("clubs", ClubsRes.serializer()) ?: ClubsRes
 
     suspend fun getStudentProfile(): StudentProfileRes {
 if (useMockData) return DemoData.get("studentProfile", StudentProfileRes.serializer()) ?: StudentProfileRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchStudentProfile()
+                    ?: StudentProfileRes(success = false, error = "VTOP student profile unavailable")
+            } catch (e: Exception) {
+                StudentProfileRes(success = false, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<StudentProfileRes>("student") ?: StudentProfileRes(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -904,6 +1012,14 @@ if (useMockData) return DemoData.get("studentProfile", StudentProfileRes.seriali
 
     suspend fun getProfileImages(): ProfileImagesRes {
 if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serializer()) ?: ProfileImagesRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchProfileImages()
+                    ?: ProfileImagesRes(success = false, error = "VTOP proctor details unavailable")
+            } catch (e: Exception) {
+                ProfileImagesRes(success = false, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<ProfileImagesRes>("profile-images") ?: ProfileImagesRes(success = false)
         } catch (e: Exception) {
@@ -913,6 +1029,14 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getCredentials(): CredentialsRes {
         if (useMockData) return DemoData.get("credentials", CredentialsRes.serializer()) ?: CredentialsRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchCredentials()
+                    ?: CredentialsRes(success = false, error = "VTOP credentials unavailable")
+            } catch (e: Exception) {
+                CredentialsRes(success = false, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<CredentialsRes>("credentials") ?: CredentialsRes(success = false)
         } catch (e: Exception) {
@@ -922,6 +1046,14 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getEptSchedule(): EptScheduleRes {
         if (useMockData) return DemoData.get("eptSchedule", EptScheduleRes.serializer()) ?: EptScheduleRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchEptSchedule()
+                    ?: EptScheduleRes(success = false, error = "VTOP EPT schedule unavailable")
+            } catch (e: Exception) {
+                EptScheduleRes(success = false, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<EptScheduleRes>("ept-schedule") ?: EptScheduleRes(success = false)
         } catch (e: Exception) { EptScheduleRes(success = false, error = e.toString()) }
@@ -929,6 +1061,14 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getRegistrationSchedule(): RegistrationScheduleRes {
         if (useMockData) return DemoData.get("registrationSchedule", RegistrationScheduleRes.serializer()) ?: RegistrationScheduleRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchRegistrationSchedule()
+                    ?: RegistrationScheduleRes(success = false, error = "VTOP registration schedule unavailable")
+            } catch (e: Exception) {
+                RegistrationScheduleRes(success = false, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<RegistrationScheduleRes>("registration-schedule") ?: RegistrationScheduleRes(success = false)
         } catch (e: Exception) { RegistrationScheduleRes(success = false, error = e.toString()) }
@@ -936,6 +1076,14 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getUniversityDay(): UniversityDayRes {
         if (useMockData) return DemoData.get("universityDay", UniversityDayRes.serializer()) ?: UniversityDayRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchUniversityDay()
+                    ?: UniversityDayRes(success = false, error = "VTOP university day details unavailable")
+            } catch (e: Exception) {
+                UniversityDayRes(success = false, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<UniversityDayRes>("university-day") ?: UniversityDayRes(success = false)
         } catch (e: Exception) { UniversityDayRes(success = false, error = e.toString()) }
@@ -943,6 +1091,14 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getBankInfo(): BankInfoRes {
         if (useMockData) return DemoData.get("bankInfo", BankInfoRes.serializer()) ?: BankInfoRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchBankInfo()
+                    ?: BankInfoRes(success = false, error = "VTOP bank info unavailable")
+            } catch (e: Exception) {
+                BankInfoRes(success = false, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<BankInfoRes>("bank-info") ?: BankInfoRes(success = false)
         } catch (e: Exception) { BankInfoRes(success = false, error = e.toString()) }
@@ -950,6 +1106,14 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getDayboarderInfo(): DayboarderRes {
         if (useMockData) return DemoData.get("dayboarder", DayboarderRes.serializer()) ?: DayboarderRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchDayboarder()
+                    ?: DayboarderRes(success = false, error = "VTOP dayboarder details unavailable")
+            } catch (e: Exception) {
+                DayboarderRes(success = false, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<DayboarderRes>("dayboarder") ?: DayboarderRes(success = false)
         } catch (e: Exception) { DayboarderRes(success = false, error = e.toString()) }
@@ -957,6 +1121,14 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getApaarId(): ApaarIdRes {
         if (useMockData) return DemoData.get("apaarId", ApaarIdRes.serializer()) ?: ApaarIdRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchApaarId()
+                    ?: ApaarIdRes(success = false, error = "VTOP APAAR details unavailable")
+            } catch (e: Exception) {
+                ApaarIdRes(success = false, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<ApaarIdRes>("apaarid") ?: ApaarIdRes(success = false)
         } catch (e: Exception) { ApaarIdRes(success = false, error = e.toString()) }
@@ -976,6 +1148,14 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getCirculars(): CircularsRes {
 if (useMockData) return DemoData.get("circulars", CircularsRes.serializer()) ?: CircularsRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchCirculars()
+                    ?: CircularsRes(success = false, error = "VTOP circulars unavailable")
+            } catch (e: Exception) {
+                CircularsRes(success = false, error = e.toString())
+            }
+        }
         return postAuthorized<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
     }
 
@@ -1161,6 +1341,14 @@ if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?:
 
     suspend fun getGrades(semesterId: String? = null): SemesterGradesRes {
         if (useMockData) return DemoData.get("grades", SemesterGradesRes.serializer()) ?: SemesterGradesRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchGrades()
+                    ?: SemesterGradesRes(success = false, error = "VTOP grades unavailable")
+            } catch (e: Exception) {
+                SemesterGradesRes(success = false, error = e.message ?: e.toString())
+            }
+        }
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
             postAuthorized<SemesterGradesRes>("grades", params) ?: SemesterGradesRes(success = false, error = "Empty response")

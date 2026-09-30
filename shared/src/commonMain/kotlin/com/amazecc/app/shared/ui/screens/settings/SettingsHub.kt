@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AccentTheme
@@ -50,6 +51,8 @@ fun SettingsHub(
             val username = SettingsManager.getString(SettingsManager.KEY_USERNAME)
             if (username.isNotBlank()) username else "Not saved"
         }
+        SettingsSubScreen.VTOP_SOURCE -> AmazeClient.vtopSource.name.lowercase()
+            .replaceFirstChar { it.uppercase() }
         SettingsSubScreen.ABOUT -> if (version.isBlank()) null else "v$version"
         SettingsSubScreen.DANGER -> null
     }

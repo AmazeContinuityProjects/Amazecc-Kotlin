@@ -170,6 +170,27 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
     // Custom attendance target percentage (overrides bus subscriber / standard defaults)
     const val KEY_CUSTOM_ATTENDANCE_TARGET = "custom_attendance_target_pct"
 
+    // ── Home screen ──
+
+    /**
+     * Which home the Home tab opens: [HomeViewMode] names.
+     *
+     * Defaults to `SIMPLIFIED`. The widget dashboard is not gone — it is a screen
+     * in its own right (see `AppState.homeViewMode`) and every existing
+     * `KEY_DASHBOARD_WIDGETS` order is still honoured when it is showing.
+     */
+    const val KEY_HOME_VIEW_MODE = "home_view_mode"
+
+    /** [HomePillStyle] names: how dense a session card is on the simplified home. */
+    const val KEY_HOME_PILL_STYLE = "home_pill_style"
+
+    /**
+     * When true the day's tasks appear as their own section under the timetable.
+     * When false they are left out of the home entirely, for anyone who would
+     * rather see them on the Tasks screen.
+     */
+    const val KEY_HOME_TASKS_INLINE = "home_tasks_inline"
+
     fun setFloatString(key: String, value: Float) {
         settings.putString(key, value.toString())
     }

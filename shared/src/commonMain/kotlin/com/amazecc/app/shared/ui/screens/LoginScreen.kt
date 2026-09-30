@@ -50,6 +50,7 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeTextField
 import com.amazecc.app.shared.ui.components.VtopCaptchaPrompt
+import com.amazecc.app.shared.ui.components.VtopMigrationPrompt
 import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.vtop.AutoCaptchaHandler
 import com.amazecc.app.shared.vtop.UiCaptchaHandler
@@ -79,6 +80,15 @@ fun LoginScreen() {
     val captchaRequest by Vtop.captchaRequest.collectAsState()
     val isLocalVtop = AmazeClient.vtopSource == VtopSource.LOCAL
     val captchaHandler = remember { AutoCaptchaHandler(delegate = UiCaptchaHandler) }
+
+    // One-time notice for the switch to on-device VTOP. Runs before the session restore so it
+    // also reaches existing installs, which would otherwise skip straight past this screen.
+    var showMigrationPrompt by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!SettingsManager.isVtopSourcePrompted() && Vtop.isSupported) {
+            showMigrationPrompt = true
+        }
+    }
 
     LaunchedEffect(Unit) {
         val creds = SettingsManager.getCredentials()
@@ -399,6 +409,16 @@ fun LoginScreen() {
 
             Spacer(Modifier.height(AmazeTheme.spacing.lg))
         }
+    }
+
+    if (showMigrationPrompt) {
+        VtopMigrationPrompt(
+            onChoose = { source ->
+                AmazeClient.setVtopSource(source)
+                SettingsManager.setVtopSourcePrompted(true)
+                showMigrationPrompt = false
+            }
+        )
     }
 
     if (isLocalVtop && captchaRequest != null) {

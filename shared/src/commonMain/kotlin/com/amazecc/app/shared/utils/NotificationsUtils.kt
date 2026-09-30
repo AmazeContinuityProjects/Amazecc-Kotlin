@@ -292,6 +292,48 @@ object NotificationsUtils {
         return if (p[0] in 0..99 && p[2] in 2000..2100) Triple(p[2], p[1], p[0]) else Triple(p[0], p[1], p[2])
     }
 
+    /**
+     * The calendar date a raw deadline string falls on, in [tz].
+     *
+     * ## Why this exists
+     *
+     * A deadline has two readers in the app: the reminder scheduler, which needs
+     * an exact instant to fire at, and any surface that only has to say "this is
+     * due on the 28th". Only the first existed, so the second had to be written
+     * again — and a second *parser* is free to disagree with the notifications it
+     * is meant to match. A card that says the 28th while the reminder fires on
+     * the 27th is worse than either being absent.
+     *
+     * So both readings go through the same two functions rather than one
+     * reimplementation: [parseDeadlineInstant] first, because when it can answer
+     * it is by construction the same answer the scheduler got, and
+     * [parseDateComponents] as the fallback.
+     *
+     * ## The fallback, and why it exists at all
+     *
+     * [parseDeadlineInstant] needs a time to build an `Instant`, so it returns
+     * null for a bare `2026-09-28` — which is the correct answer for "when
+     * should I fire a notification", because there is no time to fire at. It is
+     * the wrong answer for "which day is this on", where the day is the whole
+     * question. A date-only deadline is therefore invisible to the scheduler and
+     * visible here, and the date is read with the app's own date-component
+     * parser rather than a new one.
+     *
+     * Accepted forms: ISO 8601 (`2026-09-28T23:59:00`), a space-separated
+     * `date time` pair (`2026-09-28 23:59`), or a bare date. Dates are
+     * `yyyy-MM-dd` or `dd-MM-yyyy`, disambiguated by which end looks like a year.
+     */
+    fun deadlineDate(raw: String, tz: TimeZone = TimeZone.currentSystemDefault()): LocalDate? {
+        val trimmed = raw.trim()
+        if (trimmed.isBlank()) return null
+
+        parseDeadlineInstant(trimmed, tz)?.let { return it.toLocalDateTime(tz).date }
+
+        val (y, m, d) = parseDateComponents(trimmed) ?: return null
+        if (y !in 1900..2100 || m !in 1..12 || d !in 1..31) return null
+        return try { LocalDate(y, m, d) } catch (_: Exception) { null }
+    }
+
     private fun parseDeadlineInstant(raw: String, tz: TimeZone): Instant? {
         val (dateStr, timeStr) = raw.trim().let { s ->
             when {

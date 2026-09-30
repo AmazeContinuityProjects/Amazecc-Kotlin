@@ -121,6 +121,7 @@ fun SettingsScreen() {
                             SettingsSubScreen.DASHBOARD -> DashboardPage()
                             SettingsSubScreen.BOTTOM_NAV -> BottomNavPage()
                             SettingsSubScreen.ACADEMICS -> AcademicsPage()
+                            SettingsSubScreen.VTOP_SOURCE -> VtopSourcePage()
                             SettingsSubScreen.DATA_SYNC -> DataSyncPage(
                                 snackbarHostState = snackbarHostState,
                                 hasPermissionManager = notifPermissionManager != null,

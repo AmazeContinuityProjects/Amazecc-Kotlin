@@ -32,6 +32,7 @@ import com.amazecc.app.shared.model.MoodleRes
 import com.amazecc.app.shared.model.PaymentsRes
 import com.amazecc.app.shared.model.QcmViewRes
 import com.amazecc.app.shared.model.TransportDataRes
+import com.amazecc.app.shared.vtop.VtopCourseCode
 import com.amazecc.app.shared.utils.parseViewLink
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -69,6 +70,20 @@ object AppSanitizers {
         return base.any { it.isLetter() } && base.any { it.isDigit() }
     }
 
+    /**
+     * Validates then canonicalises a course code to its bare form.
+     *
+     * Done here because this is the store boundary: every page spells an embedded course
+     * differently (`BACSE106`, `BACSE106L`, `BACSE106 (L)`), and a payload that reached the
+     * store unnormalised would land on a key the rest of the app never looks at. Validation runs
+     * on the raw text first so garbage rows are still discarded.
+     */
+    private fun canonicalCode(raw: String?): String? {
+        val cleaned = raw?.clean() ?: return null
+        if (!isValidCourseCode(cleaned)) return null
+        return VtopCourseCode.base(cleaned).ifEmpty { cleaned }
+    }
+
     /** Normalises an attendance-percentage string ("87%" / "87") to a plain number string. */
     fun cleanPercent(raw: String?): String? =
         raw?.trim()?.removeSuffix("%")?.trim()?.takeIf { it.isNotBlank() && it != "-" }
@@ -97,8 +112,7 @@ object AppSanitizers {
     fun sanitizeAttendance(res: AttendanceRes?): AttendanceRes? {
         if (res == null) return null
         val items = res.attendance.orEmpty().mapNotNull { item ->
-            val code = item.courseCode.clean() ?: return@mapNotNull null // no courseCode -> discard
-            if (!isValidCourseCode(code)) return@mapNotNull null // "(T)" garbage rows -> discard
+            val code = canonicalCode(item.courseCode) ?: return@mapNotNull null
             item.copy(
                 courseCode = code,
                 courseTitle = item.courseTitle.clean() ?: "",
@@ -122,8 +136,7 @@ object AppSanitizers {
         if (res == null) return null
         val source = if (res.marksKey.isNotEmpty()) res.marksKey else res.courses
         val courses = source.mapNotNull { course ->
-            val code = course.courseCode.clean() ?: return@mapNotNull null
-            if (!isValidCourseCode(code)) return@mapNotNull null
+            val code = canonicalCode(course.courseCode) ?: return@mapNotNull null
             course.copy(
                 courseCode = code,
                 courseTitle = course.courseTitle.clean() ?: "",
@@ -576,7 +589,24 @@ object AppSanitizers {
         if (res == null) return null
         return res.copy(data = res.data.mapNotNull { a ->
             val name = a.name.trim().takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            a.copy(name = name, due = a.due.trim().takeIf { it.isNotBlank() } ?: "", teachers = a.teachers.mapNotNull { it.trim().takeIf(String::isNotBlank) })
+
+            // The deadline's numbers arrive from Moodle's calendar event, but they
+            // still came over a scrape, so they are checked here rather than
+            // trusted: an impossible triple is zeroed so `dueDate` reports null
+            // instead of throwing at the first screen that asks for it.
+            val calendarDateValid = a.year in 2000..2100 && a.monthNumber in 1..12 && a.dayOfMonth in 1..31
+            val valid = calendarDateValid && runCatching {
+                kotlinx.datetime.LocalDate(a.year, a.monthNumber, a.dayOfMonth)
+            }.isSuccess
+
+            a.copy(
+                name = name,
+                due = a.due.trim().takeIf { it.isNotBlank() } ?: "",
+                teachers = a.teachers.mapNotNull { it.trim().takeIf(String::isNotBlank) },
+                year = if (valid) a.year else 0,
+                monthNumber = if (valid) a.monthNumber else 0,
+                dayOfMonth = if (valid) a.dayOfMonth else 0
+            )
         })
     }
 
@@ -607,3 +637,4 @@ object AppSanitizers {
             t.copy(id = id, title = t.title.trim().takeIf { it.isNotBlank() } ?: t.title)
         }
 }
+

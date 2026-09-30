@@ -35,6 +35,7 @@ val appLibraryItems: List<AppLibraryItem> = listOf(
     // STUDY
     AppLibraryItem("Attendance", "Class attendance & slot tracker", Icons.Rounded.EventAvailable, "Study", targetScreen = Screen.ATTENDANCE),
     AppLibraryItem("Timetable Calendar", "Daily schedule & exam calendar", Icons.Rounded.CalendarMonth, "Study", targetScreen = Screen.CALENDAR),
+    AppLibraryItem("Classic Dashboard", "The original widget home screen", Icons.Rounded.DashboardCustomize, "Study", targetScreen = Screen.HOME_LEGACY, pinnableScreen = null),
     AppLibraryItem("Academics Hub", "Academic sub-panel & grade tools", Icons.Rounded.School, "Study", type = "panel", panelTarget = LibraryPanel.ACADEMICS, pinnableScreen = null),
     AppLibraryItem("Course Hub", "Courses, grades, arrears & more", Icons.Rounded.Dashboard, "Academics", targetScreen = Screen.COURSE_DASHBOARD),
     AppLibraryItem("Grade History", "Semester SGPA & grade breakdown", Icons.Rounded.History, "Academics", targetScreen = Screen.GRADES),

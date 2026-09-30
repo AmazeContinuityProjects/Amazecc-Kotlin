@@ -5,14 +5,15 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.HomeViewMode
 import com.amazecc.app.shared.state.Screen
-import com.amazecc.app.shared.ui.screens.DashboardScreen
 import com.amazecc.app.shared.ui.screens.FfcsPlannerScreen
 import com.amazecc.app.shared.ui.screens.ProfileScreen
 import com.amazecc.app.shared.ui.screens.QBankScreen
@@ -39,6 +40,10 @@ fun MainTabPager(
     val currentPage = remember(currentScreen, tabScreens) {
         (tabScreens.indexOf(currentScreen)).coerceAtLeast(0)
     }
+
+    // Read as a flow, not as `AppState.homeUsesSimplified`, so that changing the
+    // home style repaints the tab even if it is already the visible page.
+    val homeViewMode by AppState.homeViewMode.collectAsState()
 
     val pagerState = rememberPagerState(
         initialPage = currentPage,
@@ -70,7 +75,11 @@ fun MainTabPager(
         key = { tabScreens[it] }
     ) { page ->
         when (val screen = tabScreens[page]) {
-            Screen.HOME -> DashboardScreen()
+            Screen.HOME -> if (homeViewMode == HomeViewMode.SIMPLIFIED) {
+                com.amazecc.app.shared.ui.screens.home.SimplifiedHomeScreen()
+            } else {
+                com.amazecc.app.shared.ui.screens.LegacyHomeScreen()
+            }
             Screen.ATTENDANCE -> AttendanceScreen()
             Screen.ACADEMICS -> AcademicsScreen()
             Screen.LIBRARIES -> LibrariesScreen()

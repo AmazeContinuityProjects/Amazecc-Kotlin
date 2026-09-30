@@ -57,13 +57,50 @@ enum class AttendanceDisplayMode(val value: String) {
 private val REG_FIELD_NAMES = setOf("username", "date", "fromtime", "totime")
 
 enum class Screen { SPLASH,
-    LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
+    LOGIN, ONBOARDING, HOME, HOME_LEGACY, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
     COURSE_ATTENDANCE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
     FACULTY_INFO, COURSE_MANAGEMENT,
     FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, CLUB_DETAIL,
     COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB, TASKS, EXAM_SCHEDULE,
     CHANGELOG, HALL_OF_FAME, ARREAR
+}
+
+/**
+ * Which home the Home tab opens.
+ *
+ * [SIMPLIFIED] is the current default: a greeting, two stat tiles, the week
+ * strip and the day's sessions. [CLASSIC] is the widget dashboard it replaced —
+ * deprecate means deprecate, not delete, so it stays a first-class screen
+ * ([Screen.HOME_LEGACY]) with its own widget ordering intact and is reachable
+ * from the App Library and from Settings → Dashboard Layout.
+ */
+enum class HomeViewMode(val value: String) {
+    SIMPLIFIED("simplified"),
+    CLASSIC("classic");
+
+    companion object {
+        fun fromString(raw: String?): HomeViewMode =
+            entries.firstOrNull { it.value == raw } ?: SIMPLIFIED
+    }
+}
+
+/**
+ * How dense a session card is on the simplified home.
+ *
+ * [COMPACT] is two lines — slot, title, time, venue, bunk count, percentage.
+ * [DETAILED] is spacious and adds the faculty and a bunk subtext. The web's
+ * setting is `timetablePillStyle`; the values are carried across verbatim so a
+ * habit formed on one build transfers.
+ */
+enum class HomePillStyle(val value: String) {
+    COMPACT("compact"),
+    DETAILED("detailed");
+
+    companion object {
+        fun fromString(raw: String?): HomePillStyle =
+            entries.firstOrNull { it.value == raw } ?: COMPACT
+    }
 }
 
 object AppState {
@@ -150,6 +187,44 @@ object AppState {
 
     private val _heroColorEnabled = MutableStateFlow(true)
     val heroColorEnabled: StateFlow<Boolean> = _heroColorEnabled.asStateFlow()
+
+    // ── Home screen ──
+
+    private val _homeViewMode = MutableStateFlow(
+        HomeViewMode.fromString(SettingsManager.getString(SettingsManager.KEY_HOME_VIEW_MODE).takeIf { it.isNotBlank() })
+    )
+    val homeViewMode: StateFlow<HomeViewMode> = _homeViewMode.asStateFlow()
+
+    /** True when the Home tab should render the simplified screen rather than the widget dashboard. */
+    val homeUsesSimplified: Boolean get() = _homeViewMode.value == HomeViewMode.SIMPLIFIED
+
+    fun setHomeViewMode(mode: HomeViewMode) {
+        _homeViewMode.value = mode
+        SettingsManager.setString(SettingsManager.KEY_HOME_VIEW_MODE, mode.value)
+    }
+
+    /** Opens the widget dashboard directly, leaving the Home tab's default alone. */
+    fun openClassicHome() = navigateTo(Screen.HOME_LEGACY)
+
+    private val _homePillStyle = MutableStateFlow(
+        HomePillStyle.fromString(SettingsManager.getString(SettingsManager.KEY_HOME_PILL_STYLE).takeIf { it.isNotBlank() })
+    )
+    val homePillStyle: StateFlow<HomePillStyle> = _homePillStyle.asStateFlow()
+
+    fun setHomePillStyle(style: HomePillStyle) {
+        _homePillStyle.value = style
+        SettingsManager.setString(SettingsManager.KEY_HOME_PILL_STYLE, style.value)
+    }
+
+    private val _homeTasksInline = MutableStateFlow(
+        SettingsManager.getBoolean(SettingsManager.KEY_HOME_TASKS_INLINE, true)
+    )
+    val homeTasksInline: StateFlow<Boolean> = _homeTasksInline.asStateFlow()
+
+    fun setHomeTasksInline(enabled: Boolean) {
+        _homeTasksInline.value = enabled
+        SettingsManager.setBoolean(SettingsManager.KEY_HOME_TASKS_INLINE, enabled)
+    }
 
     private val _residentialStatus = MutableStateFlow(SettingsManager.getString(SettingsManager.RESIDENTIAL_STATUS, "Hosteller"))
     val residentialStatus: StateFlow<String> = _residentialStatus.asStateFlow()

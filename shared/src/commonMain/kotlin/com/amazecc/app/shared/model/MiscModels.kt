@@ -129,12 +129,43 @@ data class QcmViewRes(
 @Serializable
 data class MoodleAssignment(
     val name: String,
+    /**
+     * The due date as Moodle *renders* it, scraped from the activity page's
+     * date block — e.g. `"Monday, 28 September 2026, 23:59:00"`.
+     *
+     * Display-only, and deliberately not parsed. It is localised prose: it
+     * changes with the account's Moodle language, with the site's phrasing, and
+     * with whether the course sets a due time at all. Anything that needs the
+     * actual date should read [year]/[monthNumber]/[dayOfMonth], which arrive as
+     * numbers on the same payload, or [NotificationsUtils.deadlineDate] if it is
+     * holding an ISO string from some other source.
+     */
     val due: String,
     val done: Boolean = false,
     val url: String? = null,
     val teachers: List<String> = emptyList(),
-    val hidden: Boolean = false
+    val hidden: Boolean = false,
+    /** Calendar year of the deadline. 0 when the payload did not carry one. */
+    val year: Int = 0,
+    /** Calendar month, 1-12. 0 when absent. */
+    val monthNumber: Int = 0,
+    /** Day of month. 0 when absent. */
+    val dayOfMonth: Int = 0
 ) {
+    /**
+     * The deadline as a real date, or null when the payload carried no usable
+     * numbers and [due] is not in a machine-readable form.
+     *
+     * The numbers are validated rather than trusted: they come from the same
+     * scrape as everything else, and `LocalDate` throws on an impossible day.
+     */
+    val dueDate: kotlinx.datetime.LocalDate?
+        get() = if (year in 2000..2100 && monthNumber in 1..12 && dayOfMonth in 1..31) {
+            runCatching { kotlinx.datetime.LocalDate(year, monthNumber, dayOfMonth) }.getOrNull()
+        } else {
+            null
+        }
+
     val courseCode: String get() {
         val parts = name.split("/")
         val first = parts.firstOrNull()?.trim() ?: return ""

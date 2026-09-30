@@ -73,6 +73,9 @@ object Vtop {
 
     private fun engine(): VtopEngine = engine ?: VtopEngine().also { engine = it }
 
+    /** The shared engine, for [VtopDataSource]. Exposed rather than duplicated. */
+    fun engineInstance(): VtopEngine = engine()
+
     /** Answers the parked captcha prompt. Blank text is treated as a cancel. */
     fun submitCaptcha(text: String) {
         val signal = captchaSignal ?: return
@@ -299,6 +302,30 @@ object Vtop {
         }
         if (semesters.isNotEmpty()) VtopSession.saveSemesters(semesters)
         return semesters
+    }
+
+    /**
+     * Re-hydrates [VtopSession] from a `JSESSIONID` the WebView is still holding, without asking
+     * for credentials or solving another captcha.
+     *
+     * This exists because [VtopSession] is deliberately memory-only — the real cookie never
+     * leaves the WebView's `CookieManager`, which *does* persist across process death. Without
+     * this, every cold start reverts every module to "No VTOP session" even though the browser
+     * session is still valid, and the only remedy is a full interactive login with a captcha.
+     *
+     * Returns true when a session was restored. Never prompts, so it is safe to call on startup.
+     */
+    suspend fun restoreSessionIfPossible(): Boolean {
+        if (VtopSession.hasSession) return true
+        if (!isSupported) return false
+
+        val e = engine()
+        // A stale JSESSIONID sends us straight back to the login form, which is the negative case.
+        if (awaitPageState(e) != VtopPageState.HOME) {
+            runCatching { e.load(VtopSession.PATH_CONTENT) }
+            if (awaitPageState(e) != VtopPageState.HOME) return false
+        }
+        return completeSession(e) is LoginResult.Success
     }
 
     /** Swaps to the next User-Agent and reloads the login page. */

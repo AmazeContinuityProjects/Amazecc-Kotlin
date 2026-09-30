@@ -401,9 +401,20 @@ private fun AttendanceHeroCard(
     val (healthLabel, _, _) = healthStatus(attPct, predictedGrade(0.0), isPastSemester, colors)
 
     val assessments = (group.theory?.assessments ?: emptyList()) + (group.lab?.assessments ?: emptyList())
-    val totalWeighted = assessments.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
+    val summedWeighted = assessments.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
     val totalWeightPct = assessments.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
-    val projectedPct = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
+
+    // A merged ETH/ELA course already carries a credit-weighted total. Summing the pair's
+    // weightage marks instead would report a mark out of 200 against a max of 100, so the
+    // stored figure wins whenever it exists.
+    val storedTotal = (group.theory?.totalMark ?: group.lab?.totalMark)
+    val storedMax = (group.theory?.maxMark ?: group.lab?.maxMark)
+    val totalWeighted = storedTotal ?: summedWeighted
+    val projectedPct = when {
+        storedMax != null && storedMax > 0.0 -> (totalWeighted / storedMax * 100).toInt()
+        totalWeightPct > 0 -> (totalWeighted / totalWeightPct * 100).toInt()
+        else -> 0
+    }
 
     HeroCard(colors = colors, modifier = Modifier.fillMaxWidth()) { p ->
         Row(verticalAlignment = Alignment.CenterVertically) {
