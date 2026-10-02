@@ -71,6 +71,7 @@ import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.UpdateDialog
+import com.amazecc.app.shared.ui.design.*
 import com.amazecc.app.shared.utils.seatLocationDisplay
 import com.amazecc.app.shared.utils.sessionDisplay
 import com.amazecc.app.shared.utils.toFixed

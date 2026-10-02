@@ -108,20 +108,23 @@ object AppDataStore {
      * Restores the persisted snapshot. When no snapshot exists yet, migrates
      * the legacy per-module caches into it (and deletes them).
      *
-     * v1 snapshots (no `academic` key) are migrated to v2 in the same pass via
-     * [SnapshotMigrator] and re-persisted (see docs/features/schemas/03-migration.md).
+     * v1 and v2 blobs are upgraded to the current v3 domain schema in the same pass via
+     * [SnapshotCodec] and re-persisted (see docs/features/schemas/03-migration.md).
      */
     fun restore() {
         val raw = SettingsManager.getNullableString(SettingsManager.CACHE_APP_DATA)
         if (raw != null) {
             val decoded = runCatching { Encryption.decryptOrPlain(raw) }.getOrNull()
+            val schema = decoded?.let { SnapshotCodec.detect(it) }
             val restored = decoded?.let {
-                runCatching { decodeSnapshot(it) }.getOrNull()
+                runCatching { SnapshotCodec.decode(it, selectedSemesterId()) }.getOrNull()
             }
             if (restored != null) {
                 val normalized = AcademicMerge.normalizeEmbeddedKeys(restored)
                 _data.value = normalized
-                if (normalized != restored) persist()
+                // Re-persist whenever the read upgraded the schema, so the migration is one-way and
+                // never has to run twice. Also re-persists the embedded-key normalisation.
+                if (normalized != restored || schema != SnapshotCodec.Schema.V3_DOMAIN) persist()
                 return
             }
         }
@@ -133,28 +136,42 @@ object AppDataStore {
         val raw = SettingsManager.getNullableString(SettingsManager.CACHE_APP_DATA) ?: return AppDataSnapshot()
         val decoded = runCatching { Encryption.decryptOrPlain(raw) }.getOrNull() ?: return AppDataSnapshot()
         return AcademicMerge.normalizeEmbeddedKeys(
-            runCatching { decodeSnapshot(decoded) }.getOrNull() ?: AppDataSnapshot()
+            runCatching { SnapshotCodec.decode(decoded, selectedSemesterId()) }.getOrNull() ?: AppDataSnapshot()
         )
     }
 
-    /** Decodes a persisted snapshot, migrating v1 → v2 if needed (pure, no writes). */
-    private fun decodeSnapshot(encoded: String): AppDataSnapshot =
-        if ("\"academic\"" in encoded) {
-            json.decodeFromString<AppDataSnapshot>(encoded)
-        } else {
-            SnapshotMigrator.toV2(json.decodeFromString<LegacyAppDataSnapshot>(encoded))
-        }
-
+    /**
+     * Persists as the current schema ([com.amazecc.app.shared.domain.DomainSnapshot], version 3).
+     *
+     * The in-memory shape stays [AppDataSnapshot] on purpose: ~43 screens still read those flows,
+     * and [VtopIngestor.toLegacy] is a proven-lossless inverse. Once every screen reads a projection,
+     * `_data` becomes the domain snapshot and the two bridge functions are deleted.
+     */
     private fun persist() {
-        val encoded = runCatching { json.encodeToString(AppDataSnapshot.serializer(), _data.value) }.getOrNull()
+        val encoded = runCatching { SnapshotCodec.encode(_data.value, selectedSemesterId()) }.getOrNull()
             ?: return
         SettingsManager.setString(SettingsManager.CACHE_APP_DATA, Encryption.encryptOrPlain(encoded))
     }
 
+    /**
+     * The user's own semester choice, folded into the domain snapshot so it does not have to be
+     * re-guessed from the semester ids on every read. Null until they pick one.
+     */
+    private fun selectedSemesterId(): String? =
+        SettingsManager.getNullableString(SettingsManager.KEY_SELECTED_SEMESTER)
+            ?.takeIf { it.isNotBlank() }
+
     /** Forces a persist of the current snapshot (idempotent no-op if nothing changed). */
     fun persistNow() = persist()
 
-    /** Serialises the current snapshot as plain JSON for backup export (never the encrypted blob). */
+    /**
+     * Serialises the current snapshot as plain JSON for backup export (never the encrypted blob).
+     *
+     * Deliberately still [AppDataSnapshot] (v2), *not* the persisted v3 domain shape. A backup file
+     * is a long-lived external contract with its own `BackupFile.formatVersion`; changing its
+     * payload would make every backup already on a user's device unreadable. Import goes back
+     * through [importSnapshot] and is re-encoded as v3 on the next persist.
+     */
     fun exportSnapshot(): String =
         runCatching { json.encodeToString(AppDataSnapshot.serializer(), _data.value) }.getOrDefault("{}")
 

@@ -1,0 +1,68 @@
+{
+ "ok": true,
+ "title": "",
+ "selectOptions": {},
+ "tables": [
+  {
+   "headers": [
+    "Sem Code",
+    "Course Code",
+    "Course Title",
+    "Course Type",
+    "Class Nbr",
+    "Faculty",
+    "QCM No.",
+    "Action",
+    "Suggestions",
+    "Faculty Reply",
+    "HOD Comments"
+   ],
+   "rows": [
+    {
+     "Sem Code": "FALLSEM2026-27",
+     "Course Code": "BAECE203",
+     "Course Title": "Analog Electronics",
+     "Course Type": "ETH",
+     "Class Nbr": "CH2026270102001",
+     "Faculty": "BINDU B",
+     "QCM No.": "1",
+     "Action": "Faculty and HOD",
+     "Suggestions": "The subject is difficult, so the professor should teach at a slower pace and cover more practice problems.",
+     "Faculty Reply": "",
+     "HOD Comments": ""
+    },
+    {
+     "Sem Code": "FALLSEM2026-27",
+     "Course Code": "BACSE102",
+     "Course Title": "Problem Solving Using Java",
+     "Course Type": "LO",
+     "Class Nbr": "CH2026270102069",
+     "Faculty": "SHEENA CHRISTABEL PRAVIN",
+     "QCM No.": "2",
+     "Action": "Faculty and HOD",
+     "Suggestions": "I am New PAT exam sectional lock need to released",
+     "Faculty Reply": "",
+     "HOD Comments": ""
+    },
+    {
+     "Sem Code": "FALLSEM2026-27",
+     "Course Code": "BACSE105",
+     "Course Title": "Data Structures and Algorithms",
+     "Course Type": "ETH",
+     "Class Nbr": "CH2026270102407",
+     "Faculty": "MERCY RAJASELVI BEAULAH P",
+     "QCM No.": "2",
+     "Action": "Faculty and HOD",
+     "Suggestions": "Finding difficulty in formulating algorithms as per syntax.",
+     "Faculty Reply": "",
+     "HOD Comments": ""
+    }
+   ]
+  }
+ ],
+ "keyValuePairs": {},
+ "formFields": {},
+ "hiddenFields": {},
+ "messages": {},
+ "hasApaar": false
+}

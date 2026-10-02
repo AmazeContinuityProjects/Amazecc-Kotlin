@@ -135,6 +135,7 @@ object VtopDataSource {
     private const val PATH_CIRCULARS = "/vtop/admissions/costCentreCircularsViewPageController"
     private const val PATH_CALENDAR = "/vtop/processViewCalendar"
     private const val PATH_QCM_LOGIN = "/vtop/academics/common/QCMStudentLogin"
+    private const val PATH_QCM_DETAIL = "/vtop/getStudentLoginForQcm"
 
     // Group D
     private const val PATH_CURRICULUM = "/vtop/academics/common/Curriculum"
@@ -367,7 +368,10 @@ object VtopDataSource {
 
         val courses = fetchCourses(semesterId)
         val raw = fetchRawAttendance(semesterId)
-        val venuePattern = Regex("[A-Z]+\\d*\\s*-\\s*\\d+\\s*[A-Z]?")
+        // The trailing letter is anchored to the number (`\d+[A-Z]?`, not `\d+\s*[A-Z]?`).
+        // With a space allowed, "AB1-12 LT1-34" matched "AB1-12 L" first and the next match
+        // started at "T1-34", so venues came out truncated - a real defect, not a test artefact.
+        val venuePattern = Regex("[A-Z]+\\d*\\s*-\\s*\\d+[A-Z]?")
 
         val merged = courses.map { course ->
             val match = raw.firstOrNull { VtopCourseCode.sameCourse(it.courseCode, course.courseCode) }
@@ -598,12 +602,16 @@ object VtopDataSource {
                 label.contains("Room No") -> roomNo = value
                 label.contains("Mess Information") -> {
                     var mess = value.split(" ").firstOrNull().orEmpty().ifBlank { "NOT ALLOTED" }
-                    if (mess.length > 7) {
-                        mess = when (mess) {
-                            "NON" -> "NON VEG"
-                            "FOOD" -> "FOOD PARK"
-                            else -> "NOT ALLOTED"
-                        }
+                    // VTOP sends the short form ("NON", "FOOD") and the app displays the expanded
+                    // one. The old guard was `length > 7`, which made the expansion unreachable -
+                    // "NON" is 3 characters and "FOOD" is 4, so neither could ever be rewritten.
+                    // The known codes are matched first, then a long unrecognised value is treated
+                    // as no allocation, and anything else is passed through untouched.
+                    mess = when {
+                        mess.equals("NON", true) -> "NON VEG"
+                        mess.equals("FOOD", true) -> "FOOD PARK"
+                        mess.length > 7 -> "NOT ALLOTED"
+                        else -> mess
                     }
                     messInfo = mess
                 }
@@ -950,10 +958,42 @@ object VtopDataSource {
      */
     suspend fun fetchQcmView(): QcmViewRes? {
         val body = sessionBody() ?: return null
-        val res = evaluate(VtopScripts.parsePage(PATH_QCM_LOGIN, body))
-        val page = VtopPage.parse(res)
-        if (!page.ok) return null
-        return QcmViewRes(success = true, data = res.rawObject()["tables"] ?: JsonNull)
+        val stage1 = VtopPage.parse(evaluate(VtopScripts.parsePage(PATH_QCM_LOGIN, body)))
+        if (!stage1.ok) return null
+
+        // Stage 1 is only a form; the semester <select> is the payload. Empty means QCM is off
+        // for this account, which is a successful "no data" rather than a failure.
+        val options = stage1.selectOptions["semesterSubId"].orEmpty()
+            .filter { it.value.isNotBlank() }
+        if (options.isEmpty()) return QcmViewRes(success = true, data = JsonNull)
+        val semesterIds = options.map { it.value }
+
+        val qcmBody = sessionBody() ?: return null
+        val tables = mutableListOf<JsonObject>()
+        // Sequential, like every other fan-out here: the WebView script is synchronous.
+        for (option in options) {
+            val semesterId = option.value
+            val raw = evaluate(VtopScripts.fetchQcmForSemester(PATH_QCM_DETAIL, qcmBody, semesterId))
+            val obj = raw.rawObject()
+            if ((obj["ok"] as? JsonPrimitive)?.content != "true") continue
+            val rows = obj["rows"] as? JsonArray ?: continue
+            // Older semesters answer 200 with the header row and no data. Emitting an empty table
+            // would show a blank section per semester, so skip them.
+            if (rows.isEmpty()) continue
+            tables += buildJsonObject {
+                // Prefer the readable option text ("Fall Semester 2026-27 - CHN") over the bare id.
+                put("caption", option.text.ifBlank { semesterId })
+                put("semester", semesterId)
+                put("semesterId", semesterId)
+                put("rows", rows)
+            }
+        }
+
+        return QcmViewRes(
+            success = true,
+            data = JsonArray(tables),
+            semesters = semesterIds,
+        )
     }
 
     // ── Group D — curriculum ────────────────────────────────────────────────

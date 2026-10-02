@@ -1,0 +1,56 @@
+{
+ "ok": true,
+ "title": "Quality Circle Meeting",
+ "selectOptions": {
+  "semesterSubId": [
+   {
+    "value": "",
+    "text": "-- Select --",
+    "selected": true
+   },
+   {
+    "value": "CH20262701",
+    "text": "Fall Semester 2026-27 - CHN",
+    "selected": false
+   },
+   {
+    "value": "CH20252605",
+    "text": "Winter Semester 2025-26 - CHN",
+    "selected": false
+   },
+   {
+    "value": "CH20252601",
+    "text": "Fall Semester 2025-26 - CHN",
+    "selected": false
+   },
+   {
+    "value": "CH20242505",
+    "text": "Winter Semester 2024-25 - CHN",
+    "selected": false
+   },
+   {
+    "value": "CH20242501",
+    "text": "Fall Semester 2024-25 - CHN",
+    "selected": false
+   },
+   {
+    "value": "CH20222323",
+    "text": "Winter Semester I year 2022-23 - CHN",
+    "selected": false
+   }
+  ]
+ },
+ "tables": [],
+ "keyValuePairs": {},
+ "formFields": {
+  "_csrf": "2c41a4cc-13b6-4f80-bac3-a05dda75f3ad",
+  "authorizedID": "25BLC1081",
+  "semesterSubId": ""
+ },
+ "hiddenFields": {
+  "_csrf": "2c41a4cc-13b6-4f80-bac3-a05dda75f3ad",
+  "authorizedID": "25BLC1081"
+ },
+ "messages": {},
+ "hasApaar": false
+}

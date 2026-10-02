@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.vtop
 
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
@@ -48,7 +49,9 @@ data class VtopRows(
 
             val captures = (root["captures"] as? JsonArray).orEmpty().map { rowEl ->
                 (rowEl as? JsonArray).orEmpty().map { cell ->
-                    (cell as? JsonPrimitive)?.content
+                    // JsonNull is a JsonPrimitive, so a null capture would otherwise read back as
+                    // the literal string "null" and get posted to VTOP as a real attribute value.
+                    (cell as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content
                 }
             }
 

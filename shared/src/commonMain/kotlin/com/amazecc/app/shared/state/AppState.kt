@@ -6,6 +6,8 @@ import com.amazecc.app.shared.utils.CourseAttendanceInfo
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.domain.DomainSnapshot
+import com.amazecc.app.shared.domain.VtopIngestor
 import com.amazecc.app.shared.theme.AccentOcean
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AppTheme
@@ -27,8 +29,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
@@ -390,6 +395,27 @@ private val _commandPaletteOpen = MutableStateFlow(false)
 
     // Cached Data (all reads/writes go through AppDataStore — the single source of truth)
     val academic: StateFlow<AcademicData> = AppDataStore.academic
+
+    /**
+     * The canonical screen-facing model: one [DomainSnapshot] over the store's snapshot and the
+     * selected semester.
+     *
+     * This is the bridge that lets a screen use
+     * [com.amazecc.app.shared.domain.Projections] today, while `AppDataStore` still holds
+     * `AppDataSnapshot` in memory. It is a pure mapping over a value the store already has - no
+     * extra persistence, no second copy on disk - and it replaces a dozen `StateFlow<*Res>`
+     * handles with one.
+     *
+     * When the last screen reads this, `AppDataStore`'s in-memory shape becomes `DomainSnapshot`,
+     * `VtopIngestor.fromLegacy`/`toLegacy` are deleted, and this collapses to a plain alias.
+     */
+    val domain: StateFlow<DomainSnapshot> = combine(AppDataStore.data, selectedSemester) { snapshot, semester ->
+        VtopIngestor.fromLegacy(snapshot, semester)
+    }.stateIn(
+        scope = scope,
+        started = SharingStarted.Eagerly,
+        initialValue = VtopIngestor.fromLegacy(AppDataStore.data.value, selectedSemester.value),
+    )
 
     private val _currentLiveClass = MutableStateFlow<CourseAttendanceInfo?>(null)
     val currentLiveClass: StateFlow<CourseAttendanceInfo?> = _currentLiveClass.asStateFlow()
@@ -907,8 +933,16 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             return
         }
         backstack.removeAll { it == screen }
-        if (backstack.lastOrNull() != _currentScreen.value) {
-            backstack.add(_currentScreen.value)
+        // HOME is the *floor* of the back stack, not a cap: the first entry is always HOME and
+        // everything above it is whatever the user actually visited. So leaving a non-root screen
+        // pushes that screen, and leaving a root that is not HOME (Login, Onboarding) anchors the
+        // stack at HOME - which is what stops a back press walking out of the app.
+        val leaving = _currentScreen.value
+        if (leaving !in rootScreens) {
+            if (backstack.lastOrNull() != leaving) backstack.add(leaving)
+        } else if (backstack.isEmpty()) {
+            // Entering a detail screen from any root with nothing below it: anchor at HOME.
+            backstack.add(Screen.HOME)
         }
         _currentScreen.value = screen
     }
@@ -1068,11 +1102,25 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             notificationService.showLoadingNotification("AmazeCC Sync", "Refreshing VTOP session...")
             try {
                 // ── Refresh VTOP session before syncing (cookies expire every 10 min) ──
-                val creds = SettingsManager.getCredentials()
-                if (creds != null) {
-                    try {
-                        val loginRes = AmazeClient.login(creds.first, creds.second)
-                        if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
+                // On LOCAL this re-hydrates from the WebView's JSESSIONID rather than doing a
+                // credential login, which would need a captcha nobody is there to answer.
+                if (AmazeClient.ensureSession()) {
+                    val csrfNow = SessionManager.csrf.value
+                    val idNow = SessionManager.authorizedID.value
+                    val cookiesNow = SessionManager.cookies.value
+                    if (csrfNow != null && idNow != null && cookiesNow != null) {
+                        SettingsManager.setString(SettingsManager.SESSION_COOKIES, cookiesNow)
+                        SettingsManager.setString(SettingsManager.SESSION_CSRF, csrfNow)
+                        SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, idNow)
+                        UserStore.merge(IdentityExtractor.fromSession(idNow), IdentitySource.SESSION)
+                    }
+                } else {
+                    // Fall back to a full credential login, which only works on REMOTE.
+                    val creds = SettingsManager.getCredentials()
+                    if (creds != null) {
+                        try {
+                            val loginRes = AmazeClient.login(creds.first, creds.second)
+                            if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
                             SessionManager.saveSession(
                                 cookies = loginRes.cookies,
                                 csrf = loginRes.csrf,
@@ -1084,8 +1132,9 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
                             loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
                             UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
-                        }
-                    } catch (e: Exception) { println("AmazeCC: AppState loadAllData sessionRefresh — ${e.message}") }
+                            }
+                        } catch (e: Exception) { println("AmazeCC: AppState loadAllData sessionRefresh — ${e.message}") }
+                    }
                 }
 
                 _syncMessage.value = "Syncing academic and campus data..."
@@ -1417,8 +1466,17 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     private fun scheduleReminders() {
         val courses = AppDataStore.academic.value.semesters[_selectedSemester.value]?.courses?.values?.toList().orEmpty()
         val assignments = AppDataStore.lms.value?.assignments
-        val moodleAssignments = AppDataStore.moodleData.value?.data?.filter { !it.done }?.map { a ->
-            LMSAssignment("moodle_${a.hashCode()}", a.courseCode, a.taskTitle, "", a.due, "Pending")
+        val moodleAssignments = AppDataStore.moodleData.value?.data?.map { a ->
+            // The Moodle module has its own shape; adapt it onto the LMS one so both feed the same
+            // reminder path. `done` is the real submission flag - the old DTO carried a "status"
+            // string that no route ever produced.
+            LMSAssignment(
+                name = "${a.courseCode}/${a.taskTitle}",
+                courseCode = a.courseCode,
+                assignmentTitle = a.taskTitle,
+                due = a.due,
+                done = a.done,
+            )
         } ?: emptyList()
         val allAssignments = (assignments ?: emptyList()) + moodleAssignments
         val examsForSem = AppDataStore.academic.value.semesters[_selectedExamSemester.value]?.exams

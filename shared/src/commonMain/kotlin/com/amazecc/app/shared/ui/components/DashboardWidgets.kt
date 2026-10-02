@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.state.AcademicDerivers
@@ -906,20 +907,13 @@ private fun MetricCardsWidget() {
     }
     val odCount = remember(courses) { WidgetDataUtils.computeODHours(courses) }
 
-    val overallAttendance = remember(courses) {
-        val validCourses = courses.filter { it.totalClasses > 0 }
-        if (validCourses.isEmpty()) 0f
-        else {
-            var totalAtt = 0
-            var totalCls = 0
-            for (item in validCourses) {
-                totalAtt += item.attendedClasses
-                totalCls += item.totalClasses
-            }
-            if (totalCls == 0) 0f else (totalAtt.toFloat() / totalCls.toFloat()) * 100f
-        }
-    }
     val targetPct = AppState.effectiveAttendanceTarget(isBusSubscriber)
+    val overallAttendance = remember(courses, targetPct) {
+        Projections.summariseAttendance(
+            courses.map { it.attendedClasses to it.totalClasses },
+            targetPct,
+        ).percentage
+    }
     val attColor = when {
         overallAttendance >= targetPct -> colors.success
         overallAttendance >= 50f -> colors.warning
@@ -1098,25 +1092,18 @@ private fun AttendanceBunkWidget() {
     val academic by AppState.academic.collectAsState()
     val courses = WidgetDataUtils.currentSemesterData(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
 
-    val overallAttendance = remember(courses) {
-        val validCourses = courses.filter { it.totalClasses > 0 }
-        if (validCourses.isEmpty()) 0f
-        else {
-            var totalAtt = 0
-            var totalCls = 0
-            for (item in validCourses) {
-                totalAtt += item.attendedClasses
-                totalCls += item.totalClasses
-            }
-            if (totalCls == 0) 0f else (totalAtt.toFloat() / totalCls.toFloat()) * 100f
-        }
+    val isBusSubscriber by AppState.isBusSubscriber.collectAsState()
+    val targetPct = AppState.effectiveAttendanceTarget(isBusSubscriber)
+    val overallAttendance = remember(courses, targetPct) {
+        Projections.summariseAttendance(
+            courses.map { it.attendedClasses to it.totalClasses },
+            targetPct,
+        ).percentage
     }
     val animatedAttendance by animateFloatAsState(
         targetValue = overallAttendance / 100f,
         animationSpec = tween(1500)
     )
-    val isBusSubscriber by AppState.isBusSubscriber.collectAsState()
-    val targetPct = AppState.effectiveAttendanceTarget(isBusSubscriber)
     val attColor = when {
         overallAttendance >= targetPct -> colors.success
         overallAttendance >= 50f -> colors.warning
@@ -2110,7 +2097,6 @@ private fun CourseAttendanceWidget() {
             .flatMap { it.courses.values }
             .mapNotNull { it.attendance?.let { att -> it.toAttendanceItem() } } + courses
         var safe = 0; var warn = 0; var crit = 0
-        var totalP = 0; var totalT = 0
         for (c in allCourses) {
             val t = c.totalClasses
             if (t > 0) {
@@ -2120,11 +2106,15 @@ private fun CourseAttendanceWidget() {
                     p >= 0.5 -> warn++
                     else -> crit++
                 }
-                totalP += c.attendedClasses
-                totalT += t
             }
         }
-        val avg = if (totalT > 0) totalP.toDouble() / totalT * 100 else 0.0
+        // The average is the app's one headline formula, not a second sum over the same rows.
+        // Only the figure is read, so no target is passed; the safe/warn/crit bands above are
+        // this widget's own absolute 75/50 display choice and deliberately do not use the
+        // target-based [Projections.attendanceStatus].
+        val avg = Projections.summariseAttendance(
+            allCourses.map { it.attendedClasses to it.totalClasses },
+        ).percentage.toDouble()
         mutableStateOf(CourseStats(allCourses.size, safe, warn, crit, avg))
     }
 

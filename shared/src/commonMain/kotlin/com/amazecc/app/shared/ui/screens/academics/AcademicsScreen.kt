@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
@@ -53,16 +54,16 @@ fun AcademicsScreen() {
     val attendanceRows = sem?.courses?.values?.filter { it.attendance != null }.orEmpty()
 
     val currentCgpa = sem?.gpa?.trim()?.toDoubleOrNull() ?: 0.0
-    val creditsEarned = sem?.courses?.values.orEmpty()
-        .filter { it.grade != null }
-        .mapNotNull { it.credits?.trim()?.toDoubleOrNull() }
-        .sum()
+    val creditsEarned = Projections.creditsEarned(
+        sem?.courses?.values.orEmpty().map { it.credits to (it.grade != null) },
+    )
     val totalRequiredCredits = 160.0
-    val avgAttendance = if (attendanceRows.isNotEmpty()) {
-        attendanceRows.mapNotNull { it.attendance?.attendancePercentage?.trim()?.toDoubleOrNull() }.let { pcts ->
-            if (pcts.isEmpty()) 0.0 else pcts.sum() / pcts.size
-        }
-    } else 0.0
+    // Averaging the per-course percentages was wrong: a course with no held classes drags the
+    // mean down, and a one-class course counts as much as a forty-class one. The headline is
+    // the unweighted sum of attended/total across the semester, like every other surface.
+    val avgAttendance = Projections.summariseAttendance(
+        attendanceRows.mapNotNull { it.attendance?.let { att -> att.attendedClasses to att.totalClasses } },
+    ).percentage.toDouble()
 
     val hubCards = listOf(
         HubCard("course-dashboard", "Course Hub", "Your one-stop hub — courses, grades, arrears, projects and more.", Icons.Rounded.Dashboard, Color.White, colors.accent, true),

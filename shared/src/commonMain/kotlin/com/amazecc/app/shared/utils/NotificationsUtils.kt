@@ -107,15 +107,18 @@ object NotificationsUtils {
         var id = ASSIGNMENT_REMINDER_ID_BASE
 
         for (a in assignments) {
-            if (a.status == "Submitted" || a.dueDate.isBlank()) continue
-            val dueInstant = parseDeadlineInstant(a.dueDate, tz) ?: continue
+            if (a.done || a.due.isBlank()) continue
+            // LMS due dates arrive as Moodle prose ("Sunday, 4 October 2026, 12:00 AM"), which
+            // parseDeadlineInstant cannot read. The calendar cell supplies the numeric date, so
+            // prefer that and fall back to parsing the text.
+            val dueInstant = a.dueInstant(tz) ?: parseDeadlineInstant(a.due, tz) ?: continue
 
             val notifyInstant = dueInstant.minus(offsetMinutes.toLong(), DateTimeUnit.MINUTE)
             if (notifyInstant > now) {
                 scheduleLocalNotification(
                     id = id++,
                     title = "Assignment Due Soon",
-                    body = "${a.title} (${a.courseCode}) — Due ${a.dueDate}",
+                    body = "${a.assignmentTitle} (${a.shortCourseCode}) - Due ${a.due}",
                     triggerTimeMs = notifyInstant.toEpochMilliseconds()
                 )
             }

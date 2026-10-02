@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.home
+package com.amazecc.app.shared.ui.design
 
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.FastOutSlowInEasing

@@ -1,0 +1,243 @@
+{
+ "ok": true,
+ "status": 200,
+ "rows": [
+  [
+   "1",
+   "BACSE102",
+   "Problem Solving Using Java",
+   "Lab Only",
+   "L31+L32+L37+L38",
+   "52282 SHEENA CHRISTABEL PRAVIN SENSE",
+   "Manual",
+   "08-07-2026 08:50",
+   "09-07-2026",
+   "32",
+   "36",
+   "89",
+   "-",
+   "View"
+  ],
+  [
+   "2",
+   "BACSE105",
+   "Data Structures and Algorithms",
+   "Embedded Theory",
+   "F1+TF1",
+   "52262 MERCY RAJASELVI BEAULAH P SCOPE",
+   "Manual",
+   "08-07-2026 08:51",
+   "09-07-2026",
+   "24",
+   "27",
+   "89",
+   "-",
+   "View"
+  ],
+  [
+   "3",
+   "BACSE105",
+   "Data Structures and Algorithms",
+   "Embedded Lab",
+   "L11+L12",
+   "52262 MERCY RAJASELVI BEAULAH P SCOPE",
+   "Manual",
+   "08-07-2026 08:51",
+   "09-07-2026",
+   "18",
+   "20",
+   "90",
+   "-",
+   "View"
+  ],
+  [
+   "4",
+   "BACSE106",
+   "Operating Systems",
+   "Embedded Theory",
+   "C1+TC1",
+   "50863 KARTHIK R CPS",
+   "Manual",
+   "08-07-2026 08:52",
+   "09-07-2026",
+   "26",
+   "28",
+   "93",
+   "-",
+   "View"
+  ],
+  [
+   "5",
+   "BACSE106",
+   "Operating Systems",
+   "Embedded Lab",
+   "L55+L56",
+   "50863 KARTHIK R CPS",
+   "Manual",
+   "08-07-2026 08:52",
+   "09-07-2026",
+   "16",
+   "18",
+   "89",
+   "-",
+   "View"
+  ],
+  [
+   "6",
+   "BAECE203",
+   "Analog Electronics",
+   "Embedded Theory",
+   "A1+TA1",
+   "50729 BINDU B CNVD",
+   "Manual",
+   "08-07-2026 08:53",
+   "09-07-2026",
+   "24",
+   "27",
+   "89",
+   "-",
+   "View"
+  ],
+  [
+   "7",
+   "BAECE203",
+   "Analog Electronics",
+   "Embedded Lab",
+   "L23+L24",
+   "50729 BINDU B CNVD",
+   "Manual",
+   "08-07-2026 08:53",
+   "09-07-2026",
+   "18",
+   "20",
+   "90",
+   "-",
+   "View"
+  ],
+  [
+   "8",
+   "BAGER101",
+   "German Level I",
+   "Embedded Theory",
+   "TE1",
+   "53632 SUGUMAR G SSL",
+   "Manual",
+   "08-07-2026 08:55",
+   "09-07-2026",
+   "10",
+   "10",
+   "100",
+   "-",
+   "View"
+  ],
+  [
+   "9",
+   "BAGER101",
+   "German Level I",
+   "Embedded Lab",
+   "L43+L44",
+   "53632 SUGUMAR G SSL",
+   "Manual",
+   "08-07-2026 08:55",
+   "09-07-2026",
+   "16",
+   "18",
+   "89",
+   "-",
+   "View"
+  ],
+  [
+   "10",
+   "BAHUM251",
+   "Indian Constitution",
+   "Theory Only",
+   "G1+TG1",
+   "53380 ARUN KUMAR G SSL",
+   "Manual",
+   "08-07-2026 08:55",
+   "09-07-2026",
+   "27",
+   "29",
+   "94",
+   "-",
+   "View"
+  ],
+  [
+   "11",
+   "BAMAT209",
+   "Mathematical Foundations for Computation",
+   "Theory Only",
+   "D1+TD1+TDD1",
+   "50772 NATHIYA N SAS",
+   "Manual",
+   "08-07-2026 08:54",
+   "09-07-2026",
+   "34",
+   "37",
+   "92",
+   "-",
+   "View"
+  ],
+  [
+   "12",
+   "BASTS101",
+   "Qualitative and Quantitative Skills Practice I",
+   "Soft Skill",
+   "B1+TB1",
+   "SIXPHRASE SIXPHRASE(APT) ACAD",
+   "Manual",
+   "08-07-2026 09:33",
+   "09-07-2026",
+   "28",
+   "29",
+   "97",
+   "-",
+   "View"
+  ],
+  [
+   "Total Number Of Credits: 28.0"
+  ]
+ ],
+ "captures": [
+  [
+   "javascript:processViewAttendanceDetail('CH2026270102069','L31+L32+L37+L38');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270102407','F1+TF1');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270102460','L11+L12');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270102163','C1+TC1');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270102167','L55+L56');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270102001','A1+TA1');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270102015','L23+L24');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270101766','TE1');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270101767','L43+L44');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270100946','G1+TG1');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270100228','D1+TD1+TDD1');"
+  ],
+  [
+   "javascript:processViewAttendanceDetail('CH2026270100046','B1+TB1');"
+  ],
+  [
+   null
+  ]
+ ],
+ "keyValuePairs": {}
+}

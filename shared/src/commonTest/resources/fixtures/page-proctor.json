@@ -1,0 +1,52 @@
+{
+ "ok": true,
+ "title": "View proctor details",
+ "selectOptions": {},
+ "tables": [
+  {
+   "headers": [
+    "Faculty ID",
+    "50425"
+   ],
+   "rows": [
+    {
+     "50425": "RAMESH R",
+     "Faculty ID": "Faculty Name"
+    },
+    {
+     "50425": "Professor Grade 1",
+     "Faculty ID": "Faculty Designation"
+    },
+    {
+     "50425": "School of Electronics Engineering",
+     "Faculty ID": "School"
+    },
+    {
+     "50425": "AB1--5F--AB1/5th floor/Main/06",
+     "Faculty ID": "Cabin"
+    },
+    {
+     "50425": "School of Electronics Engineering",
+     "Faculty ID": "Faculty Department"
+    },
+    {
+     "50425": "ramesh.r@vit.ac.in",
+     "Faculty ID": "Faculty Email"
+    },
+    {
+     "50425": "1433",
+     "Faculty ID": "Faculty intercom"
+    },
+    {
+     "50425": "9840533705",
+     "Faculty ID": "Faculty Mobile Number"
+    }
+   ]
+  }
+ ],
+ "keyValuePairs": {},
+ "formFields": {},
+ "hiddenFields": {},
+ "messages": {},
+ "hasApaar": false
+}

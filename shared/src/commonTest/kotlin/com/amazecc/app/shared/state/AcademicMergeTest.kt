@@ -189,7 +189,7 @@ class AcademicMergeTest {
                     slNo = "1",
                     course = "Calculus",
                     courseCode = "18MAB101T",
-                    LTPJC = "4-0-0-0-8",
+                    LTPJC = "3 0 0 0 3.0",   // verbatim from the real timetable grid
                     category = "PC",
                     classId = "C123",
                     slotVenue = "A1 | AB1-101",
@@ -202,9 +202,39 @@ class AcademicMergeTest {
         assertEquals(listOf("A1"), course.slots)
         assertEquals("AB1-101", course.venue)
         assertEquals("C123", course.classId)
-        assertEquals("4-0-0-0-8", course.credits)
+        // The base already carries credits ("4" from the attendance fixture) and upsertTimetable
+        // deliberately does not overwrite a filled value - curriculum is the authoritative source
+        // (see VtopIngestor). Filling from LTPJC is covered by ltpjcCreditsFillWhenCreditsAreMissing.
+        assertEquals("4", course.credits)
         assertEquals("Dr. X (MATH)", course.faculty)
         assertNotNull(course.attendance)
+    }
+
+    @Test
+    fun ltpjcCreditsFillWhenCreditsAreMissing() {
+        // VTOP sends LTPJC space separated with a trailing decimal: "0 0 4 0 2.0" (verified against
+        // timetable-grid__CH20262701.html). The 5th token is the credit. This used to split on "-",
+        // which never matches real markup, so the timetable contributed no credits at all.
+        val res = TimetableRes(
+            success = true,
+            courseInfo = listOf(
+                TimetableCourseInfo(
+                    slNo = "1",
+                    course = "BACSE102 - Problem Solving Using Java ( Lab Only )",
+                    courseCode = "BACSE102",
+                    LTPJC = "0 0 4 0 2.0",
+                    category = "University Core Courses",
+                    classId = "CH2026270102069",
+                    slotVenue = "L31+L32+L37+L38 - AB1-607B",
+                    facultyDetails = "52282 SHEENA CHRISTABEL PRAVIN SENSE"
+                )
+            )
+        )
+        val out = AcademicMerge.upsertTimetable(AcademicData(), "SEM1", res)
+        val course = out.semesters.getValue("SEM1").courses.getValue("BACSE102")
+        assertEquals("2.0", course.credits, "5th whitespace token of a space-separated LTPJC")
+        assertEquals(listOf("L31", "L32", "L37", "L38"), course.slots)
+        assertEquals("AB1-607B", course.venue)
     }
 
     @Test

@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
+import com.amazecc.app.shared.repository.SettingsManager
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -759,6 +760,7 @@ private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme
 fun VtopSourcePage() {
     val colors = AmazeTheme.colors
     var source by remember { mutableStateOf(AmazeClient.vtopSource) }
+    var manualCaptcha by remember { mutableStateOf(SettingsManager.isVtopManualCaptcha()) }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         SettingsGroupLabel("VTOP Connection")
@@ -776,6 +778,23 @@ fun VtopSourcePage() {
                     val next = if (source == VtopSource.LOCAL) VtopSource.REMOTE else VtopSource.LOCAL
                     AmazeClient.setVtopSource(next)
                     source = next
+                }
+            )
+            SettingsRowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.ConfirmationNumber,
+                title = "Type the captcha yourself",
+                subtitle = if (manualCaptcha) {
+                    "Always asked during login. Turn off to let the recogniser answer when it is confident."
+                } else {
+                    "Off. The recogniser auto-submits when confident, otherwise you are asked."
+                },
+                value = if (manualCaptcha) "On" else "Off",
+                tint = if (manualCaptcha) colors.warning else colors.textSecondary,
+                onClick = {
+                    val next = !manualCaptcha
+                    SettingsManager.setVtopManualCaptcha(next)
+                    manualCaptcha = next
                 }
             )
             SettingsRowDivider()

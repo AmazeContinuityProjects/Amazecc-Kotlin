@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.TimetableRes
 import com.amazecc.app.shared.vtop.VtopComponent
 import com.amazecc.app.shared.vtop.VtopCourseCode
@@ -13,6 +14,25 @@ import com.amazecc.app.shared.vtop.VtopCourseCode
  * OD-hour counter that used to live in WidgetDataUtils.
  */
 object AcademicDerivers {
+
+    /**
+     * Every day on which a slot code is taught, with that day's time for it.
+     *
+     * A slot id does **not** name one day. `A1` is Monday period 1 *and* Wednesday period 2 (see
+     * `AmazeCC/src/data/campus/chennai.json`, which maps period -> day -> slot id), so
+     * `A1`/`F1`/`A2`/`F2` appear on MON and WED, and `D1`/`D2` on MON and THU. Flattening the
+     * day-keyed map into `Map<slot, day>` silently kept only the last writer, which put every
+     * A/F slot on WED and every D slot on THU and discarded MON entirely.
+     *
+     * So the lookup keeps every match, and a course is emitted once per day it could meet.
+     */
+    private val slotDays: Map<String, List<Pair<String, String>>> by lazy {
+        val acc = mutableMapOf<String, MutableList<Pair<String, String>>>()
+        SlotMap.map.forEach { (day, slots) ->
+            slots.forEach { (slot, time) -> acc.getOrPut(slot) { mutableListOf() }.add(day to time) }
+        }
+        acc
+    }
 
     private val slotIndex: Map<String, Pair<String, String>> by lazy {
         buildMap {
@@ -82,20 +102,24 @@ object AcademicDerivers {
                 ?: course.category?.takeIf { it.contains("Lab", true) }?.let { VtopComponent.LO.label }
                 ?: course.courseType
             course.slots.forEach { slotCode ->
-                val (day, time) = slotIndex[slotCode] ?: return@forEach
-                slots += TimetableSlot(
-                    day = day,
-                    slotName = slotCode,
-                    time = time,
-                    courseCode = course.courseCode,
-                    courseTitle = course.courseTitle,
-                    courseType = type,
-                    venue = course.venue,
-                    faculty = course.faculty,
-                    classId = course.classId,
-                    category = course.category,
-                    attendancePercentage = percentOf(course)
-                )
+                // A slot can be scheduled on more than one day, so emit one entry per day rather
+                // than guessing one. See slotDays.
+                val days = slotDays[slotCode] ?: return@forEach
+                days.forEach { (day, time) ->
+                    slots += TimetableSlot(
+                        day = day,
+                        slotName = slotCode,
+                        time = time,
+                        courseCode = course.courseCode,
+                        courseTitle = course.courseTitle,
+                        courseType = type,
+                        venue = course.venue,
+                        faculty = course.faculty,
+                        classId = course.classId,
+                        category = course.category,
+                        attendancePercentage = percentOf(course)
+                    )
+                }
             }
         }
         return slots.sortedWith(compareBy({ it.day ?: "" }, { slotStartMinutes(it.time) }, { it.slotName ?: "" }))
@@ -115,8 +139,11 @@ object AcademicDerivers {
         return academic.semesters.values
             .filter { it.courses.values.any { c -> c.attendance != null } }
             .maxWithOrNull(
-                compareBy<SemesterData> { it.semesterId }
-                    .thenBy { it.courses.values.count { c -> c.attendance != null } }
+                // Attendance-bearing course count is the primary signal, semesterId only breaks
+                // ties. The comparator had these the other way round, so it picked the highest
+                // semester id and ignored the count entirely.
+                compareBy<SemesterData> { it.courses.values.count { c -> c.attendance != null } }
+                    .thenBy { it.semesterId }
             )
     }
 
@@ -151,16 +178,29 @@ object AcademicDerivers {
         componentLabel(courseType)?.takeIf { VtopCourseCode.fromTypeLabel(it).isEmbedded }
 
     /**
-     * True when this course is a lab component.
+     * True when this course is a lab component, by course identity.
      *
+     * This is the canonical lab test — there were three, and the OD counter disagreed with the
+     * attendance screen about a course whose code ended in `(L)` while its type cell was blank.
      * Prefers the resolved `courseType`; falls back to slot codes only when the type is
      * unlabelled, since a lab sharing a slot with its theory half would otherwise be misread.
+     *
+     * Real VTOP codes are bare (`BACSE102`), so [VtopCourseCode.componentOf] returns UNKNOWN for
+     * them and the slot check stands.
      */
-    fun StoredCourse.isLabCourse(): Boolean {
+    fun isLabCourse(courseCode: String, courseType: String?, slots: List<String>): Boolean {
         val label = componentLabel(courseType)
         if (label != null) return VtopCourseCode.fromTypeLabel(label).isLab
+        // A suffixed code ("18CSC301L", "18CSC301(L)") marks the lab half even when the type
+        // cell is empty. Reading only `courseType` and `slots` misread a suffixed code with a
+        // non-lab slot as theory; componentOf() also understands the real VTOP wording
+        // ("Embedded Lab" / "Lab Only") through the type hint.
+        val fromCode = VtopCourseCode.componentOf(courseCode, courseType)
+        if (fromCode != VtopComponent.UNKNOWN) return fromCode.isLab
         return slots.any { it.uppercase().startsWith("L") }
     }
+
+    fun StoredCourse.isLabCourse(): Boolean = isLabCourse(courseCode, courseType, slots)
 
     /** Adapts a stored course into the transport [MarksCourseItem] shape for UI pipelines that still consume it. */
     fun StoredCourse.toMarksCourseItem(): com.amazecc.app.shared.model.MarksCourseItem =
@@ -193,22 +233,18 @@ object AcademicDerivers {
 
     /**
      * Total on-duty hours across a semester's courses (lab = 2h, theory = 1h).
-     * Mirrors the OD Tracker screen counter: statuses "on duty"/"od"/"onduty" count as OD.
+     *
+     * The OD Tracker screen counter, which is what every other OD-hours surface has to call.
+     * The status vocabulary and the multiplier live in [Projections]; the lab test is
+     * [isLabCourse] — both of which this used to re-derive with its own wording.
      */
-    fun computeODHours(sem: SemesterData): Int {
-        var hours = 0
-        for (course in sem.courses.values) {
-            val statuses = course.attendance?.logs.orEmpty().map { log -> log.status.trim().lowercase() }
-            val odCount = statuses.count { it == "on duty" || it == "od" || it == "onduty" }
-            if (odCount > 0) {
-                val isLab = course.slots.firstOrNull()?.startsWith("L") == true
-                    || course.courseType.startsWith("Lab", ignoreCase = true)
-                    || course.courseCode.endsWith("(L)", ignoreCase = true)
-                hours += odCount * (if (isLab) 2 else 1)
+    fun computeODHours(sem: SemesterData): Int =
+        Projections.odHours(
+            sem.courses.values.map { course ->
+                val odCount = course.attendance?.logs.orEmpty().count { Projections.isOdStatus(it.status) }
+                odCount to course.isLabCourse()
             }
-        }
-        return hours
-    }
+        )
 
     private fun slotStartMinutes(time: String?): Int {
         val start = time?.split("-")?.firstOrNull()?.trim() ?: return 0

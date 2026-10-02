@@ -9,3 +9,13 @@ local.properties
 keystore_base64.txt
 release.keystore
 keystore.properties
+
+# Local VTOP snapshots: real scraped account HTML, never commit.
+# Regenerate: node ../AmazeCC-API/scripts/vtop-dump.mjs
+vtop-snapshots/
+**/vtop-snapshots/
+**/login-session.json
+
+# Real VTOP HTML captured from a live account (attendance, marks, profile).
+# Test *fixtures* are generated from these by the generator, not committed.
+shared/src/commonTest/resources/vtop-snapshots/

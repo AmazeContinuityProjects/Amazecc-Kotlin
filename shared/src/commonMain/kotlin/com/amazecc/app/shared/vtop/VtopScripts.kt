@@ -1637,9 +1637,9 @@ internal object VtopScripts {
      * *inner* HTML. The original runs an `else if` chain per div, so for a given field the
      **last** matching div wins — reproduced here by overwriting rather than first-write.
      */
-    fun parseEventHubEvents(body: String): String {
+    fun parseEventHubEvents(html: String): String {
         return parseInjectedHtml(
-            html = "",
+            html = html,
             body = """
         function squish(el) { return (el ? (el.textContent || '') : '').replace(/\s+/g, ' ').trim(); }
         var BASE = 'https://eventhubcc.vit.ac.in';
@@ -1707,9 +1707,9 @@ internal object VtopScripts {
      * `order` / `payment` / `receipt`. Data rows need at least 8 cells; the tail cells are scanned
      * for controls whose text names the action (`receipt`, `pay now`, `pay later`, …).
      */
-    fun parseEventHubProfile(body: String): String {
+    fun parseEventHubProfile(html: String): String {
         return parseInjectedHtml(
-            html = "",
+            html = html,
             body = """
         function squish(el) { return (el ? (el.textContent || '') : '').replace(/\s+/g, ' ').trim(); }
         var events = [];
@@ -1783,35 +1783,71 @@ internal object VtopScripts {
     }
 
     /**
-     * Moodle month view → the list of event links to visit.
+     * Moodle month view → the list of event links to visit, plus the two month-paging links.
      *
      * Returns absolute URLs so the Kotlin side can fetch each one without re-resolving them.
+     *
+     * The month/year live on the cell's `a[data-action="view-day-link"]` (and on the wrapping
+     * `.calendarwrapper`), **not** on the `a[data-action="view-event"]` that carries the href.
+     * Reading them off the event link yields empty strings, which silently drops every due date
+     * and with it every reminder — so they are read from the day link, then the wrapper.
+     *
+     * `prevMonthUrl` / `nextMonthUrl` come from the calendar's own arrows, which is the only
+     * reliable way to reach adjacent months: the paging URL needs a `time` epoch parameter.
      */
-    fun parseLmsCalendar(body: String): String {
+    fun parseLmsCalendar(html: String): String {
         return parseInjectedHtml(
-            html = "",
+            html = html,
             body = """
         function squish(el) { return (el ? (el.textContent || '') : '').replace(/\s+/g, ' ').trim(); }
-        var events = [];
+        function abs(href) {
+          if (!href) return '';
+          return href.charAt(0) === '/' ? 'https://lms.vit.ac.in' + href : href;
+        }
 
+        var wrap = doc.querySelector('.calendarwrapper[data-month][data-year]');
+        var wrapMonth = wrap ? (wrap.getAttribute('data-month') || '') : '';
+        var wrapYear = wrap ? (wrap.getAttribute('data-year') || '') : '';
+
+        var prevMonthUrl = '', nextMonthUrl = '';
+        var navs = doc.querySelectorAll('a.arrow_link');
+        for (var ni = 0; ni < navs.length; ni++) {
+          var cls = navs[ni].getAttribute('class') || '';
+          if (cls.indexOf('previous') !== -1) prevMonthUrl = abs(navs[ni].getAttribute('href'));
+          else if (cls.indexOf('next') !== -1) nextMonthUrl = abs(navs[ni].getAttribute('href'));
+        }
+
+        var events = [];
         var dayCells = doc.querySelectorAll('td.day.hasevent');
         for (var di = 0; di < dayCells.length; di++) {
-          var day = dayCells[di].getAttribute('data-day');
-          var links = dayCells[di].querySelectorAll('[data-region="event-item"] a[data-action="view-event"]');
+          var cell = dayCells[di];
+          var day = cell.getAttribute('data-day');
+          // The day link is the only element in the cell carrying data-month/data-year.
+          var dayLink = cell.querySelector('a[data-action="view-day-link"]');
+          var month = dayLink ? (dayLink.getAttribute('data-month') || '') : '';
+          var year = dayLink ? (dayLink.getAttribute('data-year') || '') : '';
+          if (!month) month = wrapMonth;
+          if (!year) year = wrapYear;
+
+          var links = cell.querySelectorAll('[data-region="event-item"] a[data-action="view-event"]');
           for (var li = 0; li < links.length; li++) {
-            var href = links[li].getAttribute('href') || '';
-            if (href && href.charAt(0) === '/') href = 'https://lms.vit.ac.in' + href;
             events.push({
               day: day ? parseInt(day, 10) : null,
-              month: links[li].getAttribute('data-month') || '',
-              year: links[li].getAttribute('data-year') || '',
-              url: href,
-              name: squish(links[li].querySelector('.eventname') || links[li])
+              month: month === '' ? null : parseInt(month, 10),
+              year: year === '' ? null : parseInt(year, 10),
+              url: abs(links[li].getAttribute('href')),
+              name: squish(links[li].querySelector('.eventname') || links[li]),
+              done: links[li].querySelector('.icon-check, [data-event-type="due"], .tinyicon') !== null
             });
           }
         }
 
-        return JSON.stringify({ ok: true, events: events });
+        return JSON.stringify({
+          ok: true, events: events,
+          month: wrapMonth === '' ? null : parseInt(wrapMonth, 10),
+          year: wrapYear === '' ? null : parseInt(wrapYear, 10),
+          prevMonthUrl: prevMonthUrl, nextMonthUrl: nextMonthUrl
+        });
         """
         )
     }
@@ -1825,9 +1861,9 @@ internal object VtopScripts {
      * `due` is read from the *parent* of a `strong` whose text contains `Due:`, with the label
      * stripped; `:contains()` is a cheerio extension, so this is an explicit scan.
      */
-    fun parseLmsEvent(body: String): String {
+    fun parseLmsEvent(html: String): String {
         return parseInjectedHtml(
-            html = "",
+            html = html,
             body = """
         function squish(el) { return (el ? (el.textContent || '') : '').replace(/\s+/g, ' ').trim(); }
         function queryParam(url, key) {
@@ -1878,10 +1914,10 @@ internal object VtopScripts {
      * Walks `#module-<id>` up to its containing `li[id^="section-"]`, then prefers the `Dr. ...`
      * prefix of the section title and falls back to the whole title when no such prefix exists.
      */
-    fun parseLmsTeachers(body: String, moduleId: String): String {
+    fun parseLmsTeachers(html: String, moduleId: String): String {
         val mid = jsString(moduleId)
         return parseInjectedHtml(
-            html = "",
+            html = html,
             body = """
         function squish(el) { return (el ? (el.textContent || '') : '').replace(/\s+/g, ' ').trim(); }
         var teachers = [];
@@ -1902,6 +1938,110 @@ internal object VtopScripts {
           teachers = [m ? m[1].trim() : sectionTitle];
         }
         return JSON.stringify({ ok: true, teachers: teachers });
+        """
+        )
+    }
+
+    // ── QCM — genuinely two stages ────────────────────────────────────────
+
+    /**
+     * `getStudentLoginForQcm` — QCM stage 2, run **once per semester, sequentially**.
+     *
+     * This endpoint exists and returns real data, but AmazeCC-API's `api/qcm/route.ts` never
+     * calls it: it only POSTs stage 1 and hands the shell to `parseVtopHtml`, which finds zero
+     * tables because the page is a JS-required form ("Enable JavaScript to Access VTOP"). So
+     * REMOTE QCM is structurally incapable of returning rows.
+     *
+     * Three things this needs that stage 1 does not have:
+     *  - the param is **`semSubId`**, not `semesterSubId` (the stage-1 `<select>` uses
+     *    `semesterSubId`, which is a trap)
+     *  - `paramReturnId=getStudentLoginForQcm` is required
+     *  - omitting `semSubId` returns "This menu is not available at present" rather than an error
+     *
+     * The response is a real table with 11 columns and no class hooks, so it is read by header
+     * name rather than position.
+     */
+    fun fetchQcmForSemester(path: String, body: String, semSubId: String): String {
+        val p = jsString(path)
+        val b = jsString(body)
+        val sem = jsString(semSubId)
+        return wrapped(
+            """
+        var postBody = $b + '&semSubId=' + encodeURIComponent($sem)
+                     + '&paramReturnId=getStudentLoginForQcm'
+                     + '&x=' + new Date().toUTCString();
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', $p, false);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.send(postBody);
+        if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+
+        var res = xhr.responseText || '';
+        if (res.toLowerCase().indexOf('not authorized') !== -1) {
+          return JSON.stringify({ ok: false, error: 'not authorized' });
+        }
+
+        var doc = new DOMParser().parseFromString(res, 'text/html');
+        function squish(el) { return (el ? (el.textContent || '') : '').replace(/\\s+/g, ' ').trim(); }
+
+        var table = doc.querySelector('table');
+        if (!table) return JSON.stringify({ ok: true, status: xhr.status, headers: [], rows: [] });
+
+        // Headers carry newlines/tabs ("QCM No.\\n\\t\\tAction"), so they are squished before use.
+        var headers = [];
+        var headCells = table.querySelectorAll('tr')[0].querySelectorAll('th, td');
+        for (var h = 0; h < headCells.length; h++) {
+          var ht = squish(headCells[h]);
+          if (ht && !headCells[h].getAttribute('colspan')) headers.push(ht);
+        }
+
+        var idx = function(name) {
+          for (var i = 0; i < headers.length; i++) {
+            if (headers[i].toLowerCase().indexOf(name.toLowerCase()) !== -1) return i;
+          }
+          return -1;
+        };
+        var iSem = idx('Sem Code');
+        var iCourse = idx('Course Code');
+        var iTitle = idx('Course Title');
+        var iType = idx('Course Type');
+        var iClass = idx('Class Nbr');
+        var iFaculty = idx('Faculty');
+        var iNo = idx('QCM No');
+        var iAction = idx('Action');
+        var iSug = idx('Suggestions');
+        var iReply = idx('Faculty Reply');
+        var iHod = idx('HOD Comments');
+
+        var rows = [];
+        var trs = table.querySelectorAll('tr');
+        for (var r = 1; r < trs.length; r++) {
+          var tds = trs[r].querySelectorAll('td');
+          if (tds.length === 0) continue;
+          // Empty cells are skipped but still consume an index, so read positionally.
+          var cells = [];
+          for (var c = 0; c < tds.length; c++) cells.push(squish(tds[c]));
+          var pick = function(i) { return i >= 0 && i < cells.length ? cells[i] : ''; };
+          rows.push({
+            semesterCode: pick(iSem),
+            courseCode: pick(iCourse),
+            courseTitle: pick(iTitle),
+            courseType: pick(iType),
+            classNbr: pick(iClass),
+            faculty: pick(iFaculty),
+            qcmNo: pick(iNo),
+            action: pick(iAction),
+            suggestions: pick(iSug),
+            facultyReply: pick(iReply),
+            hodComments: pick(iHod)
+          });
+        }
+
+        return JSON.stringify({
+          ok: true, status: xhr.status, semesterId: $sem, headers: headers, rows: rows
+        });
         """
         )
     }

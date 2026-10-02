@@ -219,7 +219,14 @@ class UserStoreTest {
         val fragment = IdentityExtractor.fromSession("25BYB1043")
         assertEquals("25BYB1043", fragment.regNo)
         assertNull(fragment.name)
-        assertFalse(fragment.hasIdentity)
+        assertNull(fragment.mobile)
+        assertNull(fragment.photoBase64)
+        // hasIdentity is `regNo != null || name != null || photoBase64 != null`, so a fragment
+        // carrying a reg number IS an identity. The meaningful assertion is that fromSession adds
+        // nothing beyond the reg number.
+        assertTrue(fragment.hasIdentity)
+        // Blank input yields nothing at all.
+        assertNull(IdentityExtractor.fromSession("  ").regNo)
     }
 
     @Test

@@ -44,15 +44,15 @@ class VtopDataSourceLogicTest {
         val raw = """
             {"ok":true,"status":200,
              "rows":[["1","BCSE101L","3 0 3 0 3"],["2","BCSE101","3 0 0 0 3"]],
-             "attrs":["processViewAttendanceDetail('c1','L1')",null],
+             "captures":[["processViewAttendanceDetail('c1','L1')"],[null]],
              "keyValuePairs":{"Name":"Test"}}
         """.trimIndent()
         val parsed = VtopRows.parse(raw)
         assertTrue(parsed.ok)
         assertEquals(2, parsed.size)
         assertEquals("BCSE101L", parsed.cell(0, 1))
-        assertEquals("processViewAttendanceDetail('c1','L1')", parsed.attr(0))
-        assertNull(parsed.attr(1))
+        assertEquals("processViewAttendanceDetail('c1','L1')", parsed.capture(0, 0))
+        assertNull(parsed.capture(1, 0))
         assertEquals("Test", parsed.keyValuePairs["Name"])
     }
 
@@ -60,20 +60,22 @@ class VtopDataSourceLogicTest {
 
     @Test
     fun creditsComeFromTheFifthLtpjcToken() {
-        val course = VtopCourse("1", "BCSE101L", "BCSE101L", "3 0 3 0 3", "LAB", "c1", "L1+2", "Dr X")
+        val course = VtopCourse("1", "BCSE101L", "BCSE101", "Lab Only", "3 0 3 0 3", "LAB", "c1", "L1+2", "Dr X")
         assertEquals("3", course.credits)
     }
 
     @Test
     fun creditsAreNullWhenLtpjcIsShort() {
-        val course = VtopCourse("1", "BCSE101", "BCSE101", "3 0 0", "CORE", "c1", "L1", "")
+        val course = VtopCourse("1", "BCSE101", "BCSE101", null, "3 0 0", "CORE", "c1", "L1", "")
         assertNull(course.credits)
     }
 
     @Test
     fun baseCodeStripsTheLabOrTheorySuffix() {
-        assertEquals("BCSE101", VtopCourse("1", "BCSE101", "BCSE101(L)", "", "", "", "L1", "").baseCode)
-        assertEquals("BCSE101", VtopCourse("1", "BCSE101", "BCSE101(T)", "", "", "", "A1", "").baseCode)
+        // `VtopCourse.courseCode` is already the bare code (the port stopped appending "(L)"/"(T)"
+        // and instead records the half in `component`), so this pins the two staying in step.
+        assertEquals("BCSE101", VtopCourse("1", "BCSE101", "BCSE101", "Lab Only", "", "", "c1", "L1", "").courseCode)
+        assertEquals("BCSE101", VtopCourse("1", "BCSE101", "BCSE101", "Theory Only", "", "", "c1", "A1", "").courseCode)
     }
 
     // ── Attendance / timetable merge ────────────────────────────────────────
@@ -89,6 +91,7 @@ class VtopDataSourceLogicTest {
         slNo = "1",
         course = code,
         courseCode = code,
+        component = null,
         ltpjc = ltpjc,
         category = category,
         classId = classId,
@@ -99,7 +102,7 @@ class VtopDataSourceLogicTest {
     @Test
     fun venueIsNarrowedToTheLastToken() {
         // The server keeps only the last ABC-123 style match.
-        val pattern = Regex("[A-Z]+\\d*\\s*-\\s*\\d+\\s*[A-Z]?")
+        val pattern = Regex("[A-Z]+\\d*\\s*-\\s*\\d+[A-Z]?")
         val cleaned = pattern
             .findAll("AB1-12 LT1-34".replace(Regex("\\s+"), " ").trim())
             .lastOrNull()?.value
@@ -108,7 +111,7 @@ class VtopDataSourceLogicTest {
 
     @Test
     fun venueIsNullWhenThereIsNoMatch() {
-        val pattern = Regex("[A-Z]+\\d*\\s*-\\s*\\d+\\s*[A-Z]?")
+        val pattern = Regex("[A-Z]+\\d*\\s*-\\s*\\d+[A-Z]?")
         assertNull(pattern.findAll("A1+1").lastOrNull()?.value)
     }
 

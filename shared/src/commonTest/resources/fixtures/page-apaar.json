@@ -1,0 +1,19 @@
+{
+ "ok": true,
+ "title": "",
+ "selectOptions": {},
+ "tables": [],
+ "keyValuePairs": {},
+ "formFields": {
+  "_csrf": "fef4e2a8-7d06-4821-8738-f534529efb42",
+  "authorizedID": "25BLC1081",
+  "apaarId": "",
+  "pdfFile": ""
+ },
+ "hiddenFields": {
+  "_csrf": "fef4e2a8-7d06-4821-8738-f534529efb42",
+  "authorizedID": "25BLC1081"
+ },
+ "messages": {},
+ "hasApaar": false
+}

@@ -4,6 +4,9 @@ import kotlinx.serialization.Contextual
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toInstant
 
 
 @Serializable
@@ -122,6 +125,10 @@ data class QcmViewRes(
     val data: JsonElement? = null,
     /** Typed tables deciphered from [data] — filled by the store sanitizer (raw [data] is dropped at the store boundary). */
     val tables: List<com.amazecc.app.shared.state.StoredQcmTable> = emptyList(),
+    /** Semester ids QCM was fetched for, from the stage-1 semesterSubId select.
+     *  QCM is two-stage: stage 1 returns only that select, and stage 2 (getStudentLoginForQcm,
+     *  which needs semSubId) holds the rows. */
+    val semesters: List<String> = emptyList(),
     val message: String? = null,
     val error: String? = null
 )
@@ -351,16 +358,98 @@ data class TransportRegSubmitRes(
     val registrationId: String? = null
 )
 
+/**
+ * One Moodle calendar event, as `lms.vit.ac.in` actually serves it.
+ *
+ * This shape is the scraper's real output, verified against a live login
+ * (`AmazeCC-API/scripts/lms-dump.mjs`). It previously declared
+ * `{assignmentId, courseCode, title, maxMarks, dueDate, status, score}` — a shape **no route ever
+ * produced**; nothing in the server emits `maxMarks`, `status` or `score`, so that DTO could not
+ * deserialise the response and silently yielded all-default objects.
+ *
+ * [name] is the composite `"<code>/<course title>/<assignment>"` the scraper builds, kept because
+ * it is what grouping and de-duplication keys on. The three parts are also carried separately.
+ */
 @Serializable
 data class LMSAssignment(
-    val assignmentId: String,
-    val courseCode: String,
-    val title: String,
-    val maxMarks: String,
-    val dueDate: String,
-    val status: String, // "Submitted", "Pending"
-    val score: String? = null
-)
+    /** `BAMAT209_FALL26-27/Mathematical Foundations for Computation(BAMAT209)/Digital_Assignment_2` */
+    val name: String = "",
+    /** Breadcrumb text, e.g. `BAMAT209_FALL26-27`. */
+    val courseCode: String = "",
+    /** Breadcrumb `title` attribute, e.g. `Mathematical Foundations for Computation(BAMAT209)`. */
+    val courseTitle: String = "",
+    /** `h1.h2` on the event page, e.g. `Digital_Assignment_2`. */
+    val assignmentTitle: String = "",
+    /** Verbatim Moodle text, e.g. `Sunday, 4 October 2026, 12:00 AM`. Not an ISO date. */
+    val due: String = "",
+    val done: Boolean = false,
+    val day: Int? = null,
+    val month: Int? = null,
+    val year: Int? = null,
+    val url: String? = null,
+    val teachers: List<String> = emptyList(),
+) {
+    /**
+     * The bare course code, e.g. `BAMAT209` out of `BAMAT209_FALL26-27`.
+     *
+     * VTOP spells course codes bare too, so this is what lets an LMS assignment line up with a
+     * `StoredCourse` in the academics snapshot.
+     */
+    val shortCourseCode: String
+        get() = courseCode.substringBefore('_').ifBlank { name.substringBefore('/') }.trim()
+
+    /** "Mathematical Foundations for Computation(BAMAT209)" -> "Mathematical Foundations for Computation". */
+    val readableCourseTitle: String
+        get() = courseTitle.substringBeforeLast('(').trim().ifBlank { courseTitle.trim() }
+
+    /** Stable id, so re-syncing does not duplicate rows in the task list. */
+    val stableId: String
+        get() = url ?: "$shortCourseCode/$assignmentTitle".trim('/')
+
+    /**
+     * The due moment, built from the calendar cell's numeric date plus the clock time Moodle puts
+     * in [due].
+     *
+     * The prose form is "Sunday, 4 October 2026, 12:00 AM" — note Moodle writes midnight as
+     * `12:00 AM`, so it has to be normalised like any other meridiem time or the reminder fires a
+     * day early. The calendar cell is the reliable source for the date; the text supplies the time.
+     */
+    fun dueInstant(
+        tz: kotlinx.datetime.TimeZone = kotlinx.datetime.TimeZone.currentSystemDefault()
+    ): kotlinx.datetime.Instant? {
+        val y = year ?: return null
+        val m = month ?: return null
+        val d = day ?: return null
+
+        var hour = 0
+        var minute = 0
+        Regex("""(\d{1,2}):(\d{2})\s*(AM|PM)?""", RegexOption.IGNORE_CASE).find(due)?.let { mt ->
+            var h = mt.groupValues[1].toIntOrNull() ?: 0
+            val min = mt.groupValues[2].toIntOrNull() ?: 0
+            val meridian = mt.groupValues[3].uppercase()
+            if (h !in 1..12 || min !in 0..59) return@let
+            if (meridian == "PM" && h != 12) h += 12
+            if (meridian == "AM" && h == 12) h = 0
+            hour = h
+            minute = min
+        }
+
+        if (y !in 1900..2100 || m !in 1..12 || d !in 1..31) return null
+        return try {
+            kotlinx.datetime.LocalDateTime(y, m, d, hour, minute, 0, 0).toInstant(tz)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** The due date alone, for surfaces that only need the day. */
+    fun dueDateOrNull(): String? =
+        (year?.takeIf { it in 1900..2100 })?.let { y ->
+            val m = month ?: return@let null
+            val d = day ?: return@let null
+            if (m !in 1..12 || d !in 1..31) null else "%04d-%02d-%02d".format(y, m, d)
+        }
+}
 
 @Serializable
 data class LMSRes(

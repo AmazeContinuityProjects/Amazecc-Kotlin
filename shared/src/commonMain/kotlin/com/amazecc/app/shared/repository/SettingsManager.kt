@@ -81,6 +81,15 @@ object SettingsManager {
     // Cached User-Agent currently in use by the local VTOP engine
     const val KEY_VTOP_LAST_UA = "vtop_last_ua"
 
+    /**
+     * Opt-in for always typing the VTOP captcha by hand.
+     *
+     * Off by default, which leaves the recogniser to decide: it auto-submits when it is confident
+     * enough and otherwise falls back to the manual prompt on its own. Turning this on skips the
+     * recogniser entirely, for when auto-submitting a wrong guess wastes an attempt.
+     */
+    const val KEY_VTOP_MANUAL_CAPTCHA = "vtop_manual_captcha"
+
     // Library credentials (separate from VTOP)
     const val KEY_LIBRARY_USERNAME = "library_username"
     const val KEY_LIBRARY_PASSWORD = "library_password"
@@ -347,6 +356,11 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
     fun isVtopSourcePrompted(): Boolean = getBoolean("vtop_source_prompted", false)
 
     fun setVtopSourcePrompted(value: Boolean) = setBoolean("vtop_source_prompted", value)
+
+    /** True when the user has opted into always typing the captcha themselves. */
+    fun isVtopManualCaptcha(): Boolean = getBoolean(KEY_VTOP_MANUAL_CAPTCHA, false)
+
+    fun setVtopManualCaptcha(value: Boolean) = setBoolean(KEY_VTOP_MANUAL_CAPTCHA, value)
 
     // ── Attendance Notes (per-course per-date "Got Notes?" tracking) ──
     const val CACHE_ATTENDANCE_NOTES = "cache_attendance_notes"

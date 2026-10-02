@@ -1,0 +1,18 @@
+{
+ "headers": [
+  "Sl.No",
+  "Course Code",
+  "Course Title",
+  "Course Type",
+  "Slot",
+  "Faculty Name",
+  "Attendance Type",
+  "Registration Date / Time",
+  "Attendance Date",
+  "Attended Classes",
+  "Total Classes",
+  "Attendance Percentage",
+  "Status",
+  "Attendance View"
+ ]
+}

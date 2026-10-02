@@ -34,38 +34,53 @@ object ExamUtils {
      * followed by a time) into a LocalDate. Returns null for anything unparseable.
      */
     fun parseExamDateToLocalDate(raw: String): LocalDate? {
-        val tokens = raw.trim().split(Regex("[-/\\s]+"))
-            .filter { it.isNotBlank() && !it.contains(":") && !it.equals("am", true) && !it.equals("pm", true) }
-        if (tokens.size != 3) return null
+        // Strip a trailing clock time *first*. The previous approach filtered out any token
+        // containing ":" after splitting, which silently deleted the whole date half of an ISO
+        // string like "19-Nov-2025T09:15:00" and left too few tokens to parse.
+        val datePart = raw.trim()
+            .replace(Regex("[T ]+\\d{1,2}:\\d{2}.*$"), "")
+            .trim()
+        if (datePart.isEmpty()) return null
 
-        val yearToken = tokens.firstOrNull { it.length == 4 && it.all(Char::isDigit) }
-        val year = yearToken?.toIntOrNull()
-        if (year == null) return null
+        val tokens = datePart.split(Regex("[-/\\s]+")).filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return null
 
-        // Prefer alphabetic month name (e.g. "Aug", "Nov") over numeric month
-        val monthNameIdx = tokens.indexOfFirst { it.all(Char::isLetter) && parseMonthToken(it) != null }
-        val (monthIdx, month) = if (monthNameIdx >= 0) {
-            monthNameIdx to parseMonthToken(tokens[monthNameIdx])!!
-        } else {
-            // No month name: infer from position. YYYY-MM-DD has year at index 0.
-            val yearIdx = tokens.indexOf(yearToken!!)
-            val monthIdx = if (yearIdx == 0) 1 else 0 // YYYY-MM-DD -> month at 1; DD-MM-YYYY -> month at 0
-            val m = parseMonthToken(tokens[monthIdx])
-            if (m == null) return null
-            monthIdx to m
+        val year = tokens
+            .firstOrNull { it.length == 4 && it.all(Char::isDigit) }
+            ?.toIntOrNull()
+            ?: return null
+
+        val rest = tokens.filterNot { it.length == 4 && it.all(Char::isDigit) }
+        if (rest.isEmpty()) return null
+
+        // An alphabetic month name is unambiguous.
+        val namedIdx = rest.indexOfFirst { it.all(Char::isLetter) && parseMonthToken(it) != null }
+        if (namedIdx >= 0) {
+            val day = rest.firstOrNull { it.all(Char::isDigit) && it.length <= 2 }?.toIntOrNull()
+                ?: return null
+            return build(year, parseMonthToken(rest[namedIdx])!!, day)
         }
 
-        val dayToken = tokens.firstOrNull { token ->
-            tokens.indexOf(token) != monthIdx && token != yearToken && token.all(Char::isDigit) && token.length <= 2
+        // Two numeric tokens remain. The order cannot be assumed from where the year sits:
+        // VTOP sends DD-MM-YYYY ("09-07-2026"), while YYYY-MM-DD puts the year first. So decide
+        // from the values - a token above 12 can only be the day - and fall back to DD-MM, which
+        // is what this app's data actually looks like.
+        val nums = rest.mapNotNull { it.toIntOrNull() }
+        if (nums.size != 2) return null
+        val (a, b) = nums
+        val (month, day) = when {
+            a > 12 && b in 1..12 -> b to a
+            b > 12 && a in 1..12 -> a to b
+            a in 1..12 && b in 1..12 -> b to a // ambiguous: treat as DD-MM-YYYY
+            else -> return null
         }
-        val day = dayToken?.toIntOrNull()
-        if (day == null) return null
+        return build(year, month, day)
+    }
 
-        return try {
-            LocalDate(year, month, day)
-        } catch (_: Exception) {
-            null
-        }
+    private fun build(year: Int, month: Int, day: Int): LocalDate? = try {
+        LocalDate(year, month, day)
+    } catch (_: Exception) {
+        null
     }
 
     // ── Time parsing ──

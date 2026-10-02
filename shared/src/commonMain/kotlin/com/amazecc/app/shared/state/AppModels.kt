@@ -72,13 +72,30 @@ data class TimetableSlot(
     val attendancePercentage: Double? = null
 )
 
-/** One QCM row with the known fields typed (raw key variants normalised). */
+/**
+ * One QCM row, typed against the real table.
+ *
+ * The table `getStudentLoginForQcm` returns has 11 columns, verified live:
+ * `Sem Code | Course Code | Course Title | Course Type | Class Nbr | Faculty | QCM No. | Action |
+ * Suggestions | Faculty Reply | HOD Comments`. The course identity is carried here so a QCM row
+ * can be joined to a `StoredCourse` without re-reading the raw payload — that join is the whole
+ * point of the module.
+ */
 @Serializable
 data class StoredQcmRow(
     val qcmNo: String? = null,
     val action: String? = null,
     val suggestions: String? = null,
-    val facultyReply: String? = null
+    val facultyReply: String? = null,
+    // ── the columns the old model threw away ──
+    val semesterCode: String? = null,
+    val courseCode: String? = null,
+    val courseTitle: String? = null,
+    /** Verbatim VTOP wording: "Embedded Theory" / "Embedded Lab" / "Theory Only" / "Lab Only". */
+    val courseType: String? = null,
+    val classNbr: String? = null,
+    val faculty: String? = null,
+    val hodComments: String? = null,
 )
 
 /** A QCM table deciphered from the raw `data` JsonElement payload. */
@@ -166,8 +183,8 @@ data class StoredGrade(
  */
 @Serializable
 data class AppDataSnapshot(
-    /** 2 = unified academic schema; 1 = legacy (see SnapshotMigrator). Detection by presence of `academic`. */
-    val schemaVersion: Int = 2,
+    /** 2 = unified academic schema (this type); 1 = legacy (see SnapshotMigrator). */
+    val schemaVersion: Int = SCHEMA_VERSION,
     val academic: AcademicData = AcademicData(),
     val hostelDetails: HostelDetails? = null,
     val messMenu: MessMenuRes? = null,
@@ -191,4 +208,8 @@ data class AppDataSnapshot(
     val cabHubs: List<CabShareHub> = emptyList(),
     val ffcsRegistration: FfcsRegistrationInfo? = null,
     val tasks: List<HomeworkTask> = emptyList()
-)
+) {
+    companion object {
+        const val SCHEMA_VERSION = 2
+    }
+}

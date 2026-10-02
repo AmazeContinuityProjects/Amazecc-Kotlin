@@ -1,0 +1,107 @@
+{
+ "ok": true,
+ "title": "",
+ "selectOptions": {},
+ "tables": [
+  {
+   "headers": [
+    "Sem Code",
+    "Course Code",
+    "Course Title",
+    "Course Type",
+    "Class Nbr",
+    "Faculty",
+    "QCM No.",
+    "Action",
+    "Suggestions",
+    "Faculty Reply",
+    "HOD Comments"
+   ],
+   "rows": [
+    {
+     "Sem Code": "FALLSEM2025-26",
+     "Course Code": "BAEEE101",
+     "Course Title": "Basic Engineering",
+     "Course Type": "ETH",
+     "Class Nbr": "CH2025260103149",
+     "Faculty": "J DIVYA",
+     "QCM No.": "1",
+     "Action": "Faculty and HOD",
+     "Suggestions": "Too fast",
+     "Faculty Reply": "",
+     "HOD Comments": ""
+    },
+    {
+     "Sem Code": "FALLSEM2025-26",
+     "Course Code": "BAMAT101",
+     "Course Title": "Multivariable Calculus and Differential Equations",
+     "Course Type": "ETH",
+     "Class Nbr": "CH2025260103318",
+     "Faculty": "MINI GHOSH",
+     "QCM No.": "1",
+     "Action": "Faculty and HOD",
+     "Suggestions": "Audibility is poor • Not able to understand the concepts • Not shared the course material yet",
+     "Faculty Reply": "",
+     "HOD Comments": ""
+    },
+    {
+     "Sem Code": "FALLSEM2025-26",
+     "Course Code": "BAMAT101",
+     "Course Title": "Multivariable Calculus and Differential Equations",
+     "Course Type": "ELA",
+     "Class Nbr": "CH2025260103347",
+     "Faculty": "MINI GHOSH",
+     "QCM No.": "1",
+     "Action": "Faculty and HOD",
+     "Suggestions": "Audibility is poor • Not able to understand the concepts • Not shared the course material yet",
+     "Faculty Reply": "",
+     "HOD Comments": ""
+    },
+    {
+     "Sem Code": "FALLSEM2025-26",
+     "Course Code": "BAMAT101",
+     "Course Title": "Multivariable Calculus and Differential Equations",
+     "Course Type": "ETH",
+     "Class Nbr": "CH2025260103318",
+     "Faculty": "MINI GHOSH",
+     "QCM No.": "2",
+     "Action": "Faculty and HOD",
+     "Suggestions": "• Audibility is poor",
+     "Faculty Reply": "",
+     "HOD Comments": ""
+    },
+    {
+     "Sem Code": "FALLSEM2025-26",
+     "Course Code": "BAEEE101",
+     "Course Title": "Basic Engineering",
+     "Course Type": "ETH",
+     "Class Nbr": "CH2025260103149",
+     "Faculty": "J DIVYA",
+     "QCM No.": "3",
+     "Action": "Faculty and HOD",
+     "Suggestions": "Not able to Communicate",
+     "Faculty Reply": "",
+     "HOD Comments": ""
+    },
+    {
+     "Sem Code": "FALLSEM2025-26",
+     "Course Code": "BAMAT101",
+     "Course Title": "Multivariable Calculus and Differential Equations",
+     "Course Type": "ETH",
+     "Class Nbr": "CH2025260103318",
+     "Faculty": "MINI GHOSH",
+     "QCM No.": "3",
+     "Action": "Faculty and HOD",
+     "Suggestions": "Audibility is poor Not able to understand English is not good",
+     "Faculty Reply": "",
+     "HOD Comments": ""
+    }
+   ]
+  }
+ ],
+ "keyValuePairs": {},
+ "formFields": {},
+ "hiddenFields": {},
+ "messages": {},
+ "hasApaar": false
+}

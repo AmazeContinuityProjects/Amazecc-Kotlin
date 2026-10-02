@@ -51,20 +51,33 @@ class AmazeTests {
         AppState.navigateTo(Screen.ATTENDANCE)
         assertEquals(Screen.ATTENDANCE, AppState.currentScreen.value)
 
-        // Navigate back (should return to Home)
+        // Navigate back (HOME is the anchor of the stack)
         val popped = AppState.navigateBack()
         assertTrue(popped)
         assertEquals(Screen.HOME, AppState.currentScreen.value)
 
-        // Navigate back again (should return to Login)
+        // Back again lands on Home's own floor: the stack is empty, so it refuses and stays put.
+        // It must not walk out to LOGIN - Home is the root, not Login.
         val poppedAgain = AppState.navigateBack()
-        assertTrue(poppedAgain)
-        assertEquals(Screen.LOGIN, AppState.currentScreen.value)
+        assertFalse(poppedAgain)
+        assertEquals(Screen.HOME, AppState.currentScreen.value)
+        assertFalse(AppState.canNavigateBack())
+    }
 
-        // Navigate back once more (backstack is empty, should remain on Login)
-        val poppedEmpty = AppState.navigateBack()
-        assertFalse(poppedEmpty)
-        assertEquals(Screen.LOGIN, AppState.currentScreen.value)
+    @Test
+    fun homeIsTheAnchorEvenWhenHomeIsSkipped() {
+        // Reaching a detail screen without passing through Home still anchors the stack at Home,
+        // so the first back press goes Home rather than back to the login screen.
+        AppState.logout()
+        AppState.navigateTo(Screen.HOME)
+        AppState.navigateTo(Screen.ATTENDANCE)
+        AppState.navigateTo(Screen.PROFILE)
+
+        assertTrue(AppState.navigateBack())
+        assertEquals(Screen.ATTENDANCE, AppState.currentScreen.value)
+        assertTrue(AppState.navigateBack())
+        assertEquals(Screen.HOME, AppState.currentScreen.value)
+        assertFalse(AppState.canNavigateBack())
     }
 
     @Test

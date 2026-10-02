@@ -8,6 +8,9 @@ import com.amazecc.app.shared.model.MarksCourseItem
 import com.amazecc.app.shared.model.MarksRes
 import com.amazecc.app.shared.vtop.VtopComponent
 import com.amazecc.app.shared.vtop.VtopCourseCode
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -100,8 +103,19 @@ class EmbeddedCourseMergeTest {
 
     @Test
     fun labelsRoundTripThroughTheStore() {
+        // The four strings below are the ones VTOP actually sends, read off
+        // marks__CH20262701.html and attendance__CH20262701.html:
+        //   Embedded Theory x4, Embedded Lab x1, Theory Only x2, Lab Only x1, Soft Skill x1
+        // ETH/ELA are this port's own canonical labels, and the inverse map has to accept both.
+        assertEquals(VtopComponent.ETH, VtopCourseCode.fromTypeLabel("Embedded Theory"))
+        assertEquals(VtopComponent.ELA, VtopCourseCode.fromTypeLabel("Embedded Lab"))
+        assertEquals(VtopComponent.TO, VtopCourseCode.fromTypeLabel("Theory Only"))
+        assertEquals(VtopComponent.LO, VtopCourseCode.fromTypeLabel("Lab Only"))
+        assertEquals(VtopComponent.UNKNOWN, VtopCourseCode.fromTypeLabel("Soft Skill"))
+
+        // Internal labels round-trip too, so a row that already carries one is stable.
         assertEquals(VtopComponent.ETH, VtopCourseCode.fromTypeLabel("ETH"))
-        assertEquals(VtopComponent.ELA, VtopCourseCode.fromTypeLabel("ETH + ELA"))
+        assertEquals(VtopComponent.ELA, VtopCourseCode.fromTypeLabel("ELA"))
         assertEquals(VtopComponent.TO, VtopCourseCode.fromTypeLabel("Theory Only"))
         assertEquals(VtopComponent.LO, VtopCourseCode.fromTypeLabel("Lab Only"))
         assertEquals(VtopComponent.UNKNOWN, VtopCourseCode.fromTypeLabel(null))
@@ -241,21 +255,33 @@ class EmbeddedCourseMergeTest {
 
     @Test
     fun attendanceFromBothHalvesIsKeptWithoutDuplicates() {
-        fun att(type: String, date: String) = AttendanceItem(
+        // Attendance logs do NOT survive as `logs` on the incoming item: `sanitizeAttendance`
+        // rebuilds them from `viewLinkRaw`, which is the real per-day detail payload. Setting
+        // `logs` directly is silently discarded, so this has to go in as raw JSON.
+        fun att(type: String, vararg days: String) = AttendanceItem(
             courseCode = "BACSE106",
             courseType = type,
             attendedClasses = 1,
             totalClasses = 1,
-            logs = listOf(AttendanceLog(date, "Present"))
+            viewLinkRaw = buildJsonArray {
+                days.forEach { add(buildJsonObject { put("date", it); put("status", "Present") }) }
+            }
         )
         val academic = AcademicMerge.upsertAttendance(
             AcademicData(),
             "S1",
-            AttendanceRes(attendance = listOf(att("ETH", "01-Jan"), att("ELA", "01-Jan"), att("ELA", "02-Jan")))
+            AttendanceRes(
+                attendance = listOf(
+                    att("ETH", "01-Jan"),
+                    att("ELA", "01-Jan"),
+                    att("ELA", "02-Jan")
+                )
+            )
         )
         val a = academic.semesters.getValue("S1").courses.getValue("BACSE106").attendance!!
         assertEquals(3, a.attendedClasses)
         assertEquals(2, a.logs.size, "same-day rows from both halves should not double up")
+        assertEquals(listOf("01-Jan", "02-Jan"), a.logs.map { it.date })
     }
 
     // ── One key, not two ────────────────────────────────────────────────────

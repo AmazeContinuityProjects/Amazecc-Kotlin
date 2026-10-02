@@ -1,4 +1,4 @@
-package com.amazecc.app.shared.ui.screens.home
+package com.amazecc.app.shared.ui.design
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.ContentTransform
@@ -670,6 +670,32 @@ internal fun Modifier.homeHorizontalSwipe(
 }
 
 // ── Insight carousel tile ──
+
+/**
+ * One page of the rotating stat card.
+ *
+ * A tile is a measurement that does not change under the reader; a set of values worth rotating
+ * through is a carousel. That distinction is the web's (`StatTile` vs `InsightCarousel`) and it
+ * is why the attendance tile is pinned beside this rather than being one of its slides.
+ *
+ * It lives with [HomeInsightCarousel] rather than with the home screen's own model types because
+ * it is the carousel's input contract - every field here is one the component renders, and the
+ * screen's job is only to build the list.
+ */
+data class HomeInsightSlide(
+    val id: String,
+    /** The small kicker, e.g. "CGPA". */
+    val label: String,
+    /** The big number or code. */
+    val value: String,
+    val sub: String?,
+    /** The top-right pill. */
+    val badge: String?,
+    val tone: HomeTone,
+    /** The CGPA privacy toggle blurs the value in place. */
+    val blurred: Boolean = false,
+    val onClick: () -> Unit
+)
 
 /**
  * The rotating stat tile: a label and badge, an elastic headline that slides

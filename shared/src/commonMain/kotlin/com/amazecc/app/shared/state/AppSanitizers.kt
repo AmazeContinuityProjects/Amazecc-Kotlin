@@ -311,40 +311,63 @@ object AppSanitizers {
             val rowObj = row as? JsonObject ?: return@mapNotNull null
             StoredQcmRow(
                 qcmNo = rowObj.stringOf("qcmNo", "QCM No", "qcm no"),
-                action = rowObj.stringOf("actionTaken", "Action Taken", "action taken"),
+                // The local scraper keys this "action" (the column is literally headed "Action");
+                // the server used "actionTaken". Both spellings are accepted.
+                action = rowObj.stringOf("action", "actionTaken", "Action Taken", "action taken"),
                 suggestions = rowObj.stringOf("suggestions", "Suggestions"),
-                facultyReply = rowObj.stringOf("facultyReply", "Faculty Reply", "faculty reply")
+                facultyReply = rowObj.stringOf("facultyReply", "Faculty Reply", "faculty reply"),
+                semesterCode = rowObj.stringOf("semesterCode", "Sem Code", "sem code"),
+                courseCode = rowObj.stringOf("courseCode", "Course Code", "course code"),
+                courseTitle = rowObj.stringOf("courseTitle", "Course Title", "course title"),
+                courseType = rowObj.stringOf("courseType", "Course Type", "course type"),
+                classNbr = rowObj.stringOf("classNbr", "Class Nbr", "class nbr"),
+                faculty = rowObj.stringOf("faculty", "Faculty"),
+                hodComments = rowObj.stringOf("hodComments", "HOD Comments", "hod comments"),
             )
         }.filter { row ->
-            row.qcmNo != null || row.action != null || row.suggestions != null || row.facultyReply != null
+            row.qcmNo != null || row.action != null || row.suggestions != null ||
+                row.facultyReply != null || row.courseCode != null
         }
         if (rows.isEmpty()) return null
         return StoredQcmTable(caption = caption, rows = rows)
     }
 
-    private fun objToTable(obj: JsonObject): StoredQcmTable {
-        val caption = (obj["caption"] as? JsonPrimitive)?.contentOrNull?.clean()
-        val rows = (obj["rows"] as? JsonArray).orEmpty().mapNotNull { row ->
-            val rowObj = row as? JsonObject ?: return@mapNotNull null
-            StoredQcmRow(
-                qcmNo = rowObj.stringOf("qcmNo", "QCM No", "qcm no"),
-                action = rowObj.stringOf("actionTaken", "Action Taken", "action taken"),
-                suggestions = rowObj.stringOf("suggestions", "Suggestions"),
-                facultyReply = rowObj.stringOf("facultyReply", "Faculty Reply", "faculty reply")
-            )
-        }.filter { row ->
-            row.qcmNo != null || row.action != null || row.suggestions != null || row.facultyReply != null
-        }
-        return StoredQcmTable(caption = caption, rows = rows)
-    }
+    /**
+     * Wraps [tableObjToTable] so the array and per-semester shapes cannot drift apart.
+     *
+     * QCM arrives either as a bare array of tables (REMOTE) or as an array of
+     * `{semester, rows}` objects (LOCAL, one per stage-2 `semSubId`), so both go through here.
+     */
+    private fun objToTable(obj: JsonObject): StoredQcmTable =
+        tableObjToTable(obj, semester = "") ?: StoredQcmTable(
+            caption = (obj["caption"] as? JsonPrimitive)?.contentOrNull?.clean(),
+            rows = emptyList(),
+        )
 
+    /**
+     * Reads the first non-blank value among [keys].
+     *
+     * Exact keys come first, then a normalised match: VTOP headers are inconsistently punctuated
+     * and cased for the same column ("QCM No." from `getStudentLoginForQcm`, "QCM No" from the
+     * hosted route, "qcmNo" from the old DTO). An exact-only lookup silently dropped the live one.
+     */
     private fun JsonObject.stringOf(vararg keys: String): String? {
         for (key in keys) {
             val v = (this[key] as? JsonPrimitive)?.contentOrNull?.clean()
             if (v != null) return v
         }
+        val wanted = keys.map(::normaliseKey).toSet()
+        for ((key, value) in this) {
+            if (normaliseKey(key) !in wanted) continue
+            val v = (value as? JsonPrimitive)?.contentOrNull?.clean()
+            if (v != null) return v
+        }
         return null
     }
+
+    /** Lower-cases and drops everything that is not a letter or digit: "QCM No." -> "qcmno". */
+    private fun normaliseKey(key: String): String =
+        key.lowercase().filter { it.isLetterOrDigit() }
 
     // ── Curriculum ──
 
@@ -517,15 +540,17 @@ object AppSanitizers {
     fun sanitizeLms(res: LMSRes?): LMSRes? {
         if (res == null) return null
         return res.copy(assignments = res.assignments.mapNotNull { a ->
-            val id = a.assignmentId.clean() ?: return@mapNotNull null
+            // Moodle's composite name is the only guaranteed identity; a row with neither it nor
+            // a URL cannot be de-duplicated across syncs, so it is dropped rather than shown twice.
+            val id = a.url.clean() ?: a.name.clean() ?: return@mapNotNull null
             a.copy(
-                assignmentId = id,
+                name = a.name.clean() ?: id,
                 courseCode = a.courseCode.clean() ?: "",
-                title = a.title.clean() ?: "",
-                maxMarks = a.maxMarks.clean() ?: "",
-                dueDate = a.dueDate.clean() ?: "",
-                status = a.status.clean() ?: "Pending",
-                score = a.score.clean()
+                courseTitle = a.courseTitle.clean() ?: "",
+                assignmentTitle = a.assignmentTitle.clean() ?: "",
+                due = a.due.clean() ?: "",
+                url = a.url.clean() ?: id,
+                teachers = a.teachers.mapNotNull { it.clean() },
             )
         })
     }

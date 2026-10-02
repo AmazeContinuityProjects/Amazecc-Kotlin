@@ -1,0 +1,49 @@
+{
+ "ok": true,
+ "title": "Dayboarder / Dayscholar Information",
+ "selectOptions": {
+  "stayingType": [
+   {
+    "value": "0",
+    "text": "Please select...",
+    "selected": false
+   },
+   {
+    "value": "Staying with parents/Guardian",
+    "text": "Staying with parents/Guardian",
+    "selected": false
+   },
+   {
+    "value": "Staying with self / Friends",
+    "text": "Staying with self / Friends",
+    "selected": false
+   }
+  ],
+  "areaName": [],
+  "districtName": [],
+  "stateName": []
+ },
+ "tables": [],
+ "keyValuePairs": {},
+ "formFields": {
+  "_csrf": "fef4e2a8-7d06-4821-8738-f534529efb42",
+  "authorizedID": "25BLC1081",
+  "stayingType": "",
+  "ownerName": "",
+  "ownersMobileNumber": "",
+  "doorNumber": "",
+  "pincode": "",
+  "areaName": "",
+  "districtName": "",
+  "stateName": "",
+  "landmark": "",
+  "friendRegno": "",
+  "friend2Regno": ""
+ },
+ "hiddenFields": {
+  "_csrf": "fef4e2a8-7d06-4821-8738-f534529efb42",
+  "authorizedID": "25BLC1081"
+ },
+ "messages": {},
+ "hasApaar": false
+}

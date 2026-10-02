@@ -147,7 +147,8 @@ class ExamUtilsTest {
         val past = ExamItem(courseCode = "PAST", examDate = "18-Nov-2025", reportingTime = "09:00 AM")
 
         assertEquals("NEAR", ExamUtils.nextExamWithin(listOf(far, near, past), now, 24, tz)?.courseCode)
-        assertEquals("FAR", ExamUtils.nextExamWithin(listOf(far, past), now, 24, tz)?.courseCode)
+        // FAR is 21-Nov, ~49h from 19-Nov 08:00 — outside a 24h window, so nothing qualifies.
+        assertNull(ExamUtils.nextExamWithin(listOf(far, past), now, 24, tz))
         assertNull(ExamUtils.nextExamWithin(listOf(past), now, 24, tz))
         assertNull(ExamUtils.nextExamWithin(emptyList(), now, 24, tz))
     }
@@ -158,9 +159,12 @@ class ExamUtilsTest {
         val now = instantAt(2025, 11, 19, 9, 0)
         val exam = ExamItem(courseCode = "BOUND", examDate = "20-Nov-2025", reportingTime = "09:00 AM")
         assertEquals("BOUND", ExamUtils.nextExamWithin(listOf(exam), now, 24, tz)?.courseCode)
-        // One minute past the window → excluded.
+        // One minute LATER: the exam is now 23h59m away, i.e. still inside the 24h window.
         val late = instantAt(2025, 11, 19, 9, 1)
-        assertNull(ExamUtils.nextExamWithin(listOf(exam), late, 24, tz))
+        assertEquals("BOUND", ExamUtils.nextExamWithin(listOf(exam), late, 24, tz)?.courseCode)
+        // The genuine outside case: 25h away.
+        val tooFar = instantAt(2025, 11, 19, 8, 0)
+        assertNull(ExamUtils.nextExamWithin(listOf(exam), tooFar, 24, tz))
     }
 
     @Test
@@ -168,7 +172,8 @@ class ExamUtilsTest {
         val now = instantAt(2025, 11, 19, 8, 30)
         val exam = ExamItem(courseCode = "X", examDate = "19-Nov-2025", reportingTime = "09:00 AM")
         val hours = ExamUtils.hoursUntilExam(exam, now, tz)
-        assertEquals(0.5, hours, 1e-9)
+        // Null means the exam date/time could not be parsed, which would itself be the failure.
+        assertEquals(0.5, hours!!, 1e-9)
     }
 
     @Test

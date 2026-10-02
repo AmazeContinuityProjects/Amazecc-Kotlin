@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.utils
 
 import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.state.AcademicDerivers
 import com.amazecc.app.shared.state.AppDataStore
@@ -53,21 +54,23 @@ object WidgetDataUtils {
 
     /**
      * Total on-duty hours across all courses (lab = 2h, theory = 1h).
-     * Mirrors the OD Tracker screen counter: statuses "on duty"/"od"/"onduty" count as OD.
-     * Lab detection: prefers slotName starting with "L", falls back to courseType.
+     *
+     * The same formula as [AcademicDerivers.computeODHours], over the transport row shape rather
+     * than the stored one. These two disagreed about lab courses — this one keyed off `slotName`
+     * while that one also read the `(L)` code suffix — which is why the status vocabulary, the
+     * multiplier and the lab test are now all shared.
      */
-    fun computeODHours(courses: List<AttendanceItem>): Int {
-        var hours = 0
-        for (course in courses) {
-            val statuses = course.logs.mapNotNull { log -> log.status.trim().lowercase() }
-            val odCount = statuses.count { it == "on duty" || it == "od" || it == "onduty" }
-            if (odCount > 0) {
-                val isLab = course.courseType.contains("Lab", ignoreCase = true) || course.slotName?.startsWith("L") == true
-                hours += odCount * (if (isLab) 2 else 1)
+    fun computeODHours(courses: List<AttendanceItem>): Int =
+        Projections.odHours(
+            courses.map { course ->
+                val odCount = course.logs.count { Projections.isOdStatus(it.status) }
+                odCount to AcademicDerivers.isLabCourse(
+                    courseCode = course.courseCode,
+                    courseType = course.courseType,
+                    slots = course.slotName.split("+").filter { it.isNotBlank() },
+                )
             }
-        }
-        return hours
-    }
+        )
 
     /**
      * Widget processes have no AppState, so the "current semester" is resolved
@@ -141,18 +144,14 @@ object WidgetDataUtils {
         val sem = currentSemesterData()
         val courses = sem?.courses?.values ?: emptyList()
 
-        val validCourses = courses.filter { (it.attendance?.totalClasses ?: 0) > 0 }
-        val totalAttended = validCourses.sumOf { it.attendance?.attendedClasses ?: 0 }
-        val totalClasses = validCourses.sumOf { it.attendance?.totalClasses ?: 0 }
-
-        val overallPctNum = if (totalClasses > 0) (totalAttended.toDouble() / totalClasses.toDouble()) * 100.0 else 0.0
-        val overallPctStr = if (totalClasses > 0) "${overallPctNum.toInt()}%" else "N/A"
+        val summary = Projections.summariseAttendance(
+            courses.map { it.attendance?.let { att -> att.attendedClasses to att.totalClasses } ?: (0 to 0) },
+        )
+        val overallPctNum = summary.percentage.toDouble()
+        val overallPctStr = if (summary.hasData) "${overallPctNum.toInt()}%" else "N/A"
 
         val cgpaStr = sem?.gpa?.takeIf { it.isNotBlank() } ?: "N/A"
-        val earnedCredits = courses
-            .filter { it.grade != null }
-            .mapNotNull { it.credits?.trim()?.toDoubleOrNull() }
-            .sum()
+        val earnedCredits = Projections.creditsEarned(courses.map { it.credits to (it.grade != null) })
         val creditsStr = if (earnedCredits > 0) earnedCredits.toString() else "N/A"
 
         val odHours = if (sem != null) AcademicDerivers.computeODHours(sem) else 0
@@ -162,7 +161,7 @@ object WidgetDataUtils {
             cgpa = cgpaStr,
             earnedCredits = creditsStr,
             odHours = "$odHours hrs",
-            isSafe = overallPctNum >= 75.0 || totalClasses == 0
+            isSafe = overallPctNum >= 75.0 || !summary.hasData
         )
     }
 

@@ -1,0 +1,389 @@
+{
+ "ok": true,
+ "title": "",
+ "selectOptions": {},
+ "tables": [
+  {
+   "headers": [
+    "APPLICATION NUMBER"
+   ],
+   "rows": [
+    {
+     "APPLICATION NUMBER": "STUDENT NAME"
+    },
+    {
+     "APPLICATION NUMBER": "DATE OF BIRTH"
+    },
+    {
+     "APPLICATION NUMBER": "GENDER"
+    },
+    {
+     "APPLICATION NUMBER": "NATIVE LANGUAGE"
+    },
+    {
+     "APPLICATION NUMBER": "NATIVE STATE"
+    },
+    {
+     "APPLICATION NUMBER": "BLOOD GROUP"
+    },
+    {
+     "APPLICATION NUMBER": "PHYSICALLY CHALLENGED"
+    },
+    {
+     "APPLICATION NUMBER": "COMMUNITY"
+    },
+    {
+     "APPLICATION NUMBER": "RELIGION"
+    },
+    {
+     "APPLICATION NUMBER": "CASTE"
+    },
+    {
+     "APPLICATION NUMBER": "NATIONALITY"
+    },
+    {
+     "APPLICATION NUMBER": "HOSTELLER"
+    },
+    {
+     "APPLICATION NUMBER": "AADHAR NUMBER"
+    },
+    {
+     "APPLICATION NUMBER": "MOBILE NUMBER"
+    },
+    {
+     "APPLICATION NUMBER": "CURRENT ADDRESS"
+    },
+    {
+     "APPLICATION NUMBER": "STREET NAME"
+    },
+    {
+     "APPLICATION NUMBER": "AREA NAME"
+    },
+    {
+     "APPLICATION NUMBER": "CITY"
+    },
+    {
+     "APPLICATION NUMBER": "STATE"
+    },
+    {
+     "APPLICATION NUMBER": "COUNTRY"
+    },
+    {
+     "APPLICATION NUMBER": "PINCODE"
+    },
+    {
+     "APPLICATION NUMBER": "PHONE NUMBER[LAND LINE]"
+    },
+    {
+     "APPLICATION NUMBER": "EMAIL"
+    },
+    {
+     "APPLICATION NUMBER": "PERMANENT ADDRESS"
+    },
+    {
+     "APPLICATION NUMBER": "STREET NAME"
+    },
+    {
+     "APPLICATION NUMBER": "AREA NAME"
+    },
+    {
+     "APPLICATION NUMBER": "CITY"
+    },
+    {
+     "APPLICATION NUMBER": "STATE"
+    },
+    {
+     "APPLICATION NUMBER": "COUNTRY"
+    },
+    {
+     "APPLICATION NUMBER": "PINCODE"
+    },
+    {
+     "APPLICATION NUMBER": "PHONE NUMBER[LAND LINE]"
+    },
+    {
+     "APPLICATION NUMBER": "EMAIL"
+    },
+    {
+     "APPLICATION NUMBER": "FRIEND MOBILE NUMBER"
+    }
+   ]
+  },
+  {
+   "headers": [
+    "APPLIED DEGREE",
+    "UG"
+   ],
+   "rows": [
+    {
+     "APPLIED DEGREE": "EDUCATIONAL QUALIFICATION",
+     "UG": "12TH/INTERMEDIATE"
+    },
+    {
+     "APPLIED DEGREE": "BRANCH / GROUP STUDIED",
+     "UG": "PHYSICS + CHEMISTRY + MATHS + BIOLOGY + ENGLISH"
+    },
+    {
+     "APPLIED DEGREE": "SCHOOL NAME",
+     "UG": "DON BOSCO SCHOOL OF EXCELLENCE, EGMORE"
+    },
+    {
+     "APPLIED DEGREE": "MEDIUM OF STUDY",
+     "UG": "ENGLISH"
+    },
+    {
+     "APPLIED DEGREE": "BOARD / UNIVERSITY",
+     "UG": "CENTRAL BOARD OF SECONDARY EDUCATION"
+    },
+    {
+     "APPLIED DEGREE": "REGISTER NO/ ROLL NO",
+     "UG": "20626703"
+    },
+    {
+     "APPLIED DEGREE": "CLASS OBTAINED",
+     "UG": "FIRST CLASS"
+    },
+    {
+     "APPLIED DEGREE": "YEAR OF PASSING/ PASSED",
+     "UG": "2025"
+    },
+    {
+     "APPLIED DEGREE": "MONTH OF PASSING/ PASSED",
+     "UG": "MAY"
+    },
+    {
+     "APPLIED DEGREE": "SCHOOL / COLLEGE ADDRESS"
+    },
+    {
+     "APPLIED DEGREE": "AREA NAME",
+     "UG": "53, PANTHEON ROAD, EGMORE"
+    },
+    {
+     "APPLIED DEGREE": "CITY / DISTRICT NAME",
+     "UG": "CHENNAI"
+    },
+    {
+     "APPLIED DEGREE": "STATE NAME",
+     "UG": "TAMIL NADU"
+    },
+    {
+     "APPLIED DEGREE": "PINCODE / ZIPCODE",
+     "UG": "600008"
+    },
+    {
+     "APPLIED DEGREE": "PHONE NUMBER[LAND LINE]",
+     "UG": ""
+    },
+    {
+     "APPLIED DEGREE": "BREAK IN STUDY",
+     "UG": "NO"
+    },
+    {
+     "APPLIED DEGREE": "REASON",
+     "UG": "-"
+    }
+   ]
+  },
+  {
+   "headers": [
+    "NO.OF.BROTHERS",
+    "0"
+   ],
+   "rows": [
+    {
+     "0": "1",
+     "NO.OF.BROTHERS": "NO.OF.SISTERS"
+    },
+    {
+     "0": "NO",
+     "NO.OF.BROTHERS": "IF BROTHER/SISTER STUDYING IN VIT"
+    },
+    {
+     "0": "-",
+     "NO.OF.BROTHERS": "STUDYING DETAILS"
+    },
+    {
+     "0": "NO",
+     "NO.OF.BROTHERS": "IF BROTHER/SISTER STUDIED IN VIT"
+    },
+    {
+     "0": "-",
+     "NO.OF.BROTHERS": "STUDIED DETAILS"
+    },
+    {
+     "NO.OF.BROTHERS": "FATHER DETAILS"
+    },
+    {
+     "0": "AUGUSTINE SAMALA ALPHONSE",
+     "NO.OF.BROTHERS": "FATHER NAME"
+    },
+    {
+     "0": "B.SC MATHS, MCA",
+     "NO.OF.BROTHERS": "QUALIFICATION"
+    },
+    {
+     "0": "PRIVATE",
+     "NO.OF.BROTHERS": "OCCUPATION"
+    },
+    {
+     "0": "DELOITTE",
+     "NO.OF.BROTHERS": "ORGANIZATION"
+    },
+    {
+     "0": "NA",
+     "NO.OF.BROTHERS": "EMP.ID(IF EMPLOYED IN VIT)"
+    },
+    {
+     "0": "9841006266",
+     "NO.OF.BROTHERS": "MOBILE NUMBER"
+    },
+    {
+     "0": "inaugus@gmail.com",
+     "NO.OF.BROTHERS": "EMAIL"
+    },
+    {
+     "0": ">1000000",
+     "NO.OF.BROTHERS": "ANNUAL INCOME"
+    },
+    {
+     "0": "ASV RAMANA TOWERS, VENKATNARAYANA ROAD, T. NAGAR",
+     "NO.OF.BROTHERS": "OFFICIAL ADDRESS(AREA NAME)"
+    },
+    {
+     "0": "TAMIL NADU",
+     "NO.OF.BROTHERS": "STATE"
+    },
+    {
+     "0": "CHENNAI",
+     "NO.OF.BROTHERS": "CITY/DISTRICT"
+    },
+    {
+     "0": "600017",
+     "NO.OF.BROTHERS": "PINCODE/ZIPCODE"
+    },
+    {
+     "0": "",
+     "NO.OF.BROTHERS": "PHONE NUMBER[LAND LINE]"
+    },
+    {
+     "0": "ASSOCIATE DIRECTOR",
+     "NO.OF.BROTHERS": "DESIGNATION"
+    },
+    {
+     "NO.OF.BROTHERS": "MOTHER DETAILS"
+    },
+    {
+     "0": "MARY ISSABELLA PANNEERSELVAM",
+     "NO.OF.BROTHERS": "NAME"
+    },
+    {
+     "0": "B.E. INSTRUMENTATION AND CONTROL ENGINEERING",
+     "NO.OF.BROTHERS": "QUALIFICATION"
+    },
+    {
+     "0": "PRIVATE",
+     "NO.OF.BROTHERS": "OCCUPATION"
+    },
+    {
+     "0": "KBR",
+     "NO.OF.BROTHERS": "ORGANIZATION"
+    },
+    {
+     "0": "NA",
+     "NO.OF.BROTHERS": "EMP.ID(IF EMPLOYED IN VIT)"
+    },
+    {
+     "0": "9841580543",
+     "NO.OF.BROTHERS": "MOBILE NUMBER"
+    },
+    {
+     "0": "kpissabella@gmail.com",
+     "NO.OF.BROTHERS": "EMAIL"
+    },
+    {
+     "0": ">1000000",
+     "NO.OF.BROTHERS": "ANNUAL INCOME"
+    },
+    {
+     "0": "CAPITA LAND INT. PARK, CSIR ROAD, THARAMANI",
+     "NO.OF.BROTHERS": "OFFICIAL ADDRESS(AREA NAME)"
+    },
+    {
+     "0": "CHENNAI",
+     "NO.OF.BROTHERS": "CITY/DISTRICT"
+    },
+    {
+     "0": "TAMIL NADU",
+     "NO.OF.BROTHERS": "STATE"
+    },
+    {
+     "0": "600113",
+     "NO.OF.BROTHERS": "PINCODE/ZIPCODE"
+    },
+    {
+     "0": "",
+     "NO.OF.BROTHERS": "PHONE NUMBER[LAND LINE]"
+    },
+    {
+     "0": "PRINCIPAL ESTIMATOR",
+     "NO.OF.BROTHERS": "DESIGNATION"
+    },
+    {
+     "0": "PARENT",
+     "NO.OF.BROTHERS": "GUARDIAN INFO"
+    }
+   ]
+  },
+  {
+   "headers": [
+    "FACULTY ID",
+    "50425"
+   ],
+   "rows": [
+    {
+     "50425": "RAMESH R",
+     "FACULTY ID": "FACULTY NAME"
+    },
+    {
+     "50425": "Professor Grade 1",
+     "FACULTY ID": "FACULTY DESIGNATION"
+    },
+    {
+     "50425": "School of Electronics Engineering",
+     "FACULTY ID": "SCHOOL"
+    },
+    {
+     "50425": "AB1--5F--AB1/5th floor/Main/06",
+     "FACULTY ID": "CABIN"
+    },
+    {
+     "50425": "School of Electronics Engineering",
+     "FACULTY ID": "FACULTY DEPARTMENT"
+    },
+    {
+     "50425": "ramesh.r@vit.ac.in",
+     "FACULTY ID": "FACULTY EMAIL"
+    },
+    {
+     "50425": "1433",
+     "FACULTY ID": "FACULTY INTERCOM"
+    },
+    {
+     "50425": "9840533705",
+     "FACULTY ID": "FACULTY MOBILE NUMBER"
+    }
+   ]
+  }
+ ],
+ "keyValuePairs": {},
+ "formFields": {
+  "applno": "2025022846",
+  "regno": "25BLC1081"
+ },
+ "hiddenFields": {
+  "applno": "2025022846",
+  "regno": "25BLC1081"
+ },
+ "messages": {},
+ "hasApaar": false
+}

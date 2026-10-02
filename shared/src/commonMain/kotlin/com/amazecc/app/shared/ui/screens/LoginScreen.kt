@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.CheckCircleOutline
+import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +36,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -70,6 +72,9 @@ fun LoginScreen() {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    // Manual captcha, chosen before submitting rather than only when auto-submit fails.
+    var manualCaptcha by remember { mutableStateOf(SettingsManager.isVtopManualCaptcha()) }
+    var captchaText by remember { mutableStateOf("") }
     var isSubmitting by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var isRestoring by remember { mutableStateOf(true) }
@@ -79,7 +84,15 @@ fun LoginScreen() {
     // confident enough to submit on its own.
     val captchaRequest by Vtop.captchaRequest.collectAsState()
     val isLocalVtop = AmazeClient.vtopSource == VtopSource.LOCAL
-    val captchaHandler = remember { AutoCaptchaHandler(delegate = UiCaptchaHandler) }
+    val captchaHandler = remember {
+        AutoCaptchaHandler(
+            delegate = UiCaptchaHandler,
+            // Read lazily so the screen toggle and the Settings toggle both take effect without
+            // recreating the handler.
+            forceManual = { manualCaptcha || SettingsManager.isVtopManualCaptcha() },
+            manualAnswer = { captchaText }
+        )
+    }
 
     // One-time notice for the switch to on-device VTOP. Runs before the session restore so it
     // also reaches existing installs, which would otherwise skip straight past this screen.
@@ -304,23 +317,59 @@ fun LoginScreen() {
 
                     Spacer(Modifier.height(AmazeTheme.spacing.md))
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            Icons.Rounded.CheckCircleOutline,
-                            contentDescription = null,
-                            tint = colors.success,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(AmazeTheme.spacing.xs))
-                        Text(
-                            text = "Captcha is solved automatically",
-                            style = AmazeTheme.typography.smallLabel.copy(
-                                color = colors.textMuted
+                    // Captcha strategy. Up front, before any VTOP request, so the user can
+                    // decide to type it rather than only being asked once auto-submit fails.
+                    if (isLocalVtop) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Rounded.ConfirmationNumber,
+                                contentDescription = null,
+                                tint = if (manualCaptcha) colors.warning else colors.success,
+                                modifier = Modifier.size(16.dp)
                             )
-                        )
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                            Text(
+                                text = if (manualCaptcha) {
+                                    "Type the captcha below"
+                                } else {
+                                    "Captcha is solved automatically"
+                                },
+                                style = AmazeTheme.typography.smallLabel.copy(
+                                    color = colors.textMuted
+                                )
+                            )
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = {
+                                manualCaptcha = !manualCaptcha
+                                if (!manualCaptcha) captchaText = ""
+                            }) {
+                                Text(
+                                    text = if (manualCaptcha) "Solve for me" else "Type it",
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        color = colors.textPrimary
+                                    )
+                                )
+                            }
+                        }
+
+                        if (manualCaptcha) {
+                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                            AmazeTextField(
+                                value = captchaText,
+                                onValueChange = {
+                                    captchaText = it.uppercase().filter(Char::isLetterOrDigit).take(8)
+                                },
+                                label = "Captcha",
+                                placeholder = "Type the characters",
+                                keyboardOptions = KeyboardOptions(
+                                    capitalization = KeyboardCapitalization.Characters,
+                                    imeAction = ImeAction.Done
+                                )
+                            )
+                        }
                     }
 
                     Spacer(Modifier.height(AmazeTheme.spacing.lg))

@@ -133,10 +133,13 @@ object AcademicMerge {
 
     /** Applies [transform] to one semester, creating the semester if absent. */
     fun updateSemester(academic: AcademicData, semesterId: String, transform: (SemesterData) -> SemesterData): AcademicData {
-        val semesters = academic.semesters.toMutableMap()
-        val sem = semesters[semesterId] ?: SemesterData(semesterId = semesterId)
-        semesters[semesterId] = transform(sem)
-        return academic.copy(semesters = semesters)
+        val existing = academic.semesters[semesterId]
+        val next = transform(existing ?: SemesterData(semesterId = semesterId))
+        // A no-op sync used to return a fresh copy anyway, so every write rebuilt the academic
+        // tree and recomposed every screen watching it. Returning the original instance when the
+        // semester is unchanged makes the function observably idempotent.
+        if (existing != null && next == existing) return academic
+        return academic.copy(semesters = academic.semesters + (semesterId to next))
     }
 
     /**
@@ -160,6 +163,12 @@ object AcademicMerge {
             for (oldKey in courses.keys.toList()) {
                 val newKey = VtopCourseCode.base(oldKey)
                 if (newKey.isEmpty() || newKey == oldKey) continue
+                // Mark the change here. `changed` used to be set only by the removeIf() below,
+                // but by the time that runs the re-key loop has already collapsed the map, so it
+                // found nothing to remove and the function returned the *original* snapshot -
+                // the migration was computed and then thrown away, leaving every legacy
+                // "(L)"/"(T)" row orphaned.
+                changed = true
                 val course = courses.remove(oldKey) ?: continue
                 val target = courses[newKey]
                 courses[newKey] = if (target == null) {
@@ -348,7 +357,14 @@ object AcademicMerge {
                 if (key.isEmpty()) continue
                 val (slotPart, venue) = AcademicDerivers.splitSlotVenue(info.slotVenue)
                 val slotCodes = slotPart?.split("+").orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
-                val ltpjcCredits = info.LTPJC?.split("-")?.lastOrNull()?.trim()?.takeIf { it.toIntOrNull() != null }
+                    // VTOP sends LTPJC space separated with a trailing decimal - e.g.
+                    // "0 0 4 0 2.0" - and the 5th token is the credit. This was split on "-",
+                    // which never matches real markup, so the timetable never contributed credits
+                    // at all; and the guard rejected "2.0" because it is not an Int. Verified
+                    // against timetable-grid__CH20262701.html.
+                    val ltpjcCredits = info.LTPJC?.split(Regex("\\s+"))
+                        ?.getOrNull(4)?.trim()
+                        ?.takeIf { it.isNotBlank() && it.toDoubleOrNull() != null }
                 val existing = courses[key]
                 courses[key] = (existing ?: StoredCourse(courseCode = key)).copy(
                     courseCode = key,

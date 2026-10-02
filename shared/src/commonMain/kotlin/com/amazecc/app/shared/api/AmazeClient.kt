@@ -774,7 +774,21 @@ if (useMockData) return DemoData.get("cabShareMyTrips", CabShareTripsRes.seriali
     }
 
     suspend fun getLMSAssignments(): LMSRes {
-if (useMockData) return DemoData.get("lms", LMSRes.serializer()) ?: LMSRes()
+        if (useMockData) return DemoData.get("lms", LMSRes.serializer()) ?: LMSRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            // Moodle has its own login, so its credentials are stored separately from VTOP's.
+            val creds = com.amazecc.app.shared.repository.SettingsManager.getMoodleCredentials()
+                ?: return LMSRes(
+                    success = false,
+                    message = "Moodle credentials not set",
+                )
+            return try {
+                com.amazecc.app.shared.vtop.VtopLms.fetchAssignments(creds.first, creds.second)
+                    ?: LMSRes(success = false, message = "Moodle unavailable")
+            } catch (e: Exception) {
+                LMSRes(success = false, message = "Network error: ${e.message}", error = e.toString())
+            }
+        }
         return try {
             postAuthorized<LMSRes>("lms-data") ?: LMSRes(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -820,7 +834,7 @@ if (useMockData) return DemoData.get("qcmView", QcmViewRes.serializer()) ?: QcmV
             }
         }
         return try {
-            postAuthorized<QcmViewRes>("qcm-view") ?: QcmViewRes(success = false, message = "Empty response")
+            postAuthorized<QcmViewRes>("qcm") ?: QcmViewRes(success = false, message = "Empty response")
         } catch (e: Exception) {
             QcmViewRes(success = false, message = e.message, error = e.toString())
         }
@@ -1445,6 +1459,35 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
         } catch (e: Exception) {
             SyllabusResult(error = "Network error: ${e.message}")
         }
+    }
+
+    /**
+     * Makes sure [com.amazecc.app.shared.vtop.VtopSession] holds usable tokens before a sync sweep.
+     *
+     * On `LOCAL` this deliberately does **not** perform a credential login: [loginLocal] needs a
+     * captcha handler, and a sweep runs unattended with nobody to answer one. Passing null there
+     * makes the refresh fail with `missing_captcha_handler` *before* any module runs, which is
+     * what leaves every module reporting "No VTOP session".
+     *
+     * Instead the WebView still holds a valid `JSESSIONID`, so the tokens are re-hydrated from
+     * it. Only `REMOTE` needs the real login round-trip.
+     *
+     * Returns whether a session is usable afterwards.
+     */
+    suspend fun ensureSession(): Boolean {
+        if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.LOCAL) return refreshSession()
+        if (com.amazecc.app.shared.vtop.VtopSession.hasSession) return true
+
+        if (!com.amazecc.app.shared.vtop.Vtop.restoreSessionIfPossible()) return false
+        val csrf = com.amazecc.app.shared.vtop.VtopSession.csrf.value ?: return false
+        val id = com.amazecc.app.shared.vtop.VtopSession.authorizedID.value ?: return false
+        SessionManager.saveSession(
+            cookies = SessionManager.LOCAL_SESSION_MARKER,
+            csrf = csrf,
+            authorizedID = id,
+            clubToken = null
+        )
+        return true
     }
 
     /** Re-logs-in to VTOP with the stored credentials and refreshes the session. */

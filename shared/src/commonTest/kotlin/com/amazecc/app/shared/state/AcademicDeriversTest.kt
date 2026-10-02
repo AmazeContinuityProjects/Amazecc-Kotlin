@@ -2,6 +2,11 @@ package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.model.AssessmentItem
 import com.amazecc.app.shared.model.AttendanceLog
+// Members of `object AcademicDerivers`, so they need importing even inside the same package.
+import com.amazecc.app.shared.state.AcademicDerivers.isLabCourse
+import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
+import com.amazecc.app.shared.state.AcademicDerivers.toGradeItem
+import com.amazecc.app.shared.state.AcademicDerivers.toMarksCourseItem
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -52,17 +57,20 @@ class AcademicDeriversTest {
             )
         )
         val slots = AcademicDerivers.buildWeeklyTimetable(sem)
-        assertEquals(1, slots.size)
-        val slot = slots.first()
-        assertEquals("MON", slot.day)
-        assertEquals("A1", slot.slotName)
-        assertEquals("8:00-8:50", slot.time)
-        assertEquals("18MAB101T", slot.courseCode)
-        assertEquals("AB1-101", slot.venue)
-        assertEquals("Dr. X", slot.faculty)
-        assertEquals("C123", slot.classId)
-        assertEquals("PC", slot.category)
-        assertEquals(85.0, slot.attendancePercentage)
+        // "A1" is a period on more than one day: A1 is Monday 8:00 and Wednesday 8:55 (see
+        // AmazeCC/src/data/campus/chennai.json, which maps period -> day -> slot id). A course on
+        // A1 therefore appears on every day A1 is taught, not on one guessed day.
+        val a1 = slots.filter { it.slotName == "A1" }
+        assertEquals(setOf("MON", "WED"), a1.mapNotNull { it.day }.toSet())
+        val monday = a1.single { it.day == "MON" }
+        assertEquals("A1", monday.slotName)
+        assertEquals("8:00-8:50", monday.time)
+        assertEquals("18MAB101T", monday.courseCode)
+        assertEquals("AB1-101", monday.venue)
+        assertEquals("Dr. X", monday.faculty)
+        assertEquals("C123", monday.classId)
+        assertEquals("PC", monday.category)
+        assertEquals(85.0, monday.attendancePercentage)
     }
 
     @Test
@@ -74,9 +82,14 @@ class AcademicDeriversTest {
             )
         )
         val slots = AcademicDerivers.buildWeeklyTimetable(sem)
-        assertEquals(2, slots.size)
-        assertEquals("A1", slots[0].slotName)
-        assertEquals("F1", slots[1].slotName)
+        // Both A1 and F1 are taught on two days each (MON and WED), so the course yields one
+        // entry per (slot, day) pair - 4 in total. Sorting is by day, then time, then slot name.
+        assertEquals(4, slots.size)
+        assertEquals(listOf("MON", "MON", "WED", "WED"), slots.mapNotNull { it.day })
+        assertEquals(listOf("A1", "F1", "A1", "F1"), slots.map { it.slotName })
+        assertEquals("8:00-8:50", slots[0].time, "MON A1")
+        assertEquals("8:55-9:45", slots[1].time, "MON F1")
+        assertEquals("8:55-9:45", slots[2].time, "WED A1")
     }
 
     @Test
@@ -272,5 +285,75 @@ class AcademicDeriversTest {
         assertEquals(85.0, AcademicDerivers.percentOf(course("A", attendance = StoredAttendance(attendancePercentage = "85"))))
         assertNull(AcademicDerivers.percentOf(course("A", attendance = StoredAttendance(attendancePercentage = "n/a"))))
         assertNull(AcademicDerivers.percentOf(course("A")))
+    }
+
+    // ── OD hours ──────────────────────────────────────────────────────────────
+
+    @Test
+    fun odHoursCountsALabWhoseCodeEndsInSuffixEvenWhenTheSlotIsNotLabShaped() {
+        // The two OD counters used to disagree right here. The widget one read only `slotName`,
+        // so this course was worth one hour in a widget and two on the home screen — and since
+        // OD hours are what buys a bunk, the same student saw two answers to one question.
+        val code = "18CSC301(L)"
+        val logs = listOf(AttendanceLog("15-Dec-2025", "On Duty"))
+
+        val sem = SemesterData(
+            semesterId = "CH20262701",
+            semesterName = "Fall Semester 2025-26",
+            courses = mapOf(code to course(code = code, slots = listOf("A1"), attendance = StoredAttendance(logs = logs))),
+        )
+        val asRow = sem.courses.getValue(code).toAttendanceItem()
+
+        assertEquals(2, AcademicDerivers.computeODHours(sem))
+        // Both entry points, over the same course, must now be the same number.
+        assertEquals(
+            AcademicDerivers.computeODHours(sem),
+            com.amazecc.app.shared.utils.WidgetDataUtils.computeODHours(listOf(asRow)),
+        )
+    }
+
+    @Test
+    fun odHoursWeighsTheoryAtOneHourAndLabAtTwo() {
+        val theory = "18MAB101T"
+        val lab = "18CSC301L"
+        val logs = listOf(
+            AttendanceLog("15-Dec-2025", "On Duty"),
+            AttendanceLog("16-Dec-2025", "on duty"),
+            AttendanceLog("17-Dec-2025", " od "),
+        )
+
+        val sem = SemesterData(
+            semesterId = "CH20262701",
+            semesterName = "Fall Semester 2025-26",
+            courses = mapOf(
+                theory to course(code = theory, slots = listOf("A1"), attendance = StoredAttendance(logs = logs)),
+                lab to course(code = lab, slots = listOf("L31"), attendance = StoredAttendance(logs = logs)),
+            ),
+        )
+        // Three theory sessions (3h) plus three lab sessions (6h).
+        assertEquals(9, AcademicDerivers.computeODHours(sem))
+    }
+
+    @Test
+    fun odHoursIgnoresStatusesOutsideTheVtopVocabulary() {
+        val code = "18CSC301L"
+        val sem = SemesterData(
+            semesterId = "CH20262701",
+            semesterName = "Fall Semester 2025-26",
+            courses = mapOf(
+                code to course(
+                    code = code,
+                    slots = listOf("L31"),
+                    attendance = StoredAttendance(
+                        logs = listOf(
+                            AttendanceLog("15-Dec-2025", "Absent"),
+                            AttendanceLog("16-Dec-2025", "partial od"),
+                            AttendanceLog("17-Dec-2025", "sectional holiday"),
+                        )
+                    ),
+                )
+            ),
+        )
+        assertEquals(0, AcademicDerivers.computeODHours(sem))
     }
 }

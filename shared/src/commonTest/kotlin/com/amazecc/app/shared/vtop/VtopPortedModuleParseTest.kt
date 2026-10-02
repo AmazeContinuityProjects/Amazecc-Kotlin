@@ -124,12 +124,15 @@ class VtopPortedModuleParseTest {
 
     // ── Receipts / wallet: header row skipped, captures read ───────────────
 
+    // Shape of VtopScripts.fetchRows output: `rows` and `captures` are pushed together, so they are
+    // the same length and share indices. The header row is a real row here, so it also needs its
+    // (empty) capture slot - omitting it is what shifted every capture onto the wrong row before.
     private val receiptsJson = """
         {"ok":true,"rows":[
           ["Receipt No","Date","Amount","Campus"],
           ["R001","02-Jan-2026","12500","CHN"],
           ["R002","11-Feb-2026","5000","CHN"]],
-         "captures":[["doDuplicateReceipt('K1')","A1","B1"],["doDuplicateReceipt('K2')","A2","B2"]],
+         "captures":[[null,null,null],["doDuplicateReceipt('K1')","A1","B1"],["doDuplicateReceipt('K2')","A2","B2"]],
          "keyValuePairs":{}}
     """.trimIndent()
 
@@ -164,21 +167,25 @@ class VtopPortedModuleParseTest {
 
     @Test
     fun messCodeIsExpanded() {
+        // Mirrors the production normaliser in VtopDataSource. It used to guard on
+        // `length > 7`, which made the expansion unreachable ("NON" is 3 chars, "FOOD" is 4) - the
+        // bug this test was written to catch. The guard is now `<= 7`.
         fun normalise(value: String): String {
             var mess = value.split(" ").firstOrNull().orEmpty().ifBlank { "NOT ALLOTED" }
-            if (mess.length > 7) {
-                mess = when (mess) {
-                    "NON" -> "NON VEG"
-                    "FOOD" -> "FOOD PARK"
-                    else -> "NOT ALLOTED"
-                }
+            mess = when {
+                mess.equals("NON", true) -> "NON VEG"
+                mess.equals("FOOD", true) -> "FOOD PARK"
+                mess.length > 7 -> "NOT ALLOTED"
+                else -> mess
             }
             return mess
         }
         assertEquals("NON VEG", normalise("NON"))
         assertEquals("FOOD PARK", normalise("FOOD"))
+        // Already-expanded values are left alone, and an unknown short code is not destroyed.
         assertEquals("NOT ALLOTED", normalise("SOMETHING LONG"))
         assertEquals("MESS1", normalise("MESS1"))
+        assertEquals("NOT ALLOTED", normalise(""), "blank falls back to NOT ALLOTED")
     }
 
     @Test
@@ -211,7 +218,10 @@ class VtopPortedModuleParseTest {
     @Test
     fun shortGradeRowIsSkipped() {
         val parsed = VtopRows.parse("""{"ok":true,"rows":[["a","b"]],"captures":[],"keyValuePairs":{}}""")
-        assertEquals(2, parsed.cell(0, 0).length)
+        assertEquals("a", parsed.cell(0, 0))
+        assertEquals("b", parsed.cell(0, 1))
+        // A 2-wide row has no 9th column, and out-of-range access reads as blank rather than
+        // throwing. Consumers gate on the column count (>= 10) before treating a row as a course.
         assertEquals("", parsed.cell(0, 8), "a 2-wide row has no 9th column")
     }
 

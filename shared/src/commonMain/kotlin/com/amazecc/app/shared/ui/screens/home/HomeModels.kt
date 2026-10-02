@@ -1,11 +1,13 @@
 package com.amazecc.app.shared.ui.screens.home
 
 import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.CalendarEvent
 import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.model.ExamItem
 import com.amazecc.app.shared.model.HomeworkTask
 import com.amazecc.app.shared.state.SemesterData
+import com.amazecc.app.shared.ui.design.*
 import com.amazecc.app.shared.utils.AttendanceDay
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.NotificationsUtils
@@ -68,38 +70,35 @@ data class HomeAttendanceSummary(
 /**
  * Below [targetPct] is critical; within five points of it is a warning.
  *
- * The five-point band is the web's, and it is the same band
- * [com.amazecc.app.shared.ui.components.BunkOMeterCard] uses, so the headline
- * tile and the bunk meter never disagree about the same course.
+ * The band itself lives in [Projections.attendanceStatus] — this only maps it onto the home's
+ * tone vocabulary. Keeping the arithmetic in one place is what stops the headline tile and the
+ * bunk meter disagreeing about the same course.
  */
-fun homeAttendanceStatus(percentage: Float, total: Int, targetPct: Float): HomeAttendanceStatus = when {
-    total <= 0 -> HomeAttendanceStatus.NONE
-    percentage >= targetPct + 5f -> HomeAttendanceStatus.SAFE
-    percentage >= targetPct -> HomeAttendanceStatus.WARNING
-    else -> HomeAttendanceStatus.CRITICAL
-}
+fun homeAttendanceStatus(percentage: Float, total: Int, targetPct: Float): HomeAttendanceStatus =
+    when (Projections.attendanceStatus(percentage, total, targetPct)) {
+        Projections.AttendanceStatus.SAFE -> HomeAttendanceStatus.SAFE
+        Projections.AttendanceStatus.WARNING -> HomeAttendanceStatus.WARNING
+        Projections.AttendanceStatus.CRITICAL -> HomeAttendanceStatus.CRITICAL
+        Projections.AttendanceStatus.NOT_APPLICABLE -> HomeAttendanceStatus.NONE
+    }
 
 /**
- * The app's one attendance formula.
+ * The app's one attendance formula, resolved to the home's summary type.
  *
- * Sum VTOP's own `attendedClasses` and `totalClasses` across the enrolled
- * courses, unweighted, and divide. The unweighted sum is deliberate: a lab is
- * worth two hours against the *requirement* elsewhere in the app, but weighting
- * it here would move the headline away from the figure the institute prints,
- * which is the number students reconcile against.
+ * The arithmetic is [Projections.summariseAttendance]; everything here is a mapping onto the
+ * enums this screen already renders.
  */
 fun summariseHomeAttendance(
     courses: List<Pair<Int, Int>>,
     targetPct: Float
 ): HomeAttendanceSummary {
-    var attended = 0
-    var total = 0
-    for ((att, tot) in courses) {
-        attended += att
-        total += tot
-    }
-    val percentage = if (total > 0) (attended.toFloat() / total.toFloat()) * 100f else 0f
-    return HomeAttendanceSummary(percentage, attended, total, homeAttendanceStatus(percentage, total, targetPct))
+    val summary = Projections.summariseAttendance(courses, targetPct)
+    return HomeAttendanceSummary(
+        percentage = summary.percentage,
+        attended = summary.attended,
+        total = summary.total,
+        status = homeAttendanceStatus(summary.percentage, summary.total, targetPct),
+    )
 }
 
 // ── Timetable ──
@@ -777,30 +776,7 @@ fun homeTasksForDay(tasks: List<HomeworkTask>, date: LocalDate): List<HomeTaskRo
             )
         }
 
-// ── Insight slides ──
-
-/**
- * One page of the rotating stat card.
- *
- * A tile is a measurement that does not change under the reader; a set of
- * values worth rotating through is a carousel. That distinction is the web's
- * (`StatTile` vs `InsightCarousel`) and it is why the attendance tile is pinned
- * beside this rather than being one of its slides.
- */
-data class HomeInsightSlide(
-    val id: String,
-    /** The small kicker, e.g. "CGPA". */
-    val label: String,
-    /** The big number or code. */
-    val value: String,
-    val sub: String?,
-    /** The top-right pill. */
-    val badge: String?,
-    val tone: HomeTone,
-    /** The CGPA privacy toggle blurs the value in place. */
-    val blurred: Boolean = false,
-    val onClick: () -> Unit
-)
+// ─ Deadlines ─
 
 /** Every date carrying an assignment deadline, for the week strip's "worth opening" hint. */
 fun deadlineDates(tasks: List<HomeworkTask>): Set<LocalDate> =

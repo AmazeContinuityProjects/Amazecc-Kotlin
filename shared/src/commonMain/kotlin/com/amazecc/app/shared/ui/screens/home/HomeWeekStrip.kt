@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.design.*
 import com.amazecc.app.shared.utils.AttendanceDay
 
 /**

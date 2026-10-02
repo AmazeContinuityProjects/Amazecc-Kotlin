@@ -47,6 +47,12 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompilationTask<*>>().con
 }
 
 kotlin {
+    // Desktop/JVM exists so `commonTest` is actually runnable during development: the Android and
+    // iOS targets give a test source set but no host that can execute it on Windows. Every parser
+    // bug found during the ground-truth audit was in pure parsing logic, so being able to run
+    // those tests locally is what catches the next one.
+    jvm()
+
     targets.getByName("android")
     
     listOf(
@@ -97,6 +103,16 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
+
+        jvmMain.dependencies {
+            implementation(compose.desktop.currentOs)
+            implementation(libs.ktor.client.okhttp)
+        }
+    }
+
+    jvm {
+        // Desktop runs the *same* commonMain code as Android, so Compose is a real dependency
+        // rather than a no-op - that keeps UI code honest while developing on the desktop.
     }
 
     android {

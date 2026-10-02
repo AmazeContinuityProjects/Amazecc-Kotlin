@@ -3,6 +3,7 @@ package com.amazecc.app.shared.vtop
 import com.amazecc.app.shared.vtop.captcha.CaptchaMath
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -157,8 +158,24 @@ class VtopLogicTest {
         val hostile = "p')); alert(1); ('"
         val literal = VtopScripts.jsString(hostile)
         assertTrue(literal.startsWith("\"") && literal.endsWith("\""))
-        // every quote inside is escaped, so the literal is a single value
-        assertEquals(hostile.length + 2 + 2, literal.length)
+
+        // `jsString` emits a *double*-quoted literal, so the only quote that can terminate it is
+        // `"`. That is the one that must be escaped as \".
+        val withDoubleQuote = VtopScripts.jsString("pw\"); alert(1); //")
+        assertEquals(
+            "pw\\\"); alert(1); //",
+            withDoubleQuote.drop(1).dropLast(1),
+            "the double quote must be backslash-escaped so the literal cannot end early"
+        )
+
+        // A backslash is the other breakout vector: an unescaped one would escape the closing
+        // quote and leave the literal unterminated.
+        assertTrue(VtopScripts.jsString("pw\\").contains("\\\\"))
+
+        // A single quote is inert inside a double-quoted literal and is deliberately NOT escaped -
+        // escaping it would be harmless but the length arithmetic in the old assertion was wrong.
+        assertTrue(literal.contains("alert(1)"))
+        assertEquals(hostile.length + 2, literal.length)
     }
 
     // ── Login script shape ──────────────────────────────────────────────────

@@ -84,7 +84,15 @@ internal fun mergeIdentity(
 /** Lowest tier that may legitimately hold a path; used until a live merge records the real source. */
 internal fun defaultSourceFor(path: String): Int {
     val source = when {
-        path == "photoBase64" || path == "regNo" || path == "name" -> IdentitySource.STUDENT
+        // The login response carries the reg number, and `AppState` merges it with
+        // IdentitySource.SESSION during login. Defaulting this to STUDENT (order 2) meant
+        // canWrite() evaluated `0 >= 2` and dropped it, so regNo stayed null until the
+        // student-profile module succeeded - and regNo namespaces the social storage keys.
+        // STUDENT still wins later, because 2 >= 0.
+        path == "regNo" -> IdentitySource.SESSION
+        // Same problem for name: a SESSION merge could never set it either.
+        path == "name" -> IdentitySource.SESSION
+        path == "photoBase64" -> IdentitySource.STUDENT
         path == "proctor" || path.startsWith("proctor.") || path == "hodDean" -> IdentitySource.STUDENT
         else -> IdentitySource.SESSION
     }

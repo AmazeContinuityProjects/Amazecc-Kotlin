@@ -1,0 +1,97 @@
+{
+ "ok": true,
+ "title": "Student Bank Information",
+ "selectOptions": {
+  "relationshipWithStudent": [
+   {
+    "value": "",
+    "text": "---Select---",
+    "selected": false
+   },
+   {
+    "value": "SELF",
+    "text": "SELF",
+    "selected": true
+   },
+   {
+    "value": "FATHER",
+    "text": "FATHER",
+    "selected": false
+   },
+   {
+    "value": "MOTHER",
+    "text": "MOTHER",
+    "selected": false
+   },
+   {
+    "value": "GUARDIAN",
+    "text": "GUARDIAN",
+    "selected": false
+   }
+  ]
+ },
+ "tables": [
+  {
+   "headers": [
+    "Application Number",
+    "2025022846"
+   ],
+   "rows": [
+    {
+     "2025022846": "",
+     "Application Number": "Bank Holder Name"
+    },
+    {
+     "2025022846": "---Select--- SELF FATHER MOTHER GUARDIAN",
+     "Application Number": "Relationship Type"
+    },
+    {
+     "2025022846": "",
+     "Application Number": "Account Number"
+    },
+    {
+     "2025022846": "",
+     "Application Number": "Re-Enter Account Number"
+    },
+    {
+     "2025022846": "",
+     "Application Number": "IFSC Code"
+    },
+    {
+     "2025022846": "ICICI BANK MKB NAGAR ICICI BANK LTD., 311, WEST AVENUE ROAD, MAHAKAVI BHARATHI NAGAR, VYASARPADI, CHENNAI, TAMIL NADU.600039",
+     "Application Number": "Bank Details"
+    },
+    {
+     "2025022846": "Yes No View your uploaded file",
+     "Application Number": "Click Here to Upload Bank Passbook / Statement [Max. 1 MB]"
+    }
+   ]
+  }
+ ],
+ "keyValuePairs": {},
+ "formFields": {
+  "_csrf": "fef4e2a8-7d06-4821-8738-f534529efb42",
+  "authorizedID": "25BLC1081",
+  "formMand": "",
+  "studentbaseApplicationNumber": "2025022846",
+  "beneficiaryName": "SUGEETH JAYARAJ S A",
+  "relationshipWithStudent": "",
+  "accountNumber": "602501141234",
+  "confirmAccountNumber": "602501141234",
+  "bankMasterIfscCode": "ICIC0004068",
+  "allow": "true",
+  "toUpload": "No",
+  "accountImageDoc": "",
+  "semesterSubId": ""
+ },
+ "hiddenFields": {
+  "_csrf": "fef4e2a8-7d06-4821-8738-f534529efb42",
+  "authorizedID": "25BLC1081",
+  "formMand": "",
+  "studentbaseApplicationNumber": "2025022846",
+  "allow": "true",
+  "semesterSubId": ""
+ },
+ "messages": {},
+ "hasApaar": false
+}
