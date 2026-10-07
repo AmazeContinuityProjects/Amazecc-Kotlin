@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,7 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
-import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.domain.CourseAttendance
 import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -50,7 +50,7 @@ fun TimetableCard(code: String, title: String, faculty: String, venue: String, s
 
 @Composable
 fun TimetableDialog(
-    attendanceCourses: List<AttendanceItem>,
+    attendanceCourses: List<CourseAttendance>,
     onDismiss: () -> Unit
 ) {
     val colors = AmazeTheme.colors

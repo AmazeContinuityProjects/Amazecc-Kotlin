@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,10 +30,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
-import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.domain.CourseAttendance
+import com.amazecc.app.shared.domain.Exam
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.ui.components.ExamDayBanner
 import com.amazecc.app.shared.ui.components.ExamDayGoodLuck
-import com.amazecc.app.shared.ui.components.rememberSelectedSemesterExams
 import com.amazecc.app.shared.utils.ExamUtils
 import com.amazecc.app.shared.utils.examDateParsed
 import androidx.compose.animation.core.animateFloatAsState
@@ -41,9 +42,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
-import com.amazecc.app.shared.state.AcademicDerivers
 import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
-import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.utils.AttendanceDay
@@ -58,7 +57,7 @@ data class TimelineEvent(
     val startMins: Int,
     val endMins: Int,
     val durationMins: Int,
-    val course: AttendanceItem? = null,
+    val course: CourseAttendance? = null,
     val title: String = "",
     val taskType: String = ""
 )
@@ -76,9 +75,9 @@ private data class WeekDay(
 @Composable
 fun DailyPlannerScreen() {
     val colors = AmazeTheme.colors
-    val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
-    val attendance = AcademicDerivers.resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
+    val attendance = Projections.currentSemesterAttendance(domain)
     val calendarMonths = calendarRes?.months ?: emptyList()
 
     val today = remember { Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date }
@@ -134,7 +133,7 @@ fun DailyPlannerScreen() {
 
     fun buildDailySchedule(
         day: String,
-        examsForDay: List<com.amazecc.app.shared.model.ExamItem> = emptyList(),
+        examsForDay: List<Exam> = emptyList(),
         taskBlocks: List<TimelineEvent> = emptyList()
     ): List<TimelineEvent> {
         val dayClasses = mutableListOf<TimelineEvent>()
@@ -142,7 +141,7 @@ fun DailyPlannerScreen() {
 
         // Exam time ranges for this day (in minutes from midnight)
         val examRanges: List<Pair<Int, Int>> = examsForDay.mapNotNull { exam ->
-            com.amazecc.app.shared.utils.ExamUtils.parseExamTimeRange(exam.examTime)
+            com.amazecc.app.shared.utils.ExamUtils.parseExamTimeRange(exam.time)
         }
 
         // Guard: the same real class can surface under both the base key and a
@@ -255,7 +254,10 @@ fun DailyPlannerScreen() {
     }
 
     // Get exams for selected date
-    val allExams = rememberSelectedSemesterExams()
+    val selectedExamSem by AppState.selectedExamSemester.collectAsState()
+    val allExams = remember(domain, selectedExamSem) {
+        Projections.selectedSemesterExams(domain, selectedExamSem)
+    }
     val examsByDate = remember(allExams) {
         allExams.filter { it.examDateParsed != null }.groupBy { it.examDateParsed!! }
     }
@@ -266,13 +268,8 @@ fun DailyPlannerScreen() {
     var showTimetable by remember { mutableStateOf(false) }
     var tasksExpanded by remember { mutableStateOf(true) }
 
-    fun minutesFromTime(timeStr: String): Int? {
-        val parts = timeStr.trim().split(":")
-        if (parts.size != 2) return null
-        val h = parts[0].toIntOrNull() ?: return null
-        val m = parts[1].toIntOrNull() ?: return null
-        return h * 60 + m
-    }
+    /** `HH:mm` task/session start -> minutes, or null. Strictly 24-hour; see [TimeMath]. */
+    fun minutesFromTime(timeStr: String): Int? = TimeMath.toMilitaryMinutes(timeStr)
 
     val selectedDateStr = selectedWeekDay.fullDate.toString()
     val taskBlocks = remember(tasks, selectedWeekDay) {

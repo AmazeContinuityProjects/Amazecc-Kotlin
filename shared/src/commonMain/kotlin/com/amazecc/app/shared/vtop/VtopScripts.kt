@@ -60,22 +60,33 @@ internal object VtopScripts {
     /**
      * Prelogin handshake for the LANDING state: POST `#stdForm`, which leaves the session
      * primed so a subsequent `/login` renders the real login form.
+     *
+     * Every outcome carries a `diag` block. "jQuery absent" on its own cannot say whether the
+     * document never loaded, loaded without its own scripts, or is not VTOP's document at all —
+     * three failures that need three different fixes — so the cheap facts (where we are, how big
+     * the body was, whether `stdForm` and the jQuery `<script>` tags are even in it) ride along
+     * with the reason.
      */
     val PRELOGIN = wrapped(
         """
-        if (typeof $ === 'undefined') {
-          if (typeof jQuery === 'undefined') return JSON.stringify({ ok: false, error: 'jQuery absent' });
-        }
-        var $ = (typeof jQuery !== 'undefined') ? jQuery : null;
-        if (!$) return JSON.stringify({ ok: false, error: 'jQuery absent' });
+        var d = {
+          url: String(location.href || '').slice(0, 120),
+          title: String(document.title || '').slice(0, 60),
+          ready: String(document.readyState || ''),
+          body: document.body ? document.body.innerHTML.length : 0,
+          stdForm: !!document.getElementById('stdForm'),
+          jqTags: document.querySelectorAll('script[src*="/jq/js/"]').length
+        };
+        if (!d.stdForm) return JSON.stringify({ ok: false, error: 'stdForm not found', diag: d });
+        if (typeof jQuery === 'undefined') return JSON.stringify({ ok: false, error: 'jQuery absent', diag: d });
         var form = document.getElementById('stdForm');
-        if (!form) return JSON.stringify({ ok: false, error: 'stdForm not found' });
         var xhr = new XMLHttpRequest();
         xhr.open('POST', '/vtop/prelogin/setup', false);
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
         xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.send($(form).serialize());
-        return JSON.stringify({ ok: true, status: xhr.status });
+        xhr.send(window.jQuery(form).serialize());
+        if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'prelogin network error', diag: d });
+        return JSON.stringify({ ok: true, status: xhr.status, diag: d });
         """
     )
 

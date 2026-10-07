@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -48,9 +48,16 @@ import com.amazecc.app.shared.api.SyllabusResult
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.model.*
-import com.amazecc.app.shared.state.AcademicData
+import com.amazecc.app.shared.domain.Assessment
+import com.amazecc.app.shared.domain.CourseAttendance
+import com.amazecc.app.shared.domain.CourseGrade
+import com.amazecc.app.shared.domain.GradeHistory
+import com.amazecc.app.shared.domain.CourseGroup
+import com.amazecc.app.shared.domain.CourseMarks
+import com.amazecc.app.shared.domain.DomainSnapshot
+import com.amazecc.app.shared.domain.findCourseGroup
+import com.amazecc.app.shared.domain.gradeHistory
 import com.amazecc.app.shared.state.AcademicDerivers
-import com.amazecc.app.shared.state.AcademicDerivers.toGradeItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -113,7 +120,7 @@ private enum class GradingMode(val label: String) {
 
 private data class CourseGrading(val mode: GradingMode, val reason: String)
 
-private fun courseGrading(group: CourseGroup, theoryMarks: MarksCourseItem?, labMarks: MarksCourseItem?): CourseGrading {
+private fun courseGrading(group: CourseGroup, theoryMarks: CourseMarks?, labMarks: CourseMarks?): CourseGrading {
     val type = (theoryMarks?.courseType ?: labMarks?.courseType ?: "").lowercase()
     return when {
         theoryMarks == null && labMarks != null -> CourseGrading(GradingMode.ABSOLUTE, "Lab-only courses use absolute grading.")
@@ -124,14 +131,7 @@ private fun courseGrading(group: CourseGroup, theoryMarks: MarksCourseItem?, lab
     }
 }
 
-private fun formatSemesterName(id: String): String {
-    if (!id.uppercase().startsWith("CH") || id.length != 10) return id
-    val y1 = id.substring(2, 6)
-    val y2 = id.substring(6, 8)
-    val term = id.substring(8, 10)
-    val tName = when (term) { "01" -> "Fall"; "05" -> "Winter"; "07" -> "Summer"; else -> "Term $term" }
-    return "$tName $y1-$y2"
-}
+private fun formatSemesterName(id: String): String = GradeHistory.semesterName(id)
 
 private fun predictedGrade(pct: Double): String = when {
     pct >= 90 -> "S"; pct >= 80 -> "A"; pct >= 70 -> "B"; pct >= 60 -> "C"
@@ -144,18 +144,6 @@ private fun healthStatus(attPct: Double, predGrade: String, isPast: Boolean, col
     if (attPct < 80 || predGrade in listOf("D", "E")) return Triple("Watch", colors.warning, colors.warning.copy(alpha = 0.12f))
     return Triple("Healthy", colors.success, colors.success.copy(alpha = 0.12f))
 }
-
-data class CourseGroup(
-    val courseCode: String,
-    val courseTitle: String,
-    val semesterSubId: String,
-    val semesterName: String,
-    val theory: MarksCourseItem? = null,
-    val lab: MarksCourseItem? = null,
-    val theoryAtt: AttendanceItem? = null,
-    val labAtt: AttendanceItem? = null,
-    val grade: GradeItem? = null
-)
 
 private enum class CourseSubPage(
     val title: String,
@@ -189,15 +177,16 @@ fun CourseDetailScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
     val courseCode = AppState.selectedCourseCode.value ?: ""
     val semesterId = AppState.selectedCourseSemester.value
-    val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
+    val semesterNames by AppState.semesterMap.collectAsState()
     val selectedSemester by AppState.selectedSemester.collectAsState()
     val calendar by AppState.calendar.collectAsState()
 
     val currentSemesterId = selectedSemester
     val mainSemesterId = semesterId ?: currentSemesterId
 
-    val group = remember(courseCode, mainSemesterId, academic, selectedSemester) {
-        findCourseGroup(courseCode, mainSemesterId, academic, selectedSemester)
+    val group = remember(courseCode, mainSemesterId, domain, selectedSemester) {
+        findCourseGroup(courseCode, mainSemesterId, domain, semesterNames, selectedSemester)
     }
 
     val isEmbedded = (group?.theory != null && group?.lab != null) || (group?.theoryAtt != null && group?.labAtt != null)
@@ -307,7 +296,7 @@ fun CourseDetailScreen(onBack: () -> Unit) {
                         )
                     } else {
                         when (sub) {
-                            CourseSubPage.GRADES -> GradeHistoryTab(courseCode, academic, group, colors)
+                            CourseSubPage.GRADES -> GradeHistoryTab(courseCode, domain, colors)
                             CourseSubPage.MARKS -> MarksTab(group, isEmbedded, colors)
                             CourseSubPage.ATTENDANCE -> AttendanceTab(courseCode, group, theoryAtt, labAtt, mainAtt, isEmbedded, isPastSemester, calendar, colors)
                             CourseSubPage.PLAN -> CoursePlanTab(group, colors)
@@ -338,9 +327,9 @@ fun CourseDetailScreen(onBack: () -> Unit) {
 @Composable
 private fun CourseOverviewPage(
     group: CourseGroup,
-    theoryAtt: AttendanceItem?,
-    labAtt: AttendanceItem?,
-    mainAtt: AttendanceItem?,
+    theoryAtt: CourseAttendance?,
+    labAtt: CourseAttendance?,
+    mainAtt: CourseAttendance?,
     isEmbedded: Boolean,
     isPastSemester: Boolean,
     facultyLoading: Boolean,
@@ -389,9 +378,9 @@ private fun CourseOverviewPage(
 @Composable
 private fun AttendanceHeroCard(
     group: CourseGroup,
-    theoryAtt: AttendanceItem?,
-    labAtt: AttendanceItem?,
-    mainAtt: AttendanceItem?,
+    theoryAtt: CourseAttendance?,
+    labAtt: CourseAttendance?,
+    mainAtt: CourseAttendance?,
     isEmbedded: Boolean,
     isPastSemester: Boolean,
     colors: com.amazecc.app.shared.theme.AmazeColors
@@ -401,7 +390,7 @@ private fun AttendanceHeroCard(
     val (healthLabel, _, _) = healthStatus(attPct, predictedGrade(0.0), isPastSemester, colors)
 
     val assessments = (group.theory?.assessments ?: emptyList()) + (group.lab?.assessments ?: emptyList())
-    val summedWeighted = assessments.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
+    val summedWeighted = assessments.sumOf { it.weightage.toDoubleOrNull() ?: 0.0 }
     val totalWeightPct = assessments.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
 
     // A merged ETH/ELA course already carries a credit-weighted total. Summing the pair's
@@ -493,7 +482,7 @@ private fun AttendanceHeroCard(
 }
 
 @Composable
-private fun HeroArc(label: String, att: AttendanceItem?, p: HeroPalette, modifier: Modifier = Modifier) {
+private fun HeroArc(label: String, att: CourseAttendance?, p: HeroPalette, modifier: Modifier = Modifier) {
     val pct = att?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
     val animatedPct by animateFloatAsState(targetValue = (pct / 100f).toFloat(), animationSpec = tween(1000))
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
@@ -515,9 +504,9 @@ private fun HeroArc(label: String, att: AttendanceItem?, p: HeroPalette, modifie
 @Composable
 private fun CourseDetailsInfoCard(
     group: CourseGroup,
-    theoryAtt: AttendanceItem?,
-    labAtt: AttendanceItem?,
-    mainAtt: AttendanceItem?,
+    theoryAtt: CourseAttendance?,
+    labAtt: CourseAttendance?,
+    mainAtt: CourseAttendance?,
     isEmbedded: Boolean,
     facultyLoading: Boolean,
     onViewFaculty: (ParsedFaculty) -> Unit,
@@ -717,19 +706,10 @@ private fun MetricTile(label: String, value: String, colors: com.amazecc.app.sha
 }
 
 @Composable
-private fun GradeHistoryTab(courseCode: String, academic: AcademicData, group: CourseGroup, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun GradeHistoryTab(courseCode: String, domain: DomainSnapshot, colors: com.amazecc.app.shared.theme.AmazeColors) {
     val semesterMap by AppState.semesterMap.collectAsState()
-    val cleanCode = courseCode.replace(Regex("\\([LPT]\\)$"), "").trim()
-    val gradeItems = remember(academic, cleanCode) {
-        val items = mutableListOf<Pair<String, GradeItem?>>()
-        academic.semesters.forEach { (semId, sem) ->
-            sem.courses.values.forEach { course ->
-                if (course.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() == cleanCode) {
-                    items.add(semId to course.toGradeItem())
-                }
-            }
-        }
-        items.sortedByDescending { it.first }
+    val gradeItems = remember(domain, courseCode) {
+        gradeHistory(domain, courseCode)
     }
 
     if (gradeItems.isEmpty()) {
@@ -755,7 +735,7 @@ private fun GradeHistoryTab(courseCode: String, academic: AcademicData, group: C
 
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
-private fun GradeHistoryCard(semName: String, grade: GradeItem?, trendDiff: Double?, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
+private fun GradeHistoryCard(semName: String, grade: CourseGrade?, trendDiff: Double?, colors: com.amazecc.app.shared.theme.AmazeColors, modifier: Modifier = Modifier) {
     var expanded by remember { mutableStateOf(false) }
     val gc = gradeColor(grade?.grade ?: "", colors)
     AmazeCard(modifier = modifier.fillMaxWidth(), onClick = { expanded = !expanded }) {
@@ -821,7 +801,7 @@ private fun GradeHistoryCard(semName: String, grade: GradeItem?, trendDiff: Doub
                 Column(modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
                     grade?.range?.let { range ->
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                            listOf("S" to range.S, "A" to range.A, "B" to range.B, "C" to range.C, "D" to range.D, "E" to range.E, "F" to range.F).forEach { (g, r) ->
+                            listOf("S" to range.s, "A" to range.a, "B" to range.b, "C" to range.c, "D" to range.d, "E" to range.e, "F" to range.f).forEach { (g, r) ->
                                 val gColor = gradeColor(g, colors)
                                 Box(
                                     modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(gColor.copy(alpha = 0.1f)).padding(horizontal = 10.dp, vertical = 4.dp),
@@ -843,7 +823,7 @@ private fun GradeHistoryCard(semName: String, grade: GradeItem?, trendDiff: Doub
                         details.forEach { comp ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    comp.component,
+                                    comp.name,
                                     fontSize = AmazeTheme.fontSize.micro,
                                     color = colors.textSecondary,
                                     modifier = Modifier.weight(1f),
@@ -854,7 +834,7 @@ private fun GradeHistoryCard(semName: String, grade: GradeItem?, trendDiff: Doub
                                     Text("$w%", fontSize = AmazeTheme.fontSize.micro, color = colors.textMuted)
                                     Spacer(Modifier.width(6.dp))
                                 }
-                                Text("${comp.scoredMark}/${comp.maxMark}", fontSize = AmazeTheme.fontSize.micro, color = colors.textPrimary, fontWeight = FontWeight.Medium)
+                                Text("${comp.score}/${comp.maxMark}", fontSize = AmazeTheme.fontSize.micro, color = colors.textPrimary, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
@@ -866,7 +846,7 @@ private fun GradeHistoryCard(semName: String, grade: GradeItem?, trendDiff: Doub
 
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
-private fun GradeViewCard(grade: GradeItem, label: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun GradeViewCard(grade: CourseGrade, label: String, colors: com.amazecc.app.shared.theme.AmazeColors) {
     val gc = gradeColor(grade.grade, colors)
     AmazeCard(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -885,7 +865,7 @@ private fun GradeViewCard(grade: GradeItem, label: String, colors: com.amazecc.a
                 Spacer(Modifier.height(AmazeTheme.spacing.xs))
                 grade.range?.let { range ->
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
-                        listOf("S" to range.S, "A" to range.A, "B" to range.B, "C" to range.C, "D" to range.D, "E" to range.E, "F" to range.F).forEach { (g, r) ->
+                        listOf("S" to range.s, "A" to range.a, "B" to range.b, "C" to range.c, "D" to range.d, "E" to range.e, "F" to range.f).forEach { (g, r) ->
                             val gColor = gradeColor(g, colors)
                             Box(
                                 modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(gColor.copy(alpha = 0.1f)).padding(horizontal = 10.dp, vertical = 4.dp),
@@ -917,7 +897,7 @@ private fun MarksTab(
 
     val allAssessments = remember(theoryMarks, labMarks, singleComponent) {
         val theoryAsms = theoryMarks?.assessments ?: emptyList()
-        val list = mutableListOf<Pair<String, List<AssessmentItem>>>()
+        val list = mutableListOf<Pair<String, List<Assessment>>>()
         if (singleComponent) {
             list.add(theoryMarks!!.courseType.ifBlank { "Assessments" } to theoryAsms)
         } else {
@@ -966,7 +946,7 @@ private fun MarksTab(
                         Text("${asms.size} assessments", style = AmazeTheme.typography.caption.copy(color = colors.textMuted), maxLines = 1)
                     }
                 }
-                items(asms, key = { "${it.title}-${it.maxMark}" }) { asm ->
+                items(asms, key = { "${it.name}-${it.maxMark}" }) { asm ->
                     ExpandableAssessmentCard(asm, label, grading, colors)
                 }
             }
@@ -983,13 +963,13 @@ private fun MarksTab(
 @Composable
 private fun MarksHeroCard(
     group: CourseGroup,
-    allAsms: List<AssessmentItem>,
+    allAsms: List<Assessment>,
     grading: CourseGrading,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val modeTint = if (grading.mode == GradingMode.ABSOLUTE) colors.success else colors.warning
 
-    val totalWeighted = allAsms.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
+    val totalWeighted = allAsms.sumOf { it.weightage.toDoubleOrNull() ?: 0.0 }
     val totalWeightPct = allAsms.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
     val projectedPct = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
 
@@ -1059,14 +1039,14 @@ private fun MarksHeroCard(
 }
 
 @Composable
-private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, grading: CourseGrading, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun ExpandableAssessmentCard(asm: Assessment, typeLabel: String, grading: CourseGrading, colors: com.amazecc.app.shared.theme.AmazeColors) {
     var expanded by remember { mutableStateOf(false) }
     val maxMark = asm.maxMark.toDoubleOrNull() ?: 0.0
-    val scored = asm.scoredMark.toDoubleOrNull() ?: 0.0
+    val scored = asm.score.toDoubleOrNull() ?: 0.0
     val pct = if (maxMark > 0) scored / maxMark * 100 else 0.0
     val isTheory = typeLabel == "Theory"
     val accentColor = if (isTheory) colors.accent else colors.success
-    val shortenedTitle = com.amazecc.app.shared.ui.components.shortenAssessmentName(asm.title)
+    val shortenedTitle = com.amazecc.app.shared.ui.components.shortenAssessmentName(asm.name)
     val done = asm.status.contains("complet", ignoreCase = true)
 
     AmazeCard(
@@ -1084,8 +1064,8 @@ private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, gra
                 Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = colors.textMuted, modifier = Modifier.size(18.dp))
             }
             Spacer(Modifier.height(AmazeTheme.spacing.xs))
-            Text("${asm.scoredMark} / ${asm.maxMark}", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.md)
-            Text("${pct.toInt()}% scored · ${asm.weightageMark} of ${asm.weightagePercent}% weightage", style = AmazeTheme.typography.caption.copy(color = colors.textMuted), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("${asm.score} / ${asm.maxMark}", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.md)
+            Text("${pct.toInt()}% scored · ${asm.weightage} of ${asm.weightagePercent}% weightage", style = AmazeTheme.typography.caption.copy(color = colors.textMuted), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
             Box(
                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.border)
@@ -1140,8 +1120,8 @@ private fun ExpandableAssessmentCard(asm: AssessmentItem, typeLabel: String, gra
 
 @Composable
 private fun TargetGradeCalculator(
-    theoryMarks: MarksCourseItem?,
-    labMarks: MarksCourseItem?,
+    theoryMarks: CourseMarks?,
+    labMarks: CourseMarks?,
     grading: CourseGrading,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
@@ -1151,7 +1131,7 @@ private fun TargetGradeCalculator(
         if (singleComponent) theoryMarks?.assessments ?: emptyList()
         else (theoryMarks?.assessments ?: emptyList()) + (labMarks?.assessments ?: emptyList())
     }
-    val totalWeighted = allAsm.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
+    val totalWeighted = allAsm.sumOf { it.weightage.toDoubleOrNull() ?: 0.0 }
     val totalWeightPct = allAsm.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
     val remainingPct = 100.0 - totalWeightPct
 
@@ -1251,9 +1231,9 @@ private fun TargetGradeCalculator(
 private fun AttendanceTab(
     courseCode: String,
     group: CourseGroup,
-    theoryAtt: AttendanceItem?,
-    labAtt: AttendanceItem?,
-    mainAtt: AttendanceItem?,
+    theoryAtt: CourseAttendance?,
+    labAtt: CourseAttendance?,
+    mainAtt: CourseAttendance?,
     isEmbedded: Boolean,
     isPastSemester: Boolean,
     calendar: CalendarRes?,
@@ -1337,7 +1317,7 @@ private fun StatusInsightCard(attPct: Double, totalClasses: Int, attendedClasses
 }
 
 @Composable
-private fun PredictorSection(course: AttendanceItem, calendar: CalendarRes?, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun PredictorSection(course: CourseAttendance, calendar: CalendarRes?, colors: com.amazecc.app.shared.theme.AmazeColors) {
     var mode by remember { mutableStateOf("CAT1") }
     var skipDates by remember { mutableStateOf<Set<Int>>(emptySet()) }
 
@@ -1501,7 +1481,7 @@ private fun CoursePlanTab(
     val allAssessments = remember(theory, lab) {
         (theory?.assessments ?: emptyList()) + (lab?.assessments ?: emptyList())
     }
-    val totalWeighted = allAssessments.sumOf { it.weightageMark.toDoubleOrNull() ?: 0.0 }
+    val totalWeighted = allAssessments.sumOf { it.weightage.toDoubleOrNull() ?: 0.0 }
     val totalWeightPct = allAssessments.sumOf { it.weightagePercent.toDoubleOrNull() ?: 0.0 }
     val projectedPct = if (totalWeightPct > 0) (totalWeighted / totalWeightPct * 100).toInt() else 0
 
@@ -1613,14 +1593,14 @@ private fun CoursePlanTab(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    com.amazecc.app.shared.ui.components.shortenAssessmentName(asm.title),
+                                    com.amazecc.app.shared.ui.components.shortenAssessmentName(asm.name),
                                     style = AmazeTheme.typography.caption.copy(color = colors.textPrimary),
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
                                 )
                                 Text(
-                                    "${asm.scoredMark}/${asm.maxMark} (${asm.weightageMark}/${asm.weightagePercent}%)",
+                                    "${asm.score}/${asm.maxMark} (${asm.weightage}/${asm.weightagePercent}%)",
                                     style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro)
                                 )
                             }

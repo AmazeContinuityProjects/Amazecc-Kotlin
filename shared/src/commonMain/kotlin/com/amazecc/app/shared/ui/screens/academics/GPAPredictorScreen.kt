@@ -36,7 +36,7 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.ButtonVariant
-import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.components.HeroCard
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupLabel
@@ -50,6 +50,7 @@ private val gradePointMap = mapOf(
 fun GPAPredictorScreen() {
     val colors = AmazeTheme.colors
     val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
     val selectedSem by AppState.selectedSemester.collectAsState()
 
     val sem = academic.semesters[selectedSem]
@@ -64,7 +65,7 @@ fun GPAPredictorScreen() {
     var coursesInitialized by remember { mutableStateOf(false) }
     var courses by remember { mutableStateOf(listOf<ProjectedCourse>()) }
 
-    val attendanceCourses = sem?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
+    val attendanceCourses = Projections.semesterAttendance(domain, selectedSem)
     LaunchedEffect(attendanceCourses) {
         if (!coursesInitialized) {
             val att = attendanceCourses.filter { it.courseCode.isNotBlank() }

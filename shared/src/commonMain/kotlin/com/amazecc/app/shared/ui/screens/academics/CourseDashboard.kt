@@ -1,6 +1,5 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
-import com.amazecc.app.shared.vtop.VtopCourseCode
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,15 +23,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.model.*
-import com.amazecc.app.shared.state.AcademicData
-import com.amazecc.app.shared.state.AcademicDerivers
-import com.amazecc.app.shared.state.AcademicDerivers.isLabCourse
-import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
-import com.amazecc.app.shared.state.AcademicDerivers.toGradeItem
-import com.amazecc.app.shared.state.AcademicDerivers.toMarksCourseItem
+import com.amazecc.app.shared.domain.CourseAttendance
+import com.amazecc.app.shared.domain.CourseGroup
+import com.amazecc.app.shared.domain.CourseMarks
+import com.amazecc.app.shared.domain.buildCourseGroups
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
-import com.amazecc.app.shared.state.SemesterData
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.theme.AmazeTheme
 import androidx.compose.animation.core.animateFloatAsState
@@ -48,12 +44,12 @@ import com.amazecc.app.shared.ui.components.HeaderSpacer
 fun CourseDashboardScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors
     val semesterMap by AppState.semesterMap.collectAsState()
-    val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
 
     var selectedSemester by remember { mutableStateOf("All") }
 
-    val semesterGroups = remember(academic, selectedSemester) {
-        buildSemesterGroups(academic, selectedSemester)
+    val semesterGroups = remember(domain, semesterMap, selectedSemester) {
+        buildCourseGroups(domain, semesterMap, selectedSemester)
     }
 
     val filteredGroups = remember(semesterGroups, selectedSemester) {
@@ -410,8 +406,8 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
 
 @Composable
 private fun embeddedRow(
-    item: MarksCourseItem?,
-    att: AttendanceItem?,
+    item: CourseMarks?,
+    att: CourseAttendance?,
     label: String,
     componentName: String,
     accent: Color,
@@ -466,66 +462,3 @@ private fun embeddedRow(
     }
 }
 
-/** Builds one [CourseGroup] per base course code across all semesters, pairing embedded theory/lab components. */
-internal fun buildSemesterGroups(academic: AcademicData, selectedSemester: String = "All"): List<CourseGroup> {
-    val allGroups = mutableListOf<CourseGroup>()
-    academic.semesters.forEach { (semId, sem) ->
-        val semName = sem.semesterName ?: AppState.semesterMap.value[semId] ?: semId
-        val isCurrent = selectedSemester != "All" && semId == selectedSemester
-        sem.courses.values
-            .filter { it.courseCode.isNotBlank() }
-            .groupBy { it.courseCode.replace(Regex("\\([LPT]\\)$"), "").trim() }
-            .forEach { (baseCode, courses) ->
-                val theory = courses.firstOrNull { !it.isLabCourse() }
-                val lab = courses.firstOrNull { it.isLabCourse() }
-                allGroups.add(
-                    CourseGroup(
-                        courseCode = baseCode,
-                        courseTitle = theory?.courseTitle ?: lab?.courseTitle ?: baseCode,
-                        semesterSubId = semId,
-                        semesterName = semName,
-                        theory = theory?.toMarksCourseItem(),
-                        lab = lab?.toMarksCourseItem(),
-                        theoryAtt = theory?.toAttendanceItem(),
-                        labAtt = lab?.toAttendanceItem(),
-                        // Prioritise marks for current semester, grades for previous semesters.
-                        grade = if (isCurrent) null else theory?.toGradeItem() ?: lab?.toGradeItem()
-                    )
-                )
-            }
-    }
-    return allGroups
-}
-
-/** Resolves the [CourseGroup] for a course code, preferring the given semester, falling back to any semester. */
-internal fun findCourseGroup(courseCode: String, semesterId: String, academic: AcademicData, selectedSemester: String = "All"): CourseGroup? {
-    // Keys are bare course codes now; normalise anyway so a stale suffixed key still resolves.
-    val cleanCode = VtopCourseCode.base(courseCode).ifEmpty { courseCode.trim() }
-    fun courseToGroup(semId: String, sem: SemesterData): CourseGroup? {
-        val matches = sem.courses.values.filter { VtopCourseCode.base(it.courseCode) == cleanCode }
-        if (matches.isEmpty()) return null
-        // An embedded ETH/ELA pair is merged at the store, so there is normally one course.
-        // Legacy snapshots may still hold two rows; fold them the same way.
-        val main = matches.firstOrNull { !it.isLabCourse() } ?: matches.first()
-        val labLegacy = matches.firstOrNull { it.isLabCourse() && it !== main }
-        val isCurrent = selectedSemester != "All" && semId == selectedSemester
-        val embedded = main.courseType.contains("ETH", true) && main.courseType.contains("ELA", true)
-
-        return CourseGroup(
-            courseCode = cleanCode,
-            courseTitle = main.courseTitle.ifBlank { cleanCode },
-            semesterSubId = semId,
-            semesterName = sem.semesterName ?: AppState.semesterMap.value[semId] ?: semId,
-            theory = (if (embedded) main else main)?.toMarksCourseItem(),
-            lab = labLegacy?.toMarksCourseItem(),
-            theoryAtt = main.toAttendanceItem(),
-            labAtt = labLegacy?.toAttendanceItem(),
-            // Prioritise marks for current semester, grades for previous semesters.
-            grade = if (isCurrent) null else main.toGradeItem()
-        )
-    }
-
-    academic.semesters[semesterId]?.let { sem -> courseToGroup(semesterId, sem)?.let { return it } }
-    academic.semesters.forEach { (semId, sem) -> courseToGroup(semId, sem)?.let { return it } }
-    return null
-}

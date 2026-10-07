@@ -1,4 +1,4 @@
-﻿package com.amazecc.app.shared.ui.screens.academics
+package com.amazecc.app.shared.ui.screens.academics
 
 import kotlinx.datetime.*
 import androidx.compose.foundation.background
@@ -21,12 +21,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
-import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.domain.CourseAttendance
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.repository.SettingsManager
-import com.amazecc.app.shared.state.AcademicDerivers
 import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
-import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -54,10 +53,9 @@ import kotlinx.serialization.json.*
 @Composable
 fun CourseAttendanceScreen() {
     val colors = AmazeTheme.colors
-    val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
     val courseCode = AppState.selectedCourseCode.value
-    val course = AcademicDerivers.resolveCurrentSemester(academic)
-        ?.courses?.values?.map { it.toAttendanceItem() }?.find { it.courseCode == courseCode }
+    val course = Projections.currentSemesterAttendance(domain).find { it.courseCode == courseCode }
 
     if (course == null) {
         Box(modifier = Modifier.fillMaxSize().background(colors.background), contentAlignment = Alignment.Center) {
@@ -79,7 +77,7 @@ fun CourseAttendanceScreen() {
     ) {
         ScreenHeader(
             title = course.courseTitle,
-            description = "${course.courseCode}${embeddedComponentLabel(course.courseCode)?.let { " · $it" } ?: ""} • ${course.slotName ?: ""}",
+            description = "${course.courseCode}${embeddedComponentLabel(course.courseCode)?.let { " · $it" } ?: ""} • ${course.slotName}",
             showBackButton = true,
             showSyncButton = false,
             enabledScreens = setOf(Screen.COURSE_ATTENDANCE)
@@ -94,9 +92,9 @@ fun CourseAttendanceScreen() {
 }
 
 @Composable
-fun EmbeddedCourseAttendanceView(course: AttendanceItem) {
+fun EmbeddedCourseAttendanceView(course: CourseAttendance) {
     val colors = AmazeTheme.colors
-    val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
     val courseCode = course.courseCode
 
@@ -114,33 +112,30 @@ fun EmbeddedCourseAttendanceView(course: AttendanceItem) {
             inner.mapValues { (_, time) -> SlotInfo(time) }
         }
     }
-    val dayCardsMap = remember(academic) {
-        AcademicDerivers.resolveCurrentSemester(academic)
-            ?.courses?.values?.map { it.toAttendanceItem() }
-            ?.let { att ->
-                AttendanceTimetable.buildAttendanceDayCardsMap(
-                    attendance = att.map { item ->
-                        val shortType = when (item.courseType.lowercase()) {
-                            "embedded theory" -> "ETH"
-                            "embedded lab" -> "ELA"
-                            "theory only" -> "TO"
-                            "lab only" -> "LO"
-                            "soft skill" -> "SS"
-                            else -> item.courseType
-                        }
-                        mapOf(
-                            "courseCode" to item.courseCode,
-                            "courseTitle" to item.courseTitle,
-                            "courseType" to shortType,
-                            "faculty" to item.faculty,
-                            "slotName" to (item.slotName ?: ""),
-                            "attendancePercentage" to item.attendancePercentage,
-                            "venue" to (item.slotVenue ?: "")
-                        )
-                    },
-                    slotMap = slotMapTyped
+    val dayCardsMap = remember(domain) {
+        val att = Projections.currentSemesterAttendance(domain)
+        AttendanceTimetable.buildAttendanceDayCardsMap(
+            attendance = att.map { item ->
+                val shortType = when (item.courseType.lowercase()) {
+                    "embedded theory" -> "ETH"
+                    "embedded lab" -> "ELA"
+                    "theory only" -> "TO"
+                    "lab only" -> "LO"
+                    "soft skill" -> "SS"
+                    else -> item.courseType
+                }
+                mapOf(
+                    "courseCode" to item.courseCode,
+                    "courseTitle" to item.courseTitle,
+                    "courseType" to shortType,
+                    "faculty" to item.faculty,
+                    "slotName" to item.slotName,
+                    "attendancePercentage" to item.attendancePercentage,
+                    "venue" to (item.slotVenue ?: "")
                 )
-            } ?: emptyMap()
+            },
+            slotMap = slotMapTyped
+        )
     }
 
     // Find course days
@@ -568,7 +563,7 @@ private fun PredictorSection(
 
 @Composable
 private fun LogSection(
-    course: AttendanceItem,
+    course: CourseAttendance,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val historyList = remember(course.logs) {

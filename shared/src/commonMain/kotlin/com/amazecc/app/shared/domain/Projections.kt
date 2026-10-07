@@ -1,5 +1,8 @@
 package com.amazecc.app.shared.domain
 
+import kotlin.math.ceil
+import kotlin.math.floor
+
 /**
  * Pure interpretation: the one place a derived number is calculated.
  *
@@ -99,6 +102,42 @@ object Projections {
                 )
             }
     }
+
+    /**
+     * Every course's attendance in one named semester, or empty when that semester does not
+     * exist. This is the semester the user has the filter on, which is a different question from
+     * [currentSemesterAttendance].
+     */
+    fun semesterAttendance(snapshot: DomainSnapshot, semesterId: String): List<CourseAttendance> =
+        semester(snapshot, semesterId)?.courses?.values?.map { it.asAttendance() }.orEmpty()
+
+    /**
+     * Every course's attendance in the semester attendance *reports* from: the one with the most
+     * attendance-bearing courses, ties broken by semester id.
+     *
+     * This is what `CourseAttendanceScreen` renders - the predictor needs the whole semester to
+     * know which days this course meets, and the log needs this course's own rows. It mirrors
+     * `AcademicDerivers.resolveCurrentSemester` rather than [activeSemester], because "the
+     * semester the user picked" and "the semester that actually has the data" were two different
+     * answers, and this screen has always used the latter.
+     *
+     * [attendance] is a different view of the same data: sorted, filtered to attendance-bearing
+     * courses, and without the slot or logs this screen reads.
+     */
+    fun currentSemesterAttendance(snapshot: DomainSnapshot): List<CourseAttendance> =
+        reportingSemester(snapshot)?.let { semesterAttendance(snapshot, it.id) }.orEmpty()
+
+    /**
+     * The semester attendance reports from: most attendance-bearing courses, ties to the higher
+     * semester id. Lifted out so [currentSemesterAttendance] and its tests read as one rule.
+     */
+    private fun reportingSemester(snapshot: DomainSnapshot): Semester? =
+        snapshot.academics.semesters.values
+            .filter { it.courses.values.any { c -> c.attendance != null } }
+            .maxWithOrNull(
+                compareBy<Semester> { it.courses.values.count { c -> c.attendance != null } }
+                    .thenBy { it.id }
+            )
 
     // ── the app's one formula per fact ───────────────────────────────────────
 
@@ -215,6 +254,56 @@ object Projections {
     fun odHours(odSessions: List<Pair<Int, Boolean>>): Int =
         odSessions.sumOf { (count, isLab) -> count * (if (isLab) 2 else 1) }
 
+    /**
+     * Classes still needed to reach [targetPct] — the "Need 3 more classes" half of the margin.
+     *
+     * The shortfall is divided by the share each further class contributes, so being five points
+     * short at 100 classes costs far more than five misses. Straight from
+     * `CourseDetailSubpage.tsx:781`. A lab is worth two hours against a one-hour target, so the
+     * answer halves — the same convention [odHours] uses, and the caller supplies [isLab] from
+     * the app's one lab test rather than re-deriving it here.
+     *
+     * Null when nothing has been held, when the target cannot be met from a 0-100% scale, or
+     * when the target is already met — that last case belongs to [bunkableClasses], not here.
+     */
+    fun classesToTarget(
+        attended: Int,
+        total: Int,
+        targetPct: Float,
+        isLab: Boolean = false,
+    ): Int? {
+        if (total <= 0) return null
+        val dec = targetPct / 100.0
+        if (dec <= 0.0 || dec >= 1.0) return null
+        val needed = ceil((dec * total - attended) / (1.0 - dec)).toInt()
+        if (needed <= 0) return null
+        return if (isLab) ceil(needed / 2.0).toInt() else needed
+    }
+
+    /**
+     * Classes that can still be missed while staying at [targetPct] — the "N bunkable" half.
+     *
+     * `CourseDetailSubpage.tsx:787`. Note it is deliberately not the complement of
+     * [classesToTarget]: reaching a target and keeping a safety margin are different questions,
+     * and the web app computes them separately for that reason.
+     *
+     * Zero means the student is sitting exactly on the line, which the card words as "On edge"
+     * rather than "0 bunkable". Null when nothing has been held. Lab sessions halve, as above.
+     */
+    fun bunkableClasses(
+        attended: Int,
+        total: Int,
+        targetPct: Float,
+        isLab: Boolean = false,
+    ): Int? {
+        if (total <= 0) return null
+        val dec = targetPct / 100.0
+        if (dec <= 0.0) return null
+        val canMiss = floor(attended / dec - total).toInt()
+        val value = if (isLab) floor(canMiss / 2.0).toInt() else canMiss
+        return value.coerceAtLeast(0)
+    }
+
     // ── marks ────────────────────────────────────────────────────────────────
 
     data class MarksRow(
@@ -298,6 +387,47 @@ object Projections {
                 )
             }
     }
+
+    /**
+     * Every exam filed against one named semester, in raw form.
+     *
+     * [exams] is the display projection: seat and time already merged for a card. The predictor and
+     * the week grid need those fields kept apart - `time` as a `"09:15 AM - 12:30 PM"` range and
+     * `date` unparsed - so they bind here rather than flattening the row twice.
+     */
+    fun semesterExams(snapshot: DomainSnapshot, semesterId: String): List<Exam> =
+        snapshot.schedule.exams.filter { it.semesterId == semesterId }
+
+    /**
+     * The Exam Schedule dropdown's rule: exams for `semesterId`, or **every** semester's exams
+     * when that one has none.
+     *
+     * This is deliberately not [examsForKnownSemester]. Two screens wrote their fallback
+     * differently - `ifEmpty` here, `?:` there - and the difference is observable: a semester that
+     * exists but has published no schedule shows all exams under this rule and none under that
+     * one. Both readings are real, so both are kept.
+     */
+    fun selectedSemesterExams(snapshot: DomainSnapshot, semesterId: String): List<Exam> =
+        semesterExams(snapshot, semesterId).ifEmpty { snapshot.schedule.exams }
+
+    /**
+     * The calendar's rule: exams for `semesterId` when that id names a semester, and **every**
+     * semester's exams only when the id is unknown.
+     *
+     * The distinction from [selectedSemesterExams] is the `exists-but-empty` case; see its KDoc.
+     */
+    fun examsForKnownSemester(snapshot: DomainSnapshot, semesterId: String): List<Exam> =
+        if (snapshot.academics.semesters.containsKey(semesterId)) semesterExams(snapshot, semesterId)
+        else snapshot.schedule.exams
+
+    /**
+     * Ids of the semesters that have published at least one exam, in semester order.
+     *
+     * The schedule dropdown's option list. An empty result means nothing is published yet, which
+     * the caller answers by offering every semester instead.
+     */
+    fun semesterIdsWithExams(snapshot: DomainSnapshot): List<String> =
+        snapshot.schedule.exams.map { it.semesterId }.distinct()
 
     // ── helpers ──────────────────────────────────────────────────────────────
 

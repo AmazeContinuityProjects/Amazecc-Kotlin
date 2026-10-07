@@ -3,6 +3,7 @@ package com.amazecc.app.shared.state
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.TimetableRes
+import com.amazecc.app.shared.utils.TimeMath
 import com.amazecc.app.shared.vtop.VtopComponent
 import com.amazecc.app.shared.vtop.VtopCourseCode
 
@@ -246,14 +247,8 @@ object AcademicDerivers {
             }
         )
 
-    private fun slotStartMinutes(time: String?): Int {
-        val start = time?.split("-")?.firstOrNull()?.trim() ?: return 0
-        val parts = start.split(":")
-        var h = parts.getOrNull(0)?.filter { it.isDigit() }?.toIntOrNull() ?: 0
-        val m = parts.getOrNull(1)?.filter { it.isDigit() }?.toIntOrNull() ?: 0
-        if (h < 8) h += 12
-        return h * 60 + m
-    }
+    /** Start minute of a `"9:00 - 9:50"` slot, for ordering. */
+    private fun slotStartMinutes(time: String?): Int = TimeMath.toRange(time).first
 
     /** Collapses runs of whitespace (incl. `\t`/`\n`) into single spaces. */
     private fun String?.cleanText(): String? {

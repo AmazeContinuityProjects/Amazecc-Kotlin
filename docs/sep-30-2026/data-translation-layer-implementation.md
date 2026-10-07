@@ -117,6 +117,46 @@ use outside `ui/screens/home/`, but Kotlin scopes `internal` to the *module*, an
 cross-package `internal` usages in `commonMain` already. The only fix needed was 4 wildcard imports.
 
 
+## The functional layer
+
+`domain/Actions.kt` is layer 3 — the first file here where a *command* lives rather than a value
+or a reading of one. `SyncOutcome` (`Synced` / `Failed` / `NeedsCaptcha` / `Skipped`) and
+`SyncScope(semesterId, modules, force)` are the contract; the rules are the ones from the plan:
+explicit intent instead of global state, a sealed result instead of a throw, and screens reacting
+to the result instead of calling `AmazeClient`, an `AppDataStore` setter, or `SyncEngine`.
+
+Three commands are fully implemented — `completeTask` (idempotent: already-done answers `Skipped`),
+`removeTask` (missing id answers `Failed`, never a silent success) and `clearCache` (drops the
+in-memory snapshot **and** the persisted `CACHE_APP_DATA` key, but not `clearAll()`, because
+forgetting what you fetched and forgetting your credentials are different actions).
+
+`sync` and `refreshCurriculum` are the seam, and they are honest about it: `AppState` still owns
+the ~65 module fetches behind a fire-and-forget `launchSweep`, so no runner is registered and
+`sync` answers `Skipped` rather than inventing an outcome. `launchSweep` already keeps an
+awaitable `sweepJob`; the day that sweep can report back, `AppState` calls
+`Actions.registerRunner` once and screens, widgets and notifications all start getting the same
+real result.
+
+**One finding worth keeping:** `AppDataStore.tasks` (and every other module flow) is a `stateIn`
+derived flow, so it lags `_data` by a dispatcher hop. The first test run had `completeTask`
+answer `Failed("no such task")` for a task added two lines earlier. Anything that reads a list
+*before* mutating it must use `AppDataStore.data.value` (`_data.asStateFlow()`, synchronous).
+A screen collecting the flow is unaffected — it only ever wants the latest.
+
+## `config/SlotMap.kt` had drifted from `config.json`
+
+The plan's Wave 0 item 3 assumed Kotlin reads `config.json` through a `ConfigLoader`. It does not:
+no `.kt` file reads `config.json` or `chennai.json` anywhere, and the cited `DailyPlanner.kt:3`
+import was actually `androidx.compose.foundation.background`. What Kotlin has instead is a
+hardcoded seven-day copy, `config/SlotMap.kt`, used by ~10 files.
+
+Diffing all 164 entries against `../AmazeCC/config.json` found **two wrong**: `WED/L18` and
+`THU/L24` read `12:35-1:25` — the *theory* sixth-period pattern — where `config.json` and the
+other five days all say `12:30-1:20`. Those two labs would have rendered five minutes late while
+five days looked right. Fixed, and `SlotMapTest` now pins all seven sixth-period lab codes plus
+`MON/S11` and `FRI/S15` as theory anchors, checks every range is well-formed through
+`TimeMath.toRange`, and asserts the day labels — so the copy cannot drift silently again.
+
 ## Tests
 
 `commonTest/.../domain/ProjectionsTest.kt` — 19 tests. They pin the behaviours the
@@ -147,8 +187,38 @@ code ends in `(L)` but whose slot is not lab-shaped counts as 2 hours **and both
 return the same number**, theory/lab weighing, and statuses outside the vocabulary counting for
 nothing.
 
-The stale-test blocker below is **resolved**; the suite runs on `:shared:jvmTest`. **224 -> 236,
-all passing.**
+Four more test files landed with the consolidation work:
+
+- `commonTest/.../utils/TimeMathTest.kt` — 11. The important one is the **three-way divergence
+  test**: `toMinutes("07:00")` = 1140 (VIT bare afternoon slot), `toMilitaryMinutes("07:00")` = 420
+  (`TaskModels.startTime` is documented `HH:mm`), `toClockMinutes("07:00")` = null (no meridian).
+  It is written as one test so that "merge the three parsers" fails loudly instead of silently
+  picking one meaning. Plus the trim bug (`" 9:50"` → 590, not 50), range splitting, `nowMinutes`,
+  and `formatDuration` pluralisation.
+- `commonTest/.../config/SlotMapTest.kt` — 4, described above.
+- `commonTest/.../domain/ActionsTest.kt` — 14. `commonTest` has no `kotlinx-coroutines-test`, so
+  `runSuspend` starts the coroutine with `startCoroutine` and every fake runner used in it completes
+  without suspending. It also pins that a throwing runner becomes `Failed` while a
+  `CancellationException` still escapes.
+- `commonTest/.../ui/screens/home/HomeModelsTest.kt` — **49**, closing the gap the plan called out
+  ("the most transplant-critical code in the repo still has no test file"). It covers the bunk
+  arithmetic including the deliberate *non*-halving for labs, the four status bands at their
+  boundaries, live-class progress at both ends of a slot, week-strip flavour precedence,
+  `extractDayOrderOverride`'s two-condition guard, `buildHomeWeekDays`' holiday/instructional/reorder
+  handling and its year match, timetable merging versus non-adjacent sessions, and Moodle deadline
+  filtering. All 49 passed first run.
+
+Writing it corrected a claim in `HomeModels.kt`'s own KDoc: it said `DayOfWeek` is "declared
+Sunday-first", which is why it warned of an off-by-one against `AttendanceDay`. `kotlinx-datetime`
+declares it Monday-first (ISO), and three other call sites — `DailyPlanner`, `AttendanceScreen`,
+`HomeModels.buildHomeWeekDays` — already rely on `dayOfWeek.ordinal` meaning "days since Monday".
+The KDoc now says what is actually true: the two enums are *both* Monday-first today, but nothing
+ties them together, so the mapping is still stated once and by name.
+
+The stale-test blocker below is **resolved**; the suite runs on `:shared:jvmTest`. **224 -> 236 ->
+247 -> 255 -> 259 -> 273 -> 322, all passing** across 20 test classes. Release APK rebuilt clean:
+`androidApp-release.apk`, 4.38 MB, sha256
+`246301C1E924CF75378E7B64DE71C8CF6459657F3E2A2AD0BC67C64BA691D103`.
 
 ## `DomainSnapshot` is now the persisted format
 

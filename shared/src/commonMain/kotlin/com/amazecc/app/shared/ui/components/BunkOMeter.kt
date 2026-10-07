@@ -18,9 +18,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.AttendanceItem
 import com.amazecc.app.shared.theme.AmazeTheme
-import kotlin.math.floor
 
 @Composable
 fun BunkOMeterCard(
@@ -48,18 +48,13 @@ fun BunkOMeterCard(
             val attended = course.attendedClasses
             val pct = course.attendancePercentage.toDoubleOrNull() ?: 0.0
 
-            if (pct < targetPct) {
-                criticalCount++
-            } else if (pct < targetPct + 5f) {
-                warningCount++
+            when (Projections.attendanceStatus(pct.toFloat(), total, targetPct)) {
+                Projections.AttendanceStatus.CRITICAL -> criticalCount++
+                Projections.AttendanceStatus.WARNING -> warningCount++
+                else -> Unit
             }
 
-            if (pct >= targetPct) {
-                val maxBunks = floor((attended.toDouble() / (targetPct / 100.0)) - total.toDouble()).toInt()
-                if (maxBunks > 0) {
-                    totalBunkable += maxBunks
-                }
-            }
+            totalBunkable += Projections.bunkableClasses(attended, total, targetPct) ?: 0
         }
 
         BunkStats(

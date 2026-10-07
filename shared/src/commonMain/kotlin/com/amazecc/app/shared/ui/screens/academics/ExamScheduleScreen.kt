@@ -26,7 +26,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.amazecc.app.shared.model.ExamItem
+import com.amazecc.app.shared.domain.Exam
+import com.amazecc.app.shared.domain.ExamSchedule
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -48,16 +50,16 @@ import kotlinx.datetime.Clock
 fun ExamScheduleScreen() {
     val colors = AmazeTheme.colors
     val semesterMap by AppState.semesterMap.collectAsState()
-    val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
     val selectedSemId by AppState.selectedExamSemester.collectAsState()
     val isAppLoading by AppState.isLoading.collectAsState()
 
-    val availableSemesters = remember(academic) {
-        val withExams = academic.semesters.filterValues { it.exams.isNotEmpty() }.keys.toList()
+    val availableSemesters = remember(domain) {
+        val withExams = Projections.semesterIdsWithExams(domain)
         if (withExams.isNotEmpty()) withExams else AppState.semesterIDs
     }
 
-    val selectedExams = academic.semesters[selectedSemId]?.exams.orEmpty()
+    val selectedExams = Projections.semesterExams(domain, selectedSemId)
     val schedule = remember(selectedExams) {
         if (selectedExams.isEmpty()) emptyMap() else mapOf("Exams" to selectedExams)
     }
@@ -158,7 +160,7 @@ fun ExamScheduleScreen() {
 }
 
 @Composable
-private fun ExamHeroCard(schedule: Map<String, List<ExamItem>>, colors: AmazeColors) {
+private fun ExamHeroCard(schedule: Map<String, List<Exam>>, colors: AmazeColors) {
     val all = schedule.values.flatten()
     if (all.isEmpty()) return
 
@@ -219,8 +221,8 @@ private fun ExamHeroCard(schedule: Map<String, List<ExamItem>>, colors: AmazeCol
                 )
                 Text(
                     buildString {
-                        append(exam.examDate.ifBlank { "Date TBD" })
-                        if (exam.examTime.isNotBlank()) append(" · ").append(exam.examTime)
+                        append(exam.date.ifBlank { "Date TBD" })
+                        if (exam.time.isNotBlank()) append(" · ").append(exam.time)
                         if (exam.sessionDisplay != "TBD") append(" · ").append(exam.sessionDisplay)
                     },
                     color = p.textSecondary,
@@ -234,12 +236,14 @@ private fun ExamHeroCard(schedule: Map<String, List<ExamItem>>, colors: AmazeCol
 @Composable
 private fun ExamGroupCard(
     type: String,
-    exams: List<ExamItem>,
+    exams: List<Exam>,
     tint: Color,
     nextExamCode: String?,
     colors: AmazeColors
 ) {
-    val sorted = remember(exams) { ExamUtils.sortedExamDays(exams) }
+    val rows = remember(exams) {
+        ExamSchedule.buildExamRows(mapOf(type to exams))
+    }
 
     AmazeCard(
         modifier = Modifier.fillMaxWidth(),
@@ -271,14 +275,14 @@ private fun ExamGroupCard(
                 }
             }
 
-            sorted.forEachIndexed { index, exam ->
+            rows.forEachIndexed { index, row ->
                 if (index > 0) {
                     Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
                 }
                 ExamRow(
-                    exam = exam,
+                    exam = row.exam,
                     tint = tint,
-                    isNext = exam.courseCode == nextExamCode,
+                    isNext = row.exam.courseCode == nextExamCode,
                     colors = colors
                 )
             }
@@ -287,7 +291,7 @@ private fun ExamGroupCard(
 }
 
 @Composable
-private fun ExamRow(exam: ExamItem, tint: Color, isNext: Boolean, colors: AmazeColors) {
+private fun ExamRow(exam: Exam, tint: Color, isNext: Boolean, colors: AmazeColors) {
     var expanded by remember { mutableStateOf(false) }
     val hours = remember(exam) { ExamUtils.hoursUntilExam(exam) }
     val status = examStatusText(exam)
@@ -374,8 +378,8 @@ private fun ExamRow(exam: ExamItem, tint: Color, isNext: Boolean, colors: AmazeC
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MetricTile("Date", exam.examDate, colors, Modifier.weight(1f))
-                    MetricTile("Time", exam.examTime, colors, Modifier.weight(1f))
+                    MetricTile("Date", exam.date, colors, Modifier.weight(1f))
+                    MetricTile("Time", exam.time, colors, Modifier.weight(1f))
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     MetricTile("Session", exam.sessionDisplay, colors, Modifier.weight(1f))

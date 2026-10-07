@@ -108,6 +108,15 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation(libs.ktor.client.okhttp)
         }
+
+        // Decision 5: Compose UI tests, for the four behaviours in plan §8.3 only. Kept on the
+        // JVM target because that is the one host that can execute them here - the Android and
+        // iOS targets give a test source set but no runner this machine can drive.
+        jvmTest.dependencies {
+            implementation(libs.kotlin.test)
+            implementation(libs.compose.ui.test)
+            implementation(libs.compose.ui.test.junit4)
+        }
     }
 
     jvm {

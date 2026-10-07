@@ -21,13 +21,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.domain.CourseAttendance
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.ODEntry
 import com.amazecc.app.shared.model.ODListItem
 import com.amazecc.app.shared.model.ODTrackedEntry
 import com.amazecc.app.shared.repository.SettingsManager
-import com.amazecc.app.shared.state.AcademicDerivers
-import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import androidx.compose.animation.core.animateFloatAsState
@@ -72,7 +71,7 @@ private data class ODDay(
     val total: Int
 )
 
-private fun extractODEntries(attendance: List<AttendanceItem>): List<ODDay> {
+private fun extractODEntries(attendance: List<CourseAttendance>): List<ODDay> {
     val rawEntries = mutableListOf<Pair<String, ODEntry>>()
     for (course in attendance) {
         val daily = course.logs.mapNotNull { log ->
@@ -130,8 +129,8 @@ private fun computeMetrics(odDays: List<ODDay>, trackerState: Map<String, Map<St
 fun ODTrackerScreen() {
     val colors = AmazeTheme.colors
     var activeTab by remember { mutableStateOf(0) }
-    val academic by AppState.academic.collectAsState()
-    val courses = AcademicDerivers.resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
+    val domain by AppState.domain.collectAsState()
+    val courses = Projections.currentSemesterAttendance(domain)
 
     // Tracker state: date -> courseCode -> ODTrackedEntry
     val trackerState = remember {

@@ -26,6 +26,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.domain.Exam
+import com.amazecc.app.shared.domain.ExamSchedule
 import com.amazecc.app.shared.model.ExamItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeColors
@@ -39,8 +41,17 @@ import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
-/** Human status for an exam: "PAST", "TODAY", "IN 2d", or "" (no valid date). */
-internal fun examStatusText(exam: ExamItem, now: Instant = Clock.System.now()): String {
+/**
+ * Human status for an exam: "PAST", "TODAY", "IN 2d", or "" (no valid date).
+ *
+ * Open decision 8 keeps this wording - it is richer for display than Node's three-way state - and
+ * adds [ExamSchedule.classifyExamState] behind it. The guard can only move a row *towards* `PAST`:
+ * a dated paper with no parseable time used to report "" forever, because there was no start
+ * instant to count from, and now follows the calendar. A paper that has already *started* already
+ * read `PAST`, since the hours count down from the start rather than from the end.
+ */
+internal fun examStatusText(exam: Exam, now: Instant = Clock.System.now()): String {
+    if (ExamSchedule.stateOf(exam, now) == ExamSchedule.ExamState.PAST) return "PAST"
     val hours = ExamUtils.hoursUntilExam(exam, now) ?: return ""
     return when {
         hours < 0 -> "PAST"
@@ -92,7 +103,7 @@ internal fun ExamStatusChip(text: String, color: Color) {
 /** Full exam detail card — used by the Calendar event list. */
 @Composable
 fun ExamEventCard(
-    exam: ExamItem,
+    exam: Exam,
     examType: String = "",
     colors: AmazeColors = AmazeTheme.colors,
     onClick: () -> Unit = {}
@@ -166,8 +177,8 @@ fun ExamEventCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    ExamDetailRow(icon = Icons.Rounded.CalendarToday, label = "Date", value = exam.examDate, color = colors.textPrimary)
-                    ExamDetailRow(icon = Icons.Rounded.AccessTime, label = "Time", value = exam.examTime, color = colors.textPrimary)
+                    ExamDetailRow(icon = Icons.Rounded.CalendarToday, label = "Date", value = exam.date, color = colors.textPrimary)
+                    ExamDetailRow(icon = Icons.Rounded.AccessTime, label = "Time", value = exam.time, color = colors.textPrimary)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -214,7 +225,7 @@ fun ExamEventCard(
 /** Compact banner listing a day's exams — used by Daily Planner and Timetable Grid. */
 @Composable
 fun ExamDayBanner(
-    exams: List<ExamItem>,
+    exams: List<Exam>,
     modifier: Modifier = Modifier,
     colors: AmazeColors = AmazeTheme.colors
 ) {
@@ -261,7 +272,7 @@ fun ExamDayBanner(
                 )
                 Text(
                     text = buildString {
-                        append(exam.examTime.ifBlank { exam.reportingTime.ifBlank { "Time TBD" } })
+                        append(exam.time.ifBlank { exam.reportingTime.ifBlank { "Time TBD" } })
                         if (exam.venue.isNotBlank()) append(" · ").append(exam.venue)
                         if (exam.sessionDisplay != "TBD") append(" · Session ").append(exam.sessionDisplay)
                         append(" · Seat ").append(exam.seatLocationDisplay)

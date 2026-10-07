@@ -56,6 +56,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.strings.Strings
+import com.amazecc.app.shared.utils.TimeMath
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
@@ -81,20 +82,12 @@ private fun extractBlockName(room: String): String {
     }
 }
 
-private fun timeToMinutes(timeStr: String): Int {
-    if (timeStr.isEmpty()) return 0
-    val parts = timeStr.trim().replace("\r", "").split(" ")
-    if (parts.isEmpty()) return 0
-    val time = parts[0]
-    val period = parts.getOrNull(1) ?: ""
-    val timeParts = time.split(":")
-    if (timeParts.isEmpty()) return 0
-    var hours = timeParts[0].toIntOrNull() ?: 0
-    val minutes = timeParts.getOrNull(1)?.toIntOrNull() ?: 0
-    if (period.equals("PM", ignoreCase = true) && hours != 12) hours += 12
-    if (period.equals("AM", ignoreCase = true) && hours == 12) hours = 0
-    return hours * 60 + minutes
-}
+/**
+ * Slot time -> minutes. Handles both shapes CSV imports arrive in: `"6:00 PM"` and `"18:00"`.
+ * Delegates to [TimeMath]; the bare `6:00` case falls through clock then military unchanged.
+ */
+private fun timeToMinutes(timeStr: String): Int =
+    TimeMath.toClockMinutes(timeStr) ?: TimeMath.toMilitaryMinutes(timeStr) ?: 0
 
 private fun parseCsv(text: String): List<SimpleParsedCourse> {
     val lines = text.replace("\r", "").split("\n").drop(1)

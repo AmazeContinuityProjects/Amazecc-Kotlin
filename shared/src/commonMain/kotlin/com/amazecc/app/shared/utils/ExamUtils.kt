@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.utils
 
+import com.amazecc.app.shared.domain.Exam
 import com.amazecc.app.shared.model.ExamItem
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -88,17 +89,29 @@ object ExamUtils {
     /**
      * Parses the first time in "09:00 AM" or "09:15 AM - 12:30 PM" into minutes since
      * midnight. Returns null if no valid 12h/24h time is found.
+     *
+     * Delegates the meridian arithmetic to [TimeMath.toClockMinutes]. Only the guard differs:
+     * when no meridian is written, a bare reading is accepted as 12-hour, so "13:15" stays
+     * unparseable rather than quietly becoming a military hour the schedule never emits.
      */
     fun examTimeToMinutes(raw: String): Int? {
         val first = raw.trim().split("-", "–", "—").first()
-        val match = Regex("""(\d{1,2}):(\d{2})\s*(AM|PM)?""", RegexOption.IGNORE_CASE).find(first) ?: return null
-        var h = match.groupValues[1].toInt()
-        val m = match.groupValues[2].toInt()
-        val meridian = match.groupValues[3].uppercase()
-        if (h !in 1..12 || m !in 0..59) return null
-        if (meridian == "PM" && h != 12) h += 12
-        if (meridian == "AM" && h == 12) h = 0
-        return h * 60 + m
+        TimeMath.toClockMinutes(first)?.let { return it }
+        val minutes = TimeMath.toMilitaryMinutes(first) ?: return null
+        return if (minutes in 60..779) minutes else null
+    }
+
+    /**
+     * "09:15 AM - 12:30 PM" -> (start, end) in minutes since midnight, **either side may be null**.
+     *
+     * Node's `slotMinutes` from `examSchedule.ts`. The sides are independent because
+     * `examWindow` needs a start even when the payload carries no end time; [parseExamTimeRange]
+     * is the strict view of exactly this parse, so there is one splitter and one parser.
+     */
+    fun slotMinutes(raw: String): Pair<Int?, Int?> {
+        val parts = raw.trim().split("-", "–", "—").map { it.trim() }
+        return (parts.getOrNull(0)?.let { examTimeToMinutes(it) }) to
+            (parts.getOrNull(1)?.let { examTimeToMinutes(it) })
     }
 
     /**
@@ -106,23 +119,41 @@ object ExamUtils {
      * Returns null if parsing fails.
      */
     fun parseExamTimeRange(raw: String): Pair<Int, Int>? {
-        val parts = raw.trim().split("-", "–", "—").map { it.trim() }
-        if (parts.size < 2) return null
-        val start = examTimeToMinutes(parts[0]) ?: return null
-        val end = examTimeToMinutes(parts[1]) ?: return null
-        return start to end
+        val (start, end) = slotMinutes(raw)
+        return if (start != null && end != null) start to end else null
     }
 
-    // ── Exam item helpers ──
+    // ── Exam timing helpers ──
+    //
+    // The transport `ExamItem` and the domain `Exam` hold the same three strings under different
+    // names, so each timing helper takes both shapes and delegates to one private body. Call sites
+    // do not change - the overload is picked from the argument - so no consumer of either shape
+    // can see a different answer.
 
-    /** Minutes since midnight of the reporting time, falling back to the exam start. */
-    fun examStartMinutes(exam: ExamItem): Int? =
-        examTimeToMinutes(exam.reportingTime) ?: examTimeToMinutes(exam.examTime)
+    /** Minutes since midnight the paper starts; falls back to the reporting time. */
+    fun examStartMinutes(exam: ExamItem): Int? = startMinutes(exam.reportingTime, exam.examTime)
+
+    fun examStartMinutes(exam: Exam): Int? = startMinutes(exam.reportingTime, exam.time)
+
+    /**
+     * The paper's own start, falling back to the time the student must be seated.
+     *
+     * Exam time first: this is Node's `slotMinutes(examTime)[0] ?? clockMinutes(reportingTime)`
+     * order from `examSchedule.ts`, ported deliberately under open decision 7. The previous Kotlin
+     * order preferred the reporting time, so every countdown began 15 minutes before the paper.
+     */
+    private fun startMinutes(reportingTime: String, examTime: String): Int? =
+        examTimeToMinutes(examTime) ?: examTimeToMinutes(reportingTime)
 
     /** Absolute start instant of the exam (reporting time, else exam time). */
-    fun examStartInstant(exam: ExamItem, tz: TimeZone = TimeZone.currentSystemDefault()): Instant? {
-        val date = exam.examDateParsed ?: return null
-        val minutes = examStartMinutes(exam) ?: return null
+    fun examStartInstant(exam: ExamItem, tz: TimeZone = TimeZone.currentSystemDefault()): Instant? =
+        startInstant(exam.examDateParsed, examStartMinutes(exam), tz)
+
+    fun examStartInstant(exam: Exam, tz: TimeZone = TimeZone.currentSystemDefault()): Instant? =
+        startInstant(exam.examDateParsed, examStartMinutes(exam), tz)
+
+    private fun startInstant(date: LocalDate?, minutes: Int?, tz: TimeZone): Instant? {
+        if (date == null || minutes == null) return null
         return try {
             LocalDateTime(date.year, date.monthNumber, date.dayOfMonth, minutes / 60, minutes % 60, 0, 0).toInstant(tz)
         } catch (_: Exception) {
@@ -141,8 +172,14 @@ object ExamUtils {
         }
     }
 
-    fun hoursUntilExam(exam: ExamItem, now: Instant = Clock.System.now(), tz: TimeZone = TimeZone.currentSystemDefault()): Double? {
-        val start = examStartInstant(exam, tz) ?: return null
+    fun hoursUntilExam(exam: ExamItem, now: Instant = Clock.System.now(), tz: TimeZone = TimeZone.currentSystemDefault()): Double? =
+        hoursUntil(examStartInstant(exam, tz), now)
+
+    fun hoursUntilExam(exam: Exam, now: Instant = Clock.System.now(), tz: TimeZone = TimeZone.currentSystemDefault()): Double? =
+        hoursUntil(examStartInstant(exam, tz), now)
+
+    private fun hoursUntil(start: Instant?, now: Instant): Double? {
+        start ?: return null
         return (start - now).inWholeMilliseconds / 3_600_000.0
     }
 
@@ -171,7 +208,13 @@ object ExamUtils {
     fun examDates(exams: Iterable<ExamItem>): Set<LocalDate> =
         exams.mapNotNull { it.examDateParsed }.toSet()
 
-    /** Sorts by exam date, then start time, then course code. */
+    /**
+     * Sorts by exam date, then start time, then course code.
+     *
+     * Deliberately not overloaded for [Exam]: `Iterable<Exam>` and `Iterable<ExamItem>` erase to the
+     * same JVM signature. The domain path orders rows through `ExamSchedule.buildExamRows`, which
+     * compares real start instants instead.
+     */
     fun sortedExamDays(exams: Iterable<ExamItem>): List<ExamItem> {
         val fallbackDate = LocalDate(2100, 1, 1)
         return exams.sortedWith(
@@ -206,30 +249,50 @@ object ExamUtils {
     }
 }
 
-// ── ExamItem display extensions ──
+// ── Exam display extensions ──
+//
+// The transport `ExamItem` and the domain `Exam` differ in three field *names* (`examDate`/`date`,
+// `examSession`/`session`, `examTime`/`time`) and in nothing else that these read. The bodies live
+// in the private helpers below so the two shapes cannot drift into disagreeing about a seat.
 
-val ExamItem.examDateParsed: LocalDate?
-    get() = ExamUtils.parseExamDateToLocalDate(examDate)
+private fun parsedExamDate(raw: String): LocalDate? =
+    ExamUtils.parseExamDateToLocalDate(raw)
 
 /** "R5C3" when the API provides it, computed from seat number otherwise, else "TBD". */
-val ExamItem.seatLocationDisplay: String
-    get() {
-        val raw = seatLocation.trim()
-        if (raw.isNotBlank() && raw != "-") return raw
-        val computed = ExamUtils.calculateSeatLocation(seatNo, courseTitle)
-        return if (computed == "-") "TBD" else computed
-    }
+private fun seatLocationOf(seatLocation: String, seatNo: String, courseTitle: String): String {
+    val raw = seatLocation.trim()
+    if (raw.isNotBlank() && raw != "-") return raw
+    val computed = ExamUtils.calculateSeatLocation(seatNo, courseTitle)
+    return if (computed == "-") "TBD" else computed
+}
 
 /** "FN1" -> "Forenoon 1", "AN2" -> "Afternoon 2", unknown -> raw value. */
-val ExamItem.sessionDisplay: String
-    get() {
-        val s = examSession.trim()
-        if (s.isBlank()) return "TBD"
-        val num = when {
-            s.startsWith("FN", ignoreCase = true) -> s.substring(2).trim()
-            s.startsWith("AN", ignoreCase = true) -> s.substring(2).trim()
-            else -> return s
-        }
-        val base = if (s.startsWith("FN", ignoreCase = true)) "Forenoon" else "Afternoon"
-        return if (num.isEmpty()) base else "$base $num"
+private fun sessionOf(examSession: String): String {
+    val s = examSession.trim()
+    if (s.isBlank()) return "TBD"
+    val num = when {
+        s.startsWith("FN", ignoreCase = true) -> s.substring(2).trim()
+        s.startsWith("AN", ignoreCase = true) -> s.substring(2).trim()
+        else -> return s
     }
+    val base = if (s.startsWith("FN", ignoreCase = true)) "Forenoon" else "Afternoon"
+    return if (num.isEmpty()) base else "$base $num"
+}
+
+val ExamItem.examDateParsed: LocalDate?
+    get() = parsedExamDate(examDate)
+
+val ExamItem.seatLocationDisplay: String
+    get() = seatLocationOf(seatLocation, seatNo, courseTitle)
+
+val ExamItem.sessionDisplay: String
+    get() = sessionOf(examSession)
+
+val Exam.examDateParsed: LocalDate?
+    get() = parsedExamDate(date)
+
+val Exam.seatLocationDisplay: String
+    get() = seatLocationOf(seatLocation, seatNo, courseTitle)
+
+val Exam.sessionDisplay: String
+    get() = sessionOf(session)

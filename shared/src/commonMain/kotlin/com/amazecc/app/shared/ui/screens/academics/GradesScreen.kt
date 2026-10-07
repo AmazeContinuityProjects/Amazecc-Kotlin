@@ -33,8 +33,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.model.GradeItem
-import com.amazecc.app.shared.model.SemesterGradeResult
+import com.amazecc.app.shared.domain.CourseGrade
+import com.amazecc.app.shared.domain.GradeHistory
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
@@ -55,34 +56,20 @@ private data class RadarPoint(val label: String, val score: Float)
 @Composable
 fun GradesScreen() {
     val colors = AmazeTheme.colors
-    val academic by AppState.academic.collectAsState()
-    val semesterMap by AppState.semesterMap.collectAsState()
+    val domain by AppState.domain.collectAsState()
 
-    val gpaRecords = academic.semesters.mapValues { (_, sem) ->
-        val grades = sem.courses.values
-            .filter { it.grade != null }
-            .sortedBy { it.courseCode }
-            .map { course ->
-                val g = course.grade
-                GradeItem(
-                    courseCode = course.courseCode,
-                    courseTitle = course.courseTitle,
-                    courseType = course.courseType,
-                    grandTotal = g?.grandTotal ?: "",
-                    grade = g?.grade ?: "",
-                    details = g?.details,
-                    range = g?.range
-                )
-            }
-        SemesterGradeResult(gpa = sem.gpa, grades = grades)
+    val rows = remember(domain) { GradeHistory.semesterRows(domain) }
+    val semesterIds = remember(domain, rows) {
+        rows.filter { row ->
+            row.courses.isNotEmpty() && Projections.semester(domain, row.id)?.gpa != null
+        }.map { it.id }.sortedDescending()
     }
-    val semesterIds = gpaRecords.filter { (_, v) -> v.gpa != null && v.grades.isNotEmpty() }
-        .keys.toList().sortedDescending()
 
     var selectedSemesterId by remember { mutableStateOf(semesterIds.firstOrNull() ?: "") }
     var expandedCourseId by remember { mutableStateOf<String?>(null) }
-    val selectedSemester = gpaRecords[selectedSemesterId]
-    val gradeList = selectedSemester?.grades ?: emptyList()
+    val selectedRow = rows.firstOrNull { it.id == selectedSemesterId }
+    val gradeList = selectedRow?.courses ?: emptyList()
+    val selectedGpa = selectedRow?.let { Projections.semester(domain, it.id)?.gpa } ?: ""
 
     Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
         com.amazecc.app.shared.ui.components.HeaderSpacer()
@@ -91,7 +78,7 @@ fun GradesScreen() {
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (gpaRecords.isEmpty()) {
+            if (rows.isEmpty()) {
                 Box(modifier = Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Rounded.History, null, modifier = Modifier.size(64.dp), tint = colors.textMuted)
@@ -103,16 +90,16 @@ fun GradesScreen() {
             }
 
             // Performance Analysis Header
-            PerformanceHeader(selectedSemester?.gpa ?: "", gradeList.size, gradeList.sumOf { it.details?.size ?: 0 }, colors)
+            PerformanceHeader(selectedGpa, gradeList.size, gradeList.sumOf { it.details?.size ?: 0 }, colors)
 
             // Semester Switcher
-            SemesterSwitcher(semesterIds, selectedSemesterId, semesterMap, colors) { selectedSemesterId = it; expandedCourseId = null }
+            SemesterSwitcher(semesterIds, selectedSemesterId, colors) { selectedSemesterId = it; expandedCourseId = null }
 
             // 3 Charts Row
-            ChartsGroup(semesterIds, selectedSemester, selectedSemesterId, gpaRecords, gradeList, colors)
+            ChartsGroup(semesterIds, rows, gradeList, colors)
 
             // Stats Grid
-            StatsGrid(gradeList, colors)
+            StatsGrid(selectedRow, colors)
 
             // Grades List
             GradesList(gradeList, expandedCourseId, { expandedCourseId = it }, colors)
@@ -135,7 +122,7 @@ private fun PerformanceHeader(gpa: String, courseCount: Int, assessmentCount: In
 
 @Composable
 private fun SemesterSwitcher(
-    ids: List<String>, selected: String, semesterMap: Map<String, String>,
+    ids: List<String>, selected: String,
     colors: com.amazecc.app.shared.theme.AmazeColors, onSelect: (String) -> Unit
 ) {
     Row(
@@ -143,7 +130,7 @@ private fun SemesterSwitcher(
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         ids.forEach { id ->
-            val semName = if (id.endsWith("1")) "FS ${id.substring(4, 6)}" else "WS ${id.substring(4, 6)}"
+            val semName = GradeHistory.semesterName(id)
             val isActive = id == selected
             Box(
                 modifier = Modifier
@@ -164,18 +151,14 @@ private fun SemesterSwitcher(
 
 @Composable
 private fun ChartsGroup(
-    allIds: List<String>, activeSem: com.amazecc.app.shared.model.SemesterGradeResult?,
-    activeId: String, records: Map<String, com.amazecc.app.shared.model.SemesterGradeResult?>,
-    gradeList: List<GradeItem>, colors: com.amazecc.app.shared.theme.AmazeColors
+    allIds: List<String>, rows: List<GradeHistory.SemesterRow>,
+    gradeList: List<CourseGrade>, colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val trendData = remember(allIds, records) {
+    val trendData = remember(allIds, rows) {
+        val byId = rows.associateBy { it.id }
         allIds.map { id ->
-            val sem = records[id]
-            val g = sem?.gpa?.toFloatOrNull() ?: 0f
-            val grades = sem?.grades ?: emptyList()
-            val scored = grades.sumOf { (it.grandTotal.toFloatOrNull() ?: 0f).toDouble() }.toFloat()
-            val marksPct = if (grades.isNotEmpty()) scored / grades.size else 0f
-            TrendPoint(g, marksPct)
+            val row = byId[id]
+            TrendPoint((row?.gpa ?: 0.0).toFloat(), (row?.avgScore ?: 0.0).toFloat())
         }
     }
 
@@ -303,19 +286,25 @@ private fun BarChartCanvas(data: List<TrendPoint>, value: (TrendPoint) -> Float,
 }
 
 @Composable
-private fun StatsGrid(gradeList: List<GradeItem>, colors: com.amazecc.app.shared.theme.AmazeColors) {
-    val scored = gradeList.mapNotNull { it.grandTotal.toFloatOrNull() }.filter { it > 0 }
-    val highest = scored.maxOrNull(); val lowest = scored.minOrNull()
-    val avg = if (scored.isNotEmpty()) scored.sum() / scored.size else 0f
-    val dist = gradeList.groupBy { it.grade }.mapValues { it.value.size }
+private fun StatsGrid(row: GradeHistory.SemesterRow?, colors: com.amazecc.app.shared.theme.AmazeColors) {
+    val courses = row?.courses.orEmpty()
+    val scored = row?.scored.orEmpty()
+        .mapNotNull { c -> GradeHistory.num(c.grandTotal)?.let { it to c } }
+    val highest = scored.maxByOrNull { it.first }
+    val lowest = scored.minByOrNull { it.first }
+    val avg = row?.avgScore ?: 0.0
+    val dist = GradeHistory.gradeDistribution(courses)
+
+    fun chip(scored: Pair<Double, CourseGrade>?): String? =
+        scored?.let { (score, course) -> "${course.courseCode.take(6)} · ${score.toInt()}%" }
 
     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        StatCard("Highest", highest?.let { "${gradeList.find { g -> g.grandTotal.toFloatOrNull() == it }?.courseCode?.take(6) ?: ""} · ${it.toInt()}%" } ?: "-", Icons.Rounded.EmojiEvents, colors.chart1, colors, Modifier.weight(1f))
-        StatCard("Lowest", lowest?.let { "${gradeList.find { g -> g.grandTotal.toFloatOrNull() == it }?.courseCode?.take(6) ?: ""} · ${it.toInt()}%" } ?: "-", Icons.Rounded.ArrowDownward, colors.chart5, colors, Modifier.weight(1f))
+        StatCard("Highest", chip(highest) ?: "-", Icons.Rounded.EmojiEvents, colors.chart1, colors, Modifier.weight(1f))
+        StatCard("Lowest", chip(lowest) ?: "-", Icons.Rounded.ArrowDownward, colors.chart5, colors, Modifier.weight(1f))
     }
     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         StatCard("Avg Score", "${avg.toInt()}%", Icons.Rounded.BarChart, colors.chart2, colors, Modifier.weight(1f))
-        StatCard("Grade Spread", dist.entries.joinToString(" ") { "${it.key}:${it.value}" }, Icons.Rounded.Star, colors.chart3, colors, Modifier.weight(1f))
+        StatCard("Grade Spread", dist.joinToString(" ") { "${it.grade}:${it.count}" }, Icons.Rounded.Star, colors.chart3, colors, Modifier.weight(1f))
     }
 }
 
@@ -332,7 +321,7 @@ private fun StatCard(label: String, value: String, icon: androidx.compose.ui.gra
 }
 
 @Composable
-private fun GradesList(gradeList: List<GradeItem>, expandedCourseId: String?, onToggle: (String?) -> Unit, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun GradesList(gradeList: List<CourseGrade>, expandedCourseId: String?, onToggle: (String?) -> Unit, colors: com.amazecc.app.shared.theme.AmazeColors) {
     Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Course Grades", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
         if (gradeList.isEmpty()) {
@@ -351,7 +340,7 @@ private fun GradesList(gradeList: List<GradeItem>, expandedCourseId: String?, on
 }
 
 @Composable
-private fun GradeCourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> Unit, gradeColor: Color, isPass: Boolean, colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun GradeCourseCard(course: CourseGrade, isOpen: Boolean, onToggle: () -> Unit, gradeColor: Color, isPass: Boolean, colors: com.amazecc.app.shared.theme.AmazeColors) {
     val gColor = if (isPass) colors.chart1 else colors.chart5
 
     Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.medium)).background(colors.surface).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium)).clickable { onToggle() }) {
@@ -397,9 +386,9 @@ private fun GradeCourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> 
                                         chunk.forEach { detail ->
                                             Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(colors.accent.copy(alpha = 0.05f)).border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small)).padding(6.dp), contentAlignment = Alignment.Center) {
                                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                    Text(com.amazecc.app.shared.ui.components.shortenAssessmentName(detail.component), style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.SemiBold), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                    Text(com.amazecc.app.shared.ui.components.shortenAssessmentName(detail.name), style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.SemiBold), textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                                     Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
-                                                    Text("${detail.scoredMark}", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                                                    Text("${detail.score}", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
                                                     Text("/${detail.maxMark}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                                                 }
                                             }
@@ -415,7 +404,7 @@ private fun GradeCourseCard(course: GradeItem, isOpen: Boolean, onToggle: () -> 
                                     Text("Grade Ranges", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted))
                                     Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
                                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        listOf("S" to range.S, "A" to range.A, "B" to range.B, "C" to range.C, "D" to range.D, "E" to range.E, "F" to range.F).chunked(3).forEach { chunk ->
+                                        listOf("S" to range.s, "A" to range.a, "B" to range.b, "C" to range.c, "D" to range.d, "E" to range.e, "F" to range.f).chunked(3).forEach { chunk ->
                                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                                 chunk.forEach { (g, r) ->
                                                     val c = gradeChartColor(gradeColorIndex[g] ?: 4, colors)

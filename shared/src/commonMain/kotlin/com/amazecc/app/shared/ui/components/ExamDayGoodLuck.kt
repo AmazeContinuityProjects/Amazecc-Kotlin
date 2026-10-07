@@ -28,7 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.model.ExamItem
+import com.amazecc.app.shared.domain.Exam
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.utils.ExamUtils
 import com.amazecc.app.shared.utils.examDateParsed
@@ -48,7 +48,7 @@ import kotlinx.datetime.toLocalDateTime
  */
 @Composable
 fun ExamDayGoodLuck(
-    exams: List<ExamItem>,
+    exams: List<Exam>,
     onToggleTimetable: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -118,7 +118,7 @@ fun ExamDayGoodLuck(
                         Icon(Icons.Rounded.CalendarToday, null, tint = p.text, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            examDayLabel(sorted.first().examDate),
+                            examDayLabel(sorted.first().date),
                             color = p.text,
                             fontWeight = FontWeight.Bold,
                             fontSize = AmazeTheme.fontSize.sm
@@ -147,7 +147,7 @@ fun ExamDayGoodLuck(
 }
 
 @Composable
-private fun ExamGoodLuckCard(exam: ExamItem, now: Instant, isLast: Boolean) {
+private fun ExamGoodLuckCard(exam: Exam, now: Instant, isLast: Boolean) {
     val colors = AmazeTheme.colors
     val status = remember(exam, now) { examGoodLuckStatus(exam, now, colors) }
 
@@ -205,7 +205,7 @@ private fun ExamGoodLuckCard(exam: ExamItem, now: Instant, isLast: Boolean) {
 
             Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.5f)))
 
-            ExamDetailRow(icon = Icons.Rounded.AccessTime, label = "Time", value = exam.examTime, color = colors.textPrimary)
+            ExamDetailRow(icon = Icons.Rounded.AccessTime, label = "Time", value = exam.time, color = colors.textPrimary)
             ExamDetailRow(icon = Icons.Rounded.Schedule, label = "Reporting", value = exam.reportingTime, color = colors.chart4)
             ExamDetailRow(icon = Icons.Rounded.Schedule, label = "Session", value = exam.sessionDisplay, color = colors.chart2)
             ExamDetailRow(icon = Icons.Rounded.Place, label = "Venue", value = exam.venue, color = colors.chart3)
@@ -234,9 +234,9 @@ private fun examDayLabel(rawDate: String): String {
     return "$day, ${date.dayOfMonth} $month ${date.year}"
 }
 
-private fun examEndInstant(exam: ExamItem): Instant? {
+private fun examEndInstant(exam: Exam): Instant? {
     val date = exam.examDateParsed ?: return null
-    val range = ExamUtils.parseExamTimeRange(exam.examTime) ?: return null
+    val range = ExamUtils.parseExamTimeRange(exam.time) ?: return null
     return try {
         LocalDateTime(date.year, date.monthNumber, date.dayOfMonth, range.second / 60, range.second % 60, 0, 0)
             .toInstant(TimeZone.currentSystemDefault())
@@ -245,13 +245,13 @@ private fun examEndInstant(exam: ExamItem): Instant? {
     }
 }
 
-private fun isExamFinished(exam: ExamItem, now: Instant): Boolean {
+private fun isExamFinished(exam: Exam, now: Instant): Boolean {
     val end = examEndInstant(exam) ?: return false
     return now >= end
 }
 
 /** Pair(label, color): "Starts in 2h 15m" / "In Progress" / "Done". */
-private fun examGoodLuckStatus(exam: ExamItem, now: Instant, colors: com.amazecc.app.shared.theme.AmazeColors): Pair<String, Color> {
+private fun examGoodLuckStatus(exam: Exam, now: Instant, colors: com.amazecc.app.shared.theme.AmazeColors): Pair<String, Color> {
     val start = ExamUtils.examStartInstant(exam) ?: return "" to colors.textMuted
     val end = examEndInstant(exam)
 

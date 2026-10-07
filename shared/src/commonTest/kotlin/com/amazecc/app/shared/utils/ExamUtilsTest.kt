@@ -176,16 +176,24 @@ class ExamUtilsTest {
         assertEquals(0.5, hours!!, 1e-9)
     }
 
+    /**
+     * Open decision 7: the start is the paper's start, not the reporting time.
+     *
+     * Node's `examSchedule.ts` reads `slotMinutes(examTime)[0] ?? clockMinutes(reportingTime)`,
+     * i.e. exam time first. Kotlin used to prefer the reporting time, which put every countdown * 15 minutes early. Ported deliberately, and this test is what pins the new order.
+     */
     @Test
-    fun examStartFallsBackFromReportingToExamTime() {
-        val withReporting = ExamItem(examDate = "19-Nov-2025", reportingTime = "09:00 AM", examTime = "09:15 AM - 12:30 PM")
-        val withExamTimeOnly = ExamItem(examDate = "19-Nov-2025", examTime = "09:15 AM - 12:30 PM")
+    fun examStartPrefersThePaperTimeOverTheReportingTime() {
+        val both = ExamItem(examDate = "19-Nov-2025", reportingTime = "09:00 AM", examTime = "09:15 AM - 12:30 PM")
+        val examTimeOnly = ExamItem(examDate = "19-Nov-2025", examTime = "09:15 AM - 12:30 PM")
+        val reportingOnly = ExamItem(examDate = "19-Nov-2025", reportingTime = "09:00 AM")
         val neither = ExamItem(examDate = "19-Nov-2025")
-        assertEquals(540, ExamUtils.examStartMinutes(withReporting))
-        assertEquals(555, ExamUtils.examStartMinutes(withExamTimeOnly))
+        assertEquals(555, ExamUtils.examStartMinutes(both))
+        assertEquals(555, ExamUtils.examStartMinutes(examTimeOnly))
+        assertEquals(540, ExamUtils.examStartMinutes(reportingOnly))
         assertNull(ExamUtils.examStartMinutes(neither))
-        assertEquals(instantAt(2025, 11, 19, 9, 0), ExamUtils.examStartInstant(withReporting, tz))
-        assertEquals(instantAt(2025, 11, 19, 9, 15), ExamUtils.examStartInstant(withExamTimeOnly, tz))
+        assertEquals(instantAt(2025, 11, 19, 9, 15), ExamUtils.examStartInstant(both, tz))
+        assertEquals(instantAt(2025, 11, 19, 9, 0), ExamUtils.examStartInstant(reportingOnly, tz))
         assertNull(ExamUtils.examStartInstant(neither, tz))
     }
 

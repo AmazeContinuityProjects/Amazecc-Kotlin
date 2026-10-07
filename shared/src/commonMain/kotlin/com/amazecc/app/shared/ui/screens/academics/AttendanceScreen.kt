@@ -24,17 +24,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.config.SlotMap
-import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.domain.CourseAttendance
+import com.amazecc.app.shared.domain.Exam
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.CalendarMonth
-import com.amazecc.app.shared.model.ExamItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
-import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.theme.AmazeTheme
-import com.amazecc.app.shared.ui.components.ExamDayBanner
-import com.amazecc.app.shared.ui.components.rememberSelectedSemesterExams
 import com.amazecc.app.shared.ui.components.ExamStatusChip
-import com.amazecc.app.shared.ui.components.examStatusText
 import com.amazecc.app.shared.utils.AttendanceDay
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.CourseAttendanceInfo
@@ -165,15 +162,14 @@ fun FreePeriodBlock(title: String, time: String) {
 @Composable
 fun OverallPredictorScreen() {
     val colors = AmazeTheme.colors
-    val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
     val selectedSem by AppState.selectedSemester.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
     val isBusSubscriber by AppState.isBusSubscriber.collectAsState()
 
-    val sem = academic.semesters[selectedSem]
-    val courses = sem?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
+    val courses = Projections.semesterAttendance(domain, selectedSem)
     val calendarMonths = calendarRes?.months ?: emptyList()
-    val semExams = sem?.exams.orEmpty()
+    val semExams = Projections.semesterExams(domain, selectedSem)
     val examSchedule = if (semExams.isEmpty()) emptyMap() else mapOf("selected" to semExams)
 
     var selectedMode by remember { mutableStateOf("LID") }
@@ -182,7 +178,7 @@ fun OverallPredictorScreen() {
     var resetTrigger by remember { mutableStateOf(0) }
 
     val customTarget by AppState.customAttendanceTarget.collectAsState()
-    val targetPct = (customTarget ?: if (isBusSubscriber) 85f else 75f) / 100f
+    val targetPct = AppState.effectiveAttendanceTarget(isBusSubscriber) / 100f
     val targetPctDouble = targetPct * 100.0
 
     val impDates = remember(calendarMonths, examSchedule) {
@@ -437,8 +433,7 @@ private fun AttendancePredictorHeroCard(
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val customTarget by AppState.customAttendanceTarget.collectAsState()
-    val targetPct = if (isBusSubscriber) 85.0 else 75.0
-    val effectiveTarget = customTarget?.toDouble() ?: targetPct
+    val effectiveTarget = AppState.effectiveAttendanceTarget(isBusSubscriber).toDouble()
     val healthLabel = when {
         overallPct >= effectiveTarget -> "Safe Zone"
         overallPct >= 50.0 -> "Watch Zone"
@@ -656,7 +651,7 @@ private fun AttendancePredictorHeroCard(
 }
 
 private data class CoursePrediction(
-    val course: AttendanceItem,
+    val course: CourseAttendance,
     val futureClasses: Int,
     val skipCount: Int,
     val predictedAttended: Int,
@@ -1060,7 +1055,7 @@ fun pctFormatted(value: Double): String {
 
 data class SimpleDate(val month: Int, val day: Int, val year: Int)
 
-fun computeImportantDates(months: List<CalendarMonth>, examSchedule: Map<String, List<ExamItem>> = emptyMap()): Map<String, SimpleDate> {
+fun computeImportantDates(months: List<CalendarMonth>, examSchedule: Map<String, List<Exam>> = emptyMap()): Map<String, SimpleDate> {
     val monthIndex = mapOf(
         "jan" to 1, "feb" to 2, "mar" to 3, "apr" to 4, "may" to 5, "jun" to 6,
         "jul" to 7, "aug" to 8, "sep" to 9, "oct" to 10, "nov" to 11, "dec" to 12
@@ -1118,7 +1113,7 @@ fun computeImportantDates(months: List<CalendarMonth>, examSchedule: Map<String,
     if (!imp.containsKey("cat i") || !imp.containsKey("cat ii") || !imp.containsKey("fat")) {
         for ((_, items) in examSchedule) {
             for (item in items) {
-                val parts = item.examDate.split("-")
+                val parts = item.date.split("-")
                 if (parts.size == 3) {
                     val ey = parts[0].toIntOrNull() ?: continue
                     val em = parts[1].toIntOrNull() ?: continue
@@ -1169,7 +1164,7 @@ fun buildWorkingDays(months: List<CalendarMonth>): List<Triple<Int, Int, Int>> {
 }
 
 private fun computeFutureClasses(
-    courses: List<AttendanceItem>,
+    courses: List<CourseAttendance>,
     dayCardsMap: Map<AttendanceDay, List<CourseAttendanceInfo>>,
     allWorkingDays: List<Triple<Int, Int, Int>>,
     selectedMode: String,
@@ -1248,10 +1243,9 @@ private data class FutureClassInfo(val total: Int, val dates: List<FutureDate> =
 @Composable
 fun TimetableGridScreen() {
     val colors = AmazeTheme.colors
-    val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
     val selectedSem by AppState.selectedSemester.collectAsState()
-    val sem = academic.semesters[selectedSem]
-    val courses = sem?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
+    val courses = Projections.semesterAttendance(domain, selectedSem)
 
     val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT")
     val dayFull = mapOf("MON" to "Monday", "TUE" to "Tuesday", "WED" to "Wednesday", "THU" to "Thursday", "FRI" to "Friday", "SAT" to "Saturday")
@@ -1282,7 +1276,7 @@ fun TimetableGridScreen() {
 
     // Build a map: day -> (slotCode -> courseInfo)
     val daySlotMap = remember(courses, weekDayOverrides) {
-        val map = mutableMapOf<String, MutableMap<String, AttendanceItem>>()
+        val map = mutableMapOf<String, MutableMap<String, CourseAttendance>>()
         for (day in days) {
             map[day] = mutableMapOf()
             val effectiveDay = weekDayOverrides[day]?.name ?: day
@@ -1313,7 +1307,10 @@ fun TimetableGridScreen() {
     }
 
     // Exam data for this week
-    val allExams = rememberSelectedSemesterExams()
+    val selectedExamSem by AppState.selectedExamSemester.collectAsState()
+    val allExams = remember(domain, selectedExamSem) {
+        Projections.selectedSemesterExams(domain, selectedExamSem)
+    }
     val weekExams = remember(allExams, mondayDate) {
         allExams.filter { exam ->
             val date = exam.examDateParsed
@@ -1321,7 +1318,7 @@ fun TimetableGridScreen() {
         }
     }
     val examsByDay = remember(weekExams) {
-        val map = mutableMapOf<String, MutableList<ExamItem>>()
+        val map = mutableMapOf<String, MutableList<Exam>>()
         for (exam in weekExams) {
             val dayOfWeek = exam.examDateParsed?.dayOfWeek?.let {
                 when (it) {
@@ -1494,7 +1491,7 @@ fun TimetableGridScreen() {
                 }
                 val slots = dayTimeSlots[selectedDay] ?: emptyList()
                 val dayExams = examsByDay[selectedDay] ?: emptyList()
-                val examRanges = dayExams.mapNotNull { ExamUtils.parseExamTimeRange(it.examTime) }
+                val examRanges = dayExams.mapNotNull { ExamUtils.parseExamTimeRange(it.time) }
                 items(slots, key = { it.first }) { (slotCode, timeRange) ->
                     val course = daySlotMap[selectedDay]?.get(slotCode)
                     val hasClass = course != null

@@ -61,20 +61,10 @@ data class CourseAttendanceInfo(
 object AttendanceTimetable {
     val ATTENDANCE_DAYS = AttendanceDay.entries.toList()
 
-    fun parseAttendanceTime(timeStr: String): Int {
-        val parts = timeStr.trim().split(":")
-        var h = parts.getOrNull(0)?.filter { it.isDigit() }?.toIntOrNull() ?: 0
-        val m = parts.getOrNull(1)?.filter { it.isDigit() }?.toIntOrNull() ?: 0
-        if (h < 8) h += 12
-        return h * 60 + m
-    }
+    /** Bare slot time -> minutes. Delegates to [TimeMath.toMinutes]; see its KDoc for the format. */
+    fun parseAttendanceTime(timeStr: String): Int = TimeMath.toMinutes(timeStr)
 
-    fun getAttendanceTimeRange(time: String): TimeRange {
-        val parts = time.split("-").map { it.trim() }
-        val start = parts.getOrNull(0)?.let { parseAttendanceTime(it) } ?: 0
-        val end = parts.getOrNull(1)?.let { parseAttendanceTime(it) } ?: 0
-        return TimeRange(start, end)
-    }
+    fun getAttendanceTimeRange(time: String): TimeRange = TimeMath.toRange(time).let { TimeRange(it.first, it.second) }
 
     fun parseMonthNumber(monthStr: String): Int? {
         val m = monthStr.trim().lowercase()
@@ -241,13 +231,10 @@ object AttendanceTimetable {
         return resultMap
     }
 
-    fun currentTimeInMinutes(): Int {
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-        return now.hour * 60 + now.minute
-    }
+    fun currentTimeInMinutes(): Int = TimeMath.nowMinutes()
 
     fun remainingMinutes(timeRange: String): Int {
-        val now = currentTimeInMinutes()
+        val now = TimeMath.nowMinutes()
         val range = getAttendanceTimeRange(timeRange)
         return (range.end - now).coerceAtLeast(0)
     }

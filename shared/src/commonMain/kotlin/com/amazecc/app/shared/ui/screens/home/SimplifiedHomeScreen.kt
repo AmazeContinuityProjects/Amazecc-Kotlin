@@ -56,11 +56,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.ExamItem
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AcademicDerivers
-import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.HomePillStyle
 import com.amazecc.app.shared.state.Screen
@@ -127,6 +127,7 @@ fun SimplifiedHomeScreen() {
 
     // ── State ──
     val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
     val selectedSemester by AppState.selectedSemester.collectAsState()
     val calendar by AppState.calendar.collectAsState()
     val calendarsList by AppState.calendarsList.collectAsState()
@@ -168,7 +169,12 @@ fun SimplifiedHomeScreen() {
         val fromAppState = academic.semesters[selectedSemester]
         fromAppState?.takeIf { it.courses.isNotEmpty() } ?: AcademicDerivers.resolveCurrentSemester(academic)
     }
-    val courses = remember(sem) { sem?.courses?.values?.map { it.toAttendanceItem() }.orEmpty() }
+    // The semester attendance is read for is the one resolved above, which is not always
+    // [selectedSemester]: [AcademicDerivers.resolveCurrentSemester] is the fallback when the
+    // selection names a semester whose course list is empty.
+    val courses = remember(domain, sem) {
+        sem?.let { Projections.semesterAttendance(domain, it.semesterId) }.orEmpty()
+    }
     val timetable = remember(sem) { buildHomeTimetable(sem) }
     val classCounts = remember(timetable) { timetable.mapValues { it.value.size } }
 

@@ -206,6 +206,46 @@ class VtopLogicTest {
         assertTrue(recaptcha.contains(token), "reCAPTCHA token should pass through verbatim")
     }
 
+    // ── Prelogin script shape ───────────────────────────────────────────────
+
+    @Test
+    fun preloginAsksWhetherTheFormIsThereBeforeItAsksWhetherJQueryIsThere() {
+        val script = VtopScripts.PRELOGIN
+        val formCheck = script.indexOf("'stdForm not found'")
+        val jqCheck = script.indexOf("'jQuery absent'")
+        assertTrue(formCheck >= 0, "must still report a missing stdForm")
+        assertTrue(jqCheck >= 0, "must still report missing jQuery")
+        assertTrue(
+            formCheck < jqCheck,
+            "a document that is not VTOP's must not be blamed on jQuery - 'jQuery absent' " +
+                "was all anyone saw when the handshake failed for three unrelated reasons",
+        )
+    }
+
+    @Test
+    fun preloginAttachesEnoughContextToSeparateTheCausesOfJQueryAbsent() {
+        val script = VtopScripts.PRELOGIN
+        // 'jQuery absent' on its own cannot say whether the page never loaded, loaded without
+        // its own scripts, or is a different document entirely - so every branch carries these.
+        for (field in listOf("url:", "title:", "ready:", "body:", "stdForm:", "jqTags:")) {
+            assertTrue(script.contains(field), "diag must carry $field")
+        }
+        assertTrue(
+            script.contains("""document.querySelectorAll('script[src*="/jq/js/"]')"""),
+            "jqTags must count the tags VTOP actually loads jQuery through",
+        )
+    }
+
+    @Test
+    fun preloginSerializesTheLandingFormAndReportsARefusedRequest() {
+        val script = VtopScripts.PRELOGIN
+        assertTrue(script.contains("window.jQuery(form).serialize()"))
+        assertTrue(script.contains("xhr.open('POST', '/vtop/prelogin/setup', false)"))
+        // A refused or timed-out XHR still has status 0 and used to be reported as a success.
+        assertTrue(script.contains("xhr.status === 0"))
+        assertTrue(script.contains("'prelogin network error'"))
+    }
+
     // ── Source selection ────────────────────────────────────────────────────
 
     @Test

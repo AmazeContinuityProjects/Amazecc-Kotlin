@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.vtop
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -9,6 +10,17 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+
+/** `PRELOGIN`'s reason when the page's own jQuery has not run yet. */
+private const val JQUERY_ABSENT = "jQuery absent"
+
+/** Handshake attempts, and the pause between them, while jQuery is the only thing missing. */
+private const val PRELOGIN_ATTEMPTS = 8
+private const val PRELOGIN_RETRY_MS = 400L
+
+/** Page-state probes while the document still has no body at all. */
+private const val PAGE_STATE_ATTEMPTS = 10
+private const val PAGE_STATE_RETRY_MS = 300L
 
 /** The captcha VTOP is currently showing. */
 data class CaptchaChallenge(
@@ -158,11 +170,9 @@ object Vtop {
             VtopPageState.LOGIN -> return runLoginLoop(e, username, password, captchaHandler, maxCaptchaAttempts)
             VtopPageState.LANDING -> {
                 _stage.value = VtopAuthStage.Prelogin
-                val prelogin = parseObject(e.evaluate(VtopScripts.PRELOGIN))
+                val prelogin = awaitPrelogin(e)
                 if (prelogin["ok"]?.jsonPrimitive?.booleanOrNull != true) {
-                    val reason = prelogin["error"]?.jsonPrimitive?.content
-                    val suffix = if (reason.isNullOrBlank()) "" else ": $reason"
-                    return LoginResult.Failure("VTOP prelogin handshake failed$suffix")
+                    return LoginResult.Failure(preloginFailure(prelogin))
                 }
                 _stage.value = VtopAuthStage.LoadingLogin
                 e.load(VtopSession.PATH_LOGIN)
@@ -350,9 +360,59 @@ object Vtop {
     }
 
     private suspend fun awaitPageState(e: VtopEngine): VtopPageState {
-        val obj = parseObject(e.evaluate(VtopScripts.PAGE_STATE))
-        val name = obj["state"]?.jsonPrimitive?.content ?: "UNKNOWN"
-        return runCatching { VtopPageState.valueOf(name) }.getOrDefault(VtopPageState.UNKNOWN)
+        var state = VtopPageState.UNKNOWN
+        repeat(PAGE_STATE_ATTEMPTS) {
+            val obj = parseObject(e.evaluate(VtopScripts.PAGE_STATE))
+            val name = obj["state"]?.jsonPrimitive?.content ?: "UNKNOWN"
+            state = runCatching { VtopPageState.valueOf(name) }.getOrDefault(VtopPageState.UNKNOWN)
+            // Only `BODY_NOT_READY` is a "not yet" rather than an answer: it means the document
+            // has no body at all, which happens when `onPageFinished` beats the parser. Every
+            // other state is a real reading of a real document, so there is nothing to wait for.
+            if (state != VtopPageState.BODY_NOT_READY) return state
+            delay(PAGE_STATE_RETRY_MS)
+        }
+        return state
+    }
+
+    /**
+     * Runs the prelogin handshake, retrying for as long as jQuery is the only thing missing.
+     *
+     * `onPageFinished` can arrive before the document's own
+     * `<script src="/vtop/get/jq/js/1">` has executed, and that script is what defines
+     * `window.jQuery`. The handshake needs `window.jQuery(form).serialize()`, so a first miss
+     * here is a timing miss far more often than a real one. Anything else the script can report
+     * — no `stdForm`, an XHR that never left — says the same thing on the first attempt as on
+     * the last, so those return immediately rather than burn three seconds.
+     */
+    private suspend fun awaitPrelogin(e: VtopEngine): JsonObject {
+        var last = JsonObject(emptyMap())
+        repeat(PRELOGIN_ATTEMPTS) {
+            last = parseObject(e.evaluate(VtopScripts.PRELOGIN))
+            if (last["ok"]?.jsonPrimitive?.booleanOrNull == true) return last
+            if (last["error"]?.jsonPrimitive?.content != JQUERY_ABSENT) return last
+            delay(PRELOGIN_RETRY_MS)
+        }
+        return last
+    }
+
+    /**
+     * The one message a failed handshake produces.
+     *
+     * The `diag` block rides along deliberately. `url` says whether the document is VTOP's at
+     * all, `body` and `jqTags` separate "the page loaded but its scripts did not" from "the page
+     * never loaded", and `ready` says whether the load was still in flight. Without them the
+     * failure is the same three words for every cause.
+     */
+    private fun preloginFailure(obj: JsonObject): String {
+        val reason = obj["error"]?.jsonPrimitive?.content
+            ?: obj["__error"]?.jsonPrimitive?.content
+            ?: "the handshake script returned nothing"
+        val diag = obj["diag"]?.jsonObject?.toString()
+        return if (diag.isNullOrBlank()) {
+            "VTOP prelogin handshake failed: $reason"
+        } else {
+            "VTOP prelogin handshake failed: $reason [$diag]"
+        }
     }
 
     private fun parseObject(raw: String): JsonObject = try {

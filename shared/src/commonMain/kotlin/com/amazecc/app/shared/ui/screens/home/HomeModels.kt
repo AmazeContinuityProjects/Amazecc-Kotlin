@@ -523,9 +523,11 @@ fun HomeWeekDay.contentDescription(classCount: Int): String {
  * The weekday a calendar column belongs to.
  *
  * [AttendanceDay] is declared Monday-first because that is the order the shared
- * [SlotMap] uses, while [DayOfWeek] is declared Sunday-first. Indexing one with
- * the other is the off-by-one that silently shifts the whole timetable, so the
- * mapping is stated once, here, and named for what it does.
+ * [SlotMap] uses. [DayOfWeek] is also Monday-first today - `LocalDate.dayOfWeek.ordinal` is
+ * read as "days elapsed since Monday" here, in `DailyPlanner`, and in `AttendanceScreen` - but
+ * nothing ties the two together: separate enums, different names, and indexing one with the
+ * other would shift the whole timetable the day either declaration changed. So the mapping is
+ * stated once, here, and named for what it does.
  */
 internal fun DayOfWeek.toAttendanceDay(): AttendanceDay = when (this) {
     DayOfWeek.MONDAY -> AttendanceDay.MON
@@ -618,7 +620,7 @@ private fun isInstructionalWord(text: String): Boolean =
 private fun isHolidayWord(text: String): Boolean = HOLIDAY_WORDS.any { text.contains(it) }
 
 private fun eventText(event: CalendarEvent): String =
-    event.text.ifBlank { event.category }.ifBlank { event.type }
+    event.text.ifBlank { event.category }
 
 /**
  * Builds the seven days of the week [weekOffset] weeks from now, Monday first.
@@ -863,7 +865,4 @@ fun homeToday(): LocalDate =
     Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
 
 /** Minutes since midnight, for the live-class clock. */
-fun homeNowMinutes(): Int {
-    val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-    return now.hour * 60 + now.minute
-}
+fun homeNowMinutes(): Int = TimeMath.nowMinutes()
