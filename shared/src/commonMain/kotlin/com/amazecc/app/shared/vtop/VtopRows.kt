@@ -38,7 +38,7 @@ data class VtopRows(
             } ?: return VtopRows(ok = false, error = "unparseable response")
 
             if (root.str("ok") != "true") {
-                return VtopRows(ok = false, error = root.str("error"))
+                return VtopRows(ok = false, error = root.str("error") ?: root.str("__error"))
             }
 
             val rows = (root["rows"] as? JsonArray).orEmpty().mapNotNull { rowEl ->
@@ -90,7 +90,7 @@ data class VtopMarksResult(
             } ?: return VtopMarksResult(ok = false, error = "unparseable response")
 
             if (root.str("ok") != "true") {
-                return VtopMarksResult(ok = false, error = root.str("error"))
+                return VtopMarksResult(ok = false, error = root.str("error") ?: root.str("__error"))
             }
 
             val courses = (root["courses"] as? JsonArray).orEmpty().mapNotNull { el ->

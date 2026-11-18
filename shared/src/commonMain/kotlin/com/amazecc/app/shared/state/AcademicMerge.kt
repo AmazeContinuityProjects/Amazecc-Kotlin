@@ -29,87 +29,57 @@ object AcademicMerge {
     private fun creditsOf(raw: String?): Double? =
         raw?.trim()?.toDoubleOrNull()?.takeIf { it > 0.0 }
 
+    /** `"L31+L32"` → `["L31", "L32"]`. VTOP writes a course's slots `+`-separated. */
     private fun slotTokens(raw: String?): List<String> =
         raw.orEmpty().split("+").map { it.trim() }.filter { it.isNotEmpty() }
 
     /**
-     * Folds a theory half and a lab half of one embedded course into a single entry.
+     * Whether a row is the lab half of its course.
      *
-     * Marks are combined by **credit weight**, not summed. A 3-credit theory half and a
-     * 2-credit lab half give `(theoryTotal * 3 + labTotal * 2) / 5`; adding the two totals
-     * together would report a mark out of 200 against a max of 100. When the credit split is
-     * unknown the plain mean is used rather than silently guessing a ratio.
+     * Node's rule, verbatim (`CourseDetailSubpage.tsx:173`): the type cell says "lab", or the slot
+     * starts with an L. That is deliberately weaker than [VtopCourseCode.componentOf] - it does not
+     * need to tell an *embedded* lab from a *lab-only* course, because both belong on the lab side
+     * of the card; only whether a course has a counterpart matters, and that is decided when the
+     * two rows are read back together.
      *
-     * Attendance is summed rather than weighted — class counts add, and the percentage is
-     * recomputed from the combined totals.
+     * Public because attendance has to make the same call from the other end: the timetable row and
+     * the attendance row for one half are matched on it, and matching them on the base code alone
+     * pairs both timetable rows with the same attendance row and loses the lab's numbers.
      */
-    private fun mergeEmbeddedPair(
-        theory: StoredCourse,
-        lab: StoredCourse,
-        theoryMarks: StoredMarks?,
-        labMarks: StoredMarks?
-    ): StoredCourse {
-        val tCredits = creditsOf(theory.credits)
-        val lCredits = creditsOf(lab.credits)
-        val totalCredits = (tCredits ?: 0.0) + (lCredits ?: 0.0)
+    fun isLabRow(courseType: String?, slot: String?): Boolean =
+        courseType?.contains("lab", ignoreCase = true) == true ||
+            slotTokens(slot).firstOrNull()?.startsWith("L", ignoreCase = true) == true
 
-        val tTotal = theoryMarks?.totalMark
-        val lTotal = labMarks?.totalMark
-        val tMax = theoryMarks?.maxMark
-        val lMax = labMarks?.maxMark
+    /**
+     * The store key for one half of a course.
+     *
+     * An embedded course is two rows - `BACSE105` and `BACSE105(L)` - and the lab half needs its
+     * own key because [com.amazecc.app.shared.state.SemesterData.courses] is a map. Every reader
+     * already folds the two back together: `VtopCourseCode.base` strips the marker,
+     * `buildCourseGroups` groups on the stripped code, and `findCourseGroup` matches on it.
+     *
+     * This is the arrangement Node uses, in a map keyed by base code with `theory`/`lab` inside
+     * each entry (`CourseDetailSubpage.tsx:174-186`). The halves are never summed there, which is
+     * why `CoursePredictorHero` can print `{theoryCredits}T + {labCredits}L` and why
+     * `isEmbedded = theory && lab` is meaningful.
+     */
+    internal fun halfKey(base: String, isLab: Boolean): String =
+        if (isLab && base.isNotEmpty()) "$base$L_MARKER" else base
 
-        val combinedTotal: Double?
-        val combinedMax: Double?
-        if (tTotal != null && lTotal != null) {
-            combinedTotal = if (totalCredits > 0.0) {
-                (tTotal * (tCredits ?: 0.0) + lTotal * (lCredits ?: 0.0)) / totalCredits
-            } else {
-                (tTotal + lTotal) / 2.0
-            }
-            combinedMax = if (totalCredits > 0.0) {
-                ((tMax ?: 0.0) * (tCredits ?: 0.0) + (lMax ?: 0.0) * (lCredits ?: 0.0)) / totalCredits
-            } else {
-                ((tMax ?: 0.0) + (lMax ?: 0.0)) / 2.0
-            }
-        } else {
-            combinedTotal = tTotal ?: lTotal
-            combinedMax = tMax ?: lMax
-        }
+    /** True for a key produced by [halfKey] for the lab half. */
+    internal fun isLabKey(key: String): Boolean =
+        key.endsWith(L_MARKER) && key.length > L_MARKER.length
 
-        val attendance = mergeAttendance(theory.attendance, lab.attendance)
+    private const val L_MARKER = "(L)"
 
-        return StoredCourse(
-            courseCode = theory.courseCode.ifBlank { lab.courseCode },
-            courseTitle = theory.courseTitle.ifBlank { lab.courseTitle },
-            courseType = "${VtopComponent.ETH.label} + ${VtopComponent.ELA.label}",
-            category = theory.category ?: lab.category,
-            credits = if (totalCredits > 0.0) trimNumber(totalCredits) else (theory.credits ?: lab.credits),
-            classId = theory.classId ?: lab.classId,
-            slots = (theory.slots + lab.slots).distinct(),
-            venue = theory.venue ?: lab.venue,
-            faculty = theory.faculty?.takeIf { it.isNotBlank() } ?: lab.faculty,
-            courseSystem = theory.courseSystem ?: lab.courseSystem,
-            attendance = attendance,
-            marks = if (theoryMarks == null && labMarks == null) null else combineMarks(
-                theoryMarks, labMarks, combinedTotal, combinedMax
-            ),
-            grade = theory.grade ?: lab.grade
-        )
-    }
-
-    private fun combineMarks(
-        theory: StoredMarks?,
-        lab: StoredMarks?,
-        total: Double?,
-        max: Double?
-    ): StoredMarks = StoredMarks(
-        classNbr = theory?.classNbr ?: lab?.classNbr,
-        assessments = (theory?.assessments.orEmpty() + lab?.assessments.orEmpty()),
-        totalMark = total,
-        maxMark = max,
-        mergedFrom = "${VtopComponent.ETH.label}+${VtopComponent.ELA.label}"
-    )
-
+    /**
+     * Combines two reports of the *same* half.
+     *
+     * Class counts add because they are the same classes counted twice - two endpoints reporting
+     * one course. This is not the same operation as combining an embedded pair, which is why that
+     * no longer happens here: an ETH half and an ELA half are different classes, and folding them
+     * into one row is what erased the lab.
+     */
     private fun mergeAttendance(a: StoredAttendance?, b: StoredAttendance?): StoredAttendance? {
         if (a == null) return b
         if (b == null) return a
@@ -151,7 +121,7 @@ object AcademicMerge {
     fun normalizeEmbeddedKeys(snapshot: AppDataSnapshot): AppDataSnapshot {
         val academic = snapshot.academic
         val needsWork = academic.semesters.any { (_, sem) ->
-            sem.courses.keys.any { VtopCourseCode.base(it) != it }
+            sem.courses.keys.any { canonicalHalfKey(it) != it }
         }
         if (!needsWork) return snapshot
 
@@ -161,26 +131,39 @@ object AcademicMerge {
             val courses = sem.courses.toMutableMap()
 
             for (oldKey in courses.keys.toList()) {
-                val newKey = VtopCourseCode.base(oldKey)
+                val newKey = canonicalHalfKey(oldKey)
                 if (newKey.isEmpty() || newKey == oldKey) continue
-                // Mark the change here. `changed` used to be set only by the removeIf() below,
-                // but by the time that runs the re-key loop has already collapsed the map, so it
-                // found nothing to remove and the function returned the *original* snapshot -
-                // the migration was computed and then thrown away, leaving every legacy
-                // "(L)"/"(T)" row orphaned.
+                // `changed` used to be set only by the removeIf() below, but by the time that runs
+                // the re-key loop has already collapsed the map, so it found nothing to remove and
+                // the function returned the *original* snapshot - the migration was computed and
+                // then thrown away, leaving every legacy row orphaned.
                 changed = true
                 val course = courses.remove(oldKey) ?: continue
+                // Two rows of one course stay two rows, keyed theory-then-lab. They used to be
+                // folded into a single summed row here, which is the migration that lost the lab.
                 val target = courses[newKey]
                 courses[newKey] = if (target == null) {
                     course.copy(courseCode = newKey)
                 } else {
-                    val theory = if (VtopCourseCode.suffixOf(oldKey) == "L") target else course
-                    val lab = if (VtopCourseCode.suffixOf(oldKey) == "L") course else target
-                    mergeEmbeddedPair(theory, lab, theory.marks, lab.marks)
+                    // Keep whichever row knows more; never average or sum their numbers.
+                    target.copy(
+                        courseTitle = target.courseTitle.ifBlank { course.courseTitle },
+                        courseType = target.courseType.ifBlank { course.courseType },
+                        faculty = target.faculty?.takeIf { it.isNotBlank() } ?: course.faculty,
+                        venue = target.venue ?: course.venue,
+                        category = target.category ?: course.category,
+                        classId = target.classId ?: course.classId,
+                        courseSystem = target.courseSystem ?: course.courseSystem,
+                        credits = target.credits ?: course.credits,
+                        slots = (target.slots + course.slots).distinct(),
+                        attendance = mergeAttendance(target.attendance, course.attendance),
+                        marks = target.marks ?: course.marks,
+                        grade = target.grade ?: course.grade
+                    )
                 }
             }
             val before = courses.size
-            courses.keys.removeIf { VtopCourseCode.base(it) != it }
+            courses.keys.removeIf { canonicalHalfKey(it) != it }
             if (courses.size != before) changed = true
             sem.copy(courses = courses)
         }
@@ -188,50 +171,61 @@ object AcademicMerge {
         return snapshot.copy(academic = academic.copy(semesters = semesters))
     }
 
+    /**
+     * The one canonical store key for a course or one of its halves.
+     *
+     * Normalises every spelling the app has ever written - `BACSE106L`, `BACSE106 (L)`,
+     * `BACSE106(T)` - onto either the bare code or the bare code plus `(L)`, so a lab half is
+     * never written under a key a reader cannot pair it with.
+     */
+    internal fun canonicalHalfKey(raw: String?): String {
+        val text = raw.orEmpty()
+        val base = VtopCourseCode.base(text)
+        if (base.isEmpty()) return ""
+        val suffix = VtopCourseCode.suffixOf(text)
+        // Only the lab marker survives. A "(T)" marker is redundant - the bare key is the theory
+        // half - and "(P)" is how a project row was written, which pairs with nothing. With no
+        // marker, fall back to how VTOP wrote the code: `BACSE102L` is a lab, `BACSE101` is not.
+        val isLab = suffix == "L" ||
+            (suffix == null && VtopCourseCode.componentOf(text).isLab)
+        return halfKey(base, isLab)
+    }
+
     fun upsertAttendance(academic: AcademicData, semesterId: String, res: AttendanceRes?): AcademicData {
         val cleaned = AppSanitizers.sanitizeAttendance(res) ?: return academic
         val items = cleaned.attendance.orEmpty()
         return updateSemester(academic, semesterId) { sem ->
             val courses = sem.courses.mapValues { (_, c) -> c.copy(attendance = null) }.toMutableMap()
-            // Group by bare code: an embedded course arrives as two rows (ETH + ELA) and must be
-            // folded onto one key, or the second overwrites the first.
-            for ((key, group) in items.groupBy { VtopCourseCode.base(it.courseCode) }) {
-                if (key.isEmpty()) continue
+            // An embedded course arrives as two rows and each keeps its own key, its own slot and
+            // its own class counts. Summing them here is what made the lab half unrepresentable:
+            // once 24/27 and 18/20 have become 42/47 there is nothing left to pair at read time.
+            for (item in items) {
+                val base = VtopCourseCode.base(item.courseCode)
+                if (base.isEmpty()) continue
+                val key = halfKey(base, isLabRow(item.courseType, item.slotName))
                 val existing = courses[key]
-
-                var attendance = existing?.attendance
-                for (item in group) {
-                    attendance = mergeAttendance(
-                        attendance,
-                        StoredAttendance(
-                            attendedClasses = item.attendedClasses,
-                            totalClasses = item.totalClasses,
-                            attendancePercentage = item.attendancePercentage,
-                            logs = item.logs
-                        )
-                    )
-                }
-
-                // Credits add across an embedded pair rather than one half winning.
-                val creditValues = group.mapNotNull { creditsOf(it.credits) }
-                val credits = when {
-                    creditValues.isEmpty() -> existing?.credits
-                    creditValues.size == 1 -> group.firstNotNullOfOrNull { it.credits }
-                    else -> trimNumber(creditValues.sum())
-                }
+                val incoming = StoredAttendance(
+                    attendedClasses = item.attendedClasses,
+                    totalClasses = item.totalClasses,
+                    attendancePercentage = item.attendancePercentage,
+                    logs = item.logs
+                )
+                // Two rows can share a half (the same course reported by attendance and by the
+                // detail page); summing those is correct, unlike summing across halves.
+                val attendance = mergeAttendance(existing?.attendance, incoming)
 
                 courses[key] = (existing ?: StoredCourse(courseCode = key)).copy(
                     courseCode = key,
                     courseTitle = existing?.courseTitle?.takeIf { it.isNotBlank() }
-                        ?: group.firstOrNull { it.courseTitle.isNotBlank() }?.courseTitle.orEmpty(),
+                        ?: item.courseTitle.ifBlank { base },
                     courseType = existing?.courseType?.takeIf { it.isNotBlank() }
-                        ?: group.firstOrNull { it.courseType.isNotBlank() }?.courseType.orEmpty(),
-                    category = existing?.category ?: group.firstNotNullOfOrNull { it.category },
-                    credits = credits ?: existing?.credits,
-                    slots = (existing?.slots.orEmpty() + group.flatMap { slotTokens(it.slotName) }).distinct(),
-                    venue = existing?.venue ?: group.firstNotNullOfOrNull { it.slotVenue },
+                        ?: item.courseType.ifBlank { VtopCourseCode.componentOf(null, item.slotName).label },
+                    category = existing?.category ?: item.category,
+                    credits = item.credits ?: existing?.credits,
+                    slots = (existing?.slots.orEmpty() + slotTokens(item.slotName)).distinct(),
+                    venue = existing?.venue ?: item.slotVenue,
                     faculty = existing?.faculty?.takeIf { it.isNotBlank() }
-                        ?: group.firstOrNull { it.faculty.isNotBlank() }?.faculty.orEmpty(),
+                        ?: item.faculty.ifBlank { null },
                     attendance = attendance
                 )
             }
@@ -244,37 +238,16 @@ object AcademicMerge {
         return updateSemester(academic, semesterId) { sem ->
             val courses = sem.courses.mapValues { (_, c) -> c.copy(marks = null) }.toMutableMap()
 
-            val groups = cleaned.courses.groupBy { VtopCourseCode.base(it.courseCode) }
-            for ((key, group) in groups) {
-                if (key.isEmpty()) continue
+            // Each row keeps its own key. A course whose lab half has no marks row this term keeps
+            // the lab half that attendance and timetable put there - marks fills a half in, it does
+            // not decide which halves exist.
+            for (item in cleaned.courses) {
+                val base = VtopCourseCode.base(item.courseCode)
+                if (base.isEmpty()) continue
+                val key = halfKey(base, isLabRow(item.courseType, item.slot))
                 val existing = courses[key]
-
-                val theory = group.firstOrNull { !componentOf(it.courseType, it.slot).isLab }
-                val lab = group.firstOrNull { componentOf(it.courseType, it.slot).isLab }
-
-                val built = if (theory != null && lab != null) {
-                    mergeEmbeddedPair(
-                        theory = theory.toStoredCourse(key, existing),
-                        lab = lab.toStoredCourse(key, existing),
-                        theoryMarks = theory.toStoredMarks(),
-                        labMarks = lab.toStoredMarks()
-                    )
-                } else {
-                    val only = group.first()
-                    (existing ?: StoredCourse(courseCode = key)).copy(
-                        courseTitle = only.courseTitle.ifBlank { existing?.courseTitle.orEmpty() },
-                        courseType = only.courseType.ifBlank { existing?.courseType.orEmpty() },
-                        courseSystem = only.courseSystem.ifBlank { existing?.courseSystem.orEmpty() },
-                        faculty = only.faculty.ifBlank { existing?.faculty.orEmpty() },
-                        slots = (existing?.slots.orEmpty() + slotTokens(only.slot)).distinct(),
-                        credits = creditsOf(only.credits)?.let(::trimNumber) ?: existing?.credits,
-                        marks = only.toStoredMarks()
-                    )
-                }
-
-                courses[key] = built.copy(
-                    courseCode = key,
-                    credits = built.credits ?: existing?.credits
+                courses[key] = item.toStoredCourse(key, existing).copy(
+                    credits = creditsOf(item.credits)?.let(::trimNumber) ?: existing?.credits
                 )
             }
 
@@ -287,12 +260,16 @@ object AcademicMerge {
         key: String,
         existing: StoredCourse?
     ) = (existing ?: StoredCourse(courseCode = key)).copy(
-        courseTitle = courseTitle,
-        courseType = courseType,
+        courseTitle = courseTitle.ifBlank { existing?.courseTitle.orEmpty() },
+        courseType = courseType.ifBlank { existing?.courseType.orEmpty() },
         courseSystem = courseSystem.ifBlank { existing?.courseSystem.orEmpty() },
         faculty = faculty.ifBlank { existing?.faculty.orEmpty() },
-        slots = slotTokens(slot),
-        credits = credits
+        // Marks contributes slots to a half, never replaces them: attendance and timetable have
+        // usually reported this course's slot first and are the authoritative source for it.
+        slots = (existing?.slots.orEmpty() + slotTokens(slot)).distinct(),
+        credits = credits ?: existing?.credits,
+        classId = classNbr.ifBlank { existing?.classId } ?: existing?.classId,
+        marks = toStoredMarks()
     )
 
     private fun com.amazecc.app.shared.model.MarksCourseItem.toStoredMarks(): StoredMarks = StoredMarks(
@@ -308,8 +285,12 @@ object AcademicMerge {
         return updateSemester(academic, semesterId) { sem ->
             val courses = sem.courses.mapValues { (_, c) -> c.copy(grade = null) }.toMutableMap()
             for (g in items) {
-                val key = VtopCourseCode.base(g.courseCode)
-                if (key.isEmpty()) continue
+                val base = VtopCourseCode.base(g.courseCode)
+                if (base.isEmpty()) continue
+                // A grade is reported once per course, not once per half. When the row does carry
+                // a component it belongs on that half; otherwise it lands on the theory half, which
+                // is where `CourseGroup.grade` reads it from.
+                val key = if (isLabRow(g.courseType, null)) halfKey(base, true) else base
                 val existing = courses[key]
                 courses[key] = (existing ?: StoredCourse(courseCode = key)).copy(
                     courseCode = key,
@@ -353,8 +334,11 @@ object AcademicMerge {
             // Bare code: the timetable contributes identity and slots only, and an embedded
             // course's ETH and ELA rows both fold onto the one key.
             for (info in cleaned.courseInfo.orEmpty()) {
-                val key = VtopCourseCode.base(info.courseCode ?: continue)
-                if (key.isEmpty()) continue
+                val base = VtopCourseCode.base(info.courseCode ?: continue)
+                if (base.isEmpty()) continue
+                // Same rule as the other two upserts: an embedded course's ETH and ELA rows are
+                // two halves, so the slot belongs to the half it was scheduled for.
+                val key = halfKey(base, isLabRow(info.category, info.slotVenue))
                 val (slotPart, venue) = AcademicDerivers.splitSlotVenue(info.slotVenue)
                 val slotCodes = slotPart?.split("+").orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
                     // VTOP sends LTPJC space separated with a trailing decimal - e.g.

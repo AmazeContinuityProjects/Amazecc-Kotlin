@@ -62,7 +62,11 @@ private data class AttendanceSyncResponse(
 )
 
 object AmazeClient {
-    val baseUrl = "https://api.amazecc.com"
+    var baseUrl: String
+        get() = SettingsManager.getString(SettingsManager.KEY_HONO_API_URL, "https://hono.amazecc.com").ifBlank { "https://hono.amazecc.com" }
+        set(value) {
+            SettingsManager.setString(SettingsManager.KEY_HONO_API_URL, value)
+        }
     private var useMockData = false // Toggle for offline testing
 
     /**
@@ -97,8 +101,36 @@ object AmazeClient {
         }
     }
 
-    suspend fun login(username: String, password: String, captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler? = null): LoginResponse {
+    suspend fun pingHealth(): Pair<Boolean, Long> {
+        return try {
+            val start = Clock.System.now().toEpochMilliseconds()
+            val response: HttpResponse = httpClient.get("$baseUrl/api/health")
+            val elapsed = Clock.System.now().toEpochMilliseconds() - start
+            Pair(response.status.value in 200..299, elapsed)
+        } catch (_: Exception) {
+            Pair(false, -1L)
+        }
+    }
+
+    suspend fun login(
+        username: String,
+        password: String,
+        captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler = com.amazecc.app.shared.vtop.CaptchaHandler { challenge ->
+            com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha(challenge)
+        }
+    ): LoginResponse {
         if (useMockData) return DemoData.get("login", LoginResponse.serializer()) ?: LoginResponse(success = true, message = "Demo login successful")
+
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            val regNo = com.amazecc.app.shared.state.UserStore.identity.value.regNo.takeIf { !it.isNullOrBlank() } ?: username
+            return LoginResponse(
+                success = true,
+                message = "Offline Cache Login",
+                authorizedID = regNo,
+                cookies = "offline_cache",
+                csrf = "offline_cache"
+            )
+        }
 
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return loginLocal(username, password, captchaHandler)
@@ -127,10 +159,12 @@ object AmazeClient {
      * shape the remote path does, so callers are unchanged. The cookie field carries
      * [SessionManager.LOCAL_SESSION_MARKER] because the real `JSESSIONID` stays in the WebView.
      */
-    private suspend fun loginLocal(
+    internal suspend fun loginLocal(
         username: String,
         password: String,
-        captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler?
+        captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler = com.amazecc.app.shared.vtop.CaptchaHandler { challenge ->
+            com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha(challenge)
+        }
     ): LoginResponse {
         if (!com.amazecc.app.shared.vtop.Vtop.isSupported) {
             return LoginResponse(
@@ -175,47 +209,225 @@ object AmazeClient {
     private suspend inline fun <reified T> postAuthorized(endpoint: String, extraParams: Map<String, String> = emptyMap()): T? {
         // In LOCAL mode the real JSESSIONID lives in the WebView cookie jar and was never
         // meant to leave the device. There is nothing valid to send.
-        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) return null
+        if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
         if (!SessionManager.hasRemoteCookies) return null
         val cookies = SessionManager.cookies.value ?: return null
         val authorizedID = SessionManager.authorizedID.value ?: return null
         val csrf = SessionManager.csrf.value ?: return null
 
-        val response: HttpResponse = httpClient.post("$baseUrl/api/$endpoint") {
-            contentType(ContentType.Application.Json)
-            setBody(buildJsonObject {
-                put("cookies", cookies)
-                put("authorizedID", authorizedID)
-                put("csrf", csrf)
-                extraParams.forEach { (k, v) -> put(k, v) }
-            })
-        }
-        return if (response.status == HttpStatusCode.OK) {
-            jsonConfig.decodeFromString<T>(response.bodyAsText())
-        } else {
+        return try {
+            val response: HttpResponse = httpClient.post("$baseUrl/api/$endpoint") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("cookies", cookies)
+                    put("authorizedID", authorizedID)
+                    put("csrf", csrf)
+                    extraParams.forEach { (k, v) -> put(k, v) }
+                })
+            }
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString<T>(response.bodyAsText())
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            // DNS resolution failure (e.g. UnknownHostException for hono.amazecc.com), timeout, or offline
             null
         }
     }
 
     private suspend inline fun <reified T> postAuthorizedBody(endpoint: String, body: String): T? {
-        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) return null
+        if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
         if (!SessionManager.hasRemoteCookies) return null
         val cookies = SessionManager.cookies.value ?: return null
         val authorizedID = SessionManager.authorizedID.value ?: return null
         val csrf = SessionManager.csrf.value ?: return null
-        val response: HttpResponse = httpClient.post("$baseUrl/api/$endpoint") {
-            contentType(ContentType.Application.Json)
-            setBody(buildJsonObject {
-                put("cookies", cookies)
-                put("authorizedID", authorizedID)
-                put("csrf", csrf)
-                val parsed = Json.parseToJsonElement(body).jsonObject
-                parsed.forEach { (k, v) -> put(k, v) }
-            })
+        return try {
+            val response: HttpResponse = httpClient.post("$baseUrl/api/$endpoint") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("cookies", cookies)
+                    put("authorizedID", authorizedID)
+                    put("csrf", csrf)
+                    val parsed = Json.parseToJsonElement(body).jsonObject
+                    parsed.forEach { (k, v) -> put(k, v) }
+                })
+            }
+            if (response.status == HttpStatusCode.OK) {
+                jsonConfig.decodeFromString<T>(response.bodyAsText())
+            } else null
+        } catch (e: Exception) {
+            null
         }
-        return if (response.status == HttpStatusCode.OK) {
-            jsonConfig.decodeFromString<T>(response.bodyAsText())
-        } else null
+    }
+
+
+    // ── Offline-First Local Cache Fallbacks ──────────────────────────────────
+
+    fun fallbackCachedTimetable(semesterId: String?): TimetableRes? {
+        val academic = com.amazecc.app.shared.state.AppDataStore.academic.value
+        val sem = (if (semesterId != null) academic.semesters[semesterId] else null)
+            ?: academic.semesters.values.firstOrNull()
+            ?: return null
+        if (sem.courses.isEmpty()) return null
+        val courses = sem.courses.values.mapIndexed { index, c ->
+            com.amazecc.app.shared.state.TimetableCourseInfo(
+                slNo = (index + 1).toString(),
+                course = c.courseTitle,
+                courseCode = c.courseCode,
+                LTPJC = c.credits.orEmpty(),
+                category = c.category.orEmpty(),
+                classId = c.classId.orEmpty(),
+                slotVenue = c.venue.orEmpty(),
+                facultyDetails = c.faculty.orEmpty()
+            )
+        }
+        com.amazecc.app.shared.state.AppState.markServedFromCache("Timetable")
+        return TimetableRes(
+            success = true,
+            semesterId = sem.semesterId,
+            courseInfo = courses,
+            message = "Served from local cache"
+        )
+    }
+
+    fun fallbackCachedMarks(semesterId: String?): MarksRes? {
+        val academic = com.amazecc.app.shared.state.AppDataStore.academic.value
+        val sem = (if (semesterId != null) academic.semesters[semesterId] else null)
+            ?: academic.semesters.values.firstOrNull()
+            ?: return null
+        val marksCourses = sem.courses.values.mapNotNull { c ->
+            val m = c.marks ?: return@mapNotNull null
+            MarksCourseItem(
+                classNbr = m.classNbr.orEmpty(),
+                courseCode = c.courseCode,
+                courseTitle = c.courseTitle,
+                courseType = c.courseType,
+                faculty = c.faculty.orEmpty(),
+                slot = c.slots.joinToString("+"),
+                credits = c.credits.orEmpty(),
+                assessments = m.assessments
+            )
+        }
+        if (marksCourses.isEmpty()) return null
+        com.amazecc.app.shared.state.AppState.markServedFromCache("Marks")
+        return MarksRes(
+            success = true,
+            courses = marksCourses,
+            cgpa = sem.gpa?.let { CGPAResult(cgpa = it) },
+            message = "Served from local cache"
+        )
+    }
+
+    fun fallbackCachedAttendance(semesterId: String?): AttendanceRes? {
+        val academic = com.amazecc.app.shared.state.AppDataStore.academic.value
+        val sem = (if (semesterId != null) academic.semesters[semesterId] else null)
+            ?: academic.semesters.values.firstOrNull()
+            ?: return null
+        val items = sem.courses.values.mapNotNull { c ->
+            val att = c.attendance ?: return@mapNotNull null
+            AttendanceItem(
+                courseCode = c.courseCode,
+                courseTitle = c.courseTitle,
+                courseType = c.courseType,
+                slotName = c.slots.joinToString("+"),
+                faculty = c.faculty.orEmpty(),
+                attendedClasses = att.attendedClasses,
+                totalClasses = att.totalClasses,
+                attendancePercentage = att.attendancePercentage,
+                logs = att.logs,
+                credits = c.credits,
+                slotVenue = c.venue,
+                category = c.category
+            )
+        }
+        if (items.isEmpty()) return null
+        com.amazecc.app.shared.state.AppState.markServedFromCache("Attendance")
+        return AttendanceRes(
+            success = true,
+            semesterId = sem.semesterId,
+            attendance = items,
+            message = "Served from local cache"
+        )
+    }
+
+    fun fallbackCachedExamSchedule(semesterId: String?): ExamScheduleRes? {
+        val academic = com.amazecc.app.shared.state.AppDataStore.academic.value
+        val sem = (if (semesterId != null) academic.semesters[semesterId] else null)
+            ?: academic.semesters.values.firstOrNull()
+            ?: return null
+        if (sem.exams.isEmpty()) return null
+        com.amazecc.app.shared.state.AppState.markServedFromCache("Exam Schedule")
+        return ExamScheduleRes(
+            success = true,
+            rawScheduleUpper = mapOf("EXAM" to sem.exams),
+            message = "Served from local cache"
+        )
+    }
+
+    fun fallbackCachedStudentProfile(): StudentProfileRes? {
+        val identity = com.amazecc.app.shared.state.UserStore.identity.value
+        if (identity.regNo.isNullOrBlank() && identity.name.isNullOrBlank()) return null
+        val profile = StudentProfile(
+            regNo = identity.regNo.orEmpty(),
+            name = identity.name.orEmpty(),
+            email = identity.email.orEmpty(),
+            mobile = identity.mobile.orEmpty(),
+            program = identity.program.orEmpty(),
+            campus = identity.campus.orEmpty(),
+            advisorName = identity.proctor?.name
+        )
+        com.amazecc.app.shared.state.AppState.markServedFromCache("Profile")
+        return StudentProfileRes(
+            success = true,
+            data = profile,
+            message = "Served from local cache"
+        )
+    }
+
+    fun fallbackCachedAllGrades(): AllGradesRes {
+        val academic = com.amazecc.app.shared.state.AppDataStore.academic.value
+        val semesterId = com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value.orEmpty()
+        val sem = (if (semesterId.isNotBlank()) academic.semesters[semesterId] else null)
+            ?: academic.semesters.values.firstOrNull()
+        val gradeRows = sem?.courses?.values?.mapNotNull { c ->
+            val g = c.grade ?: return@mapNotNull null
+            val gradeLetter = g.grade ?: return@mapNotNull null
+            com.amazecc.app.shared.model.GradeItem(
+                courseTitle = c.courseTitle,
+                courseType = c.courseType,
+                grade = gradeLetter,
+                grandTotal = ""
+            )
+        }.orEmpty()
+        com.amazecc.app.shared.state.AppState.markServedFromCache("Grade History")
+        return AllGradesRes(
+            success = true,
+            grades = mapOf(semesterId to com.amazecc.app.shared.model.SemesterGradeResult(grades = gradeRows)),
+            message = "Served from local cache"
+        )
+    }
+
+    fun fallbackCachedGrades(semesterId: String?): SemesterGradesRes? {
+        val academic = com.amazecc.app.shared.state.AppDataStore.academic.value
+        val sem = (if (semesterId != null) academic.semesters[semesterId] else null)
+            ?: academic.semesters.values.firstOrNull()
+            ?: return null
+        val effectiveRows = sem.courses.values.mapNotNull { c ->
+            val g = c.grade ?: return@mapNotNull null
+            com.amazecc.app.shared.model.EffectiveGradeCourse(
+                basketTitle = "${c.courseCode} - ${c.courseTitle}",
+                courseType = c.courseType,
+                creditsEarned = c.credits,
+                grade = g.grade
+            )
+        }
+        if (effectiveRows.isEmpty()) return null
+        com.amazecc.app.shared.state.AppState.markServedFromCache("Grades")
+        return SemesterGradesRes(
+            success = true,
+            effectiveGrades = effectiveRows
+        )
     }
 
     suspend fun getAcademicData(semesterId: String? = null): AcademicSyncResult {
@@ -227,91 +439,219 @@ object AmazeClient {
                 marks = marks
             )
         }
+        val semester = semesterId ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            val cachedAtt = fallbackCachedAttendance(semesterId)
+                ?: AttendanceRes(success = true, semesterId = semesterId ?: "", message = "Served from local cache")
+            val cachedMarks = fallbackCachedMarks(semesterId)
+            return AcademicSyncResult(attendance = cachedAtt, marks = cachedMarks)
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
-                val semester = semesterId
-                    ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value
-                    ?: return AcademicSyncResult(AttendanceRes(success = false, error = "No semester selected"))
-                AcademicSyncResult(
-                    attendance = com.amazecc.app.shared.vtop.VtopDataSource.fetchAttendance(semester),
-                    // The server folded marks into the attendance response; reproduce that so
-                    // callers reading `marksRes` off one round trip still work.
-                    marks = com.amazecc.app.shared.vtop.VtopDataSource.fetchMarks(semester)
-                )
+                if (semester == null) {
+                    val cachedAtt = fallbackCachedAttendance(semesterId)
+                    val cachedMarks = fallbackCachedMarks(semesterId)
+                    return if (cachedAtt != null) AcademicSyncResult(cachedAtt, cachedMarks)
+                    else AcademicSyncResult(AttendanceRes(success = false, error = "No semester selected"))
+                }
+                val att = com.amazecc.app.shared.vtop.VtopDataSource.fetchAttendance(semester)
+                val marks = com.amazecc.app.shared.vtop.VtopDataSource.fetchMarks(semester)
+                if (att.success && att.attendance?.isNotEmpty() == true) {
+                    AcademicSyncResult(attendance = att, marks = marks ?: fallbackCachedMarks(semester))
+                } else {
+                    val cachedAtt = fallbackCachedAttendance(semester)
+                    val cachedMarks = marks ?: fallbackCachedMarks(semester)
+                    if (cachedAtt != null) AcademicSyncResult(attendance = cachedAtt, marks = cachedMarks)
+                    else AcademicSyncResult(attendance = att, marks = marks)
+                }
             } catch (e: Exception) {
-                AcademicSyncResult(AttendanceRes(success = false, error = e.message ?: e.toString()))
+                val cachedAtt = fallbackCachedAttendance(semesterId)
+                val cachedMarks = fallbackCachedMarks(semesterId)
+                if (cachedAtt != null) AcademicSyncResult(attendance = cachedAtt, marks = cachedMarks)
+                else AcademicSyncResult(AttendanceRes(success = false, error = e.message ?: e.toString()))
             }
         }
-        return try {
+
+        // REMOTE mode: try remote, fall back to local scraper, then local cache
+        try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
             val response = postAuthorized<AttendanceSyncResponse>("attendance", params)
-            if (response == null) {
-                AcademicSyncResult(AttendanceRes(success = false, message = "Empty response"))
-            } else {
+            if (response != null) {
                 val attendance = response.attRes ?: AttendanceRes(
                     success = response.success,
-                                        semesterId = response.semesterId,
+                    semesterId = response.semesterId,
                     attendance = response.attendance,
                     error = response.error,
                     message = response.message
                 )
-                AcademicSyncResult(
-                    attendance = attendance.copy(success = attendance.success && attendance.error == null),
-                    marks = response.marksRes
-                )
+                if (attendance.success && attendance.attendance?.isNotEmpty() == true) {
+                    return AcademicSyncResult(
+                        attendance = attendance.copy(success = attendance.success && attendance.error == null),
+                        marks = response.marksRes ?: fallbackCachedMarks(semesterId)
+                    )
+                }
             }
-        } catch (e: Exception) {
-            AcademicSyncResult(AttendanceRes(success = false, message = e.message, error = e.toString()))
+        } catch (_: Exception) {}
+
+        // Fall back to on-device scraper
+        if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semester != null) {
+            try {
+                val att = com.amazecc.app.shared.vtop.VtopDataSource.fetchAttendance(semester)
+                val marks = com.amazecc.app.shared.vtop.VtopDataSource.fetchMarks(semester)
+                if (att.success && att.attendance?.isNotEmpty() == true) {
+                    return AcademicSyncResult(attendance = att, marks = marks ?: fallbackCachedMarks(semester))
+                }
+            } catch (_: Exception) {}
         }
+
+        // Fall back to local cache
+        val cachedAtt = fallbackCachedAttendance(semesterId)
+        val cachedMarks = fallbackCachedMarks(semesterId)
+        return if (cachedAtt != null) AcademicSyncResult(cachedAtt, cachedMarks)
+        else AcademicSyncResult(AttendanceRes(success = false, message = "Attendance unavailable"))
     }
 
     suspend fun getTimetable(semesterId: String? = null): TimetableRes {
-if (useMockData) return DemoData.get("timetable", TimetableRes.serializer()) ?: TimetableRes()
+        if (useMockData) return DemoData.get("timetable", TimetableRes.serializer()) ?: TimetableRes()
+        val semester = semesterId ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value
+
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return fallbackCachedTimetable(semesterId)
+                ?: TimetableRes(success = true, semesterId = semesterId ?: "", message = "Served from local cache")
+        }
+
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
-                val semester = semesterId
-                    ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value
-                    ?: return TimetableRes(success = false, error = "No semester selected")
-                com.amazecc.app.shared.vtop.VtopDataSource.fetchTimetable(semester)
+                if (semester == null) return fallbackCachedTimetable(semesterId) ?: TimetableRes(success = false, error = "No semester selected")
+                val res = com.amazecc.app.shared.vtop.VtopDataSource.fetchTimetable(semester)
+                if (res.success && res.courseInfo?.isNotEmpty() == true) res
+                else fallbackCachedTimetable(semester) ?: res
             } catch (e: Exception) {
-                TimetableRes(success = false, error = e.message ?: e.toString())
+                fallbackCachedTimetable(semesterId) ?: TimetableRes(success = false, error = e.message ?: e.toString())
             }
         }
-        return try {
+
+        // REMOTE mode: try remote, fall back to on-device scraper, then local cache
+        try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
-            postAuthorized<TimetableRes>("timetable", params) ?: TimetableRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            TimetableRes(success = false, message = e.message, error = e.toString())
+            val res = postAuthorized<TimetableRes>("timetable", params)
+            if (res != null && res.success && res.courseInfo?.isNotEmpty() == true) return res
+        } catch (_: Exception) {}
+
+        if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semester != null) {
+            try {
+                val localRes = com.amazecc.app.shared.vtop.VtopDataSource.fetchTimetable(semester)
+                if (localRes.success && localRes.courseInfo?.isNotEmpty() == true) return localRes
+            } catch (_: Exception) {}
         }
+
+        return fallbackCachedTimetable(semesterId) ?: TimetableRes(success = false, message = "Empty response")
     }
 
     suspend fun getMarks(semesterId: String? = null): MarksRes {
-if (useMockData) return DemoData.get("marks", MarksRes.serializer()) ?: MarksRes()
+        if (useMockData) return DemoData.get("marks", MarksRes.serializer()) ?: MarksRes()
+        val semester = semesterId ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value
+
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return fallbackCachedMarks(semesterId)
+                ?: MarksRes(success = true, message = "Served from local cache")
+        }
+
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
-                val semester = semesterId
-                    ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value
-                    ?: return MarksRes(success = false, error = "No semester selected")
-                com.amazecc.app.shared.vtop.VtopDataSource.fetchMarks(semester)
-                    ?: MarksRes(success = false, error = "VTOP marks unavailable")
+                if (semester == null) return fallbackCachedMarks(semesterId) ?: MarksRes(success = false, error = "No semester selected")
+                val res = com.amazecc.app.shared.vtop.VtopDataSource.fetchMarks(semester)
+                if (res != null && res.success && res.courses?.isNotEmpty() == true) res
+                else fallbackCachedMarks(semester) ?: res ?: MarksRes(success = false, error = "VTOP marks unavailable")
             } catch (e: Exception) {
-                MarksRes(success = false, error = e.message ?: e.toString())
+                fallbackCachedMarks(semesterId) ?: MarksRes(success = false, error = e.message ?: e.toString())
             }
         }
-        return try {
+
+        // REMOTE mode: try remote, fall back to on-device scraper, then local cache
+        try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
-            postAuthorized<MarksRes>("marks", params) ?: MarksRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            MarksRes(success = false, message = e.message, error = e.toString())
+            val res = postAuthorized<MarksRes>("marks", params)
+            if (res != null && res.success && res.courses?.isNotEmpty() == true) return res
+        } catch (_: Exception) {}
+
+        if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semester != null) {
+            try {
+                val localRes = com.amazecc.app.shared.vtop.VtopDataSource.fetchMarks(semester)
+                if (localRes != null && localRes.success && localRes.courses?.isNotEmpty() == true) return localRes
+            } catch (_: Exception) {}
         }
+
+        return fallbackCachedMarks(semesterId) ?: MarksRes(success = false, message = "Empty response")
     }
 
     suspend fun getAllGrades(): AllGradesRes {
-if (useMockData) return DemoData.get("allGrades", AllGradesRes.serializer()) ?: AllGradesRes()
+        if (useMockData) return DemoData.get("allGrades", AllGradesRes.serializer()) ?: AllGradesRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return fallbackCachedAllGrades()
+        }
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                val fetched = com.amazecc.app.shared.vtop.VtopDataSource.fetchGrades()
+                if (fetched != null) {
+                    val semesterId = com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value ?: ""
+                    val rows = fetched.effectiveGrades.orEmpty().mapNotNull { row ->
+                        val title = row.basketTitle?.trim().orEmpty()
+                        val grade = row.grade?.trim().orEmpty()
+                        if (title.isEmpty() && grade.isEmpty()) return@mapNotNull null
+                        com.amazecc.app.shared.model.GradeItem(
+                            courseTitle = title,
+                            courseType = row.courseType.orEmpty(),
+                            grade = grade,
+                            grandTotal = ""
+                        )
+                    }
+                    if (rows.isNotEmpty()) {
+                        AllGradesRes(
+                            success = true,
+                            grades = mapOf(semesterId to com.amazecc.app.shared.model.SemesterGradeResult(grades = rows))
+                        )
+                    } else fallbackCachedAllGrades()
+                } else fallbackCachedAllGrades()
+            } catch (e: Exception) {
+                fallbackCachedAllGrades()
+            }
+        }
         return try {
-            postAuthorized<AllGradesRes>("all-grades") ?: AllGradesRes(success = false, message = "Empty response")
+            val remote = postAuthorized<AllGradesRes>("all-grades")
+            if (remote != null && remote.success) {
+                remote
+            } else {
+                // Remote failed or returned empty: fallback to local scraper if possible, then cache
+                try {
+                    val fetched = com.amazecc.app.shared.vtop.VtopDataSource.fetchGrades()
+                    if (fetched != null) {
+                        val semesterId = com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value ?: ""
+                        val rows = fetched.effectiveGrades.orEmpty().mapNotNull { row ->
+                            val title = row.basketTitle?.trim().orEmpty()
+                            val grade = row.grade?.trim().orEmpty()
+                            if (title.isEmpty() && grade.isEmpty()) return@mapNotNull null
+                            com.amazecc.app.shared.model.GradeItem(
+                                courseTitle = title,
+                                courseType = row.courseType.orEmpty(),
+                                grade = grade,
+                                grandTotal = ""
+                            )
+                        }
+                        if (rows.isNotEmpty()) {
+                            AllGradesRes(
+                                success = true,
+                                grades = mapOf(semesterId to com.amazecc.app.shared.model.SemesterGradeResult(grades = rows))
+                            )
+                        } else fallbackCachedAllGrades()
+                    } else fallbackCachedAllGrades()
+                } catch (_: Exception) {
+                    fallbackCachedAllGrades()
+                }
+            }
         } catch (e: Exception) {
-            AllGradesRes(success = false, message = e.message, error = e.toString())
+            // UnknownHostException / Network error: graceful fallback to local cache
+            fallbackCachedAllGrades()
         }
     }
 
@@ -339,6 +679,10 @@ if (useMockData) return DemoData.get("allGrades", AllGradesRes.serializer()) ?: 
 
     suspend fun getHostelDetails(): HostelDetails {
 if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: HostelDetails()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return com.amazecc.app.shared.state.AppDataStore.hostelDetails.value
+                ?: HostelDetails(success = true, message = "Served from local cache")
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchHostel()
@@ -400,26 +744,47 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
     }
 
     suspend fun getExamSchedule(semesterId: String? = null): ExamScheduleRes {
-if (useMockData) return DemoData.get("examSchedule", ExamScheduleRes.serializer()) ?: ExamScheduleRes()
-        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && semesterId != null) {
+        if (useMockData) return DemoData.get("examSchedule", ExamScheduleRes.serializer()) ?: ExamScheduleRes()
+        val semester = semesterId ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value
+
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return fallbackCachedExamSchedule(semesterId)
+                ?: ExamScheduleRes(success = true, message = "Served from local cache")
+        }
+
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && semester != null) {
             return try {
-                com.amazecc.app.shared.vtop.VtopDataSource.fetchExamSchedule(semesterId)
-                    ?: ExamScheduleRes(success = false, error = "VTOP exam schedule unavailable")
+                val res = com.amazecc.app.shared.vtop.VtopDataSource.fetchExamSchedule(semester)
+                if (res != null && res.success && res.schedule.isNotEmpty()) res
+                else fallbackCachedExamSchedule(semester) ?: res ?: ExamScheduleRes(success = false, error = "VTOP exam schedule unavailable")
             } catch (e: Exception) {
-                ExamScheduleRes(success = false, error = e.toString())
+                fallbackCachedExamSchedule(semesterId) ?: ExamScheduleRes(success = false, error = e.toString())
             }
         }
-        return try {
+
+        try {
             val params = mutableMapOf<String, String>()
             if (semesterId != null) params["semesterId"] = semesterId
-            postAuthorized<ExamScheduleRes>("schedule", params) ?: ExamScheduleRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            ExamScheduleRes(success = false, message = e.message, error = e.toString())
+            val res = postAuthorized<ExamScheduleRes>("schedule", params)
+            if (res != null && res.success && res.schedule.isNotEmpty()) return res
+        } catch (_: Exception) {}
+
+        if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semester != null) {
+            try {
+                val localRes = com.amazecc.app.shared.vtop.VtopDataSource.fetchExamSchedule(semester)
+                if (localRes != null && localRes.success && localRes.schedule.isNotEmpty()) return localRes
+            } catch (_: Exception) {}
         }
+
+        return fallbackCachedExamSchedule(semesterId) ?: ExamScheduleRes(success = false, message = "Empty response")
     }
 
     suspend fun getCurriculum(semesterId: String? = null): CurriculumRes {
 if (useMockData) return DemoData.get("curriculum", CurriculumRes.serializer()) ?: CurriculumRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return com.amazecc.app.shared.state.AppDataStore.curriculum.value
+                ?: CurriculumRes(success = true, message = "Served from local cache")
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchCurriculum()
@@ -439,6 +804,10 @@ if (useMockData) return DemoData.get("curriculum", CurriculumRes.serializer()) ?
 
     suspend fun getCalendar(type: String = "ALL", semesterId: String? = null): CalendarRes {
 if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: CalendarRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return com.amazecc.app.shared.state.AppDataStore.calendar.value
+                ?: CalendarRes(success = true, message = "Served from local cache")
+        }
         return try {
             val rawJson = if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && semesterId != null) {
                 // Same analysis path as REMOTE — only the transport differs.
@@ -478,6 +847,10 @@ if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: Ca
 
     suspend fun getCalendars(semesterId: String? = null): CalendarsListRes {
 if (useMockData) return DemoData.get("calendars", CalendarsListRes.serializer()) ?: CalendarsListRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return com.amazecc.app.shared.state.AppDataStore.calendarsList.value
+                ?: CalendarsListRes(success = true, message = "Served from local cache")
+        }
         return coroutineScope {
             val results = calendarTypes.map { (type, name) ->
                 async { getCalendar(type, semesterId) to name }
@@ -510,6 +883,10 @@ if (useMockData) return DemoData.get("calendars", CalendarsListRes.serializer())
 
     suspend fun getPayments(): PaymentsRes {
 if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: PaymentsRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return com.amazecc.app.shared.state.AppDataStore.payments.value
+                ?: PaymentsRes(success = true, message = "Served from local cache")
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchPayments()
@@ -636,11 +1013,67 @@ if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: B
         }
     }
     suspend fun getTransportData(): TransportDataRes {
-if (useMockData) return DemoData.get("transport", TransportDataRes.serializer()) ?: TransportDataRes()
+        if (useMockData) return DemoData.get("transport", TransportDataRes.serializer()) ?: TransportDataRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchTransport()
+                    ?: TransportDataRes(success = false, message = "VTOP transport unavailable")
+            } catch (e: Exception) {
+                TransportDataRes(success = false, message = e.message, error = e.toString())
+            }
+        }
         return try {
-            postAuthorized<TransportDataRes>("transport") ?: TransportDataRes(success = false, message = "Empty response")
+            val res = postAuthorized<TransportDataRes>("transport")
+            if (res != null && res.success) res
+            else {
+                if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession) {
+                    try {
+                        val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchTransport()
+                        if (local != null && local.success) return local
+                    } catch (_: Exception) {}
+                }
+                res ?: TransportDataRes(success = false, message = "Empty response")
+            }
         } catch (e: Exception) {
+            if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession) {
+                try {
+                    val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchTransport()
+                    if (local != null && local.success) return local
+                } catch (_: Exception) {}
+            }
             TransportDataRes(success = false, message = e.message, error = e.toString())
+        }
+    }
+
+    suspend fun getOdDetails(semesterId: String): com.amazecc.app.shared.model.OdDetailsRes {
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchOdDetails(semesterId)
+                    ?: com.amazecc.app.shared.model.OdDetailsRes(success = false, error = "VTOP OD details unavailable")
+            } catch (e: Exception) {
+                com.amazecc.app.shared.model.OdDetailsRes(success = false, error = e.message ?: e.toString())
+            }
+        }
+        return try {
+            val res = postAuthorized<com.amazecc.app.shared.model.OdDetailsRes>("od", mapOf("semesterId" to semesterId))
+            if (res != null && res.success) res
+            else {
+                if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession) {
+                    try {
+                        val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchOdDetails(semesterId)
+                        if (local != null && local.success) return local
+                    } catch (_: Exception) {}
+                }
+                res ?: com.amazecc.app.shared.model.OdDetailsRes(success = false, error = "Empty response")
+            }
+        } catch (e: Exception) {
+            if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession) {
+                try {
+                    val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchOdDetails(semesterId)
+                    if (local != null && local.success) return local
+                } catch (_: Exception) {}
+            }
+            com.amazecc.app.shared.model.OdDetailsRes(success = false, error = e.message ?: e.toString())
         }
     }
 
@@ -775,6 +1208,10 @@ if (useMockData) return DemoData.get("cabShareMyTrips", CabShareTripsRes.seriali
 
     suspend fun getLMSAssignments(): LMSRes {
         if (useMockData) return DemoData.get("lms", LMSRes.serializer()) ?: LMSRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return com.amazecc.app.shared.state.AppDataStore.lms.value
+                ?: LMSRes(success = true, message = "Served from local cache")
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             // Moodle has its own login, so its credentials are stored separately from VTOP's.
             val creds = com.amazecc.app.shared.repository.SettingsManager.getMoodleCredentials()
@@ -825,6 +1262,10 @@ if (useMockData) return DemoData.get("qbankPapers", QBankPapersRes.serializer())
 
     suspend fun getQcmView(): QcmViewRes {
 if (useMockData) return DemoData.get("qcmView", QcmViewRes.serializer()) ?: QcmViewRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return com.amazecc.app.shared.state.AppDataStore.qcmView.value
+                ?: QcmViewRes(success = true)
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchQcmView()
@@ -971,6 +1412,8 @@ if (useMockData) return DemoData.get("eventsProfile", EventHubRegisteredEventsRe
         }
     }
 
+    suspend fun getClubs(): ClubsRes = getClubsDetails()
+
     suspend fun getClubsDetails(): ClubsRes {
 if (useMockData) return DemoData.get("clubs", ClubsRes.serializer()) ?: ClubsRes()
         return try {
@@ -1008,24 +1451,41 @@ if (useMockData) return DemoData.get("clubs", ClubsRes.serializer()) ?: ClubsRes
     }
 
     suspend fun getStudentProfile(): StudentProfileRes {
-if (useMockData) return DemoData.get("studentProfile", StudentProfileRes.serializer()) ?: StudentProfileRes()
+        if (useMockData) return DemoData.get("studentProfile", StudentProfileRes.serializer()) ?: StudentProfileRes()
+
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return fallbackCachedStudentProfile()
+                ?: StudentProfileRes(success = true, message = "Served from local cache")
+        }
+
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
-                com.amazecc.app.shared.vtop.VtopDataSource.fetchStudentProfile()
-                    ?: StudentProfileRes(success = false, error = "VTOP student profile unavailable")
+                val res = com.amazecc.app.shared.vtop.VtopDataSource.fetchStudentProfile()
+                if (res != null && res.success && res.data != null) res
+                else fallbackCachedStudentProfile() ?: res ?: StudentProfileRes(success = false, error = "VTOP student profile unavailable")
             } catch (e: Exception) {
-                StudentProfileRes(success = false, error = e.toString())
+                fallbackCachedStudentProfile() ?: StudentProfileRes(success = false, error = e.toString())
             }
         }
-        return try {
-            postAuthorized<StudentProfileRes>("student") ?: StudentProfileRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            StudentProfileRes(success = false, message = e.message, error = e.toString())
+
+        try {
+            val res = postAuthorized<StudentProfileRes>("student")
+            if (res != null && res.success && res.data != null) return res
+        } catch (_: Exception) {}
+
+        if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession) {
+            try {
+                val localRes = com.amazecc.app.shared.vtop.VtopDataSource.fetchStudentProfile()
+                if (localRes != null && localRes.success && localRes.data != null) return localRes
+            } catch (_: Exception) {}
         }
+
+        return fallbackCachedStudentProfile() ?: StudentProfileRes(success = false, message = "Empty response")
     }
 
     suspend fun getProfileImages(): ProfileImagesRes {
 if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serializer()) ?: ProfileImagesRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return ProfileImagesRes(success = true)
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchProfileImages()
@@ -1043,6 +1503,7 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getCredentials(): CredentialsRes {
         if (useMockData) return DemoData.get("credentials", CredentialsRes.serializer()) ?: CredentialsRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return CredentialsRes(success = true)
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchCredentials()
@@ -1060,6 +1521,7 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getEptSchedule(): EptScheduleRes {
         if (useMockData) return DemoData.get("eptSchedule", EptScheduleRes.serializer()) ?: EptScheduleRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return EptScheduleRes(success = true)
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchEptSchedule()
@@ -1075,6 +1537,7 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getRegistrationSchedule(): RegistrationScheduleRes {
         if (useMockData) return DemoData.get("registrationSchedule", RegistrationScheduleRes.serializer()) ?: RegistrationScheduleRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return RegistrationScheduleRes(success = true)
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchRegistrationSchedule()
@@ -1090,6 +1553,7 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getUniversityDay(): UniversityDayRes {
         if (useMockData) return DemoData.get("universityDay", UniversityDayRes.serializer()) ?: UniversityDayRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return UniversityDayRes(success = true)
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchUniversityDay()
@@ -1105,6 +1569,7 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getBankInfo(): BankInfoRes {
         if (useMockData) return DemoData.get("bankInfo", BankInfoRes.serializer()) ?: BankInfoRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return BankInfoRes(success = true)
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchBankInfo()
@@ -1120,6 +1585,7 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getDayboarderInfo(): DayboarderRes {
         if (useMockData) return DemoData.get("dayboarder", DayboarderRes.serializer()) ?: DayboarderRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return DayboarderRes(success = true)
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchDayboarder()
@@ -1135,6 +1601,7 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getApaarId(): ApaarIdRes {
         if (useMockData) return DemoData.get("apaarId", ApaarIdRes.serializer()) ?: ApaarIdRes(success = true)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return ApaarIdRes(success = true)
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchApaarId()
@@ -1162,6 +1629,10 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
 
     suspend fun getCirculars(): CircularsRes {
 if (useMockData) return DemoData.get("circulars", CircularsRes.serializer()) ?: CircularsRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return com.amazecc.app.shared.state.AppDataStore.circulars.value
+                ?: CircularsRes(success = true, message = "Served from local cache")
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchCirculars()
@@ -1345,10 +1816,34 @@ if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?:
 
     suspend fun getFeedbackStatus(semesterId: String? = null): FeedbackStatusRes {
         if (useMockData) return DemoData.get("feedback", FeedbackStatusRes.serializer()) ?: FeedbackStatusRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && semesterId != null) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchFeedbackStatus(semesterId)
+                    ?: FeedbackStatusRes(success = false, error = "VTOP feedback status unavailable")
+            } catch (e: Exception) {
+                FeedbackStatusRes(success = false, error = e.message ?: e.toString())
+            }
+        }
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
-            postAuthorized<FeedbackStatusRes>("feedback-status", params) ?: FeedbackStatusRes(success = false, error = "Empty response")
+            val res = postAuthorized<FeedbackStatusRes>("feedback-status", params)
+            if (res != null && res.success) res
+            else {
+                if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semesterId != null) {
+                    try {
+                        val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchFeedbackStatus(semesterId)
+                        if (local != null && local.success) return local
+                    } catch (_: Exception) {}
+                }
+                res ?: FeedbackStatusRes(success = false, error = "Empty response")
+            }
         } catch (e: Exception) {
+            if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semesterId != null) {
+                try {
+                    val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchFeedbackStatus(semesterId)
+                    if (local != null && local.success) return local
+                } catch (_: Exception) {}
+            }
             FeedbackStatusRes(success = false, error = e.message)
         }
     }
@@ -1358,16 +1853,29 @@ if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?:
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchGrades()
+                    ?: fallbackCachedGrades(semesterId)
                     ?: SemesterGradesRes(success = false, error = "VTOP grades unavailable")
             } catch (e: Exception) {
-                SemesterGradesRes(success = false, error = e.message ?: e.toString())
+                fallbackCachedGrades(semesterId) ?: SemesterGradesRes(success = false, error = e.message ?: e.toString())
             }
         }
         return try {
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
-            postAuthorized<SemesterGradesRes>("grades", params) ?: SemesterGradesRes(success = false, error = "Empty response")
+            val remote = postAuthorized<SemesterGradesRes>("grades", params)
+            if (remote != null && remote.success) remote
+            else {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchGrades()
+                    ?: fallbackCachedGrades(semesterId)
+                    ?: SemesterGradesRes(success = false, error = "Empty response")
+            }
         } catch (e: Exception) {
-            SemesterGradesRes(success = false, error = e.message)
+            try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchGrades()
+                    ?: fallbackCachedGrades(semesterId)
+                    ?: SemesterGradesRes(success = false, error = e.message)
+            } catch (_: Exception) {
+                fallbackCachedGrades(semesterId) ?: SemesterGradesRes(success = false, error = e.message)
+            }
         }
     }
 
@@ -1462,40 +1970,118 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
     }
 
     /**
-     * Makes sure [com.amazecc.app.shared.vtop.VtopSession] holds usable tokens before a sync sweep.
+     * Guarantees that [com.amazecc.app.shared.vtop.VtopSession] and [SessionManager] hold valid,
+     * fresh authentication tokens before any sync or scraping operation begins.
      *
-     * On `LOCAL` this deliberately does **not** perform a credential login: [loginLocal] needs a
-     * captcha handler, and a sweep runs unattended with nobody to answer one. Passing null there
-     * makes the refresh fail with `missing_captcha_handler` *before* any module runs, which is
-     * what leaves every module reporting "No VTOP session".
+     * In [com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE], always returns true.
      *
-     * Instead the WebView still holds a valid `JSESSIONID`, so the tokens are re-hydrated from
-     * it. Only `REMOTE` needs the real login round-trip.
+     * In [com.amazecc.app.shared.vtop.VtopSource.LOCAL]:
+     * 1. Checks cached session freshness (![com.amazecc.app.shared.vtop.VtopSession.isExpired]).
+     * 2. If expired or [forceFresh] is true, attempts silent restoration via
+     *    [com.amazecc.app.shared.vtop.Vtop.restoreSessionIfPossible()].
+     * 3. If silent restoration fails or session remains expired, retrieves saved credentials from
+     *    [SettingsManager.getCredentials] and attempts [loginLocal] with [captchaHandler].
+     * 4. Upon successful authentication, validates tokens, marks [com.amazecc.app.shared.vtop.VtopSession]
+     *    active, persists to [SessionManager.saveSession], and merges identity into [UserStore].
      *
-     * Returns whether a session is usable afterwards.
+     * In [com.amazecc.app.shared.vtop.VtopSource.REMOTE]:
+     * Verifies [SessionManager.isLoggedIn] and not stale, otherwise calls [refreshSession].
+     *
+     * @param forceFresh If true, bypasses in-memory session freshness and forces a session refresh or re-login.
+     * @param captchaHandler Handler to resolve captcha challenges. Defaults to [com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha].
+     * @return true if an authenticated, unexpired session is ready; false otherwise.
      */
-    suspend fun ensureSession(): Boolean {
-        if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.LOCAL) return refreshSession()
-        if (com.amazecc.app.shared.vtop.VtopSession.hasSession) return true
+    suspend fun ensureSession(
+        forceFresh: Boolean = false,
+        captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler = com.amazecc.app.shared.vtop.CaptchaHandler { challenge ->
+            com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha(challenge)
+        }
+    ): Boolean {
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return true
 
-        if (!com.amazecc.app.shared.vtop.Vtop.restoreSessionIfPossible()) return false
-        val csrf = com.amazecc.app.shared.vtop.VtopSession.csrf.value ?: return false
-        val id = com.amazecc.app.shared.vtop.VtopSession.authorizedID.value ?: return false
-        SessionManager.saveSession(
-            cookies = SessionManager.LOCAL_SESSION_MARKER,
-            csrf = csrf,
-            authorizedID = id,
-            clubToken = null
-        )
-        return true
+        // 1. If not forcing fresh and session is still fresh and valid, return true immediately
+        if (!forceFresh) {
+            if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+                if (com.amazecc.app.shared.vtop.VtopSession.hasSession && !com.amazecc.app.shared.vtop.VtopSession.isExpired) {
+                    return true
+                }
+            } else {
+                if (SessionManager.isLoggedIn && !SessionManager.isSessionStale(com.amazecc.app.shared.vtop.VtopSession.SESSION_REFRESH_THRESHOLD_MS)) {
+                    return true
+                }
+            }
+        }
+
+        // 2. Local mode session re-establishment
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            // Step A: Attempt silent re-hydration from WebView cookies
+            if (!forceFresh && com.amazecc.app.shared.vtop.Vtop.restoreSessionIfPossible() && !com.amazecc.app.shared.vtop.VtopSession.isExpired) {
+                com.amazecc.app.shared.vtop.VtopSession.markActive()
+                val csrf = com.amazecc.app.shared.vtop.VtopSession.csrf.value
+                val id = com.amazecc.app.shared.vtop.VtopSession.authorizedID.value
+                if (!csrf.isNullOrBlank() && !id.isNullOrBlank()) {
+                    SessionManager.saveSession(
+                        cookies = SessionManager.LOCAL_SESSION_MARKER,
+                        csrf = csrf,
+                        authorizedID = id,
+                        clubToken = null
+                    )
+                    SettingsManager.setString(SettingsManager.SESSION_COOKIES, SessionManager.LOCAL_SESSION_MARKER)
+                    SettingsManager.setString(SettingsManager.SESSION_CSRF, csrf)
+                    SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, id)
+                    com.amazecc.app.shared.state.UserStore.merge(
+                        com.amazecc.app.shared.state.IdentityExtractor.fromSession(id),
+                        com.amazecc.app.shared.state.IdentitySource.SESSION
+                    )
+                    return true
+                }
+            }
+
+            // Step B: Auto-login with stored credentials
+            val creds = SettingsManager.getCredentials() ?: return false
+            if (creds.first.isBlank() || creds.second.isBlank()) return false
+
+            val loginRes = loginLocal(creds.first, creds.second, captchaHandler)
+            if (loginRes.success && !loginRes.csrf.isNullOrBlank() && !loginRes.authorizedID.isNullOrBlank()) {
+                com.amazecc.app.shared.vtop.VtopSession.markActive()
+                SessionManager.saveSession(
+                    cookies = SessionManager.LOCAL_SESSION_MARKER,
+                    csrf = loginRes.csrf,
+                    authorizedID = loginRes.authorizedID,
+                    clubToken = loginRes.clubToken
+                )
+                SettingsManager.setString(SettingsManager.SESSION_COOKIES, SessionManager.LOCAL_SESSION_MARKER)
+                SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
+                SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
+                loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                com.amazecc.app.shared.state.UserStore.merge(
+                    com.amazecc.app.shared.state.IdentityExtractor.fromSession(loginRes.authorizedID),
+                    com.amazecc.app.shared.state.IdentitySource.SESSION
+                )
+                return true
+            }
+            return false
+        }
+
+        // 3. Remote mode: perform full login refresh via Hono backend
+        return refreshSession()
     }
 
     /** Re-logs-in to VTOP with the stored credentials and refreshes the session. */
     private suspend fun refreshSession(): Boolean {
         val credentials = SettingsManager.getCredentials() ?: return false
+        if (credentials.first.isBlank() || credentials.second.isBlank()) return false
         val response = login(credentials.first, credentials.second)
         if (response.success && response.cookies != null && response.csrf != null && response.authorizedID != null) {
             SessionManager.saveSession(response.cookies, response.csrf, response.authorizedID, response.clubToken)
+            SettingsManager.setString(SettingsManager.SESSION_COOKIES, response.cookies)
+            SettingsManager.setString(SettingsManager.SESSION_CSRF, response.csrf)
+            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
+            response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+            com.amazecc.app.shared.state.UserStore.merge(
+                com.amazecc.app.shared.state.IdentityExtractor.fromSession(response.authorizedID),
+                com.amazecc.app.shared.state.IdentitySource.SESSION
+            )
             return true
         }
         return false

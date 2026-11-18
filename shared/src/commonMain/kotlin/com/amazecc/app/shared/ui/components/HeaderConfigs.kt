@@ -42,9 +42,10 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
     Screen.LIBRARIES -> HeaderConfig(
         title = "Library",
         description = "Search catalog & manage books",
-        showBackButton = false,
+        showBackButton = true,
         showSyncButton = true,
-        onRefresh = { AppState.syncLibrary() }
+        onRefresh = { AppState.syncLibrary() },
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     Screen.HOSTEL -> HeaderConfig(
         title = "Hostel Hub",
@@ -84,27 +85,30 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         title = "Exam Prep Hub & QBank",
         description = "Targeted practice papers and exam preparation",
         showBackButton = true,
-        showSyncButton = true
+        showSyncButton = true,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     Screen.SOCIAL -> HeaderConfig(
         title = "Social & Friends",
         description = "Find friends and match timetables",
-        showBackButton = false,
+        showBackButton = true,
         showSyncButton = true,
-        onRefresh = AppState::refreshCurrentSemester
+        onRefresh = AppState::refreshCurrentSemester,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     Screen.FFCS_PLANNER -> HeaderConfig(
         title = "FFCS Planner",
         description = "Select courses, generate timetables",
         showBackButton = true,
-        showSyncButton = true
+        showSyncButton = true,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     Screen.FREE_CLASSROOMS -> HeaderConfig(
         title = "Free Classrooms",
         description = "Find live available empty rooms on campus",
         showBackButton = true,
         showSyncButton = false,
-        onBackOverride = { AppState.navigateBackTo(Screen.ACADEMICS) }
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.CALENDAR -> HeaderConfig(
         title = "Academic Calendar",
@@ -112,7 +116,7 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showBackButton = true,
         showSyncButton = true,
         onRefresh = { AppState.refreshCalendarsList() },
-        onBackOverride = { AppState.navigateBackTo(Screen.ACADEMICS) }
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.GRADES -> HeaderConfig(
         title = "Grade History",
@@ -130,7 +134,8 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         title = "Circulars",
         description = "Academic notices and circulars",
         showBackButton = true,
-        showSyncButton = false
+        showSyncButton = false,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.CURRICULUM -> HeaderConfig(
         title = "Curriculum",
@@ -143,7 +148,8 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         title = "OD Tracker",
         description = "Track on-duty hours",
         showBackButton = true,
-        showSyncButton = true
+        showSyncButton = true,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.COURSE_DASHBOARD -> HeaderConfig(
         title = "Course Dashboard",
@@ -151,7 +157,7 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showBackButton = true,
         showSyncButton = true,
         onRefresh = AppState::refreshAllAcademic,
-        onBackOverride = { AppState.navigateBackTo(Screen.ACADEMICS) }
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.COURSE_ATTENDANCE -> HeaderConfig(
         title = "Course Attendance",
@@ -169,31 +175,36 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         title = "Course Management",
         description = "Option changes, EXC, minors",
         showBackButton = true,
-        showSyncButton = false
+        showSyncButton = false,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.FEEDBACK_STATUS -> HeaderConfig(
         title = "Feedback Status",
         description = "Course feedback status",
         showBackButton = true,
-        showSyncButton = true
+        showSyncButton = true,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.FRESHER_WELCOME -> HeaderConfig(
         title = "Fresher's Welcome",
         description = "Get started with campus life",
         showBackButton = true,
-        showSyncButton = true
+        showSyncButton = true,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     Screen.DOCUMENTS -> HeaderConfig(
         title = "Documents",
         description = "Bonafide, transcripts, and learning",
         showBackButton = true,
-        showSyncButton = false
+        showSyncButton = false,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     Screen.ABOUT -> HeaderConfig(
         title = Strings.about,
         description = "AmazeCC Student Companion",
         showBackButton = true,
-        showSyncButton = true
+        showSyncButton = true,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     Screen.CLUB_DETAIL -> HeaderConfig(
         title = "Club Details",
@@ -217,7 +228,8 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         title = "Moodle LMS",
         description = "Track your assignments and coursework",
         showBackButton = true,
-        showSyncButton = true
+        showSyncButton = true,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     Screen.CLUB_HUB -> HeaderConfig(
         title = "Club Hub",
@@ -242,19 +254,22 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         title = "Changelog",
         description = "What's new in AmazeCC",
         showBackButton = true,
-        showSyncButton = false
+        showSyncButton = false,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     Screen.HALL_OF_FAME -> HeaderConfig(
         title = "Hall of Fame",
         description = "Contributors who made this possible",
         showBackButton = true,
-        showSyncButton = false
+        showSyncButton = false,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     Screen.ARREAR -> HeaderConfig(
         title = "Arrear Management",
         description = "Track backlogs and exams",
         showBackButton = true,
-        showSyncButton = true
+        showSyncButton = true,
+        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.HOME_LEGACY -> HeaderConfig(
         title = "Classic Dashboard",

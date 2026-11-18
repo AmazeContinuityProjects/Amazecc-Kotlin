@@ -164,6 +164,9 @@ internal object VtopScripts {
         if (/maximum\s*fail\s*attempts/.test(body)) {
           return JSON.stringify({ error_code: 4, error_message: 'Maximum login attempts reached' });
         }
+        if (/months/.test(body) || /expired after the usual 3 month period/.test(body)) {
+          return JSON.stringify({ error_code: 6, error_message: 'Password expired after 3 months' });
+        }
         if (body.indexOf('login') !== -1 && (body.indexOf('error') !== -1 || body.indexOf('fail') !== -1)) {
           return JSON.stringify({ error_code: 5, error_message: 'Login failed' });
         }
@@ -269,9 +272,14 @@ internal object VtopScripts {
         xhr.send($b);
 
         if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+        if (xhr.status >= 400) return JSON.stringify({ ok: false, error: 'http error ' + xhr.status });
 
         var res = xhr.responseText || '';
-        if (res.toLowerCase().indexOf('not authorized') !== -1) {
+        var lower = res.toLowerCase();
+        if (lower.indexOf('not authorized') !== -1 ||
+            lower.indexOf('session timed out') !== -1 ||
+            lower.indexOf('invalid session') !== -1 ||
+            lower.indexOf('session expired') !== -1) {
           return JSON.stringify({ ok: false, error: 'not authorized' });
         }
 
@@ -284,6 +292,9 @@ internal object VtopScripts {
         }
 
         var trEls = scope.querySelectorAll($sel);
+        if (trEls.length === 0 && $sel.indexOf('tbody tr') !== -1) {
+          trEls = scope.querySelectorAll($sel.replace('tbody tr', 'tr'));
+        }
         var rows = [];
         var extra = [];
         var i = $skip;
@@ -349,14 +360,23 @@ internal object VtopScripts {
         xhr.send($b);
 
         if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+        if (xhr.status >= 400) return JSON.stringify({ ok: false, error: 'http error ' + xhr.status });
+
         var res = xhr.responseText || '';
-        if (res.toLowerCase().indexOf('not authorized') !== -1) {
+        var lower = res.toLowerCase();
+        if (lower.indexOf('not authorized') !== -1 ||
+            lower.indexOf('session timed out') !== -1 ||
+            lower.indexOf('invalid session') !== -1 ||
+            lower.indexOf('session expired') !== -1) {
           return JSON.stringify({ ok: false, error: 'not authorized' });
         }
 
         var doc = new DOMParser().parseFromString(res, 'text/html');
         var courses = [];
         var courseRows = doc.querySelectorAll('table.customTable > tbody > tr.tableContent');
+        if (courseRows.length === 0) {
+          courseRows = doc.querySelectorAll('table.customTable tr.tableContent');
+        }
 
         for (var r = 0; r < courseRows.length; r++) {
           var cols = courseRows[r].querySelectorAll('td');
@@ -372,12 +392,17 @@ internal object VtopScripts {
           var assessments = [];
           if (next) {
             var aRows = next.querySelectorAll('table.customTable-level1 > tbody > tr.tableContent-level1');
+            if (aRows.length === 0) {
+              aRows = next.querySelectorAll('table.customTable-level1 tr.tableContent-level1');
+            }
             for (var a = 0; a < aRows.length; a++) {
               var acols = aRows[a].querySelectorAll('td');
+              if (acols.length < 7) continue;
               var avals = [];
               for (var v = 0; v < 7; v++) {
                 var out = acols[v] ? acols[v].querySelector('output') : null;
-                avals.push(out ? (out.textContent || '').replace(/\\s+/g, ' ').trim() : '');
+                var rawVal = out ? (out.textContent || '') : (acols[v] ? (acols[v].textContent || '') : '');
+                avals.push(rawVal.replace(/\\s+/g, ' ').trim());
               }
               assessments.push(avals);
             }
@@ -410,8 +435,14 @@ internal object VtopScripts {
         xhr.send($b);
 
         if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+        if (xhr.status >= 400) return JSON.stringify({ ok: false, error: 'http error ' + xhr.status });
+
         var res = xhr.responseText || '';
-        if (res.toLowerCase().indexOf('not authorized') !== -1) {
+        var lower = res.toLowerCase();
+        if (lower.indexOf('not authorized') !== -1 ||
+            lower.indexOf('session timed out') !== -1 ||
+            lower.indexOf('invalid session') !== -1 ||
+            lower.indexOf('session expired') !== -1) {
           return JSON.stringify({ ok: false, error: 'not authorized' });
         }
 
@@ -421,7 +452,7 @@ internal object VtopScripts {
 
         for (var i = 0; i < items.length; i++) {
           var labelEl = items[i].querySelector('span.card-title');
-          var valueEl = items[i].querySelector('span.fontcolor3 span');
+          var valueEl = items[i].querySelector('span.fontcolor3 span') || items[i].querySelector('span.fontcolor3');
           var label = labelEl ? (labelEl.textContent || '').trim() : '';
           var value = valueEl ? (valueEl.textContent || '').trim() : '';
           if (label.indexOf('Total Credits Required') !== -1) out.creditsRequired = value;

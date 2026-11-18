@@ -18,8 +18,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.utils.ChangelogEntry
 import com.amazecc.app.shared.utils.ContentData
@@ -27,26 +30,37 @@ import com.amazecc.app.shared.utils.UpdateConfig
 
 @Composable
 fun AboutScreen() {
-    val colors = AmazeTheme.colors
-    var currentVersion by remember { mutableStateOf("...") }
-    LaunchedEffect(Unit) {
-        currentVersion = UpdateConfig.getCurrentVersion()
-    }
-    val updateStatus by AppState.updateStatus.collectAsState()
-    val latestReleaseNotes by AppState.latestReleaseNotes.collectAsState()
-    var showChangelog by remember { mutableStateOf(false) }
-    var showUpdateCheck by remember { mutableStateOf(false) }
-    var bundledChanges by remember { mutableStateOf(emptyList<ChangelogEntry>()) }
-    LaunchedEffect(Unit) {
-        bundledChanges = ContentData.changelog()
-    }
-    val changes = if (latestReleaseNotes.isNotBlank()) {
-        latestReleaseNotes.lines().filter { it.isNotBlank() }.map { "• $it" }
-    } else {
-        bundledChanges.map { entry -> (entry.title?.let { "$it: " } ?: "") + entry.description }
-    }
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
+        var currentVersion by remember { mutableStateOf("...") }
+        LaunchedEffect(Unit) {
+            currentVersion = UpdateConfig.getCurrentVersion()
+        }
+        val updateStatus by AppState.updateStatus.collectAsState()
+        val latestReleaseNotes by AppState.latestReleaseNotes.collectAsState()
+        var showChangelog by remember { mutableStateOf(false) }
+        var showUpdateCheck by remember { mutableStateOf(false) }
+        var bundledChanges by remember { mutableStateOf(emptyList<ChangelogEntry>()) }
+        LaunchedEffect(Unit) {
+            bundledChanges = ContentData.changelog()
+        }
+        val changes = if (latestReleaseNotes.isNotBlank()) {
+            latestReleaseNotes.lines().filter { it.isNotBlank() }.map { "• $it" }
+        } else {
+            bundledChanges.map { entry -> (entry.title?.let { "$it: " } ?: "") + entry.description }
+        }
 
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
+        AppBackHandler {
+            if (showChangelog || showUpdateCheck) {
+                showChangelog = false
+                showUpdateCheck = false
+            } else {
+                if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE)
+            }
+        }
+
+        Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
 
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
@@ -117,4 +131,5 @@ fun AboutScreen() {
     if (showUpdateCheck) {
         UpdateCheckModal(onDismiss = { showUpdateCheck = false })
     }
+}
 }

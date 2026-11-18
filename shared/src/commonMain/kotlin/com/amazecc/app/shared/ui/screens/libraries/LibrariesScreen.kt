@@ -48,6 +48,7 @@ import com.amazecc.app.shared.model.BookItem
 import com.amazecc.app.shared.model.KohaBook
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
@@ -58,6 +59,8 @@ import com.amazecc.app.shared.ui.components.HeroCard
 import com.amazecc.app.shared.ui.components.HeroChip
 import com.amazecc.app.shared.ui.components.HeroPanel
 import com.amazecc.app.shared.ui.components.HeroStat
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupCard
 import com.amazecc.app.shared.ui.screens.settings.SettingsRow
 import com.amazecc.app.shared.ui.screens.settings.SettingsRowDivider
@@ -79,62 +82,69 @@ private enum class LibrarySubPage(
 
 @Composable
 fun LibrariesScreen() {
-    val colors = AmazeTheme.colors
-    val libraryRes by AppState.library.collectAsState()
-    val loginRequired by AppState.libraryLoginRequired.collectAsState()
-    val issuedBooks = libraryRes?.booksIssued ?: emptyList()
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
+        val libraryRes by AppState.library.collectAsState()
+        val loginRequired by AppState.libraryLoginRequired.collectAsState()
+        val issuedBooks = libraryRes?.booksIssued ?: emptyList()
 
-    var activeTab by remember { mutableStateOf(LibrarySubPage.MY_BOOKS) }
+        var activeTab by remember { mutableStateOf(LibrarySubPage.MY_BOOKS) }
 
-    // Search activation via header localSearchTick
-    val localSearchTick by AppState.localSearchTick.collectAsState()
-    val searchFocusRequester = remember { FocusRequester() }
-    val keyboardController = LocalSoftwareKeyboardController.current
+        // Search activation via header localSearchTick
+        val localSearchTick by AppState.localSearchTick.collectAsState()
+        val searchFocusRequester = remember { FocusRequester() }
+        val keyboardController = LocalSoftwareKeyboardController.current
 
-    LaunchedEffect(localSearchTick) {
-        if (localSearchTick > 0) {
-            activeTab = LibrarySubPage.CATALOG_SEARCH
+        LaunchedEffect(localSearchTick) {
+            if (localSearchTick > 0) {
+                activeTab = LibrarySubPage.CATALOG_SEARCH
+            }
         }
-    }
 
-    AppBackHandler(enabled = activeTab != LibrarySubPage.MY_BOOKS) {
-        activeTab = LibrarySubPage.MY_BOOKS
-    }
+        AppBackHandler {
+            if (activeTab != LibrarySubPage.MY_BOOKS) {
+                activeTab = LibrarySubPage.MY_BOOKS
+            } else {
+                if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE)
+            }
+        }
 
-    Box(
-        modifier = Modifier.fillMaxSize().background(colors.background)
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            HeaderSpacer()
+        Box(
+            modifier = Modifier.fillMaxSize().background(colors.background)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                HeaderSpacer()
 
-            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                AnimatedContent(
-                    targetState = activeTab,
-                    transitionSpec = {
-                        if (targetState == LibrarySubPage.MY_BOOKS) {
-                            (slideInHorizontally { -it / 3 } + fadeIn()) togetherWith
-                                    (slideOutHorizontally { it / 3 } + fadeOut())
-                        } else {
-                            (slideInHorizontally { it / 3 } + fadeIn()) togetherWith
-                                    (slideOutHorizontally { -it / 3 } + fadeOut())
+                Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                    AnimatedContent(
+                        targetState = activeTab,
+                        transitionSpec = {
+                            if (targetState == LibrarySubPage.MY_BOOKS) {
+                                (slideInHorizontally { -it / 3 } + fadeIn()) togetherWith
+                                        (slideOutHorizontally { it / 3 } + fadeOut())
+                            } else {
+                                (slideInHorizontally { it / 3 } + fadeIn()) togetherWith
+                                        (slideOutHorizontally { -it / 3 } + fadeOut())
+                            }
+                        },
+                        label = "librarySubNav"
+                    ) { sub ->
+                        when (sub) {
+                            LibrarySubPage.MY_BOOKS -> MyBooksOverview(
+                                issuedBooks = issuedBooks,
+                                loginRequired = loginRequired,
+                                onOpenSearch = { activeTab = LibrarySubPage.CATALOG_SEARCH },
+                                colors = colors
+                            )
+                            LibrarySubPage.CATALOG_SEARCH -> CatalogSearchContent(
+                                onBack = { activeTab = LibrarySubPage.MY_BOOKS },
+                                focusRequester = searchFocusRequester,
+                                keyboardController = keyboardController,
+                                autoFocus = localSearchTick > 0,
+                                colors = colors
+                            )
                         }
-                    },
-                    label = "librarySubNav"
-                ) { sub ->
-                    when (sub) {
-                        LibrarySubPage.MY_BOOKS -> MyBooksOverview(
-                            issuedBooks = issuedBooks,
-                            loginRequired = loginRequired,
-                            onOpenSearch = { activeTab = LibrarySubPage.CATALOG_SEARCH },
-                            colors = colors
-                        )
-                        LibrarySubPage.CATALOG_SEARCH -> CatalogSearchContent(
-                            onBack = { activeTab = LibrarySubPage.MY_BOOKS },
-                            focusRequester = searchFocusRequester,
-                            keyboardController = keyboardController,
-                            autoFocus = localSearchTick > 0,
-                            colors = colors
-                        )
                     }
                 }
             }
@@ -274,7 +284,7 @@ private fun LibraryHeroCard(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 HeroStat("Issued", "${issuedBooks.size}", p.text)
-                HeroStat("Overdue", "$overdueCount", if (overdueCount > 0) Color(0xFFFF8A80) else p.textSecondary)
+                HeroStat("Overdue", "$overdueCount", if (overdueCount > 0) colors.danger else p.textSecondary)
                 HeroStat("Fines", totalFines, p.textSecondary)
             }
         }
@@ -498,9 +508,9 @@ private fun IssuedBookCard(book: BookItem, colors: AmazeColors) {
                     contentPadding = PaddingValues(horizontal = 12.dp)
                 ) {
                     if (renewing) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp)
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = colors.onAccent, strokeWidth = 2.dp)
                     } else {
-                        Text("Renew", fontSize = AmazeTheme.fontSize.base, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Renew", fontSize = AmazeTheme.fontSize.base, fontWeight = FontWeight.Bold, color = colors.onAccent)
                     }
                 }
             }

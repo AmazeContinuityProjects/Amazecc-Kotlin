@@ -108,7 +108,13 @@ actual class VtopEngine actual constructor() {
 
     actual suspend fun load(path: String) {
         val wv = ensureWebView()
-        val url = VtopSession.BASE_URL + path
+        val url = when {
+            path.startsWith("http://") || path.startsWith("https://") -> path
+            path.startsWith("/vtop") -> "https://vtopcc.vit.ac.in$path"
+            path.startsWith("/") -> "${VtopSession.BASE_URL}$path"
+            path.isEmpty() -> VtopSession.BASE_URL
+            else -> "${VtopSession.BASE_URL}/$path"
+        }
         withContext(Dispatchers.Main) {
             wv.clearCache(true)
             wv.clearHistory()
@@ -148,6 +154,14 @@ actual class VtopEngine actual constructor() {
             val manager = CookieManager.getInstance()
             manager.removeAllCookies(null)
             manager.flush()
+        }
+    }
+
+    actual suspend fun persistCookies() {
+        withContext(Dispatchers.Main) {
+            // The platform only writes the store out on its own schedule, so a login followed by a
+            // process kill loses the session that `restoreSessionIfPossible` is meant to find.
+            CookieManager.getInstance().flush()
         }
     }
 

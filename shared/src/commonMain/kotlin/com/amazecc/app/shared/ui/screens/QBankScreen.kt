@@ -25,6 +25,8 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.coroutines.launch
 
@@ -36,6 +38,7 @@ import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun QBankScreen() {
+    val isDark = M3EStateBridge.isDarkThemeActive()
     val colors = AmazeTheme.colors
     val scope = rememberCoroutineScope()
     var courses by remember { mutableStateOf<List<QBankCourse>>(emptyList()) }
@@ -45,6 +48,16 @@ fun QBankScreen() {
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     val qbankCourseTarget by AppState.qbankCourseTarget.collectAsState()
+
+    AppBackHandler {
+        if (selectedCourse != null) {
+            selectedCourse = null
+            startInQuiz = false
+            qbankStats = SettingsManager.getQBankStats()
+        } else {
+            if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE)
+        }
+    }
 
     fun refreshCourses() {
         qbankStats = SettingsManager.getQBankStats()
@@ -92,7 +105,8 @@ fun QBankScreen() {
 
     val sc = selectedCourse
 
-    Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
+    AmazeM3ETheme(isDark = isDark) {
+        Box(modifier = Modifier.fillMaxSize().background(colors.background)) {
         if (sc == null) {
             ScreenHeader(
                 title = "Exam Prep Hub & QBank",
@@ -100,7 +114,15 @@ fun QBankScreen() {
                 showBackButton = true,
                 showSyncButton = true,
                 onRefresh = { refreshCourses() },
-                onBackOverride = { AppState.navigateBack() },
+                onBackOverride = {
+                    if (selectedCourse != null) {
+                        selectedCourse = null
+                        startInQuiz = false
+                        qbankStats = SettingsManager.getQBankStats()
+                    } else if (!AppState.navigateBack()) {
+                        AppState.navigateTo(Screen.MORE)
+                    }
+                },
                 enabledScreens = setOf(Screen.QBANK)
             )
         }
@@ -286,4 +308,5 @@ fun QBankScreen() {
             }
         }
     }
+}
 }

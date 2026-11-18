@@ -411,6 +411,7 @@ fun AmazeTheme(
         LocalAmazeFontSize provides fontSize,
         LocalAmazeTypography provides typography,
         LocalHeroColorEnabled provides heroColorEnabled,
+        androidx.compose.material3.LocalContentColor provides rememberColors.textPrimary
     ) {
         com.amazecc.app.shared.ui.components.ProvideInteractionPrefs(
             hapticEnabled = hapticEnabled,

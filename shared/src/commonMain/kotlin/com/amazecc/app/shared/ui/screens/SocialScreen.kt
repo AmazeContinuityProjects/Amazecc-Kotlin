@@ -44,79 +44,89 @@ import com.amazecc.app.shared.state.FriendsViewModel
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.utils.QRCodeGenerator
 import com.amazecc.app.shared.utils.SocialUtils
 import com.amazecc.app.shared.config.SlotMap
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.seconds
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SocialScreen() {
-    val colors = AmazeTheme.colors
-    val tabs = listOf("Friends", "Groups", "Common Slots", "Share Schedule")
-    var activeTab by remember { mutableStateOf(0) }
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
+        val tabs = listOf("Friends", "Groups", "Common Slots", "Share Schedule")
+        var activeTab by remember { mutableStateOf(0) }
 
-    Box(
-        modifier = Modifier.fillMaxSize().background(colors.background)
-    ) {
-
-        Column(modifier = Modifier.fillMaxSize()) {
-            com.amazecc.app.shared.ui.components.HeaderSpacer()
-
-            Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            tabs.forEachIndexed { index, tab ->
-                val isSelected = activeTab == index
-                val interactionSource = remember { MutableInteractionSource() }
-                val isPressed by interactionSource.collectIsPressedAsState()
-                val scale by animateFloatAsState(
-                    targetValue = if (isPressed) 0.94f else 1f,
-                    animationSpec = bouncySpring()
-                )
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .graphicsLayer {
-                            scaleX = scale
-                            scaleY = scale
-                        }
-                        .clip(CircleShape)
-                        .background(if (isSelected) colors.accent else colors.surface)
-                        .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
-                        .clickable(
-                            interactionSource = interactionSource,
-                            indication = null,
-                            onClick = { activeTab = index }
-                        )
-                        .padding(vertical = 10.dp, horizontal = 4.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = tab,
-                        style = AmazeTheme.typography.smallLabel.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = AmazeTheme.fontSize.xs
-                        ),
-                        color = if (isSelected) colors.background else colors.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
+        AppBackHandler {
+            if (!AppState.navigateBack()) AppState.navigateTo(com.amazecc.app.shared.state.Screen.MORE)
         }
 
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            when (activeTab) {
-                0 -> FriendsTab(colors)
-                1 -> GroupsTab(colors)
-                2 -> CommonSlotsTab(colors)
-                3 -> ShareScheduleTab(colors)
+        Box(
+            modifier = Modifier.fillMaxSize().background(colors.background)
+        ) {
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                com.amazecc.app.shared.ui.components.HeaderSpacer()
+
+                Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                tabs.forEachIndexed { index, tab ->
+                    val isSelected = activeTab == index
+                    val interactionSource = remember { MutableInteractionSource() }
+                    val isPressed by interactionSource.collectIsPressedAsState()
+                    val scale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.94f else 1f,
+                        animationSpec = bouncySpring()
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .graphicsLayer {
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                            .clip(CircleShape)
+                            .background(if (isSelected) colors.accent else colors.surface)
+                            .border(1.dp, if (isSelected) colors.accent else colors.border, CircleShape)
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                onClick = { activeTab = index }
+                            )
+                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = tab,
+                            style = AmazeTheme.typography.smallLabel.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = AmazeTheme.fontSize.xs
+                            ),
+                            color = if (isSelected) colors.onAccent else colors.textPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                when (activeTab) {
+                    0 -> FriendsTab(colors)
+                    1 -> GroupsTab(colors)
+                    2 -> CommonSlotsTab(colors)
+                    3 -> ShareScheduleTab(colors)
+                }
             }
         }
     }
@@ -498,7 +508,7 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                                 modifier = Modifier.size(40.dp).clip(CircleShape).background(colors.accent),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(friend.name.firstOrNull()?.uppercase() ?: "F", color = Color.White, fontWeight = FontWeight.Bold)
+                                Text(friend.name.firstOrNull()?.uppercase() ?: "F", color = colors.onAccent, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.width(AmazeTheme.spacing.sm))
                             Column(modifier = Modifier.weight(1f)) {

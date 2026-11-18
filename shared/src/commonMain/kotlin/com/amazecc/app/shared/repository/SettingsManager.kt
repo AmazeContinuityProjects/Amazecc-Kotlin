@@ -12,6 +12,7 @@ object SettingsManager {
     private val settings: Settings by lazy { Settings() }
 
     // Key constants mirroring web app
+    const val KEY_HONO_API_URL = "hono_api_url"
     const val KEY_GPA_GOAL = "uni_cc_gpa_goal"
     const val KEY_USERNAME = "username"
     const val KEY_PASSWORD = "password"
@@ -73,7 +74,7 @@ object SettingsManager {
     const val SESSION_CLUB_TOKEN = "session_club_token"
     const val SESSION_CREATED_AT = "session_created_at"
 
-    // Where VTOP data is fetched from: "LOCAL" (on-device) or "REMOTE" (api.amazecc.com).
+    // Where VTOP data is fetched from: "LOCAL" (on-device) or "REMOTE" (hono.amazecc.com).
     // VTOP only accepts Indian IP space, so LOCAL is the default — the server proxy cannot
     // reach it. See docs/sep-29-2026/vtop-local-integration-plan.md
     const val KEY_VTOP_SOURCE = "vtop_source"
@@ -243,6 +244,40 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
 
     fun clearAll() {
         settings.clear()
+    }
+
+    /**
+     * Purges all application data caches (academic, profiles, transport, qbank stats, od tracker)
+     * without erasing user authentication credentials or theme preferences.
+     */
+    fun clearLocalCache() {
+        com.amazecc.app.shared.state.AppDataStore.clear()
+        com.amazecc.app.shared.state.UserStore.clear()
+        val keysToRemove = settings.keys.filter { it.startsWith("cache_") }
+        keysToRemove.forEach { remove(it) }
+        remove(KEY_SWOT_CONFIG)
+        remove(KEY_QBANK_STATS)
+        remove(PAST_SEMESTER_SYNCED)
+    }
+
+    fun getEstimatedCacheSizeBytes(): Long {
+        var total = 0L
+        for (k in settings.keys) {
+            if (k.startsWith("cache_") || k == KEY_SWOT_CONFIG || k == KEY_QBANK_STATS) {
+                val s = settings.getStringOrNull(k)
+                if (s != null) total += s.length * 2L
+            }
+        }
+        return total
+    }
+
+    fun getFormattedCacheSize(): String {
+        val bytes = getEstimatedCacheSizeBytes()
+        return when {
+            bytes >= 1024 * 1024 -> "${((bytes * 10) / (1024 * 1024)) / 10.0} MB"
+            bytes >= 1024 -> "${((bytes * 10) / 1024) / 10.0} KB"
+            else -> "$bytes B"
+        }
     }
 
     fun getExamSeatAlerted(): Set<String> {

@@ -37,6 +37,16 @@ expect class VtopEngine() {
     /** Drops all cookies, including `JSESSIONID`. */
     suspend fun clearCookies()
 
+    /**
+     * Writes the cookie store to persistent storage, now.
+     *
+     * Android keeps cookies in memory and flushes them on its own schedule, so a process killed
+     * before that lands loses `JSESSIONID` - and `Vtop.restoreSessionIfPossible` then has nothing
+     * to re-hydrate from and every module reports "No VTOP session". Calling this after a
+     * successful login makes the session survive the app being closed.
+     */
+    suspend fun persistCookies()
+
     /** Current cookies as a `Cookie` header value. Diagnostics only. */
     suspend fun cookieHeader(): String
 

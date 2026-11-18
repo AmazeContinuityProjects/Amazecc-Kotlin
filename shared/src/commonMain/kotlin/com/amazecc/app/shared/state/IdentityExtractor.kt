@@ -77,7 +77,10 @@ object IdentityExtractor {
             permanentAddress = toStringRows(p.permanentAddress),
             father = toStringRows(p.father),
             mother = toStringRows(p.mother),
-            proctor = p.proctor?.toOfficial()
+            proctor = p.proctor?.toOfficial(),
+            school = p.proctor?.school?.ifBlank { null },
+            applicationNumber = p.regNo.ifBlank { null },
+            friendMobile = (p.currentAddress["friendMobile"] as? JsonPrimitive)?.contentOrNull
         )
     }
 

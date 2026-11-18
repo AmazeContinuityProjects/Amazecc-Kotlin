@@ -15,61 +15,73 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.utils.ContentData
 import com.amazecc.app.shared.utils.Contributor
 
 @Composable
 fun HallOfFameScreen() {
-    val colors = AmazeTheme.colors
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
 
-    var contributors by remember { mutableStateOf(emptyList<Contributor>()) }
-    LaunchedEffect(Unit) {
-        contributors = ContentData.contributors()
-    }
+        AppBackHandler {
+            if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE)
+        }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
+        var contributors by remember { mutableStateOf(emptyList<Contributor>()) }
+        LaunchedEffect(Unit) {
+            contributors = ContentData.contributors()
+        }
 
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(colors.background)
         ) {
-            item { HeaderSpacer() }
-            items(contributors.size, key = { it }) { index ->
-                val contributor = contributors[index]
-                AmazeCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(colors.accent.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = contributor.name.firstOrNull()?.toString() ?: "?",
-                                style = AmazeTheme.typography.heading.copy(color = colors.accent, fontWeight = FontWeight.Bold)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
-                        Column {
-                            Text(
-                                text = contributor.name,
-                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                            )
-                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
-                            Text(
-                                text = contributor.role,
-                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                            )
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+                contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item { HeaderSpacer() }
+                items(contributors.size, key = { it }) { index ->
+                    val contributor = contributors[index]
+                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.accent.copy(alpha = 0.2f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = contributor.name.firstOrNull()?.toString() ?: "?",
+                                    style = AmazeTheme.typography.heading.copy(color = colors.accent, fontWeight = FontWeight.Bold)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.md))
+                            Column {
+                                Text(
+                                    text = contributor.name,
+                                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                                )
+                                Spacer(modifier = Modifier.height(AmazeTheme.spacing.xs))
+                                Text(
+                                    text = contributor.role,
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                                )
+                            }
                         }
                     }
                 }

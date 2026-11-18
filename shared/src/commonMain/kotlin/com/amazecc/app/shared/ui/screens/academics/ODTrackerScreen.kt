@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.automirrored.rounded.Assignment
@@ -28,6 +29,7 @@ import com.amazecc.app.shared.model.ODListItem
 import com.amazecc.app.shared.model.ODTrackedEntry
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
@@ -35,10 +37,13 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.utils.parseViewLink
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
@@ -127,10 +132,16 @@ private fun computeMetrics(odDays: List<ODDay>, trackerState: Map<String, Map<St
 
 @Composable
 fun ODTrackerScreen() {
-    val colors = AmazeTheme.colors
-    var activeTab by remember { mutableStateOf(0) }
-    val domain by AppState.domain.collectAsState()
-    val courses = Projections.currentSemesterAttendance(domain)
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
+        var activeTab by remember { mutableStateOf(0) }
+        val domain by AppState.domain.collectAsState()
+        val courses = Projections.currentSemesterAttendance(domain)
+
+        AppBackHandler {
+            if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS)
+        }
 
     // Tracker state: date -> courseCode -> ODTrackedEntry
     val trackerState = remember {
@@ -338,7 +349,7 @@ fun ODTrackerScreen() {
                         label,
                         style = AmazeTheme.typography.body.copy(
                             fontWeight = FontWeight.Bold,
-                            color = if (isSelected) colors.background else colors.textPrimary,
+                            color = if (isSelected) colors.onAccent else colors.textPrimary,
                             fontSize = AmazeTheme.fontSize.base
                         )
                     )
@@ -378,6 +389,7 @@ fun ODTrackerScreen() {
             )
         }
     }
+}
 }
 
 @Composable
@@ -742,6 +754,7 @@ private fun ODDateGroup(
                 val tracked = entry.courseCode?.let { code -> dayTracker[code] }
                 val isWasted = tracked?.status == "wasted"
                 val isRecovered = tracked?.status == "recovered"
+                val recoveredColor = if (colors.background.luminance() < 0.5f) Color(0xFFA78BFA) else Color(0xFF7C3AED)
 
                 Row(
                     modifier = Modifier
@@ -760,14 +773,14 @@ private fun ODDateGroup(
                         Icon(
                             typeIcon,
                             null,
-                            tint = if (isWasted) colors.danger else if (isRecovered) Color(0xFF7C3AED) else typeColor,
+                            tint = if (isWasted) colors.danger else if (isRecovered) recoveredColor else typeColor,
                             modifier = Modifier.size(16.dp)
                         )
                         Column {
                             Text(
                                 entry.title,
                                 style = AmazeTheme.typography.body.copy(
-                                    color = if (isWasted) colors.danger else if (isRecovered) Color(0xFF7C3AED) else colors.textPrimary,
+                                    color = if (isWasted) colors.danger else if (isRecovered) recoveredColor else colors.textPrimary,
                                     fontSize = AmazeTheme.fontSize.md,
                                     fontWeight = FontWeight.Medium,
                                     textDecoration = if (isWasted) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
@@ -784,7 +797,7 @@ private fun ODDateGroup(
                                 Text(
                                     if (isWasted) "Wasted" else "Recovered",
                                     style = AmazeTheme.typography.smallLabel.copy(
-                                        color = if (isWasted) colors.danger else Color(0xFF7C3AED),
+                                        color = if (isWasted) colors.danger else recoveredColor,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = AmazeTheme.fontSize.micro
                                     )
@@ -798,7 +811,7 @@ private fun ODDateGroup(
                             .background(
                                 when {
                                     isWasted -> colors.danger.copy(alpha = 0.15f)
-                                    isRecovered -> Color(0xFF7C3AED).copy(alpha = 0.15f)
+                                    isRecovered -> recoveredColor.copy(alpha = 0.15f)
                                     entry.type == "LAB" -> colors.info.copy(alpha = 0.1f)
                                     else -> colors.warning.copy(alpha = 0.1f)
                                 }
@@ -810,7 +823,7 @@ private fun ODDateGroup(
                             style = AmazeTheme.typography.smallLabel.copy(
                                 color = when {
                                     isWasted -> colors.danger
-                                    isRecovered -> Color(0xFF7C3AED)
+                                    isRecovered -> recoveredColor
                                     entry.type == "LAB" -> colors.info
                                     else -> colors.warning
                                 },

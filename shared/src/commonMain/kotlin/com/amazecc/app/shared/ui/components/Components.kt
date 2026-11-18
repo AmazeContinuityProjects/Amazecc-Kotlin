@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.theme.AmazeTheme
 
-val BOTTOM_NAV_PADDING = 88.dp
+val BOTTOM_NAV_PADDING = 140.dp
 
 @Composable
 fun FooterSpacer(

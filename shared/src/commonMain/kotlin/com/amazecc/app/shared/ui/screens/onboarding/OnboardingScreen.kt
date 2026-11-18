@@ -44,6 +44,10 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.theme.verdantAccentFor
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.m3e.theme.M3EMotion
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalTime
 
@@ -66,208 +70,275 @@ private val PHASES = listOf("Discover", "Plan", "Tell")
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OnboardingScreen() {
-    val colors = AmazeTheme.colors
-    var currentPage by remember { mutableStateOf(0) }
+    val isDark = AppState.theme.value == AppTheme.DARK || (AppState.theme.value == AppTheme.SYSTEM && androidx.compose.foundation.isSystemInDarkTheme())
 
-    // Personalization
-    var selectedTheme by remember { mutableStateOf(AppState.theme.value) }
-    var selectedAccent by remember { mutableStateOf(AppState.accent.value) }
-    var uiScale by remember { mutableStateOf(AppState.uiScale.value) }
-    var cgpaHidden by remember { mutableStateOf(AppState.cgpaHidden.value) }
-    var attendanceMode by remember { mutableStateOf(AppState.attendanceDisplayMode.value) }
-    var hapticsEnabled by remember { mutableStateOf(AppState.hapticEnabled.value) }
-    var animationsEnabled by remember { mutableStateOf(AppState.animationsEnabled.value) }
+    AmazeM3ETheme(isDark = isDark) {
+        val m3eColors = M3ETheme.colors
+        val colors = AmazeTheme.colors
+        var currentPage by remember { mutableStateOf(0) }
 
-    // Academic Preferences
-    var selectedSemester by remember { mutableStateOf(AppState.selectedSemester.value) }
-    var selectedCalendar by remember { mutableStateOf(SettingsManager.getPreferredCalendar() ?: AmazeClient.calendarTypes.first().second) }
+        // Personalization
+        var selectedTheme by remember { mutableStateOf(AppState.theme.value) }
+        var selectedAccent by remember { mutableStateOf(AppState.accent.value) }
+        var uiScale by remember { mutableStateOf(AppState.uiScale.value) }
+        var cgpaHidden by remember { mutableStateOf(AppState.cgpaHidden.value) }
+        var attendanceMode by remember { mutableStateOf(AppState.attendanceDisplayMode.value) }
+        var hapticsEnabled by remember { mutableStateOf(AppState.hapticEnabled.value) }
+        var animationsEnabled by remember { mutableStateOf(AppState.animationsEnabled.value) }
 
-    // Residential & Notifications
-    var residentialStatus by remember { mutableStateOf(AppState.residentialStatus.value) }
-    var classNotif by remember { mutableStateOf(SettingsManager.isNotifClassRemindersEnabled()) }
-    var assignNotif by remember { mutableStateOf(SettingsManager.isNotifAssignmentRemindersEnabled()) }
-    var taskNotif by remember { mutableStateOf(SettingsManager.isNotifTaskRemindersEnabled()) }
-    var examNotif by remember { mutableStateOf(SettingsManager.isNotifExamRemindersEnabled()) }
-    var offsetMinutes by remember { mutableStateOf(SettingsManager.getNotifOffsetMinutes()) }
+        // Academic Preferences
+        var selectedSemester by remember { mutableStateOf(AppState.selectedSemester.value) }
+        var selectedCalendar by remember { mutableStateOf(SettingsManager.getPreferredCalendar() ?: AmazeClient.calendarTypes.first().second) }
 
-    // Modules
-    val availableModules = listOf(
-        Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE,
-        Screen.PAYMENTS, Screen.CABSHARE, Screen.TRANSPORT, Screen.CALENDAR,
-        Screen.FFCS_PLANNER, Screen.FREE_CLASSROOMS, Screen.QBANK, Screen.SOCIAL
-    )
-    var selectedModules by remember { mutableStateOf(AppState.pinnedNavTabs.value) }
+        // Residential & Notifications
+        var residentialStatus by remember { mutableStateOf(AppState.residentialStatus.value) }
+        var classNotif by remember { mutableStateOf(SettingsManager.isNotifClassRemindersEnabled()) }
+        var assignNotif by remember { mutableStateOf(SettingsManager.isNotifAssignmentRemindersEnabled()) }
+        var taskNotif by remember { mutableStateOf(SettingsManager.isNotifTaskRemindersEnabled()) }
+        var examNotif by remember { mutableStateOf(SettingsManager.isNotifExamRemindersEnabled()) }
+        var offsetMinutes by remember { mutableStateOf(SettingsManager.getNotifOffsetMinutes()) }
 
-    // Accounts
-    var moodleUser by remember { mutableStateOf("") }
-    var moodlePass by remember { mutableStateOf("") }
-    var libUser by remember { mutableStateOf("") }
-    var libPass by remember { mutableStateOf("") }
+        // Modules
+        val availableModules = listOf(
+            Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE,
+            Screen.PAYMENTS, Screen.CABSHARE, Screen.TRANSPORT, Screen.CALENDAR,
+            Screen.FFCS_PLANNER, Screen.FREE_CLASSROOMS, Screen.QBANK, Screen.SOCIAL
+        )
+        var selectedModules by remember { mutableStateOf(AppState.pinnedNavTabs.value) }
 
-    val moduleStates by SyncEngine.moduleStates.collectAsState()
-    val syncSteps = remember(moduleStates) {
-        moduleStates.filterKeys { it != SyncModule.EVENTS }
-            .entries.map { (module, state) ->
-                AppState.SyncStep(
-                    name = module.displayName,
-                    status = when (state.status) {
-                        SyncStatus.SUCCESS -> "done"
-                        SyncStatus.ERROR -> "failed"
-                        SyncStatus.LOADING -> "syncing"
-                        else -> "pending"
-                    }
-                )
-            }
-    }
-    LaunchedEffect(Unit) {
-        AppState.loadAllData()
-    }
+        // Accounts
+        var moodleUser by remember { mutableStateOf("") }
+        var moodlePass by remember { mutableStateOf("") }
+        var libUser by remember { mutableStateOf("") }
+        var libPass by remember { mutableStateOf("") }
 
-    val pages = listOf(
-        OnboardingPage("Welcome to AmazeCC", "Your all-in-one campus companion", Icons.Rounded.AutoAwesome, PHASES[0]),
-        OnboardingPage("Discover AmazeCC", "Everything in one place", Icons.Rounded.Explore, PHASES[0]),
-        OnboardingPage("Personalize", "Theme, accent & display preferences", Icons.Rounded.Palette, PHASES[1]),
-        OnboardingPage("Academic Preferences", "Semester & default calendar type", Icons.Rounded.CalendarMonth, PHASES[1]),
-        OnboardingPage("Residence & Alerts", "Notifications & residential info", Icons.Rounded.Notifications, PHASES[1]),
-        OnboardingPage("Choose Your Modules", "Pin your most-used sections", Icons.Rounded.Apps, PHASES[2]),
-        OnboardingPage("Dashboard Widgets", "Pick what your home screen shows", Icons.Rounded.DashboardCustomize, PHASES[2]),
-        OnboardingPage("Link Accounts", "Optional: Moodle & Library login", Icons.Rounded.Link, PHASES[2]),
-        OnboardingPage("Auto Sync", "Keep data fresh on a schedule", Icons.Rounded.Timelapse, PHASES[2]),
-        OnboardingPage("You're All Set!", "Your data is loading in the background", Icons.Rounded.CheckCircle, PHASES[2])
-    )
+        val moduleStates by SyncEngine.moduleStates.collectAsState()
+        val syncSteps = remember(moduleStates) {
+            moduleStates.filterKeys { it != SyncModule.EVENTS }
+                .entries.map { (module, state) ->
+                    AppState.SyncStep(
+                        name = module.displayName,
+                        status = when (state.status) {
+                            SyncStatus.SUCCESS -> "done"
+                            SyncStatus.ERROR -> "failed"
+                            SyncStatus.LOADING -> "syncing"
+                            else -> "pending"
+                        }
+                    )
+                }
+        }
+        LaunchedEffect(Unit) {
+            AppState.loadAllData()
+        }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
-        Box(
+        val pages = listOf(
+            OnboardingPage("Welcome to AmazeCC", "Your all-in-one campus companion", Icons.Rounded.AutoAwesome, PHASES[0]),
+            OnboardingPage("Discover AmazeCC", "Everything in one place", Icons.Rounded.Explore, PHASES[0]),
+            OnboardingPage("Personalize", "Theme, accent & display preferences", Icons.Rounded.Palette, PHASES[1]),
+            OnboardingPage("Academic Preferences", "Semester & default calendar type", Icons.Rounded.CalendarMonth, PHASES[1]),
+            OnboardingPage("Residence & Alerts", "Notifications & residential info", Icons.Rounded.Notifications, PHASES[1]),
+            OnboardingPage("Choose Your Modules", "Pin your most-used sections", Icons.Rounded.Apps, PHASES[2]),
+            OnboardingPage("Dashboard Widgets", "Pick what your home screen shows", Icons.Rounded.DashboardCustomize, PHASES[2]),
+            OnboardingPage("Link Accounts", "Optional: Moodle & Library login", Icons.Rounded.Link, PHASES[2]),
+            OnboardingPage("Auto Sync", "Keep data fresh on a schedule", Icons.Rounded.Timelapse, PHASES[2]),
+            OnboardingPage("You're All Set!", "Your data is loading in the background", Icons.Rounded.CheckCircle, PHASES[2])
+        )
+
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(colors.accent.copy(alpha = 0.08f))
-                .padding(top = 48.dp, bottom = 24.dp, start = 24.dp, end = 24.dp)
+                .fillMaxSize()
+                .background(m3eColors.surfaceContainerLowest)
+                .statusBarsPadding()
         ) {
-            Column {
-                AnimatedContent(targetState = currentPage, transitionSpec = {
-                    fadeIn() togetherWith fadeOut()
-                }) { page ->
-                    Column {
-                        Text(
-                            "PHASE ${PHASES.indexOf(pages[page].phaseLabel) + 1} OF 3 · ${pages[page].phaseLabel.uppercase()}",
-                            color = colors.accent,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = AmazeTheme.fontSize.micro,
-                            letterSpacing = 1.5.sp
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                                    .background(colors.accent.copy(alpha = 0.15f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(pages[page].icon, null, tint = colors.accent, modifier = Modifier.size(24.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(m3eColors.surfaceContainerLow)
+                    .padding(top = 20.dp, bottom = 20.dp, start = 20.dp, end = 20.dp)
+            ) {
+                Column {
+                    AnimatedContent(
+                        targetState = currentPage,
+                        transitionSpec = {
+                            if (targetState > initialState) {
+                                (slideInHorizontally { it / 3 } + fadeIn()).togetherWith(
+                                    slideOutHorizontally { -it / 3 } + fadeOut()
+                                )
+                            } else {
+                                (slideInHorizontally { -it / 3 } + fadeIn()).togetherWith(
+                                    slideOutHorizontally { it / 3 } + fadeOut()
+                                )
                             }
-                            Spacer(Modifier.width(AmazeTheme.spacing.md))
-                            Column {
-                                Text(pages[page].title, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                Text(pages[page].subtitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                        }
+                    ) { page ->
+                        Column {
+                            Text(
+                                "PHASE ${PHASES.indexOf(pages[page].phaseLabel) + 1} OF 3 · ${pages[page].phaseLabel.uppercase()}",
+                                color = m3eColors.primary,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                letterSpacing = 1.5.sp
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(m3eColors.primaryContainer),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(pages[page].icon, null, tint = m3eColors.onPrimaryContainer, modifier = Modifier.size(22.dp))
+                                }
+                                Spacer(Modifier.width(14.dp))
+                                Column {
+                                    Text(
+                                        pages[page].title,
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = m3eColors.onSurface
+                                        )
+                                    )
+                                    Text(
+                                        pages[page].subtitle,
+                                        style = MaterialTheme.typography.bodySmall.copy(
+                                            color = m3eColors.onSurfaceVariant
+                                        )
+                                    )
+                                }
                             }
                         }
                     }
-                }
-                Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    pages.indices.forEach { i ->
-                        val isSelected = i == currentPage
-                        val isPast = i <= currentPage
-                        val width by animateDpAsState(targetValue = if (isSelected) 24.dp else 8.dp)
-                        val color by animateColorAsState(targetValue = if (isPast) colors.accent else colors.border)
-                        Box(
-                            modifier = Modifier
-                                .size(width, 8.dp)
-                                .clip(RoundedCornerShape(AmazeTheme.radius.xs))
-                                .background(color)
-                        )
+                    Spacer(Modifier.height(16.dp))
+                    M3EWavyLinearProgress(
+                        progress = (currentPage + 1).toFloat() / pages.size,
+                        modifier = Modifier.fillMaxWidth().height(8.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        pages.indices.forEach { i ->
+                            val isSelected = i == currentPage
+                            val isPast = i <= currentPage
+                            val width by animateDpAsState(
+                                targetValue = if (isSelected) 24.dp else 8.dp,
+                                animationSpec = M3EMotion.spatialDefault()
+                            )
+                            val color by animateColorAsState(
+                                targetValue = if (isPast) m3eColors.primary else m3eColors.outlineVariant
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(width, 6.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        Box(modifier = Modifier.weight(1f)) {
-            AnimatedContent(
-                targetState = currentPage,
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                when (page) {
-                    0 -> WelcomePage(colors, syncSteps)
-                    1 -> DiscoverPage(colors)
-                    2 -> PersonalizationPage(colors, selectedTheme, { selectedTheme = it }, selectedAccent, { selectedAccent = it }, uiScale, { uiScale = it }, cgpaHidden, { cgpaHidden = it }, attendanceMode, { attendanceMode = it }, hapticsEnabled, { hapticsEnabled = it }, animationsEnabled, { animationsEnabled = it })
-                    3 -> AcademicPrefsPage(colors, selectedSemester, { selectedSemester = it }, selectedCalendar, { selectedCalendar = it })
-                    4 -> ResidentialNotifPage(colors, residentialStatus, { residentialStatus = it }, classNotif, { classNotif = it }, assignNotif, { assignNotif = it }, taskNotif, { taskNotif = it }, examNotif, { examNotif = it }, offsetMinutes, { offsetMinutes = it })
-                    5 -> ModulesPage(colors, availableModules, selectedModules) { selectedModules = it }
-                    6 -> DashboardWidgetsPage(colors)
-                    7 -> AccountsPage(colors, moodleUser, { moodleUser = it }, moodlePass, { moodlePass = it }, libUser, { libUser = it }, libPass, { libPass = it })
-                    8 -> AutoSyncPage(colors)
-                    9 -> CompletionPage(colors, syncSteps)
+            Box(modifier = Modifier.weight(1f)) {
+                AnimatedContent(
+                    targetState = currentPage,
+                    transitionSpec = {
+                        if (targetState > initialState) {
+                            (slideInHorizontally { it / 3 } + fadeIn()).togetherWith(
+                                slideOutHorizontally { -it / 3 } + fadeOut()
+                            )
+                        } else {
+                            (slideInHorizontally { -it / 3 } + fadeIn()).togetherWith(
+                                slideOutHorizontally { it / 3 } + fadeOut()
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    when (page) {
+                        0 -> WelcomePage(colors, syncSteps)
+                        1 -> DiscoverPage(colors)
+                        2 -> PersonalizationPage(colors, selectedTheme, { selectedTheme = it }, selectedAccent, { selectedAccent = it }, uiScale, { uiScale = it }, cgpaHidden, { cgpaHidden = it }, attendanceMode, { attendanceMode = it }, hapticsEnabled, { hapticsEnabled = it }, animationsEnabled, { animationsEnabled = it })
+                        3 -> AcademicPrefsPage(colors, selectedSemester, { selectedSemester = it }, selectedCalendar, { selectedCalendar = it })
+                        4 -> ResidentialNotifPage(colors, residentialStatus, { residentialStatus = it }, classNotif, { classNotif = it }, assignNotif, { assignNotif = it }, taskNotif, { taskNotif = it }, examNotif, { examNotif = it }, offsetMinutes, { offsetMinutes = it })
+                        5 -> ModulesPage(colors, availableModules, selectedModules) { selectedModules = it }
+                        6 -> DashboardWidgetsPage(colors)
+                        7 -> AccountsPage(colors, moodleUser, { moodleUser = it }, moodlePass, { moodlePass = it }, libUser, { libUser = it }, libPass, { libPass = it })
+                        8 -> AutoSyncPage(colors)
+                        9 -> CompletionPage(colors, syncSteps)
+                    }
                 }
             }
-        }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (currentPage > 0) {
-                AmazeButton(
-                    text = "Back",
-                    onClick = { currentPage-- },
-                    variant = ButtonVariant.GHOST,
-                    icon = Icons.AutoMirrored.Rounded.ArrowBack
-                )
-            } else {
-                Spacer(Modifier.width(1.dp))
-            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(m3eColors.surfaceContainerLow)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (currentPage > 0) {
+                    OutlinedButton(
+                        onClick = { currentPage-- },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = m3eColors.onSurface
+                        )
+                    ) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Back", fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Spacer(Modifier.width(1.dp))
+                }
 
-            if (currentPage < pages.size - 1) {
-                AmazeButton(
-                    text = "Next",
-                    onClick = { currentPage++ },
-                    variant = ButtonVariant.PRIMARY,
-                    icon = Icons.AutoMirrored.Rounded.ArrowForward
-                )
-            } else {
-                AmazeButton(
-                    text = "Get Started",
-                    onClick = {
-                        AppState.changeTheme(selectedTheme)
-                        AppState.changeAccent(selectedAccent)
-                        AppState.changeUiScale(uiScale)
-                        AppState.setCgpaHidden(cgpaHidden)
-                        AppState.setAttendanceDisplayMode(attendanceMode)
-                        AppState.setHapticEnabled(hapticsEnabled)
-                        AppState.setAnimationsEnabled(animationsEnabled)
-                        AppState.setResidentialStatus(residentialStatus)
-                        AppState.setPinnedNavTabs(selectedModules)
-                        SettingsManager.savePreferredCalendar(selectedCalendar)
-                        if (selectedSemester != AppState.selectedSemester.value) AppState.selectSemester(selectedSemester)
-                        SettingsManager.setNotifClassRemindersEnabled(classNotif)
-                        SettingsManager.setNotifAssignmentRemindersEnabled(assignNotif)
-                        SettingsManager.setNotifTaskRemindersEnabled(taskNotif)
-                        SettingsManager.setNotifExamRemindersEnabled(examNotif)
-                        SettingsManager.setNotifOffsetMinutes(offsetMinutes)
-                        SettingsManager.setOnboardingComplete(true)
-                        AppState.navigateTo(Screen.HOME)
-                    },
-                    variant = ButtonVariant.PRIMARY,
-                    icon = Icons.Rounded.RocketLaunch
-                )
+                if (currentPage < pages.size - 1) {
+                    ElevatedButton(
+                        onClick = { currentPage++ },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = m3eColors.primary,
+                            contentColor = m3eColors.onPrimary
+                        )
+                    ) {
+                        Text("Next", fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.width(6.dp))
+                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, modifier = Modifier.size(16.dp))
+                    }
+                } else {
+                    ElevatedButton(
+                        onClick = {
+                            AppState.changeTheme(selectedTheme)
+                            AppState.changeAccent(selectedAccent)
+                            AppState.changeUiScale(uiScale)
+                            AppState.setCgpaHidden(cgpaHidden)
+                            AppState.setAttendanceDisplayMode(attendanceMode)
+                            AppState.setHapticEnabled(hapticsEnabled)
+                            AppState.setAnimationsEnabled(animationsEnabled)
+                            AppState.setResidentialStatus(residentialStatus)
+                            AppState.setPinnedNavTabs(selectedModules)
+                            SettingsManager.savePreferredCalendar(selectedCalendar)
+                            if (selectedSemester != AppState.selectedSemester.value) AppState.selectSemester(selectedSemester)
+                            SettingsManager.setNotifClassRemindersEnabled(classNotif)
+                            SettingsManager.setNotifAssignmentRemindersEnabled(assignNotif)
+                            SettingsManager.setNotifTaskRemindersEnabled(taskNotif)
+                            SettingsManager.setNotifExamRemindersEnabled(examNotif)
+                            SettingsManager.setNotifOffsetMinutes(offsetMinutes)
+                            SettingsManager.setOnboardingComplete(true)
+                            AppState.navigateTo(Screen.HOME)
+                        },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = m3eColors.primary,
+                            contentColor = m3eColors.onPrimary
+                        )
+                    ) {
+                        Icon(Icons.Rounded.RocketLaunch, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Get Started", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
@@ -347,11 +418,9 @@ private fun WelcomePage(colors: com.amazecc.app.shared.theme.AmazeColors, syncSt
                     Spacer(Modifier.weight(1f))
                     Text("$doneCount/$total", color = p.textSecondary, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs)
                 }
-                LinearProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(AmazeTheme.radius.xs)),
-                    color = p.progress,
-                    trackColor = p.progressTrack
+                M3EWavyLinearProgress(
+                    progress = progress,
+                    modifier = Modifier.fillMaxWidth().height(8.dp)
                 )
                 syncSteps.forEach { step ->
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

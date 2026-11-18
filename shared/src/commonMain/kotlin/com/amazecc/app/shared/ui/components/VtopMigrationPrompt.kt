@@ -18,7 +18,7 @@ import com.amazecc.app.shared.vtop.vtopEngineSupported
  * First-run notice for the move to on-device VTOP.
  *
  * `vtop_source` defaults to [VtopSource.LOCAL] because the server genuinely cannot reach VTOP —
- * it is geo-restricted to Indian IPs and api.amazecc.com runs in Singapore. That makes this a
+ * it is geo-restricted to Indian IPs and hono.amazecc.com runs in Singapore. That makes this a
  * behaviour change for existing installs, so the user is asked once rather than being switched
  * silently. See docs/sep-29-2026/vtop-local-integration-plan.md.
  *

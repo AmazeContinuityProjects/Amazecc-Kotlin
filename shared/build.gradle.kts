@@ -98,6 +98,7 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.compose.ui.tooling)
         }
         
         iosMain.dependencies {

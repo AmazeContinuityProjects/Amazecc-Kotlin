@@ -120,7 +120,7 @@ object AppState {
     val headerOverride = MutableStateFlow<com.amazecc.app.shared.ui.components.HeaderConfig?>(null)
     private val _headerOverrideOwner = MutableStateFlow<Set<Screen>?>(null)
     
-    private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
+    private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ACADEMICS, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
 
     private val _isAppLibraryOpen = MutableStateFlow(false)
@@ -128,10 +128,14 @@ object AppState {
 
     fun openAppLibrary() {
         _isAppLibraryOpen.value = true
+        navigateTo(Screen.MORE)
     }
 
     fun closeAppLibrary() {
         _isAppLibraryOpen.value = false
+        if (_currentScreen.value == Screen.MORE) {
+            navigateBack()
+        }
     }
 
     val tabScreens: List<Screen>
@@ -366,6 +370,23 @@ object AppState {
     private val _syncStatus = MutableStateFlow<String?>(null)
     val syncStatus: StateFlow<String?> = _syncStatus.asStateFlow()
 
+    // Offline / Local Cache status indicators
+    private val _isUsingCachedData = MutableStateFlow(false)
+    val isUsingCachedData: StateFlow<Boolean> = _isUsingCachedData.asStateFlow()
+
+    private val _offlineCacheStatus = MutableStateFlow<String?>(null)
+    val offlineCacheStatus: StateFlow<String?> = _offlineCacheStatus.asStateFlow()
+
+    fun markServedFromCache(module: String? = null) {
+        _isUsingCachedData.value = true
+        _offlineCacheStatus.value = if (module != null) "Serving $module from local cache" else "Serving data from local cache"
+    }
+
+    fun clearServedFromCache() {
+        _isUsingCachedData.value = false
+        _offlineCacheStatus.value = null
+    }
+
     // Onboarding sync progress
     data class SyncStep(val name: String, val status: String) // status: "pending", "syncing", "done", "failed"
     private val _onboardingSyncSteps = MutableStateFlow<List<SyncStep>>(emptyList())
@@ -480,9 +501,9 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         if (savedNav.isNotEmpty()) {
             val tabs = savedNav.split(",").mapNotNull { name ->
                 try { Screen.valueOf(name) } catch (e: Exception) { null }
-            }
+            }.filter { it != Screen.HOME && it != Screen.MORE && it != Screen.ATTENDANCE && it != Screen.LIBRARIES }
             if (tabs.isNotEmpty()) {
-                _pinnedNavTabs.value = tabs.take(4)
+                _pinnedNavTabs.value = tabs.take(3)
             }
         }
     }
@@ -500,13 +521,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             IdentitySource.VTOP_PHOTO
         )
         reconcileExamSeatAlerts()
-        // Auto-sync Moodle & Library in background if credentials are saved
-        if (AppDataStore.moodleData.value == null && SettingsManager.getMoodleCredentials() != null) {
-            syncMoodle()
-        }
-        if ((AppDataStore.library.value == null || _libraryLoginRequired.value) && SettingsManager.getLibraryCredentials() != null) {
-            syncLibrary()
-        }
     }
 
     /**
@@ -919,11 +933,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         }
 
     fun navigateTo(screen: Screen) {
-        if (screen == Screen.MORE) {
-            _isAppLibraryOpen.value = true
-            return
-        }
-        _isAppLibraryOpen.value = false
+        _isAppLibraryOpen.value = (screen == Screen.MORE)
         headerOverride.value = null
         _headerOverrideOwner.value = null
         if (_currentScreen.value == screen) return
@@ -1045,6 +1055,43 @@ private val _commandPaletteOpen = MutableStateFlow(false)
 
     private var sweepJob: Job? = null
 
+    /**
+     * Gives a sweep a VTOP session to work with, before any module runs.
+     *
+     * [com.amazecc.app.shared.vtop.VtopSession] is memory-only on purpose — the real `JSESSIONID`
+     * never leaves the WebView's cookie store — so it is empty after a cold start and after the
+     * cookie's ten-minute life expires. Every fetcher in `VtopDataSource` bails out with
+     * `"No VTOP session"` when it is, which is why *every* per-module refresh button was dead:
+     * only `loadAllData` re-hydrated, and nothing else called it first.
+     *
+     * Doing it here rather than in `syncModule` keeps it to one round trip per sweep instead of one
+     * per module, and skips it entirely for the two sweeps that need no VTOP session at all.
+     *
+     * Never throws: with no Activity to attach a WebView to — a background sync, say — the modules
+     * are left to report their own failure, which is more informative than an exception here.
+     */
+    private suspend fun ensureVtopSessionForSweep(modules: Set<SyncModule>): Boolean {
+        if (AmazeClient.vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return true
+        val needsVtop = modules.any { it != SyncModule.LMS && it != SyncModule.MOODLE }
+        if (!needsVtop) return true
+
+        val authenticated = runCatching {
+            SyncEngine.ensureAuthenticatedSession(modules)
+        }.getOrElse { false }
+
+        if (authenticated) return true
+
+        val message = "Your VTOP session has expired. Sign in again to sync."
+        _error.value = message
+        _syncMessage.value = message
+        _syncStatus.value = message
+        modules.forEach {
+            SyncEngine.markModuleError(it, message)
+            SyncEngine.addLog(it, message, SyncStatus.ERROR)
+        }
+        return false
+    }
+
     private fun launchSweep(modules: Set<SyncModule>, stageProfile: String? = null, block: suspend () -> Unit) {
         if (sweepJob?.isActive == true) return
         sweepJob = scope.launch {
@@ -1052,6 +1099,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             _isSyncing.value = true
             SyncEngine.beginSweep(modules)
             try {
+                // No session means every module below would report the same "No VTOP session"
+                // against itself. Stopping here turns fifteen identical lines into one sentence
+                // that says what to do about it.
+                if (!ensureVtopSessionForSweep(modules)) return@launch
                 if (stageProfile != null) {
                     SyncEngine.withStageProfile(stageProfile) { block() }
                 } else {
@@ -1079,6 +1130,196 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         SyncEngine.setShowSyncDialog(false)
     }
 
+    fun loadMode(modeId: String, force: Boolean = false) {
+        if (_isLoading.value) return
+        val mode = SyncEngine.resolveMode(modeId) ?: SyncEngine.resolveMode("quick") ?: return
+        val stepsToRun = if (force) mode.steps else mode.steps.filter { !SyncEngine.isFresh(it, force = false) }
+        val sweepModules = stepsToRun.map { it.module }.toSet()
+        if (sweepModules.isEmpty()) {
+            _syncStatus.value = "All modules in ${mode.label} are up-to-date"
+            return
+        }
+        val stageProfile = mode.id
+        launchSweep(sweepModules, stageProfile = stageProfile) {
+            _error.value = null
+            _syncMessage.value = "Running ${mode.label}..."
+            _syncStatus.value = "Running ${mode.label}..."
+            notificationService.showLoadingNotification("AmazeCC Sync", "Running ${mode.label}...")
+            try {
+                val sem = _selectedSemester.value
+                val results = supervisorScope {
+                    val jobs = mutableListOf<kotlinx.coroutines.Deferred<SyncModuleResult>>()
+                    if (SyncModule.ATTENDANCE in sweepModules) {
+                        jobs += async {
+                            syncModule("Attendance", { AmazeClient.getAcademicData(sem) }, { it.attendance.error == null }, { it.attendance.error }) {
+                                AppDataStore.upsertAttendance(sem, it.attendance)
+                                if (it.marks?.error == null && it.marks != null) {
+                                    AppDataStore.upsertMarks(sem, it.marks)
+                                }
+                            }
+                        }
+                    }
+                    if (SyncModule.TIMETABLE in sweepModules) {
+                        jobs += async {
+                            syncModule("Timetable", { AmazeClient.getTimetable(sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.upsertTimetable(sem, it)
+                            }
+                        }
+                    }
+                    if (SyncModule.MARKS in sweepModules && SyncModule.ATTENDANCE !in sweepModules) {
+                        jobs += async {
+                            syncModule("Marks", { AmazeClient.getMarks(sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.upsertMarks(sem, it)
+                            }
+                        }
+                    }
+                    if (SyncModule.GRADES in sweepModules) {
+                        jobs += async {
+                            syncModule("Grade history", { AmazeClient.getAllGrades() }, { it.error == null }, { it.error }) {
+                                applyAllGrades(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.EXAM_SCHEDULE in sweepModules) {
+                        jobs += async {
+                            syncModule("Exam schedule", { AmazeClient.getExamSchedule(semesterId = sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.upsertExams(sem, it)
+                            }
+                        }
+                    }
+                    if (SyncModule.HOSTEL_DETAILS in sweepModules) {
+                        jobs += async {
+                            syncModule("Hostel details", { AmazeClient.getHostelDetails() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setHostelDetails(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.CURRICULUM in sweepModules) {
+                        jobs += async {
+                            syncModule("Curriculum", { AmazeClient.getCurriculum(semesterId = sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.setCurriculum(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.CALENDAR in sweepModules) {
+                        jobs += async {
+                            syncModule("Academic calendar", { AmazeClient.getCalendar(semesterId = sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.setCalendar(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.CALENDARS_LIST in sweepModules) {
+                        jobs += async {
+                            syncModule("Calendars list", { AmazeClient.getCalendars(semesterId = sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.setCalendarsList(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.PAYMENTS in sweepModules) {
+                        jobs += async {
+                            syncModule("Payments", { AmazeClient.getPayments() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setPayments(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.LIBRARY in sweepModules) {
+                        jobs += async {
+                            val creds = SettingsManager.getLibraryCredentials()
+                            if (creds == null) {
+                                SyncEngine.markModuleError(SyncModule.LIBRARY, "NO_LIB_CREDS")
+                                SyncModuleResult("Library", false, "NO_LIB_CREDS")
+                            } else {
+                                syncModule("Library", { AmazeClient.getLibrary(creds.first, creds.second) }, { it.error == null }, { it.error }) {
+                                    AppDataStore.setLibrary(it)
+                                }
+                            }
+                        }
+                    }
+                    if (SyncModule.TRANSPORT in sweepModules) {
+                        jobs += async {
+                            syncModule("Transport Data", { AmazeClient.getTransportData() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setTransportData(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.BUSES in sweepModules) {
+                        jobs += async {
+                            syncModule("Buses", { AmazeClient.getBuses() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setBuses(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.LMS in sweepModules) {
+                        jobs += async {
+                            syncModule("LMS", { AmazeClient.getLMSAssignments() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setLms(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.EVENTS in sweepModules) {
+                        jobs += async {
+                            syncModule("Registered Events", { AmazeClient.getEvents() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setEvents(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.CLUBS in sweepModules) {
+                        jobs += async {
+                            syncModule("Clubs", { AmazeClient.getClubs() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setClubs(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.QCM_VIEW in sweepModules) {
+                        jobs += async {
+                            syncModule("QCM View", { AmazeClient.getQcmView() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setQcmView(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.CIRCULARS in sweepModules) {
+                        jobs += async {
+                            syncModule("Circulars", { AmazeClient.getCirculars() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setCirculars(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.MOODLE in sweepModules) {
+                        jobs += async {
+                            val creds = SettingsManager.getMoodleCredentials()
+                            if (creds == null) {
+                                SyncEngine.markModuleError(SyncModule.MOODLE, "NO_MOODLE_CREDS")
+                                SyncModuleResult("Moodle Assignments", false, "NO_MOODLE_CREDS")
+                            } else {
+                                syncModule("Moodle Assignments", { AmazeClient.fetchMoodleData(creds.first, creds.second) }, { it.error == null }, { it.error }) {
+                                    AppDataStore.setMoodle(it)
+                                }
+                            }
+                        }
+                    }
+                    val idModules = sweepModules.intersect(setOf(
+                        SyncModule.STUDENT_PROFILE, SyncModule.PROFILE_IMAGES, SyncModule.CREDENTIALS,
+                        SyncModule.BANK_INFO, SyncModule.APAAR_ID, SyncModule.DAYBOARDER,
+                        SyncModule.EPT_SCHEDULE, SyncModule.REGISTRATION_SCHEDULE, SyncModule.UNIVERSITY_DAY
+                    ))
+                    if (idModules.isNotEmpty()) {
+                        jobs += async {
+                            syncIdentityModules()
+                            SyncModuleResult("Identity", true)
+                        }
+                    }
+                    jobs.awaitAll()
+                }
+                updateSyncSummary(results)
+            } catch (e: Exception) {
+                _error.value = "Sync failed: ${e.message}"
+            } finally {
+                _isLoading.value = false
+                _isSyncing.value = false
+            }
+        }
+    }
+
     fun loadAllData(scheduledFor: String? = null) {
         if (_isLoading.value) return
         val stageProfile = when (scheduledFor) {
@@ -1101,42 +1342,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             _syncStatus.value = "Refreshing VTOP session..."
             notificationService.showLoadingNotification("AmazeCC Sync", "Refreshing VTOP session...")
             try {
-                // ── Refresh VTOP session before syncing (cookies expire every 10 min) ──
-                // On LOCAL this re-hydrates from the WebView's JSESSIONID rather than doing a
-                // credential login, which would need a captcha nobody is there to answer.
-                if (AmazeClient.ensureSession()) {
-                    val csrfNow = SessionManager.csrf.value
-                    val idNow = SessionManager.authorizedID.value
-                    val cookiesNow = SessionManager.cookies.value
-                    if (csrfNow != null && idNow != null && cookiesNow != null) {
-                        SettingsManager.setString(SettingsManager.SESSION_COOKIES, cookiesNow)
-                        SettingsManager.setString(SettingsManager.SESSION_CSRF, csrfNow)
-                        SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, idNow)
-                        UserStore.merge(IdentityExtractor.fromSession(idNow), IdentitySource.SESSION)
-                    }
-                } else {
-                    // Fall back to a full credential login, which only works on REMOTE.
-                    val creds = SettingsManager.getCredentials()
-                    if (creds != null) {
-                        try {
-                            val loginRes = AmazeClient.login(creds.first, creds.second)
-                            if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
-                            SessionManager.saveSession(
-                                cookies = loginRes.cookies,
-                                csrf = loginRes.csrf,
-                                authorizedID = loginRes.authorizedID,
-                                clubToken = loginRes.clubToken
-                            )
-                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
-                            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
-                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
-                            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
-                            }
-                        } catch (e: Exception) { println("AmazeCC: AppState loadAllData sessionRefresh — ${e.message}") }
-                    }
-                }
-
                 _syncMessage.value = "Syncing academic and campus data..."
                 _syncStatus.value = "Syncing academic and campus data..."
                 val sem = _selectedSemester.value
@@ -1808,8 +2013,11 @@ val results = supervisorScope {
             val result = syncModule(
                 name = "Grade history",
                 fetch = { AmazeClient.getAllGrades() },
-                isSuccess = { it.error == null },
-                errorMessage = { it.error },
+                // `error` alone was not enough: a failure reported through `message` (which is how
+                // every "Empty response" / "menu unavailable" comes back) left `error` null, so the
+                // module was marked green while syncing nothing.
+                isSuccess = { it.error == null && it.success && !it.grades.isNullOrEmpty() },
+                errorMessage = { it.error ?: it.message ?: "No grade history returned" },
                 update = {
                     applyAllGrades(it)
                 }
@@ -1941,28 +2149,7 @@ val results = supervisorScope {
         if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
         launchSweep(setOf(SyncModule.EXAM_SCHEDULE)) {
             _syncStatus.value = "Logging into VTOP & syncing exam schedule..."
-            // Ensure fresh VTOP login session before fetching exam schedule
-                val creds = SettingsManager.getCredentials()
-                if (creds != null) {
-                    try {
-                        val loginRes = AmazeClient.login(creds.first, creds.second)
-                        if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
-                            SessionManager.saveSession(
-                                cookies = loginRes.cookies,
-                                csrf = loginRes.csrf,
-                                authorizedID = loginRes.authorizedID,
-                                clubToken = loginRes.clubToken
-                            )
-                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
-                            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
-                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
-                            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
-                        }
-                    } catch (e: Exception) { println("AmazeCC: refreshExamSchedule session refresh error — ${e.message}") }
-                }
-
-                val semId = _selectedExamSemester.value
+            val semId = _selectedExamSemester.value
                 val result = syncModule(
                     name = "Exam schedule",
                     fetch = { AmazeClient.getExamSchedule(semesterId = semId) },
@@ -2163,7 +2350,7 @@ val results = supervisorScope {
         _statsCardsOrder.value = listOf("attendance", "cgpa", "credits", "od")
         _enabledStatsCards.value = setOf("attendance", "cgpa", "credits", "od")
         _gpaGoal.value = "9.0"
-        _pinnedNavTabs.value = listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE)
+        _pinnedNavTabs.value = listOf(Screen.ACADEMICS, Screen.PROFILE)
         _updateDialogDismissedVersion.value = ""
         _latestReleaseNotes.value = ""
         _pendingExamSeatAlerts.value = emptyList()
@@ -2458,24 +2645,12 @@ fun updateMoodleData(data: MoodleRes?) {
 
             // Session refresh
             updateOnboardingStep("Session", "syncing")
-            try {
-                val creds = SettingsManager.getCredentials()
-                if (creds != null) {
-                    val loginRes = AmazeClient.login(creds.first, creds.second)
-                    if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
-                        SessionManager.saveSession(
-                            cookies = loginRes.cookies, csrf = loginRes.csrf,
-                            authorizedID = loginRes.authorizedID, clubToken = loginRes.clubToken
-                        )
-                        SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
-                        SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
-                        SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
-                        loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
-                    }
-                }
-                updateOnboardingStep("Session", "done")
-            } catch (_: Exception) { updateOnboardingStep("Session", "failed") }
+            val ok = SyncEngine.ensureAuthenticatedSession()
+            if (!ok) {
+                updateOnboardingStep("Session", "failed")
+                return@withStageProfile
+            }
+            updateOnboardingStep("Session", "done")
 
             val sem = _selectedSemester.value
 
@@ -2537,24 +2712,6 @@ fun updateMoodleData(data: MoodleRes?) {
             _syncStatus.value = "Running scheduled refresh..."
             notificationService.showLoadingNotification("AmazeCC Sync", "Running scheduled refresh...")
             try {
-                val creds = SettingsManager.getCredentials()
-                if (creds != null) {
-                    try {
-                        val loginRes = AmazeClient.login(creds.first, creds.second)
-                        if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
-                            SessionManager.saveSession(
-                                cookies = loginRes.cookies, csrf = loginRes.csrf,
-                                authorizedID = loginRes.authorizedID, clubToken = loginRes.clubToken
-                            )
-                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
-                            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
-                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
-                            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
-                        }
-                    } catch (e: Exception) { println("AmazeCC: runLightReload sessionRefresh — ${e.message}") }
-                }
-
                 val sem = _selectedSemester.value
                 val results = supervisorScope {
                     val syncResults = listOf(

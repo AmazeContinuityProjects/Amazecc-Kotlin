@@ -219,6 +219,7 @@ object Vtop {
                 is LoginResult.InvalidCredentials,
                 is LoginResult.AccountLocked,
                 is LoginResult.MaxAttempts,
+                is LoginResult.PasswordExpired,
                 is LoginResult.Failure -> return result
                 is LoginResult.Unknown -> return result
             }
@@ -250,6 +251,10 @@ object Vtop {
             ?: VtopSession.authorizedID.value
             ?: authorizedIDX
         VtopSession.save(csrf, authorizedID, authorizedIDX)
+        // Write the `JSESSIONID` out now rather than letting the platform do it on its own
+        // schedule: this is the only point where the cookie is known good, and
+        // `restoreSessionIfPossible` has nothing to work from if the process dies first.
+        runCatching { e.persistCookies() }
 
         _stage.value = VtopAuthStage.FetchingSemesters
         runCatching { fetchSemesters(e) }
@@ -287,6 +292,7 @@ object Vtop {
             2 -> LoginResult.InvalidCredentials
             3 -> LoginResult.AccountLocked
             4 -> LoginResult.MaxAttempts
+            6 -> LoginResult.PasswordExpired
             else -> LoginResult.Unknown
         }
     }
@@ -326,7 +332,7 @@ object Vtop {
      * Returns true when a session was restored. Never prompts, so it is safe to call on startup.
      */
     suspend fun restoreSessionIfPossible(): Boolean {
-        if (VtopSession.hasSession) return true
+        if (VtopSession.hasSession && !VtopSession.isExpired) return true
         if (!isSupported) return false
 
         val e = engine()

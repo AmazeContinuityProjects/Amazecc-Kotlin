@@ -750,7 +750,7 @@ private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme
  * Where VTOP data is fetched from.
  *
  * `LOCAL` talks to VTOP from the device. That is the only working option today: VTOP accepts
- * connections exclusively from Indian IP space, and api.amazecc.com is served from Singapore
+ * connections exclusively from Indian IP space, and hono.amazecc.com is served from Singapore
  * where every VTOP connection is dropped. `REMOTE` remains for the endpoints backed by our own
  * Postgres (qbank, clubs, cabshare, transport, wishlist), which are unaffected.
  *
@@ -761,23 +761,44 @@ fun VtopSourcePage() {
     val colors = AmazeTheme.colors
     var source by remember { mutableStateOf(AmazeClient.vtopSource) }
     var manualCaptcha by remember { mutableStateOf(SettingsManager.isVtopManualCaptcha()) }
+    var selectedSyncMode by remember { mutableStateOf("balanced") }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        SettingsGroupLabel("VTOP Connection")
+        SettingsGroupLabel("VTOP Connection Tier")
         SettingsGroupCard {
             SettingsRow(
                 icon = Icons.Rounded.CloudSync,
-                title = "Data Source",
-                subtitle = when (source) {
-                    VtopSource.LOCAL -> "On this device. Required while the server cannot reach VTOP."
-                    VtopSource.REMOTE -> "Via api.amazecc.com. VTOP routes will fail."
-                },
-                value = source.name,
-                tint = if (source == VtopSource.LOCAL) colors.success else colors.warning,
+                title = "Tier 1: Remote API",
+                subtitle = "Cloud proxy via hono.amazecc.com. Fast remote backend.",
+                value = if (source == VtopSource.REMOTE) "Active" else null,
+                tint = if (source == VtopSource.REMOTE) colors.success else colors.textMuted,
                 onClick = {
-                    val next = if (source == VtopSource.LOCAL) VtopSource.REMOTE else VtopSource.LOCAL
-                    AmazeClient.setVtopSource(next)
-                    source = next
+                    AmazeClient.setVtopSource(VtopSource.REMOTE)
+                    source = VtopSource.REMOTE
+                }
+            )
+            SettingsRowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.Terminal,
+                title = "Tier 2: Local Headless Scraper",
+                subtitle = "Direct on-device headless scraper for VTOP.",
+                value = if (source == VtopSource.LOCAL) "Active" else null,
+                tint = if (source == VtopSource.LOCAL) colors.success else colors.textMuted,
+                onClick = {
+                    AmazeClient.setVtopSource(VtopSource.LOCAL)
+                    source = VtopSource.LOCAL
+                }
+            )
+            SettingsRowDivider()
+            SettingsRow(
+                icon = Icons.Rounded.Storage,
+                title = "Tier 3: Pure Offline Cache",
+                subtitle = "Use cached database only without network or scraper calls.",
+                value = if (source == VtopSource.OFFLINE_CACHE) "Active" else null,
+                tint = if (source == VtopSource.OFFLINE_CACHE) colors.success else colors.textMuted,
+                onClick = {
+                    AmazeClient.setVtopSource(VtopSource.OFFLINE_CACHE)
+                    source = VtopSource.OFFLINE_CACHE
                 }
             )
             SettingsRowDivider()
@@ -809,6 +830,40 @@ fun VtopSourcePage() {
                 tint = colors.info,
                 onClick = {}
             )
+        }
+
+        SettingsGroupLabel("Manual Sync Trigger")
+        SettingsGroupCard {
+            Column(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    "Invoke manual sync using current data source (${source.name}):",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val modes = listOf("quick" to "Quick", "balanced" to "Balanced", "full" to "Full", "academics" to "Academics", "campus" to "Campus")
+                    modes.forEach { (modeId, label) ->
+                        FilterChip(
+                            selected = selectedSyncMode == modeId,
+                            onClick = { selectedSyncMode = modeId },
+                            label = { Text(label, fontSize = AmazeTheme.fontSize.xs) }
+                        )
+                    }
+                }
+                AmazeButton(
+                    text = "Invoke Sync (${selectedSyncMode.replaceFirstChar { it.uppercase() }})",
+                    onClick = {
+                        AppState.loadMode(selectedSyncMode, force = true)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    variant = ButtonVariant.PRIMARY
+                )
+            }
         }
 
         VtopDiagnosticsSection()
