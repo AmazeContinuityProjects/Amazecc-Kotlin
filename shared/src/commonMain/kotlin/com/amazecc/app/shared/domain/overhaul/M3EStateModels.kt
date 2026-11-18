@@ -916,3 +916,74 @@ sealed interface M3ETasksAction {
     data object CloseCreateDialog : M3ETasksAction
     data object Refresh : M3ETasksAction
 }
+
+// ==========================================
+// 20. PROFILE & DIGITAL ID IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+data class M3EProfileState(
+    val studentName: String,
+    val registrationNumber: String,
+    val applicationNumber: String,
+    val programme: String,
+    val school: String,
+    val campus: String,
+    val dob: String,
+    val bloodGroup: String,
+    val email: String,
+    val phone: String,
+    val proctorName: String,
+    val proctorEmail: String,
+    val proctorCabin: String? = null,
+    val hostelBlock: String? = null,
+    val hostelRoom: String? = null,
+    val cgpa: Double,
+    val attendancePercentage: Double,
+    val isIdCardFlipped: Boolean = false,
+    val isLoading: Boolean = false
+)
+
+sealed interface M3EProfileAction {
+    data object FlipIdCard : M3EProfileAction
+    data object CopyRegNo : M3EProfileAction
+    data object ContactProctor : M3EProfileAction
+    data object SignOut : M3EProfileAction
+    data object Refresh : M3EProfileAction
+}
+
+// ==========================================
+// 21. SETTINGS & PREFERENCES IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class M3EThemeMode(val label: String) {
+    DARK_OLED("Midnight OLED"),
+    LIGHT("Classic Light"),
+    SYSTEM_DEFAULT("Follow System")
+}
+
+enum class M3EPalettePreset(val label: String) {
+    OCEAN_MIDNIGHT("Ocean Blue"),
+    CRIMSON_VELVET("Crimson"),
+    EMERALD_MINT("Emerald"),
+    AMBER_SUNSET("Amber"),
+    PURPLE_DUSK("Purple Dusk")
+}
+
+data class M3ESettingsState(
+    val selectedThemeMode: M3EThemeMode = M3EThemeMode.DARK_OLED,
+    val selectedPalettePreset: M3EPalettePreset = M3EPalettePreset.OCEAN_MIDNIGHT,
+    val honoApiBaseUrl: String = "https://amazecc-api-hono.sugeerth.workers.dev",
+    val cacheSizeText: String = "14.2 MB",
+    val isDiagnosticsRunning: Boolean = false,
+    val diagnosticStatus: String? = null,
+    val appVersion: String = "2.4.0 (M3E Overhaul)"
+)
+
+sealed interface M3ESettingsAction {
+    data class SelectThemeMode(val mode: M3EThemeMode) : M3ESettingsAction
+    data class SelectPalettePreset(val preset: M3EPalettePreset) : M3ESettingsAction
+    data class UpdateHonoApiUrl(val url: String) : M3ESettingsAction
+    data object ClearCache : M3ESettingsAction
+    data object RunDiagnostics : M3ESettingsAction
+    data object OpenGithubRepo : M3ESettingsAction
+}
