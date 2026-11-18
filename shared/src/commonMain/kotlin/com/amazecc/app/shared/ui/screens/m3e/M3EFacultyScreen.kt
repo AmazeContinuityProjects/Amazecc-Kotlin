@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -33,13 +32,12 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Phone
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -53,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyAction
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyMember
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyState
+import com.amazecc.app.shared.domain.overhaul.M3EFacultyTimetableSlot
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -60,9 +59,10 @@ import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Material 3 Expressive Faculty Directory & Cabin Locator.
+ * Material 3 Expressive Faculty Directory & Schedule.
+ * Combined screen: directory list + inline timetable per faculty.
  * 100% Stateless: accepts [M3EFacultyState] and emits [M3EFacultyAction].
- * Features school filter strip, search, cabin finder, and quick-copy email shortcuts.
+ * Mobile-first LazyColumn layout.
  */
 @Composable
 fun M3EFacultyScreen(
@@ -79,21 +79,21 @@ fun M3EFacultyScreen(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Header
             item(key = "faculty_header") {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Faculty Directory",
-                        fontSize = 28.sp,
+                        text = "Faculty",
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = colors.onSurface
                     )
                     Text(
-                        text = "Find professors, cabin locations, and timetable availability",
-                        fontSize = 13.sp,
+                        text = "Directory, cabin locator & teaching schedule",
+                        style = MaterialTheme.typography.bodySmall,
                         color = colors.onSurfaceVariant
                     )
                 }
@@ -104,7 +104,7 @@ fun M3EFacultyScreen(
                 OutlinedTextField(
                     value = state.searchQuery,
                     onValueChange = { onAction(M3EFacultyAction.UpdateSearch(it)) },
-                    placeholder = { Text("Search by name, cabin, or course...", fontSize = 13.sp) },
+                    placeholder = { Text("Search name, cabin, or course…", fontSize = 13.sp) },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Rounded.Search,
@@ -126,34 +126,41 @@ fun M3EFacultyScreen(
 
             // School Filter Chips
             item(key = "school_chips") {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(state.availableSchools) { school ->
                         val isSelected = school == state.selectedSchool
-                        val bg = if (isSelected) colors.primary else colors.surfaceContainerLow
-                        val contentColor = if (isSelected) colors.onPrimary else colors.onSurface
-
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(bg)
+                                .clip(RoundedCornerShape(50.dp))
+                                .background(if (isSelected) colors.primary else colors.surfaceContainerLow)
                                 .clickable { onAction(M3EFacultyAction.SelectSchool(school)) }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = school,
                                 fontSize = 12.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = contentColor
+                                color = if (isSelected) colors.onPrimary else colors.onSurface
                             )
                         }
                     }
                 }
             }
 
-            // Faculty List
+            // Faculty Results Count
+            if (state.filteredFaculty.isNotEmpty()) {
+                item(key = "result_count") {
+                    Text(
+                        text = "${state.filteredFaculty.size} faculty member${if (state.filteredFaculty.size != 1) "s" else ""}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = colors.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+            }
+
+            // Faculty List or Empty State
             if (state.filteredFaculty.isEmpty()) {
                 item(key = "empty_faculty") {
                     M3ESurfaceCard(
@@ -163,7 +170,7 @@ fun M3EFacultyScreen(
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 32.dp),
+                                .padding(vertical = 40.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -171,17 +178,17 @@ fun M3EFacultyScreen(
                                 imageVector = Icons.Rounded.Person,
                                 contentDescription = null,
                                 tint = colors.onSurfaceVariant,
-                                modifier = Modifier.size(40.dp)
+                                modifier = Modifier.size(44.dp)
                             )
                             Text(
                                 text = "No faculty found",
-                                fontSize = 15.sp,
+                                style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = colors.onSurface
                             )
                             Text(
-                                text = "Try adjusting your search query or school filter",
-                                fontSize = 12.sp,
+                                text = "Try adjusting your search or filter",
+                                style = MaterialTheme.typography.bodySmall,
                                 color = colors.onSurfaceVariant
                             )
                         }
@@ -197,16 +204,13 @@ fun M3EFacultyScreen(
                         faculty = faculty,
                         isExpanded = isExpanded,
                         onToggleExpand = { onAction(M3EFacultyAction.ToggleExpand(faculty.id)) },
-                        onCopyEmail = { onAction(M3EFacultyAction.CopyEmail(faculty.email)) },
-                        onViewSchedule = { onAction(M3EFacultyAction.ViewSchedule(faculty.id)) }
+                        onCopyEmail = { onAction(M3EFacultyAction.CopyEmail(faculty.email)) }
                     )
                 }
             }
 
-            // Bottom Spacing
-            item(key = "bottom_spacer") {
-                Spacer(Modifier.height(72.dp))
-            }
+            // Bottom spacing for FAB / nav bar clearance
+            item(key = "bottom_spacer") { Spacer(Modifier.height(80.dp)) }
         }
     }
 }
@@ -217,7 +221,6 @@ private fun M3EFacultyCard(
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
     onCopyEmail: () -> Unit,
-    onViewSchedule: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
@@ -227,8 +230,9 @@ private fun M3EFacultyCard(
         onClick = onToggleExpand,
         modifier = modifier.fillMaxWidth()
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            // Header Row: Avatar Initials + Name + Star / Expand Icon
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+
+            // Top Row: Initials + Name/Designation + Expand chevron
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -236,9 +240,10 @@ private fun M3EFacultyCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    // Initials Circle
+                    // Initials Avatar
                     val initials = faculty.name.split(" ")
                         .filter { it.isNotBlank() }
                         .take(2)
@@ -247,16 +252,20 @@ private fun M3EFacultyCard(
 
                     Box(
                         modifier = Modifier
-                            .size(42.dp)
+                            .size(44.dp)
                             .clip(CircleShape)
-                            .background(colors.primaryContainer),
+                            .background(
+                                if (faculty.isCurrentlyTeaching) colors.secondaryContainer
+                                else colors.primaryContainer
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = initials.ifBlank { "F" },
-                            fontSize = 14.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = colors.onPrimaryContainer
+                            color = if (faculty.isCurrentlyTeaching) colors.onSecondaryContainer
+                            else colors.onPrimaryContainer
                         )
                     }
 
@@ -264,7 +273,7 @@ private fun M3EFacultyCard(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = faculty.name,
-                                fontSize = 15.sp,
+                                style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = colors.onSurface
                             )
@@ -272,23 +281,38 @@ private fun M3EFacultyCard(
                                 Spacer(Modifier.width(6.dp))
                                 Box(
                                     modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(colors.warning.copy(alpha = 0.2f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        .clip(RoundedCornerShape(50.dp))
+                                        .background(colors.primaryContainer)
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "Enrolled",
-                                        fontSize = 10.sp,
+                                        text = "My Faculty",
+                                        fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = colors.warning
+                                        color = colors.onPrimaryContainer
+                                    )
+                                }
+                            }
+                            if (faculty.isCurrentlyTeaching) {
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50.dp))
+                                        .background(colors.secondaryContainer)
+                                        .padding(horizontal = 7.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "● In Class",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.onSecondaryContainer
                                     )
                                 }
                             }
                         }
-
                         Text(
-                            text = "${faculty.designation} • ${faculty.school}",
-                            fontSize = 12.sp,
+                            text = "${faculty.designation} · ${faculty.school}",
+                            style = MaterialTheme.typography.labelSmall,
                             color = colors.onSurfaceVariant
                         )
                     }
@@ -296,13 +320,13 @@ private fun M3EFacultyCard(
 
                 Icon(
                     imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = null,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand schedule",
                     tint = colors.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
             }
 
-            // Cabin & Email Row
+            // Cabin & Email quick-info row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -316,11 +340,11 @@ private fun M3EFacultyCard(
                         imageVector = Icons.Rounded.MeetingRoom,
                         contentDescription = null,
                         tint = colors.primary,
-                        modifier = Modifier.size(15.dp)
+                        modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        text = "Cabin: ${faculty.cabin}",
-                        fontSize = 12.sp,
+                        text = faculty.cabin,
+                        style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Medium,
                         color = colors.onSurface
                     )
@@ -328,28 +352,64 @@ private fun M3EFacultyCard(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Email,
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(13.dp)
+                    )
                     Text(
                         text = faculty.email,
-                        fontSize = 12.sp,
-                        color = colors.primary
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.primary,
+                        modifier = Modifier.padding(end = 2.dp)
                     )
                     IconButton(
                         onClick = onCopyEmail,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.ContentCopy,
                             contentDescription = "Copy Email",
                             tint = colors.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
+                            modifier = Modifier.size(13.dp)
                         )
                     }
                 }
             }
 
-            // Expandable Schedule & Courses Section
+            // Currently teaching banner
+            faculty.currentSlotInfo?.let { info ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(colors.secondaryContainer)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Schedule,
+                            contentDescription = null,
+                            tint = colors.onSecondaryContainer,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Text(
+                            text = info,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.onSecondaryContainer
+                        )
+                    }
+                }
+            }
+
+            // Expandable: Intercom + Courses + Timetable
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = expandVertically() + fadeIn(),
@@ -358,11 +418,12 @@ private fun M3EFacultyCard(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                        .padding(top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.3f))
+                    HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.4f))
 
+                    // Intercom
                     faculty.intercom?.let { ext ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -372,36 +433,38 @@ private fun M3EFacultyCard(
                                 imageVector = Icons.Rounded.Phone,
                                 contentDescription = null,
                                 tint = colors.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(13.dp)
                             )
                             Text(
-                                text = "Intercom Extension: $ext",
-                                fontSize = 12.sp,
+                                text = "Intercom: $ext",
+                                style = MaterialTheme.typography.labelSmall,
                                 color = colors.onSurfaceVariant
                             )
                         }
                     }
 
+                    // Courses Taught Pills
                     if (faculty.coursesTaught.isNotEmpty()) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
-                                text = "Courses Taught",
-                                fontSize = 12.sp,
+                                text = "COURSES TAUGHT",
+                                style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = colors.onSurface
+                                color = colors.onSurfaceVariant,
+                                letterSpacing = 0.8.sp
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                faculty.coursesTaught.forEach { course ->
+                                faculty.coursesTaught.take(5).forEach { code ->
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(8.dp))
                                             .background(colors.surfaceContainerHighest)
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
                                     ) {
                                         Text(
-                                            text = course,
-                                            fontSize = 11.sp,
-                                            fontWeight = FontWeight.SemiBold,
+                                            text = code,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
                                             color = colors.primary
                                         )
                                     }
@@ -410,22 +473,112 @@ private fun M3EFacultyCard(
                         }
                     }
 
-                    ElevatedButton(
-                        onClick = onViewSchedule,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = colors.secondaryContainer,
-                            contentColor = colors.onSecondaryContainer
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.CalendarMonth,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text("View Teaching Schedule", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    // Timetable Section
+                    if (faculty.timetable.isNotEmpty()) {
+                        FacultyTimetableSection(slots = faculty.timetable)
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(colors.surfaceContainerLowest)
+                                .padding(16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No timetable data available",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FacultyTimetableSection(
+    slots: List<M3EFacultyTimetableSlot>,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT")
+    val slotsByDay = days.associateWith { day -> slots.filter { it.dayOfWeek == day } }
+
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "TEACHING SCHEDULE",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Bold,
+            color = colors.onSurfaceVariant,
+            letterSpacing = 0.8.sp
+        )
+
+        days.forEach { day ->
+            val daySlots = slotsByDay[day].orEmpty()
+            if (daySlots.isNotEmpty()) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Day header
+                    Text(
+                        text = day,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.primary,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                    daySlots.forEach { slot ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(colors.surfaceContainerLowest)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = slot.courseCode,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.onSurface
+                                )
+                                Text(
+                                    text = slot.courseTitle,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.onSurfaceVariant,
+                                    maxLines = 1
+                                )
+                            }
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(colors.primaryContainer)
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = slot.slotCode,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.onPrimaryContainer
+                                    )
+                                }
+                                Text(
+                                    text = slot.roomNumber,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -444,7 +597,16 @@ private fun createMockFacultyState() = M3EFacultyState(
             email = "sundar.n@vit.ac.in",
             intercom = "1412",
             coursesTaught = listOf("CSE3002", "CSE1007"),
-            isMyFaculty = true
+            isMyFaculty = true,
+            isCurrentlyTeaching = true,
+            currentSlotInfo = "Now: CSE3002 in SJT-512 (Slot A1)",
+            timetable = listOf(
+                M3EFacultyTimetableSlot("A1", "CSE3002", "Full Stack Development", "SJT-512", "MON"),
+                M3EFacultyTimetableSlot("B1", "CSE3002", "Full Stack Development", "SJT-512", "TUE"),
+                M3EFacultyTimetableSlot("C1", "CSE1007", "Java Programming", "SJT-603", "WED"),
+                M3EFacultyTimetableSlot("D1", "CSE1007", "Java Programming", "SJT-603", "THU"),
+                M3EFacultyTimetableSlot("E1", "CSE3002", "Full Stack Development", "SJT-512", "FRI")
+            )
         ),
         M3EFacultyMember(
             id = "fac_2",
@@ -455,7 +617,11 @@ private fun createMockFacultyState() = M3EFacultyState(
             email = "anita.r@vit.ac.in",
             intercom = "1314",
             coursesTaught = listOf("MAT2001", "MAT1011"),
-            isMyFaculty = false
+            isMyFaculty = false,
+            timetable = listOf(
+                M3EFacultyTimetableSlot("A1", "MAT2001", "Probability & Statistics", "MB-203", "MON"),
+                M3EFacultyTimetableSlot("C1", "MAT1011", "Calculus", "MB-204", "WED")
+            )
         )
     ),
     filteredFaculty = listOf(
@@ -468,9 +634,17 @@ private fun createMockFacultyState() = M3EFacultyState(
             email = "sundar.n@vit.ac.in",
             intercom = "1412",
             coursesTaught = listOf("CSE3002", "CSE1007"),
-            isMyFaculty = true
+            isMyFaculty = true,
+            isCurrentlyTeaching = true,
+            currentSlotInfo = "Now: CSE3002 in SJT-512 (Slot A1)",
+            timetable = listOf(
+                M3EFacultyTimetableSlot("A1", "CSE3002", "Full Stack Development", "SJT-512", "MON"),
+                M3EFacultyTimetableSlot("B1", "CSE3002", "Full Stack Development", "SJT-512", "TUE"),
+                M3EFacultyTimetableSlot("C1", "CSE1007", "Java Programming", "SJT-603", "WED")
+            )
         )
-    )
+    ),
+    expandedFacultyId = "fac_1"
 )
 
 @Preview

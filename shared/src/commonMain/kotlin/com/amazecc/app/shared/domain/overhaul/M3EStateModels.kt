@@ -153,7 +153,8 @@ data class M3ENavigationState(
 
 enum class TimetableViewMode(val label: String) {
     SCHEDULE("Day Schedule"),
-    GRID("Slot Matrix")
+    VERTICAL("Vertical Grid"),
+    HORIZONTAL("Horizontal Grid")
 }
 
 data class M3ETimetableSlot(
@@ -316,6 +317,14 @@ sealed interface M3ECourseDetailAction {
 // 7. FACULTY DIRECTORY IMMUTABLE STATE & ACTIONS
 // ==========================================
 
+data class M3EFacultyTimetableSlot(
+    val slotCode: String,       // e.g. "A1", "B2+TB2", "L31+L32"
+    val courseCode: String,     // e.g. "CSE3001"
+    val courseTitle: String,    // e.g. "Internet and Web Programming"
+    val roomNumber: String,     // e.g. "SJT-512"
+    val dayOfWeek: String       // e.g. "MON", "TUE", "WED", "THU", "FRI", "SAT"
+)
+
 data class M3EFacultyMember(
     val id: String,
     val name: String,
@@ -326,7 +335,10 @@ data class M3EFacultyMember(
     val intercom: String? = null,
     val rating: Double? = null,
     val coursesTaught: List<String> = emptyList(),
-    val isMyFaculty: Boolean = false
+    val isMyFaculty: Boolean = false,
+    val timetable: List<M3EFacultyTimetableSlot> = emptyList(),
+    val isCurrentlyTeaching: Boolean = false,
+    val currentSlotInfo: String? = null  // "Now: CSE3001 in SJT-512"
 )
 
 data class M3EFacultyState(
@@ -345,7 +357,7 @@ sealed interface M3EFacultyAction {
     data class SelectSchool(val school: String) : M3EFacultyAction
     data class ToggleExpand(val facultyId: String) : M3EFacultyAction
     data class CopyEmail(val email: String) : M3EFacultyAction
-    data class ViewSchedule(val facultyId: String) : M3EFacultyAction
+    data class ToggleShowTimetable(val facultyId: String) : M3EFacultyAction
     data object Refresh : M3EFacultyAction
 }
 
