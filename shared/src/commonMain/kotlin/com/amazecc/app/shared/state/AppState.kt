@@ -120,7 +120,7 @@ object AppState {
     val headerOverride = MutableStateFlow<com.amazecc.app.shared.ui.components.HeaderConfig?>(null)
     private val _headerOverrideOwner = MutableStateFlow<Set<Screen>?>(null)
     
-    private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE))
+    private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ACADEMICS, Screen.PROFILE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
 
     private val _isAppLibraryOpen = MutableStateFlow(false)
@@ -501,9 +501,9 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         if (savedNav.isNotEmpty()) {
             val tabs = savedNav.split(",").mapNotNull { name ->
                 try { Screen.valueOf(name) } catch (e: Exception) { null }
-            }
+            }.filter { it != Screen.HOME && it != Screen.MORE && it != Screen.ATTENDANCE && it != Screen.LIBRARIES }
             if (tabs.isNotEmpty()) {
-                _pinnedNavTabs.value = tabs.take(4)
+                _pinnedNavTabs.value = tabs.take(3)
             }
         }
     }
@@ -933,11 +933,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         }
 
     fun navigateTo(screen: Screen) {
-        if (screen == Screen.MORE) {
-            _isAppLibraryOpen.value = true
-            return
-        }
-        _isAppLibraryOpen.value = false
+        _isAppLibraryOpen.value = (screen == Screen.MORE)
         headerOverride.value = null
         _headerOverrideOwner.value = null
         if (_currentScreen.value == screen) return
@@ -2447,7 +2443,7 @@ val results = supervisorScope {
         _statsCardsOrder.value = listOf("attendance", "cgpa", "credits", "od")
         _enabledStatsCards.value = setOf("attendance", "cgpa", "credits", "od")
         _gpaGoal.value = "9.0"
-        _pinnedNavTabs.value = listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE)
+        _pinnedNavTabs.value = listOf(Screen.ACADEMICS, Screen.PROFILE)
         _updateDialogDismissedVersion.value = ""
         _latestReleaseNotes.value = ""
         _pendingExamSeatAlerts.value = emptyList()

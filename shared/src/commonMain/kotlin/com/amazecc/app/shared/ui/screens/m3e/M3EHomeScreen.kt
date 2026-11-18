@@ -165,15 +165,24 @@ fun M3EHomeScreen(
                 )
             }
 
-            // 4. Section Title: Today's Schedule
+            // 4. Section Title: Schedule
             item(key = "schedule_header") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val isSelectedToday = state.selectedDayDate == state.weekDays.firstOrNull { it.isToday }?.date
+                    val headerText = if (isSelectedToday) {
+                        "Today's Classes"
+                    } else {
+                        val selDay = state.weekDays.firstOrNull { it.isSelected }
+                        val dayName = selDay?.dayName ?: state.selectedDayDate.dayOfWeek.name.take(3)
+                        val monthName = state.selectedDayDate.month.name.lowercase().replaceFirstChar { it.uppercase() }.take(3)
+                        "$dayName's Classes (${state.selectedDayDate.dayOfMonth} $monthName)"
+                    }
                     Text(
-                        text = "Today's Classes",
+                        text = headerText,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = colors.onBackground
@@ -201,8 +210,13 @@ fun M3EHomeScreen(
                                 .padding(vertical = 16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            val isSelectedToday = state.selectedDayDate == state.weekDays.firstOrNull { it.isToday }?.date
                             Text(
-                                text = "No classes scheduled for today! 🎉",
+                                text = if (isSelectedToday) {
+                                    "No classes scheduled for today! 🎉"
+                                } else {
+                                    "No classes scheduled for this day! 🎉"
+                                },
                                 color = colors.onSurfaceVariant,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium
@@ -213,7 +227,7 @@ fun M3EHomeScreen(
             } else {
                 items(
                     items = state.todayClasses,
-                    key = { "${it.courseCode}_${it.slot}" }
+                    key = { "${it.courseCode}_${it.slot}_${it.startTime}" }
                 ) { classItem ->
                     M3EClassTimelineCard(
                         item = classItem,
@@ -222,9 +236,9 @@ fun M3EHomeScreen(
                 }
             }
 
-            // Bottom Spacing for floating toolbar
+            // Bottom Spacing for floating toolbar (twice nav bar height: 140dp)
             item(key = "bottom_spacer") {
-                Spacer(Modifier.height(72.dp))
+                Spacer(Modifier.height(140.dp))
             }
         }
     }

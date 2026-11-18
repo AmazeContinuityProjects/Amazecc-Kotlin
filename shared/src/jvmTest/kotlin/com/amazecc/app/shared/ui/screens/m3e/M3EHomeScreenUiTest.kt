@@ -128,4 +128,26 @@ class M3EHomeScreenUiTest {
 
         onNodeWithContentDescription("Tue 29 · Classes scheduled").assertExists()
     }
+
+    @Test
+    fun date_switcher_fires_select_day_action() = runComposeUiTest {
+        val state = sampleState()
+        var selectedDate: LocalDate? = null
+
+        setContent {
+            AmazeM3ETheme {
+                M3EHomeScreen(
+                    state = state,
+                    onAction = { action ->
+                        if (action is M3EHomeAction.SelectDay) {
+                            selectedDate = action.date
+                        }
+                    }
+                )
+            }
+        }
+
+        onNodeWithContentDescription("Wed 30 · Classes scheduled").performClick()
+        assertEquals(LocalDate(2026, 9, 30), selectedDate)
+    }
 }

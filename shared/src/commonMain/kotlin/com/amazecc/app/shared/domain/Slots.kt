@@ -19,6 +19,39 @@ data class CampusSchema(
     val lab: List<SchemaPeriod>? = null,
 )
 
+val CHENNAI_CAMPUS_SCHEMA: CampusSchema = CampusSchema(
+    theory = listOf(
+        SchemaPeriod(start = "8:00 AM", end = "8:50 AM", days = mapOf("mon" to "A1", "tue" to "B1", "wed" to "C1", "thu" to "D1", "fri" to "E1")),
+        SchemaPeriod(start = "8:55 AM", end = "9:45 AM", days = mapOf("mon" to "F1", "tue" to "G1", "wed" to "A1", "thu" to "B1", "fri" to "C1")),
+        SchemaPeriod(start = "9:50 AM", end = "10:40 AM", days = mapOf("mon" to "D1", "tue" to "E1", "wed" to "F1", "thu" to "G1", "fri" to "TA1")),
+        SchemaPeriod(start = "10:45 AM", end = "11:35 AM", days = mapOf("mon" to "TB1", "tue" to "TC1", "wed" to "TD1", "thu" to "TE1", "fri" to "TF1")),
+        SchemaPeriod(start = "11:40 AM", end = "12:30 PM", days = mapOf("mon" to "TG1", "tue" to "TAA1", "wed" to "TBB1", "thu" to "TCC1", "fri" to "TDD1")),
+        SchemaPeriod(start = "12:35 PM", end = "1:25 PM", days = mapOf("mon" to "S11", "fri" to "S15")),
+        SchemaPeriod(lunch = true, start = "1:25 PM", end = "2:00 PM"),
+        SchemaPeriod(start = "2:00 PM", end = "2:50 PM", days = mapOf("mon" to "A2", "tue" to "B2", "wed" to "C2", "thu" to "D2", "fri" to "E2")),
+        SchemaPeriod(start = "2:55 PM", end = "3:45 PM", days = mapOf("mon" to "F2", "tue" to "G2", "wed" to "A2", "thu" to "B2", "fri" to "C2")),
+        SchemaPeriod(start = "3:50 PM", end = "4:40 PM", days = mapOf("mon" to "D2", "tue" to "E2", "wed" to "F2", "thu" to "G2", "fri" to "TA2")),
+        SchemaPeriod(start = "4:45 PM", end = "5:35 PM", days = mapOf("mon" to "TB2", "tue" to "TC2", "wed" to "TD2", "thu" to "TE2", "fri" to "TF2")),
+        SchemaPeriod(start = "5:40 PM", end = "6:30 PM", days = mapOf("mon" to "TG2", "tue" to "TAA2", "wed" to "TBB2", "thu" to "TCC2", "fri" to "TDD2")),
+        SchemaPeriod(start = "6:35 PM", end = "7:25 PM", days = mapOf("mon" to "S3", "tue" to "S1", "wed" to "S4", "thu" to "S2"))
+    ),
+    lab = listOf(
+        SchemaPeriod(start = "08:00 AM", end = "08:50 AM", days = mapOf("mon" to "L1", "tue" to "L7", "wed" to "L13", "thu" to "L19", "fri" to "L25")),
+        SchemaPeriod(start = "08:50 AM", end = "09:40 AM", days = mapOf("mon" to "L2", "tue" to "L8", "wed" to "L14", "thu" to "L20", "fri" to "L26")),
+        SchemaPeriod(start = "09:50 AM", end = "10:40 AM", days = mapOf("mon" to "L3", "tue" to "L9", "wed" to "L15", "thu" to "L21", "fri" to "L27")),
+        SchemaPeriod(start = "10:40 AM", end = "11:30 AM", days = mapOf("mon" to "L4", "tue" to "L10", "wed" to "L16", "thu" to "L22", "fri" to "L28")),
+        SchemaPeriod(start = "11:40 AM", end = "12:30 PM", days = mapOf("mon" to "L5", "tue" to "L11", "wed" to "L17", "thu" to "L23", "fri" to "L29")),
+        SchemaPeriod(start = "12:30 PM", end = "1:20 PM", days = mapOf("mon" to "L6", "tue" to "L12", "wed" to "L18", "thu" to "L24", "fri" to "L30")),
+        SchemaPeriod(lunch = true, start = "1:20 PM", end = "2:00 PM"),
+        SchemaPeriod(start = "2:00 PM", end = "2:50 PM", days = mapOf("mon" to "L31", "tue" to "L37", "wed" to "L43", "thu" to "L49", "fri" to "L55")),
+        SchemaPeriod(start = "2:50 PM", end = "3:40 PM", days = mapOf("mon" to "L32", "tue" to "L38", "wed" to "L44", "thu" to "L50", "fri" to "L56")),
+        SchemaPeriod(start = "3:50 PM", end = "4:40 PM", days = mapOf("mon" to "L33", "tue" to "L39", "wed" to "L45", "thu" to "L51", "fri" to "L57")),
+        SchemaPeriod(start = "4:40 PM", end = "5:30 PM", days = mapOf("mon" to "L34", "tue" to "L40", "wed" to "L46", "thu" to "L52", "fri" to "L58")),
+        SchemaPeriod(start = "5:40 PM", end = "6:30 PM", days = mapOf("mon" to "L35", "tue" to "L41", "wed" to "L47", "thu" to "L53", "fri" to "L59")),
+        SchemaPeriod(start = "6:30 PM", end = "7:20 PM", days = mapOf("mon" to "L36", "tue" to "L42", "wed" to "L48", "thu" to "L54", "fri" to "L60"))
+    )
+)
+
 val DAYS_OF_WEEK: List<String> = listOf("mon", "tue", "wed", "thu", "fri")
 
 /**
@@ -167,9 +200,9 @@ data class SlotPeriod(
 )
 
 /**
- * Every period a slot id names, under either spelling.
+ * Every period a slot id names, under either spelling (Law School or Chennai schema).
  */
-fun periodsForSlot(schema: CampusSchema, slot: String): List<SlotPeriod> {
+fun periodsForSlot(schema: CampusSchema = CHENNAI_CAMPUS_SCHEMA, slot: String): List<SlotPeriod> {
     val wanted = slotSpellings(slot).toSet()
     if (wanted.isEmpty()) return emptyList()
 
@@ -195,6 +228,8 @@ fun periodsForSlot(schema: CampusSchema, slot: String): List<SlotPeriod> {
     collect(schema.lab, "lab")
     return found
 }
+
+fun periodsForSlot(slot: String): List<SlotPeriod> = periodsForSlot(CHENNAI_CAMPUS_SCHEMA, slot)
 
 /** Split `"A1+TA1"` into its slot tokens, upper-cased and trimmed. */
 fun splitSlots(slot: String?): List<String> {
@@ -231,8 +266,13 @@ fun findPeriodClash(a: List<SlotPeriod>, b: List<SlotPeriod>): Pair<SlotPeriod, 
 
 /**
  * Do a theory booking and a lab booking land on the clock at the same time?
+ * Defaults to [CHENNAI_CAMPUS_SCHEMA].
  */
-fun slotsOverlap(theorySlotStr: String, labSlotStr: String, schema: CampusSchema): Boolean {
+fun slotsOverlap(
+    theorySlotStr: String,
+    labSlotStr: String,
+    schema: CampusSchema = CHENNAI_CAMPUS_SCHEMA
+): Boolean {
     val theoryPeriods = splitSlots(theorySlotStr).flatMap { periodsForSlot(schema, it) }
     val labPeriods = splitSlots(labSlotStr).flatMap { periodsForSlot(schema, it) }
     return periodListsClash(theoryPeriods, labPeriods)

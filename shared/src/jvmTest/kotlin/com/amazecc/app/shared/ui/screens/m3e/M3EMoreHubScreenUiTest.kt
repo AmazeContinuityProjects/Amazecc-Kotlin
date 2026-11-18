@@ -4,6 +4,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -73,5 +74,26 @@ class M3EMoreHubScreenUiTest {
 
         onNodeWithText("Hostel & Mess").assertExists()
         onNodeWithText("CAMPUS LIFE").assertExists()
+    }
+
+    @Test
+    fun testSearchODTrackerEmitsSubScreen() = runComposeUiTest {
+        val capturedActions = mutableListOf<M3EMoreHubAction>()
+        val filteredState = M3EMoreHubState(searchQuery = "approvals")
+
+        setContent {
+            AmazeM3ETheme {
+                M3EMoreHubScreen(
+                    state = filteredState,
+                    onAction = { capturedActions.add(it) }
+                )
+            }
+        }
+
+        onNodeWithText("OD Tracker").assertExists()
+        onNodeWithText("OD Tracker").performClick()
+        assertEquals(1, capturedActions.size)
+        assertTrue(capturedActions[0] is M3EMoreHubAction.OpenSubScreen)
+        assertEquals(M3ESubScreen.OD_TRACKER, (capturedActions[0] as M3EMoreHubAction.OpenSubScreen).screen)
     }
 }

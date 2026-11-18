@@ -1018,25 +1018,40 @@ sealed interface M3ESettingsAction {
 // 22. MORE HUB NAVIGATION IMMUTABLE STATE & ACTIONS
 // ==========================================
 
-enum class M3ESubScreen(val label: String, val category: String) {
-    COURSE_DETAIL("Course Detail", "Academics"),
-    FACULTY("Faculty Directory", "Academics"),
-    CURRICULUM("Degree Curriculum", "Academics"),
-    MARKS_PREDICTOR("FAT Marks Predictor", "Academics"),
-    EXAM_SCHEDULE("Exam Schedules & Seating", "Academics"),
-    GRADES_HISTORY("Grades History", "Academics"),
+enum class M3ESubScreen(val label: String, val category: String, val description: String = "") {
+    COURSE_DETAIL("Course Detail", "Academics", "Course syllabi, class IDs and details"),
+    FACULTY("Faculty Directory", "Academics", "Find cabins, emails and school departments"),
+    CURRICULUM("Degree Curriculum", "Academics", "Credit baskets, completion audit and non-graded credits"),
+    MARKS_PREDICTOR("FAT Marks Predictor", "Academics", "Internal assessment targets and grade boundaries"),
+    ATTENDANCE("Live Attendance", "Academics", "Track course-wise attendance, bunk buffer & leaves"),
+    LIBRARIES("Library Catalog", "Academics", "Search books, digital catalogue & dues"),
+    EXAM_SCHEDULE("Exam Schedules & Seating", "Academics", "Venue, timing, seat numbers and hall tickets"),
+    GRADES_HISTORY("Grades History", "Academics", "Semester-wise grades, GPA and credits earned"),
+    CALENDAR("Academic Calendar", "Academics", "Instructional days, holidays & exam dates"),
+    FFCS_PLANNER("FFCS Planner", "Academics", "Simulate and generate clash-free schedules"),
+    MOODLE("Moodle LMS", "Academics", "Access course materials, files and assignments"),
+    OD_TRACKER("OD Tracker", "Academics", "Track on-duty hours, lab & theory approvals"),
+    FEEDBACK_STATUS("Feedback Status", "Academics", "VTOP faculty feedback completion status"),
+    COURSE_MANAGEMENT("Course Management", "Academics", "Option changes, EXC registration & minors"),
+    ARREARS("Arrear & Remedial", "Academics", "Arrear registrations, schedule & grades"),
+    QBANK("Question Bank", "Academics", "Previous CAT and FAT exam question papers"),
 
-    HOSTEL("Hostel & Mess", "Campus Life"),
-    TRANSPORT("Bus Routes & Transit", "Campus Life"),
-    CAB_SHARE("Cab Share Pool", "Campus Life"),
-    FREE_CLASSROOMS("Free Classrooms", "Campus Life"),
+    HOSTEL("Hostel & Mess", "Campus Life", "Room details, block info and monthly mess menus"),
+    TRANSPORT("Bus Routes & Transit", "Campus Life", "Shuttle timings, pickup points and routes"),
+    CAB_SHARE("Cab Share Pool", "Campus Life", "Split rides to airport, railway stations and city"),
+    FREE_CLASSROOMS("Free Classrooms", "Campus Life", "Locate empty lecture halls and labs right now"),
+    PAYMENTS("Fee Payments & Receipts", "Campus Life", "Online payments and historical receipts"),
+    CIRCULARS("Official Circulars", "Campus Life", "Academic announcements & notifications"),
+    DOCUMENTS("Documents & Transcripts", "Campus Life", "Bonafide, transcripts and certificates"),
 
-    EVENT_HUB("Event Hub", "Student Hub"),
-    CLUB_HUB("Club Directory", "Student Hub"),
-    TASKS("Tasks & Assignments", "Student Hub"),
+    EVENT_HUB("Event Hub", "Student Hub", "Campus fests, hackathons and tech symposiums"),
+    CLUB_HUB("Club Directory", "Student Hub", "Student chapters, tech teams and community clubs"),
+    TASKS("Tasks & Assignments", "Student Hub", "Deadlines, focus sessions and homework tracker"),
+    SOCIAL("Friends & Schedules", "Student Hub", "Compare timetables and find mutual free hours"),
+    FRESHER_WELCOME("Fresher Guide", "Student Hub", "Orientation, maps and essential campus guide"),
 
-    PROFILE("Digital Student ID", "Account & System"),
-    SETTINGS("Settings & Engine", "Account & System")
+    PROFILE("Digital Student ID", "Account & System", "Proctor details, registration number and credentials"),
+    SETTINGS("Settings & Engine", "Account & System", "Appearance, notifications, Hono API & sync engine")
 }
 
 data class M3EMoreHubState(

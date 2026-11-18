@@ -54,7 +54,7 @@ data class VtopPage(
         val table = tables.firstOrNull() ?: return emptyList()
         val idx = table.headerIndex { it.equals(name, ignoreCase = true) }
         if (idx < 0) return emptyList()
-        return table.rows.map { table.cell(0, idx) }.filter { it.isNotBlank() }
+        return table.rows.indices.map { r -> table.cell(r, idx) }.filter { it.isNotBlank() }
     }
 
     /** First non-blank value for a label, matched case-insensitively as a substring. */
@@ -93,7 +93,7 @@ data class VtopPage(
             } ?: return VtopPage(ok = false, error = "unparseable response")
 
             if (!root.bool("ok")) {
-                return VtopPage(ok = false, error = root.str("error"))
+                return VtopPage(ok = false, error = root.str("error") ?: root.str("__error"))
             }
 
             val options = (root["selectOptions"] as? JsonObject).orEmpty().mapNotNull { (name, el) ->

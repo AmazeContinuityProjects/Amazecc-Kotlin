@@ -3,6 +3,7 @@ package com.amazecc.app.shared.vtop
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.datetime.Clock
 
 /**
  * Mutable VTOP session tokens.
@@ -10,6 +11,9 @@ import kotlinx.coroutines.flow.asStateFlow
  * The `JSESSIONID` cookie is deliberately absent: when running [VtopSource.LOCAL] it lives in
  * the WebView's own `CookieManager` and is never exposed to Kotlin. We only hold the values
  * that VTOP embeds in the rendered DOM and expects back on subsequent form posts.
+ *
+ * VTOP sessions expire after 10 minutes on the server (600,000 ms). We track the creation/refresh
+ * timestamp and proactively refresh at 9.5 minutes (570,000 ms) before operations fail.
  */
 object VtopSession {
     const val BASE_URL = "https://vtopcc.vit.ac.in/vtop"
@@ -18,6 +22,11 @@ object VtopSession {
     const val PATH_LOGIN = "/login"
     const val PATH_CONTENT = "/content"
     const val PATH_NEW_CAPTCHA = "/vtop/get/new/captcha"
+
+    /** VTOP session lifetime is exactly 10 minutes (600,000 ms) */
+    const val SESSION_MAX_AGE_MS: Long = 10 * 60 * 1000L
+    /** Refresh threshold: refresh when session is older than 9.5 minutes */
+    const val SESSION_REFRESH_THRESHOLD_MS: Long = 9 * 60 * 1000L + 30 * 1000L
 
     private val _csrf = MutableStateFlow<String?>(null)
     val csrf: StateFlow<String?> = _csrf.asStateFlow()
@@ -42,20 +51,38 @@ object VtopSession {
     private val _availableSemesters = MutableStateFlow<Map<String, String>>(emptyMap())
     val availableSemesters: StateFlow<Map<String, String>> = _availableSemesters.asStateFlow()
 
+    private val _sessionTimestamp = MutableStateFlow<Long>(0L)
+    val sessionTimestamp: StateFlow<Long> = _sessionTimestamp.asStateFlow()
+
     val hasSession: Boolean
         get() = !_csrf.value.isNullOrBlank() && !_authorizedID.value.isNullOrBlank()
+
+    val sessionAgeMs: Long
+        get() {
+            val ts = _sessionTimestamp.value
+            return if (ts == 0L) Long.MAX_VALUE else (Clock.System.now().toEpochMilliseconds() - ts).coerceAtLeast(0L)
+        }
+
+    val isExpired: Boolean
+        get() = !hasSession || (sessionAgeMs >= SESSION_REFRESH_THRESHOLD_MS)
+
+    fun markActive(nowMs: Long = Clock.System.now().toEpochMilliseconds()) {
+        _sessionTimestamp.value = nowMs
+    }
 
     fun save(csrf: String, authorizedID: String, authorizedIDX: String) {
         _csrf.value = csrf
         _authorizedID.value = authorizedID
         _authorizedIDX.value = authorizedIDX
         _winImage.value = null
+        _sessionTimestamp.value = Clock.System.now().toEpochMilliseconds()
     }
 
     fun saveContentTokens(csrf: String, authorizedIDX: String, winImage: String?) {
         _csrf.value = csrf
         _authorizedIDX.value = authorizedIDX
         _winImage.value = winImage
+        _sessionTimestamp.value = Clock.System.now().toEpochMilliseconds()
     }
 
     fun saveSemesters(semesters: Map<String, String>) {
@@ -92,5 +119,6 @@ object VtopSession {
         _semesterSubId.value = null
         _semesterName.value = null
         _availableSemesters.value = emptyMap()
+        _sessionTimestamp.value = 0L
     }
 }

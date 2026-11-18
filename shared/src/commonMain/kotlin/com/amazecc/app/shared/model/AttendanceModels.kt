@@ -61,3 +61,25 @@ data class ODListItem(
     val courses: List<ODEntry>,
     val total: Int
 )
+
+@Serializable
+data class OdRecordItem(
+    val slNo: String = "",
+    val type: String = "",
+    val reason: String = "",
+    val basis: String = "",
+    val date: String = "",
+    val time: String = "",
+    val remarks: String = ""
+)
+
+@Serializable
+data class OdDetailsRes(
+    val success: Boolean = true,
+    val semesterId: String = "",
+    val totalCount: Int = 0,
+    val note: String? = null,
+    val records: List<OdRecordItem> = emptyList(),
+    val error: String? = null
+)
+

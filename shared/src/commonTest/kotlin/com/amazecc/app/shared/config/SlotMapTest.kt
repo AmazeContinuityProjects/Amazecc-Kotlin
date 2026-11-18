@@ -76,4 +76,72 @@ class SlotMapTest {
             assertEquals(day.lowercase().replaceFirstChar { it.uppercase() }, SlotMap.dayLabels[day])
         }
     }
+
+    @Test
+    fun totalSlotsMatchesVocabularyCount() {
+        assertEquals(164, SlotMap.TOTAL_SLOTS)
+        var total = 0
+        SlotMap.days.forEach { day ->
+            total += SlotMap.totalSlotsAcrossDay(day)
+        }
+        assertEquals(164, total)
+    }
+
+    @Test
+    fun lawSchoolBuddyTranslationResolvesCorrectly() {
+        // Direct matches
+        assertEquals("8:00-8:50", SlotMap.getTime("MON", "A1"))
+        assertEquals("12:35-1:25", SlotMap.getTime("MON", "S11"))
+        assertEquals("12:35-1:25", SlotMap.getTime("FRI", "S15"))
+
+        // Law School buddy spellings: A -> A1, TEE -> S11, TFF -> S15, TAA -> TAA1
+        assertEquals("8:00-8:50", SlotMap.getTime("MON", "A"))
+        assertEquals("12:35-1:25", SlotMap.getTime("MON", "TEE"))
+        assertEquals("12:35-1:25", SlotMap.getTime("FRI", "TFF"))
+        assertEquals("11:40-12:30", SlotMap.getTime("TUE", "TAA"))
+
+        // Invalidation: non-law or invalid slot returns null
+        assertEquals(null, SlotMap.getTime("MON", "NIL"))
+        assertEquals(null, SlotMap.getTime("SUN", "UNKNOWN_SLOT"))
+    }
+
+    @Test
+    fun slotRangeAndTimeMath() {
+        // "8:00" -> 480 (8 AM)
+        assertEquals(480, SlotMap.toMinutes("8:00"))
+        // "1:20" -> 800 (1:20 PM by 1-7 PM rule)
+        assertEquals(800, SlotMap.toMinutes("1:20"))
+        assertEquals("1:20 PM", SlotMap.minutesToTimeStr(800))
+        assertEquals("8:00 AM", SlotMap.minutesToTimeStr(480))
+
+        val (start, end) = SlotMap.slotRange("8:00-8:50")
+        assertEquals(480, start)
+        assertEquals(530, end)
+        assertEquals(50, SlotMap.slotSpanMinutes("8:00-8:50"))
+    }
+
+    @Test
+    fun compoundSlotRangeResolution() {
+        // A1 (8:00-8:50) + TB1 (10:45-11:35) on MON
+        val range1 = SlotMap.resolveRange("MON", "A1+TB1")
+        assertEquals(480 to 695, range1)
+
+        // Compound slot using Law School spellings: A + TB on MON
+        val rangeLaw = SlotMap.resolveRange("MON", "A+TB")
+        assertEquals(480 to 695, rangeLaw)
+
+        // Lab slots: L31+L32 on MON (2:00-2:50 and 2:50-3:40 -> 14:00 to 15:40 = 840 to 940)
+        val rangeLab = SlotMap.resolveRange("MON", "L31+L32")
+        assertEquals(840 to 940, rangeLab)
+    }
+
+    @Test
+    fun chennaiCampusSchemaClashDetection() {
+        // A1 (MON 8:00-8:50) vs L1 (MON 8:00-8:50) -> CLASH
+        assertTrue(com.amazecc.app.shared.domain.slotsOverlap("A1", "L1"))
+        // Law slot A (MON 8:00-8:50) vs L1 -> CLASH
+        assertTrue(com.amazecc.app.shared.domain.slotsOverlap("A", "L1"))
+        // Morning theory vs afternoon lab (A1 vs L31+L32) -> NO CLASH
+        kotlin.test.assertFalse(com.amazecc.app.shared.domain.slotsOverlap("A1", "L31+L32"))
+    }
 }

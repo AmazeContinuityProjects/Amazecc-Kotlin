@@ -138,9 +138,9 @@ fun M3EAttendanceScreen(
                 }
             }
 
-            // Bottom Spacing for floating toolbar
+            // Bottom Spacing for floating toolbar (twice nav bar height: 140dp)
             item(key = "bottom_spacer") {
-                Spacer(Modifier.height(72.dp))
+                Spacer(Modifier.height(140.dp))
             }
         }
     }

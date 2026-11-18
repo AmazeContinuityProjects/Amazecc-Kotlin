@@ -112,18 +112,11 @@ fun App() {
                 },
                 color = colors.background
             ) {
-                Scaffold(containerColor = colors.background) {
+                Scaffold(
+                    modifier = Modifier.fillMaxSize().statusBarsPadding(),
+                    containerColor = colors.background
+                ) { innerPadding ->
                 Box(modifier = Modifier.fillMaxSize()) {
-                    // Sync Progress Popup (per-module detail + percentage)
-                    com.amazecc.app.shared.ui.components.SyncProgressPopup(
-                        onDismiss = { SyncEngine.setShowSyncDialog(false) },
-                        onSaveOffline = { AppState.saveOffline() },
-                        onSyncAll = {
-                            SyncEngine.resetAllStates()
-                            AppState.loadAllData()
-                        }
-                    )
-
                     // Global Spotlight Search Overlay
                     val commandPaletteOpen by AppState.commandPaletteOpen.collectAsState()
 
@@ -211,10 +204,22 @@ fun App() {
                                 .fillMaxWidth()
                                 .align(Alignment.BottomCenter)
                                 .navigationBarsPadding()
-                                .padding(bottom = 8.dp)
+                                .padding(bottom = 12.dp)
                         ) {
                             M3ENavigationBar()
                         }
+                    }
+
+                    // Material 3 Expressive Sync Notification & Modal (replaces legacy popup)
+                    if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) {
+                        com.amazecc.app.shared.ui.m3e.components.M3ESyncNotification(
+                            onDismiss = { SyncEngine.setShowSyncDialog(false) },
+                            onSaveOffline = { AppState.saveOffline() },
+                            onSyncAll = {
+                                SyncEngine.resetAllStates()
+                                AppState.loadAllData()
+                            }
+                        )
                     }
 
                     // One-time alert for newly added exam venue/seat entries from credentials

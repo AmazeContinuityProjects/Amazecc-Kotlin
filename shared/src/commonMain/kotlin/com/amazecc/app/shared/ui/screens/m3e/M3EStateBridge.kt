@@ -14,6 +14,10 @@ import androidx.compose.ui.Modifier
 import kotlinx.coroutines.launch
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.vtop.VtopSource
+import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.domain.Course
+import com.amazecc.app.shared.domain.splitSlots
+import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.domain.GradeHistory
 import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.domain.overhaul.AcademicCourseFilter
@@ -140,6 +144,7 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
     val selectedSemId by AppState.selectedSemester.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
     val errorMsg by AppState.error.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
 
     val todayDate = remember {
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
@@ -183,34 +188,88 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
         )
     }
 
-    val weekDays = remember(todayDate, selectedDate) {
+    val weekDays = remember(todayDate, selectedDate, courses, calendarRes) {
         (-3..3).map { offset ->
             val d = LocalDate.fromEpochDays(todayDate.toEpochDays() + offset)
+            val dDayKey = AttendanceTimetable.getAttendanceDayForDate(d, calendarRes).name
+            val hasClassesOnDay = courses.any { c ->
+                val allSlots = c.slots.flatMap { splitSlots(it) }
+                allSlots.any { slotToken -> SlotMap.getTime(dDayKey, slotToken) != null }
+            }
             M3EWeekDay(
                 date = d,
                 dayName = d.dayOfWeek.name.take(3),
                 dayNumber = d.dayOfMonth,
                 isToday = offset == 0,
                 isSelected = d == selectedDate,
-                hasClasses = d.dayOfWeek.value in 1..5,
-                isHoliday = d.dayOfWeek.value in 6..7
+                hasClasses = hasClassesOnDay,
+                isHoliday = d.dayOfWeek.value in 6..7 && !hasClassesOnDay
             )
         }
     }
 
-    val todayClasses = remember(courses) {
-        courses.take(6).mapIndexed { idx, c ->
-            val startHour = 8 + (idx * 2)
-            val endHour = startHour + 1
+    val todayClasses = remember(courses, selectedDate, calendarRes) {
+        val attendanceDay = AttendanceTimetable.getAttendanceDayForDate(selectedDate, calendarRes)
+        val dayKey = attendanceDay.name // "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"
+
+        data class RawSlotEvent(
+            val course: Course,
+            val slotToken: String,
+            val startMins: Int,
+            val endMins: Int
+        )
+
+        val rawEvents = mutableListOf<RawSlotEvent>()
+        courses.forEach { course ->
+            val tokens = course.slots.flatMap { splitSlots(it) }.distinct()
+            tokens.forEach { slotToken ->
+                val timeStr = SlotMap.getTime(dayKey, slotToken)
+                if (timeStr != null && timeStr.contains("-")) {
+                    val parts = timeStr.split("-")
+                    if (parts.size == 2) {
+                        val start = SlotMap.toMinutes(parts[0])
+                        val end = SlotMap.toMinutes(parts[1])
+                        rawEvents.add(RawSlotEvent(course, slotToken, start, end))
+                    }
+                }
+            }
+        }
+
+        rawEvents.sortWith(compareBy({ it.startMins }, { it.slotToken }))
+
+        data class MergedSlotEvent(
+            val course: Course,
+            val slots: MutableList<String>,
+            var startMins: Int,
+            var endMins: Int
+        )
+
+        val merged = mutableListOf<MergedSlotEvent>()
+        for (current in rawEvents) {
+            val prev = merged.lastOrNull()
+            if (prev != null && prev.course.code == current.course.code && (current.startMins - prev.endMins) in 0..5) {
+                prev.slots.add(current.slotToken)
+                prev.endMins = current.endMins
+            } else {
+                merged.add(MergedSlotEvent(current.course, mutableListOf(current.slotToken), current.startMins, current.endMins))
+            }
+        }
+
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val isSelectedDayToday = selectedDate == todayDate
+        val currentMinutes = now.hour * 60 + now.minute
+
+        merged.map { event ->
+            val isHappeningNow = isSelectedDayToday && (currentMinutes in event.startMins..event.endMins)
             M3EClassTimelineItem(
-                courseCode = c.code,
-                courseTitle = c.title,
-                slot = c.slots.firstOrNull() ?: "A1",
-                venue = c.venue ?: "SJT",
-                faculty = c.faculty ?: "Faculty",
-                startTime = "${startHour.toString().padStart(2, '0')}:00",
-                endTime = "${endHour.toString().padStart(2, '0')}:50",
-                isHappeningNow = idx == 0
+                courseCode = event.course.code,
+                courseTitle = event.course.title,
+                slot = event.slots.joinToString("+"),
+                venue = event.course.venue?.takeIf { it.isNotBlank() } ?: "SJT",
+                faculty = event.course.faculty?.takeIf { it.isNotBlank() } ?: "Faculty",
+                startTime = SlotMap.minutesToTimeStr(event.startMins),
+                endTime = SlotMap.minutesToTimeStr(event.endMins),
+                isHappeningNow = isHappeningNow
             )
         }
     }
@@ -1616,19 +1675,34 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                     is M3EMoreHubAction.SearchQueryChanged -> searchQuery = action.query
                     is M3EMoreHubAction.OpenSubScreen -> {
                         when (action.screen) {
+                            M3ESubScreen.ATTENDANCE -> AppState.navigateTo(Screen.ATTENDANCE)
+                            M3ESubScreen.LIBRARIES -> AppState.navigateTo(Screen.LIBRARIES)
                             M3ESubScreen.COURSE_DETAIL -> AppState.navigateTo(Screen.COURSE_DETAIL)
                             M3ESubScreen.FACULTY -> AppState.navigateTo(Screen.FACULTY_INFO)
                             M3ESubScreen.CURRICULUM -> AppState.navigateTo(Screen.CURRICULUM)
                             M3ESubScreen.MARKS_PREDICTOR -> AppState.navigateTo(Screen.GPA_PREDICTOR)
                             M3ESubScreen.EXAM_SCHEDULE -> AppState.navigateTo(Screen.EXAM_SCHEDULE)
                             M3ESubScreen.GRADES_HISTORY -> AppState.navigateTo(Screen.GRADES)
+                            M3ESubScreen.CALENDAR -> AppState.navigateTo(Screen.CALENDAR)
+                            M3ESubScreen.FFCS_PLANNER -> AppState.navigateTo(Screen.FFCS_PLANNER)
+                            M3ESubScreen.MOODLE -> AppState.navigateTo(Screen.MOODLE)
+                            M3ESubScreen.OD_TRACKER -> AppState.navigateTo(Screen.OD_TRACKER)
+                            M3ESubScreen.FEEDBACK_STATUS -> AppState.navigateTo(Screen.FEEDBACK_STATUS)
+                            M3ESubScreen.COURSE_MANAGEMENT -> AppState.navigateTo(Screen.COURSE_MANAGEMENT)
+                            M3ESubScreen.ARREARS -> AppState.navigateTo(Screen.ARREAR)
+                            M3ESubScreen.QBANK -> AppState.navigateTo(Screen.QBANK)
                             M3ESubScreen.HOSTEL -> AppState.navigateTo(Screen.HOSTEL)
                             M3ESubScreen.TRANSPORT -> AppState.navigateTo(Screen.TRANSPORT)
                             M3ESubScreen.CAB_SHARE -> AppState.navigateTo(Screen.CABSHARE)
                             M3ESubScreen.FREE_CLASSROOMS -> AppState.navigateTo(Screen.FREE_CLASSROOMS)
+                            M3ESubScreen.PAYMENTS -> AppState.navigateTo(Screen.PAYMENTS)
+                            M3ESubScreen.CIRCULARS -> AppState.navigateTo(Screen.CIRCULARS)
+                            M3ESubScreen.DOCUMENTS -> AppState.navigateTo(Screen.DOCUMENTS)
                             M3ESubScreen.EVENT_HUB -> AppState.navigateTo(Screen.EVENTS)
                             M3ESubScreen.CLUB_HUB -> AppState.navigateTo(Screen.CLUB_HUB)
                             M3ESubScreen.TASKS -> AppState.navigateTo(Screen.TASKS)
+                            M3ESubScreen.SOCIAL -> AppState.navigateTo(Screen.SOCIAL)
+                            M3ESubScreen.FRESHER_WELCOME -> AppState.navigateTo(Screen.FRESHER_WELCOME)
                             M3ESubScreen.PROFILE -> AppState.navigateTo(Screen.PROFILE)
                             M3ESubScreen.SETTINGS -> AppState.navigateTo(Screen.SETTINGS)
                         }

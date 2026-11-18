@@ -48,6 +48,13 @@ import com.amazecc.app.shared.model.AllGradesRes
 import com.amazecc.app.shared.model.GradeItem
 import com.amazecc.app.shared.model.SemesterGradeResult
 import com.amazecc.app.shared.model.EffectiveGradeCourse
+import com.amazecc.app.shared.model.FeedbackSemester
+import com.amazecc.app.shared.model.FeedbackStatusRes
+import com.amazecc.app.shared.model.FeedbackTableRow
+import com.amazecc.app.shared.model.OdDetailsRes
+import com.amazecc.app.shared.model.OdRecordItem
+import com.amazecc.app.shared.model.TransportDataRes
+import com.amazecc.app.shared.repository.SettingsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
@@ -149,6 +156,24 @@ object VtopDataSource {
     private const val PATH_CURRICULUM = "/vtop/academics/common/Curriculum"
     private const val PATH_CURRICULUM_CATEGORY = "/vtop/academics/common/curriculumCategoryView"
 
+    // Group E - Parity with amazecc-api-hono /api/remote/*
+    private const val PATH_TRANSPORT_REG = "/vtop/transport/transportRegistration"
+    private const val PATH_TRANSPORT_TRACK = "/vtop/transport/trackMyBus"
+    private const val PATH_OD_WARMUP = "/vtop/academics/common/getStudentOdDetails"
+    private const val PATH_OD_SEARCH = "/vtop/searchStudentOdDetails"
+    private const val PATH_FEEDBACK_STATUS = "/vtop/processViewFeedBackStatus"
+    private const val PATH_WISHLIST = "/vtop/academics/registration/wishlistRegPage"
+    private const val PATH_HOD_DEAN = "/vtop/hrms/viewHodDeanDetails"
+    private const val PATH_CONTACT = "/vtop/hrms/contactDetails"
+    private const val PATH_ACKNOWLEDGEMENT = "/vtop/admissions/AcknowledgmentView"
+    private const val PATH_COURSE_PAGE = "/vtop/academics/common/StudentCoursePage"
+    private const val PATH_COURSE_PAGE_DETAILS = "/vtop/getCourseDetailsForCoursePage"
+    private const val PATH_SYLLABUS_DOWNLOAD = "/vtop/courseSyllabusDownload1"
+    private const val PATH_CURRICULUM_DOWNLOAD = "/vtop/academics/curriculDown"
+    private const val PATH_CIRCULAR_DOWNLOAD = "/vtop/admissions/viewStatusWiseCostCentreCircularContent"
+    private const val PATH_LIBRARY_PAYMENTS = "/vtop/finance/libraryPayments"
+    private const val PATH_SEMESTER_GRADES = "/vtop/examinations/examGradeView/doStudentGradeView"
+
     /** VTOP wants `DD-MMM-YYYY`, e.g. `01-JUL-2026`. */
     private val MONTH_ABBR = listOf(
         "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"
@@ -209,6 +234,34 @@ object VtopDataSource {
             "&control=$control&x=${now()}$extra"
     }
 
+    /**
+     * Guarantees a valid, unexpired VTOP session before performing any headless scraping.
+     * VTOP sessions expire after 10 minutes (600,000 ms). If the session is older than 9.5m
+     * or expired, this performs a silent cookie restoration or auto-login with stored credentials.
+     */
+    suspend fun ensureSession(): Boolean {
+        if (VtopSession.hasSession && !VtopSession.isExpired) {
+            return true
+        }
+
+        // 1. Try to restore session from existing WebView cookies if not expired
+        if (Vtop.restoreSessionIfPossible() && !VtopSession.isExpired) {
+            VtopSession.markActive()
+            return true
+        }
+
+        // 2. If session expired or invalid, auto-login using stored credentials
+        val creds = SettingsManager.getCredentials()
+        if (creds != null && creds.first.isNotBlank() && creds.second.isNotBlank()) {
+            val result = Vtop.login(creds.first, creds.second, captchaHandler = { challenge -> Vtop.awaitUiCaptcha(challenge) })
+            if (result is LoginResult.Success) {
+                VtopSession.markActive()
+                return true
+            }
+        }
+        return VtopSession.hasSession && !VtopSession.isExpired
+    }
+
     private suspend fun rows(
         path: String,
         body: String,
@@ -218,11 +271,20 @@ object VtopDataSource {
         captures: List<VtopScripts.Capture> = emptyList(),
         headerRowsToSkip: Int = 0
     ): VtopRows = withContext(Dispatchers.Default) {
-        VtopRows.parse(
+        ensureSession()
+        var currentBody = body
+        if (VtopSession.csrf.value != null && currentBody.contains("_csrf=")) {
+            currentBody = currentBody.replace(Regex("_csrf=[^&]*"), "_csrf=${VtopSession.csrf.value}")
+        }
+        if (VtopSession.authorizedID.value != null && currentBody.contains("authorizedID=")) {
+            currentBody = currentBody.replace(Regex("authorizedID=[^&]*"), "authorizedID=${VtopSession.authorizedID.value}")
+        }
+
+        var result = VtopRows.parse(
             Vtop.engineInstance().evaluate(
                 VtopScripts.fetchRows(
                     path = path,
-                    body = body,
+                    body = currentBody,
                     selector = selector,
                     tableSelector = tableSelector,
                     tableIndex = tableIndex,
@@ -232,9 +294,39 @@ object VtopDataSource {
                 timeoutMs = 30_000
             )
         )
+
+        // If the table is empty or VTOP timed out, try re-logging in and retrying once
+        if (result.rows.isEmpty() && (VtopSession.isExpired || !VtopSession.hasSession)) {
+            VtopSession.clear()
+            if (ensureSession()) {
+                var retryBody = body
+                if (VtopSession.csrf.value != null && retryBody.contains("_csrf=")) {
+                    retryBody = retryBody.replace(Regex("_csrf=[^&]*"), "_csrf=${VtopSession.csrf.value}")
+                }
+                if (VtopSession.authorizedID.value != null && retryBody.contains("authorizedID=")) {
+                    retryBody = retryBody.replace(Regex("authorizedID=[^&]*"), "authorizedID=${VtopSession.authorizedID.value}")
+                }
+                result = VtopRows.parse(
+                    Vtop.engineInstance().evaluate(
+                        VtopScripts.fetchRows(
+                            path = path,
+                            body = retryBody,
+                            selector = selector,
+                            tableSelector = tableSelector,
+                            tableIndex = tableIndex,
+                            captures = captures,
+                            headerRowsToSkip = headerRowsToSkip
+                        ),
+                        timeoutMs = 30_000
+                    )
+                )
+            }
+        }
+        result
     }
 
     private suspend fun evaluate(script: String): String = withContext(Dispatchers.Default) {
+        ensureSession()
         Vtop.engineInstance().evaluate(script, timeoutMs = 30_000)
     }
 
@@ -1119,6 +1211,123 @@ object VtopDataSource {
         )
         AppDataStore.setCurriculum(curriculumOutput)
         return curriculumOutput
+    }
+
+    // ── Group E — Remote Parity Additions ────────────────────────────────────
+
+    suspend fun fetchTransport(): TransportDataRes? {
+        if (!VtopSession.hasSession) return null
+        val session = sessionBody() ?: return null
+        val page = parsePage(PATH_TRANSPORT_REG) ?: return null
+        val busRouteId = page.hiddenFields["busRouteId"]
+            ?: page.formFields["busRouteId"]
+            ?: ""
+
+        var regNo: String? = null
+        var name: String? = null
+        var branch: String? = null
+        var routeSelected: String? = null
+
+        page.tables.firstOrNull()?.rows?.forEach { row ->
+            val label = row.getOrNull(0)?.trim().orEmpty()
+            val value = row.getOrNull(1)?.trim().orEmpty()
+            when {
+                label.contains("Register Number", ignoreCase = true) -> regNo = value
+                label.contains("Name of the Student", ignoreCase = true) -> name = value
+                label.contains("Branch", ignoreCase = true) -> branch = value
+                label.contains("Route Selected", ignoreCase = true) -> routeSelected = value
+            }
+        }
+        page.keyValuePairs.forEach { (k, v) ->
+            when {
+                k.contains("Register Number", ignoreCase = true) && regNo == null -> regNo = v
+                k.contains("Name of the Student", ignoreCase = true) && name == null -> name = v
+                k.contains("Branch", ignoreCase = true) && branch == null -> branch = v
+                k.contains("Route Selected", ignoreCase = true) && routeSelected == null -> routeSelected = v
+            }
+        }
+
+        val res = TransportDataRes(
+            success = true,
+            hasRegistration = busRouteId.isNotBlank() || regNo != null,
+            registerNumber = regNo,
+            name = name,
+            branch = branch,
+            routeSelected = routeSelected,
+            busRouteId = busRouteId.ifBlank { null }
+        )
+        AppDataStore.setTransportData(res)
+        return res
+    }
+
+    suspend fun fetchOdDetails(semesterId: String): OdDetailsRes? {
+        if (!VtopSession.hasSession) return null
+        val session = sessionBody() ?: return null
+        evaluate(VtopScripts.parsePage(PATH_OD_WARMUP, session))
+
+        val semBody = semesterBody(semesterId) ?: return null
+        val result = rows(
+            PATH_OD_SEARCH,
+            semBody,
+            "#example1 tbody tr",
+            headerRowsToSkip = 0
+        )
+        if (!result.ok) return null
+        val records = result.rows.mapNotNull { row ->
+            if (row.size < 7) return@mapNotNull null
+            OdRecordItem(
+                slNo = row.getOrElse(0) { "" }.trim(),
+                type = row.getOrElse(1) { "" }.trim(),
+                reason = row.getOrElse(2) { "" }.trim(),
+                basis = row.getOrElse(3) { "" }.trim(),
+                date = row.getOrElse(4) { "" }.trim(),
+                time = row.getOrElse(5) { "" }.trim(),
+                remarks = row.getOrElse(6) { "" }.trim()
+            )
+        }
+        return OdDetailsRes(
+            success = true,
+            semesterId = semesterId,
+            totalCount = records.size,
+            records = records
+        )
+    }
+
+    suspend fun fetchFeedbackStatus(semesterId: String): FeedbackStatusRes? {
+        if (!VtopSession.hasSession) return null
+        val semBody = semesterBody(semesterId) ?: return null
+        val page = VtopPage.parse(evaluate(VtopScripts.parsePage(PATH_FEEDBACK_STATUS, semBody)))
+        if (!page.ok) return null
+        val tableRows = page.tables.firstOrNull()?.rows?.mapNotNull { r ->
+            if (r.isEmpty()) return@mapNotNull null
+            FeedbackTableRow(
+                feedbackType = r.getOrNull(0)?.trim(),
+                midSemester = r.getOrNull(1)?.trim(),
+                teeSemester = r.getOrNull(2)?.trim()
+            )
+        }
+        return FeedbackStatusRes(
+            success = true,
+            semesters = listOf(FeedbackSemester(text = semesterId, value = semesterId, selected = true)),
+            feedbackTable = tableRows
+        )
+    }
+
+    suspend fun fetchCoursePage(): VtopPage? {
+        if (!VtopSession.hasSession) return null
+        val body = sessionBody() ?: return null
+        return parsePage(PATH_COURSE_PAGE)
+    }
+
+    suspend fun fetchWhoami(): Boolean {
+        if (!VtopSession.hasSession) return false
+        val student = fetchStudentProfile()
+        val profileImages = fetchProfileImages()
+        val bank = fetchBankInfo()
+        val dayboarder = fetchDayboarder()
+        val apaar = fetchApaarId()
+        val ept = fetchEptSchedule()
+        return student != null || profileImages != null
     }
 
     private val curriculumCategories = ListSerializer(CurriculumCategory.serializer())

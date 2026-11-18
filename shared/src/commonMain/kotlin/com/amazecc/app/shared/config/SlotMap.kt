@@ -188,4 +188,156 @@ object SlotMap {
             "L94" to "6:30-7:20",
         ),
     )
+
+    /** Total number of slots across all 7 days (24+23+23+23+23+24+24 = 164). */
+    const val TOTAL_SLOTS: Int = 164
+
+    /** Slots on one day. The per-day sum equals [TOTAL_SLOTS]. */
+    fun totalSlotsAcrossDay(day: String): Int = map[normaliseDay(day) ?: day.uppercase()]?.size ?: 0
+
+    /** `"DAY:SLOTID"`, e.g. `"MON:A1"` or `"MON:TEE"`. */
+    fun slotKey(day: String, slotId: String): String =
+        "${normaliseDay(day) ?: day.uppercase()}:${com.amazecc.app.shared.domain.normaliseSlot(slotId)}"
+
+    /** Parses `"DAY:SLOTID"` into a `(day, slotId)` pair. */
+    fun parseSlotKey(key: String): Pair<String, String>? {
+        val i = key.indexOf(':')
+        if (i <= 0 || i == key.length - 1) return null
+        val d = normaliseDay(key.substring(0, i)) ?: key.substring(0, i).uppercase()
+        val s = com.amazecc.app.shared.domain.normaliseSlot(key.substring(i + 1))
+        return d to s
+    }
+
+    /** True when the key resolves against the vocabulary (under direct or Law School spelling). */
+    fun isValidKey(key: String): Boolean {
+        val (day, slotId) = parseSlotKey(key) ?: return false
+        return getTime(day, slotId) != null
+    }
+
+    /**
+     * `"8:00"` -> 480.
+     * Rule: In `config.json`, hours 1-7 are PM, 8-11 are AM, and 12 is PM.
+     */
+    fun toMinutes(t: String?): Int {
+        if (t.isNullOrBlank()) return 0
+        val parts = t.trim().split(":")
+        val hs = parts.getOrNull(0) ?: "0"
+        val ms = parts.getOrNull(1) ?: "0"
+        var h = hs.toIntOrNull() ?: 0
+        val m = ms.toIntOrNull() ?: 0
+        if (h == 12 || (h in 1..7)) {
+            if (h != 12) h += 12
+        }
+        return h * 60 + m
+    }
+
+    /** Minutes -> `"1:20 PM"`, for display. */
+    fun minutesToTimeStr(mins: Int): String {
+        if (mins < 0) return ""
+        var h = (mins / 60) % 24
+        val m = mins % 60
+        val ampm = if (h >= 12) "PM" else "AM"
+        if (h > 12) h -= 12
+        if (h == 0) h = 12
+        val mm = m.toString().padStart(2, '0')
+        return "$h:$mm $ampm"
+    }
+
+    fun fmt(t: String?): String = minutesToTimeStr(toMinutes(t))
+
+    fun slotRange(time: String?): Pair<Int, Int> {
+        if (time == null || !time.contains("-")) return 0 to 0
+        val parts = time.split("-")
+        return toMinutes(parts.getOrNull(0)) to toMinutes(parts.getOrNull(1))
+    }
+
+    fun slotSpanMinutes(time: String?): Int {
+        val (start, end) = slotRange(time)
+        return maxOf(0, end - start)
+    }
+
+    fun slotSpanHours(time: String?): Double = slotSpanMinutes(time) / 60.0
+
+    val FULL_DAY_TO_KEY: Map<String, String> = mapOf(
+        "monday" to "MON", "tuesday" to "TUE", "wednesday" to "WED",
+        "thursday" to "THU", "friday" to "FRI", "saturday" to "SAT", "sunday" to "SUN",
+        "mon" to "MON", "tue" to "TUE", "wed" to "WED",
+        "thu" to "THU", "fri" to "FRI", "sat" to "SAT", "sun" to "SUN"
+    )
+
+    fun normaliseDay(day: String?): String? {
+        if (day == null) return null
+        val trimmed = day.trim().lowercase()
+        return FULL_DAY_TO_KEY[trimmed] ?: day.trim().uppercase().takeIf { it in days }
+    }
+
+    /**
+     * Resolves the slot time string (e.g. `"8:00-8:50"`) for a given day and slot,
+     * fully integrated with the Law School schema translator:
+     * - `A` -> `A1`
+     * - `TEE` -> `S11`
+     * - `TFF` -> `S15`
+     * - `TAA` -> `TAA1`, etc.
+     */
+    fun getTime(day: String, slotId: String): String? {
+        val d = normaliseDay(day) ?: return null
+        val daySlots = map[d] ?: return null
+        val norm = com.amazecc.app.shared.domain.normaliseSlot(slotId)
+        val direct = daySlots[norm]
+        if (direct != null) return direct
+
+        // Law School translation buddy (checks all valid spellings)
+        val spellings = com.amazecc.app.shared.domain.slotSpellings(norm)
+        for (spelling in spellings) {
+            val t = daySlots[spelling]
+            if (t != null) return t
+        }
+        return null
+    }
+
+    /**
+     * Resolves the start and end minutes for a compound slot (e.g. `"A1+TA1"` or `"A+TA"` or `"L31+L32"`) on a given day.
+     */
+    fun resolveRange(day: String, slotStr: String): Pair<Int, Int>? {
+        val tokens = com.amazecc.app.shared.domain.splitSlots(slotStr)
+        if (tokens.isEmpty()) return null
+        var minStart: Int? = null
+        var maxEnd: Int? = null
+        for (token in tokens) {
+            val rawTime = getTime(day, token) ?: continue
+            val (s, e) = slotRange(rawTime)
+            if (s > 0 || e > 0) {
+                if (minStart == null || s < minStart) minStart = s
+                if (maxEnd == null || e > maxEnd) maxEnd = e
+            }
+        }
+        return if (minStart != null && maxEnd != null) minStart to maxEnd else null
+    }
+
+    /**
+     * Returns all days where the slot (under either schema or Law School spelling) occurs.
+     */
+    fun daysForSlot(slotId: String): List<String> {
+        val norm = com.amazecc.app.shared.domain.normaliseSlot(slotId)
+        val spellings = com.amazecc.app.shared.domain.slotSpellings(norm).toSet()
+        return days.filter { day ->
+            val daySlots = map[day] ?: return@filter false
+            spellings.any { daySlots.containsKey(it) }
+        }
+    }
+
+    /**
+     * Finds the slot covering the specified day and minute of day (0..1439).
+     */
+    fun slotCoveringMinute(day: String, minute: Int): String? {
+        val d = normaliseDay(day) ?: return null
+        val daySlots = map[d] ?: return null
+        for ((slotId, rawTime) in daySlots) {
+            val (start, end) = slotRange(rawTime)
+            if (minute in start until end) {
+                return slotKey(d, slotId)
+            }
+        }
+        return null
+    }
 }

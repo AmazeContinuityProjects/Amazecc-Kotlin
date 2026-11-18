@@ -86,10 +86,10 @@ fun M3ENavigationBar(
     val tabs = remember(pinnedTabs) {
         val list = mutableListOf(Screen.HOME)
         if (pinnedTabs.isEmpty()) {
-            list.addAll(listOf(Screen.ATTENDANCE, Screen.ACADEMICS, Screen.PROFILE))
+            list.addAll(listOf(Screen.ACADEMICS, Screen.PROFILE))
         } else {
             pinnedTabs.forEach { tab ->
-                if (tab != Screen.HOME && tab != Screen.MORE && tab !in list) {
+                if (tab != Screen.HOME && tab != Screen.MORE && tab != Screen.ATTENDANCE && tab != Screen.LIBRARIES && tab !in list) {
                     list.add(tab)
                 }
             }
@@ -135,17 +135,17 @@ private fun M3ENavigationBarContent(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
-                .shadow(elevation = 3.dp, shape = CircleShape, clip = false)
+                .shadow(elevation = 8.dp, shape = CircleShape, clip = false)
                 .clip(CircleShape)
-                .background(colors.surfaceContainerHighest.copy(alpha = 0.95f))
-                .border(1.dp, colors.outlineVariant.copy(alpha = 0.4f), CircleShape)
-                .padding(horizontal = 6.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .background(colors.surfaceContainerHighest.copy(alpha = 0.98f))
+                .border(1.5.dp, colors.outlineVariant.copy(alpha = 0.50f), CircleShape)
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             tabs.forEach { tab ->
@@ -175,7 +175,7 @@ private fun M3ENavItemPill(
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.90f else if (isSelected) 1.02f else 1.0f,
+        targetValue = if (isPressed) 0.88f else if (isSelected) 1.03f else 1.0f,
         animationSpec = M3ETheme.motion.spatialFast(),
         label = "M3ENavItemScale"
     )
@@ -187,13 +187,13 @@ private fun M3ENavItemPill(
     )
 
     val contentColor by animateColorAsState(
-        targetValue = if (isSelected) colors.onSecondaryContainer else colors.onSurfaceVariant,
+        targetValue = if (isSelected) colors.onSecondaryContainer else colors.onSurfaceVariant.copy(alpha = 0.82f),
         animationSpec = M3ETheme.motion.effectsDefault(),
         label = "M3ENavItemContent"
     )
 
     val horizontalPadding by animateDpAsState(
-        targetValue = if (isSelected) 14.dp else 10.dp,
+        targetValue = if (isSelected) 22.dp else 16.dp,
         animationSpec = M3ETheme.motion.spatialDefault(),
         label = "M3ENavItemPadding"
     )
@@ -211,18 +211,18 @@ private fun M3ENavItemPill(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = horizontalPadding, vertical = 8.dp),
+            .padding(horizontal = horizontalPadding, vertical = 13.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = label,
                 tint = contentColor,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(26.dp)
             )
             AnimatedVisibility(
                 visible = isSelected,
@@ -234,9 +234,10 @@ private fun M3ENavItemPill(
                 Text(
                     text = label,
                     color = contentColor,
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
+                    style = MaterialTheme.typography.labelLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp,
+                        letterSpacing = 0.3.sp
                     ),
                     maxLines = 1,
                     softWrap = false
