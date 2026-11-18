@@ -117,6 +117,7 @@ import kotlinx.datetime.Clock
  * Moodle deadlines *are* read, through the app's existing deadline parser rather
  * than a second one — see [nextMoodleDeadline].
  */
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun SimplifiedHomeScreen() {
     val colors = AmazeTheme.colors

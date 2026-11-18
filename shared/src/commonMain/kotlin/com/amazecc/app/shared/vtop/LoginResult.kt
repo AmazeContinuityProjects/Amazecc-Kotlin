@@ -23,6 +23,8 @@ sealed interface LoginResult {
 
     data object MaxAttempts : LoginResult
 
+    data object PasswordExpired : LoginResult
+
     data object Unknown : LoginResult
 
     /** Transport / WebView level failure. [message] is safe to surface to the user. */

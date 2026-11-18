@@ -46,6 +46,7 @@ private val gradePointMap = mapOf(
     "D" to 6.0, "E" to 5.0, "F" to 0.0
 )
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun GPAPredictorScreen() {
     val colors = AmazeTheme.colors

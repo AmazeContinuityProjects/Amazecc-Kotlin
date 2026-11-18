@@ -64,6 +64,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun AttendanceScreen() {
     var activeView by remember { mutableStateOf(AppState.attendanceInitialView.value) }

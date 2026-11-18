@@ -118,6 +118,7 @@ private fun parseCsv(text: String): List<SimpleParsedCourse> {
     }
 }
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun FreeClassroomsScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors

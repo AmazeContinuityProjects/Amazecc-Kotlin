@@ -43,6 +43,7 @@ fun MarksGradesScreen() = AcademicsScreen()
 
 
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun AcademicsScreen() {
     val colors = AmazeTheme.colors

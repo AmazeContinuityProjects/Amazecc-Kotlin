@@ -42,6 +42,7 @@ import com.amazecc.app.shared.utils.toImageBitmap
 import io.ktor.util.decodeBase64Bytes
 import kotlinx.coroutines.launch
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun EventHubScreen() {
     val colors = AmazeTheme.colors

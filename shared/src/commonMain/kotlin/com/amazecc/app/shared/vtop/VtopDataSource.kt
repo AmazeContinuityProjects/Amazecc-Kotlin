@@ -239,25 +239,26 @@ object VtopDataSource {
 
     // ── Timetable ───────────────────────────────────────────────────────────
 
-    /** Course list from `processViewTimeTable`. */
+    /** Course list from `processViewTimeTable`. Aligned with amazecc-api-hono `fetchTimeTable.ts`. */
     suspend fun fetchCourses(semesterId: String): List<VtopCourse> {
         val body = semesterBody(semesterId) ?: return emptyList()
         val result = rows(PATH_TIME_TABLE, body, "table.table tbody tr")
         if (!result.ok) return emptyList()
 
-        return result.rows.mapIndexedNotNull { i, _ ->
+        return result.rows.mapIndexedNotNull { i, row ->
+            if (row.size < 9) return@mapIndexedNotNull null
             val courseCell = result.cell(i, 2)
             if (courseCell.isBlank()) return@mapIndexedNotNull null
             val slotVenue = result.cell(i, 7)
             val category = result.cell(i, 4)
+            val isLab = slotVenue.trim().startsWith("L")
+            val baseCode = courseCell.split(" ").firstOrNull()?.trim() ?: courseCell.trim()
+            val honoCourseCode = if (isLab) "$baseCode(L)" else "$baseCode(T)"
+
             VtopCourse(
                 slNo = result.cell(i, 0),
                 course = courseCell,
-                courseCode = VtopCourseCode.canonical(
-                    rawCode = courseCell,
-                    typeHint = category,
-                    slot = slotVenue
-                ),
+                courseCode = honoCourseCode,
                 component = VtopCourseCode.typeLabelOf(
                     rawCode = courseCell,
                     typeHint = category,
@@ -314,16 +315,15 @@ object VtopDataSource {
             if (row.size < 10) return@mapIndexedNotNull null
             val slotName = result.cell(i, 4)
             val title = result.cell(i, 2)
+            val rawCode = result.cell(i, 1).trim()
+            val isLab = slotName.trim().startsWith("L")
+            val honoCode = if (isLab) "$rawCode(L)" else "$rawCode(T)"
+
             RawAttendance(
-                courseCode = VtopCourseCode.canonical(
-                    rawCode = result.cell(i, 1),
-                    typeHint = result.cell(i, 3),
-                    slot = slotName,
-                    title = title
-                ),
+                courseCode = honoCode,
                 courseTitle = title,
                 courseType = VtopCourseCode.typeLabelOf(
-                    rawCode = result.cell(i, 1),
+                    rawCode = rawCode,
                     typeHint = result.cell(i, 3),
                     slot = slotName,
                     title = title
@@ -460,7 +460,17 @@ object VtopDataSource {
         if (!VtopSession.hasSession) return null
         val body = semesterBody(semesterId) ?: return null
 
-        val creditMap = fetchCourses(semesterId).associate { it.courseCode.trim() to (it.credits ?: "0") }
+        val creditMap = mutableMapOf<String, String>()
+        fetchCourses(semesterId).forEach { c ->
+            val credits = c.credits ?: "0"
+            creditMap[c.courseCode.trim()] = credits
+            creditMap[VtopCourseCode.base(c.courseCode)] = credits
+            val base = c.course.split(" ").firstOrNull()?.trim() ?: ""
+            if (base.isNotEmpty()) {
+                creditMap["$base(T)"] = credits
+                creditMap["$base(L)"] = credits
+            }
+        }
 
         val parsed = VtopMarksResult.parse(
             evaluate(VtopScripts.fetchMarks(PATH_MARKS, body))
@@ -487,7 +497,9 @@ object VtopDataSource {
                 slot = slot,
                 title = courseTitle
             )
-            val credits = creditMap[code] ?: creditMap[VtopCourseCode.base(cells[2])] ?: "0"
+            val isLab = slot.startsWith("L")
+            val primaryKey = "${cells[2].trim()}(${if (isLab) "L" else "T"})"
+            val credits = creditMap[primaryKey] ?: creditMap[code] ?: creditMap[VtopCourseCode.base(cells[2])] ?: "0"
 
             MarksCourseItem(
                 classNbr = cells[1].trim(),

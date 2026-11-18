@@ -42,6 +42,7 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.screens.*
+import com.amazecc.app.shared.ui.screens.m3e.*
 import com.amazecc.app.shared.ui.screens.libraries.LibrariesScreen
 import com.amazecc.app.shared.ui.screens.transport.TransportScreen
 import com.amazecc.app.shared.ui.screens.academics.FreeClassroomsScreen
@@ -167,49 +168,45 @@ fun App() {
                                 Screen.LOGIN -> LoginScreen()
                                 Screen.ONBOARDING -> OnboardingScreen()
                                 Screen.PAYMENTS -> PaymentsScreen()
-                                Screen.HOSTEL -> HostelScreen()
-                                Screen.CABSHARE -> CabShareScreen()
-                                Screen.TRANSPORT -> TransportScreen()
-                                Screen.EVENTS -> EventHubScreen()
-                                Screen.SETTINGS -> com.amazecc.app.shared.ui.screens.settings.SettingsScreen()
+                                Screen.HOSTEL -> M3EHostelScreen()
+                                Screen.CABSHARE -> M3ECabShareScreen()
+                                Screen.TRANSPORT -> M3ETransportScreen()
+                                Screen.EVENTS -> M3EEventHubScreen()
+                                Screen.SETTINGS -> M3ESettingsScreen()
                                 Screen.QBANK -> QBankScreen()
                                 Screen.SOCIAL -> SocialScreen()
                                 Screen.FFCS_PLANNER -> FfcsPlannerScreen()
-                                Screen.FREE_CLASSROOMS -> FreeClassroomsScreen { AppState.navigateBackTo(Screen.ACADEMICS) }
+                                Screen.FREE_CLASSROOMS -> M3EFreeClassroomsScreen()
                                 Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateBackTo(Screen.ACADEMICS) })
-                                Screen.GRADES -> GradesScreen()
-                                Screen.GPA_PREDICTOR -> GPAPredictorScreen()
-                                Screen.COURSE_DETAIL -> CourseDetailScreen { AppState.navigateBackTo(Screen.ACADEMICS) }
+                                Screen.GRADES -> M3EGradesHistoryScreen()
+                                Screen.GPA_PREDICTOR -> M3EMarksPredictorScreen()
+                                Screen.COURSE_DETAIL -> M3ECourseDetailScreen()
                                 Screen.COURSE_ATTENDANCE -> CourseAttendanceScreen()
                                 Screen.CIRCULARS -> CircularsScreen()
-                                Screen.CURRICULUM -> CurriculumScreen()
+                                Screen.CURRICULUM -> M3ECurriculumScreen()
                                 Screen.OD_TRACKER -> ODTrackerScreen()
                                 Screen.COURSE_DASHBOARD -> CourseDashboardScreen { AppState.navigateBackTo(Screen.ACADEMICS) }
-                                Screen.FACULTY_INFO -> FacultyInfoScreen()
+                                Screen.FACULTY_INFO -> M3EFacultyScreen()
                                 Screen.COURSE_MANAGEMENT -> CourseManagementScreen()
                                 Screen.FEEDBACK_STATUS -> FeedbackStatusScreen()
                                 Screen.FRESHER_WELCOME -> FresherWelcomeScreen()
                                 Screen.DOCUMENTS -> DocumentsScreen()
                                 Screen.ABOUT -> AboutScreen()
-                                Screen.CLUB_HUB -> com.amazecc.app.shared.ui.screens.more.ClubHubScreen()
+                                Screen.CLUB_HUB -> M3EClubHubScreen()
                                 Screen.CLUB_DETAIL -> com.amazecc.app.shared.ui.screens.events.ClubDetailScreen()
                                 Screen.MOODLE -> MoodleScreen()
-                                Screen.TASKS -> TasksScreen()
-                                Screen.EXAM_SCHEDULE -> ExamScheduleScreen()
+                                Screen.TASKS -> M3ETasksScreen()
+                                Screen.EXAM_SCHEDULE -> M3EExamScheduleScreen()
                                 Screen.CHANGELOG -> ChangelogScreen()
                                 Screen.HALL_OF_FAME -> HallOfFameScreen()
                                 Screen.ARREAR -> ArrearTabScreen()
-                                Screen.HOME -> if (homeViewMode == com.amazecc.app.shared.state.HomeViewMode.SIMPLIFIED) {
-                                    com.amazecc.app.shared.ui.screens.home.SimplifiedHomeScreen()
-                                } else {
-                                    LegacyHomeScreen()
-                                }
+                                Screen.HOME -> M3EHomeScreen()
                                 Screen.HOME_LEGACY -> LegacyHomeScreen()
-                                Screen.ATTENDANCE -> AttendanceScreen()
-                                Screen.ACADEMICS -> AcademicsScreen()
+                                Screen.ATTENDANCE -> M3EAttendanceScreen()
+                                Screen.ACADEMICS -> M3EAcademicsScreen()
                                 Screen.LIBRARIES -> LibrariesScreen()
-                                Screen.PROFILE -> ProfileScreen()
-                                Screen.MORE -> MoreScreen()
+                                Screen.PROFILE -> M3EProfileScreen()
+                                Screen.MORE -> M3EMoreHubScreen()
                             }
                         }
                     }
@@ -291,7 +288,7 @@ transportData?.hasRegistration == true ->
                     }
 
                     if (isAppLibraryOpen) {
-                        com.amazecc.app.shared.ui.screens.more.MoreScreen()
+                        M3EMoreHubScreen()
                     }
 
                     // One-time alert for newly added exam venue/seat entries from credentials

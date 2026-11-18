@@ -53,6 +53,7 @@ private fun gradeChartColor(index: Int, colors: com.amazecc.app.shared.theme.Ama
 private data class TrendPoint(val gpa: Float, val marksPct: Float)
 private data class RadarPoint(val label: String, val score: Float)
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun GradesScreen() {
     val colors = AmazeTheme.colors

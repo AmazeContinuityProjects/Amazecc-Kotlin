@@ -51,6 +51,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun TransportScreen() {
     val colors = AmazeTheme.colors

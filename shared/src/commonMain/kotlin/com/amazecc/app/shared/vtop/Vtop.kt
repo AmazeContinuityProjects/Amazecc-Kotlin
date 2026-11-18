@@ -219,6 +219,7 @@ object Vtop {
                 is LoginResult.InvalidCredentials,
                 is LoginResult.AccountLocked,
                 is LoginResult.MaxAttempts,
+                is LoginResult.PasswordExpired,
                 is LoginResult.Failure -> return result
                 is LoginResult.Unknown -> return result
             }
@@ -291,6 +292,7 @@ object Vtop {
             2 -> LoginResult.InvalidCredentials
             3 -> LoginResult.AccountLocked
             4 -> LoginResult.MaxAttempts
+            6 -> LoginResult.PasswordExpired
             else -> LoginResult.Unknown
         }
     }

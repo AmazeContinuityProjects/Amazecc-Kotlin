@@ -46,6 +46,7 @@ import com.amazecc.app.shared.utils.seatLocationDisplay
 import com.amazecc.app.shared.utils.sessionDisplay
 import kotlinx.datetime.Clock
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun ExamScheduleScreen() {
     val colors = AmazeTheme.colors

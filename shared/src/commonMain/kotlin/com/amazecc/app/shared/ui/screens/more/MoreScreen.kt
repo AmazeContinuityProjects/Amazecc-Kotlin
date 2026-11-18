@@ -44,6 +44,7 @@ import com.amazecc.app.shared.ui.components.*
 import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MoreScreen() {

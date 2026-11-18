@@ -137,6 +137,10 @@ data class CoursePredictionResult(
     val estimatedGrade: EstimatedGrade,
     val ceilingGrade: EstimatedGrade,
     val riskLevel: RiskLevel,
+    val pacePct: Double = 0.0,
+    val currentStandingPct: Double = 0.0,
+    val optimalGrade: EstimatedGrade? = estimatedGrade,
+    val maximisableGrade: EstimatedGrade = ceilingGrade,
 )
 
 data class TargetFatResult(
@@ -154,7 +158,13 @@ data class TargetFatResult(
     val meetsVitMinimumCutoff: Boolean,
     val feasibility: Feasibility,
     val feasibilityMessage: String,
-)
+) {
+    val requiredFATWeight: Double get() = requiredFatWeight
+    val requiredFATRawScore: Double get() = requiredFatRawScore
+    val requiredFATPercentage: Double get() = requiredFatPercentage
+    val meetsVITMinimumCutoff: Boolean get() = meetsVitMinimumCutoff
+    val currentScoreWithoutFAT: Double get() = currentScoreWithoutFat
+}
 
 // ── Arithmetic helpers ───────────────────────────────────────────────────────
 
@@ -195,6 +205,30 @@ private fun fixed1(value: Double): String {
 }
 
 // ── Weight normalisation ─────────────────────────────────────────────────────
+
+data class WeightageItem(
+    val title: String,
+    val weightagePercent: Double,
+)
+
+@kotlin.jvm.JvmName("normalizeGenericWeights")
+fun normalizeWeights(items: List<WeightageItem>): List<WeightageItem> {
+    if (items.isEmpty()) return items
+    val total = items.sumOf { safeNumber(it.weightagePercent.toString()) }
+    if (total <= 0.0) return items
+
+    var runningSum = 0.0
+    return items.mapIndexed { index, item ->
+        if (index == items.size - 1) {
+            val remaining = maxOf(0.0, 100.0 - runningSum)
+            item.copy(weightagePercent = round2(remaining))
+        } else {
+            val scaled = round2((item.weightagePercent / total) * 100.0)
+            runningSum += scaled
+            item.copy(weightagePercent = scaled)
+        }
+    }
+}
 
 /**
  * Scales an arbitrary weight list so it sums to exactly 100, with the last row absorbing the
@@ -306,7 +340,7 @@ fun computeComponentStats(
 
 // ── Grade bands ───────────────────────────────────────────────────────────────
 
-/** The VIT letter band. Boundaries are inclusive and every band is 10 points. */
+/** The VIT letter band. Boundaries are inclusive (ACE §9.5 Table 6). */
 private val GRADE_BANDS = listOf(
     90.0 to ("S" to "Outstanding (10 Grade Points)"),
     80.0 to ("A" to "Excellent (9 Grade Points)"),
@@ -401,6 +435,12 @@ fun computeCoursePrediction(
     val pointsLostScaled = round2(weightedLostSum / effectiveCredits)
     val maxPossibleScaled = maxOf(0.0, round2(100.0 - pointsLostScaled))
 
+    val releasedWeight = currentScoredScaled + pointsLostScaled
+    val pacePct = if (releasedWeight > 0.0) round2((currentScoredScaled / releasedWeight) * 100.0) else 0.0
+    val currentStandingPct = if (releasedWeight > 0.0) round2((currentScoredScaled / releasedWeight) * 100.0) else 0.0
+    val optimalGrade = if (releasedWeight > 0.0) estimateGrade(pacePct) else null
+    val maximisableGrade = estimateGrade(maxPossibleScaled)
+
     return CoursePredictionResult(
         courseCode = courseCode,
         courseTitle = courseTitle,
@@ -421,6 +461,10 @@ fun computeCoursePrediction(
         // What you could still reach if you aced everything still to come.
         ceilingGrade = estimateGrade(maxPossibleScaled),
         riskLevel = riskLevelFor(pointsLostScaled),
+        pacePct = pacePct,
+        currentStandingPct = currentStandingPct,
+        optimalGrade = optimalGrade,
+        maximisableGrade = maximisableGrade,
     )
 }
 
@@ -530,6 +574,41 @@ fun solveTargetFat(
         feasibility = feasibility,
         feasibilityMessage = message,
     )
+}
+
+fun solveTargetFAT(
+    targetScore: Double,
+    currentScoredScaled: Double,
+    fatWeightagePercent: Double = 40.0,
+    fatMaxMark: Double = 100.0,
+    theoryCredits: Double = 3.0,
+    labCredits: Double = 1.0,
+    isEmbedded: Boolean = false,
+    component: MarkComponent = MarkComponent.THEORY,
+    otherComponentWeighted: Double = 0.0,
+): TargetFatResult = solveTargetFat(
+    targetScore = targetScore,
+    currentScoredScaled = currentScoredScaled,
+    fatWeightagePercent = fatWeightagePercent,
+    fatMaxMark = fatMaxMark,
+    theoryCredits = theoryCredits,
+    labCredits = labCredits,
+    isEmbedded = isEmbedded,
+    component = component,
+    otherComponentWeighted = otherComponentWeighted,
+)
+
+fun computeComponentStats(
+    assessments: List<PredictorAssessment>,
+    component: String,
+    credits: Double = 1.0,
+): ComponentStats {
+    val comp = when (component.lowercase()) {
+        "lab" -> MarkComponent.LAB
+        "project" -> MarkComponent.PROJECT
+        else -> MarkComponent.THEORY
+    }
+    return computeComponentStats(assessments, comp, credits)
 }
 
 // ── Building the assessment list from live data ───────────────────────────────

@@ -366,6 +366,23 @@ object AppState {
     private val _syncStatus = MutableStateFlow<String?>(null)
     val syncStatus: StateFlow<String?> = _syncStatus.asStateFlow()
 
+    // Offline / Local Cache status indicators
+    private val _isUsingCachedData = MutableStateFlow(false)
+    val isUsingCachedData: StateFlow<Boolean> = _isUsingCachedData.asStateFlow()
+
+    private val _offlineCacheStatus = MutableStateFlow<String?>(null)
+    val offlineCacheStatus: StateFlow<String?> = _offlineCacheStatus.asStateFlow()
+
+    fun markServedFromCache(module: String? = null) {
+        _isUsingCachedData.value = true
+        _offlineCacheStatus.value = if (module != null) "Serving $module from local cache" else "Serving data from local cache"
+    }
+
+    fun clearServedFromCache() {
+        _isUsingCachedData.value = false
+        _offlineCacheStatus.value = null
+    }
+
     // Onboarding sync progress
     data class SyncStep(val name: String, val status: String) // status: "pending", "syncing", "done", "failed"
     private val _onboardingSyncSteps = MutableStateFlow<List<SyncStep>>(emptyList())

@@ -32,6 +32,7 @@ import com.amazecc.app.shared.ui.components.WidgetDashboard
  * where the update check has always been kicked off from, and keeping it here
  * means opting into this dashboard has no side effects on the simplified one.
  */
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun LegacyHomeScreen() {
     val updateStatus by AppState.updateStatus.collectAsState()

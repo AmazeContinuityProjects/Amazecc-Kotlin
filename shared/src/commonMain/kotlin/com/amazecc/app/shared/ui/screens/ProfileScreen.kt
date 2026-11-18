@@ -21,6 +21,7 @@ import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.screens.profile.*
 import com.amazecc.app.shared.ui.strings.Strings
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun ProfileScreen() {
     val colors = AmazeTheme.colors

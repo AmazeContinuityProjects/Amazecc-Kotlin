@@ -148,6 +148,7 @@ private data class CurriculumCategoryUi(
     val baskets: List<CurriculumBasketUi>
 )
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun CurriculumScreen() {
     val colors = AmazeTheme.colors

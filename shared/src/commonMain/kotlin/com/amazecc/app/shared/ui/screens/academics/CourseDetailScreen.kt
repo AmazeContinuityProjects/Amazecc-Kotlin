@@ -172,6 +172,7 @@ private fun CourseSubPageTint(sub: CourseSubPage, colors: com.amazecc.app.shared
     CourseSubPage.FREE_SLOTS -> colors.chart2
 }
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun CourseDetailScreen(onBack: () -> Unit) {
     val colors = AmazeTheme.colors

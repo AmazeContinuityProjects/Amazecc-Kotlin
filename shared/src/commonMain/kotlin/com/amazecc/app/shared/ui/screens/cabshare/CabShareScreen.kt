@@ -43,6 +43,7 @@ import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.datetime.toLocalDateTime
 
+@Deprecated("Replaced by Material 3 Expressive M3E*Screen equivalent")
 @Composable
 fun CabShareScreen() {
     val colors = AmazeTheme.colors
