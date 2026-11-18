@@ -85,3 +85,17 @@ All critical issues resolved. ✅
 | Medium | 14 | 14 | 0 |
 | Low | 10 | 10 | 0 |
 | **Total** | **58** | **58** | **0** |
+
+---
+
+## M3E Migration Round — Double Padding (fixed)
+
+**Symptom:** Settings cards and campus-feature cards looked heavily over-padded; only `M3EHomeScreen` looked correct.
+
+**Root cause:** `ui/m3e/components/M3ESurfaceCard.kt` applies `.padding(16.dp)` to its own content box. Most M3E screens were also applying `.padding(18.dp)` / `.padding(20.dp)` / `.padding(28.dp)` to the content `Column`/`Row` *inside* the card, so the two paddings stacked (34–48 dp of inset). `M3EHomeScreen` was the only screen that put its content in with `Modifier.fillMaxWidth()` and no second padding — hence it was immune.
+
+**Fix:** Callers now pass `Modifier.fillMaxWidth()` to the card content (no inner padding) wherever `M3ESurfaceCard` is used (Settings, MoreHub/feature tiles, Hostel, Transport, CabShare, ClubHub, EventHub, Tasks, FreeClassrooms, CourseDetail, Faculty, Profile, Attendance, Login, plus all 21 newly converted M3E screens). Screen-level horizontal spacing lives in one place: the `LazyColumn.contentPadding`. The card-internal 16 dp is the single card inset. Two stragglers found in the final audit (`M3EAttendanceScreen` empty state and `M3ELoginScreen` form card, both 24 dp) were also removed.
+
+**Rule going forward:** Never add `.padding(...)` to the direct content of `M3ESurfaceCard`. If a card needs a different inset, add a parameter to `M3ESurfaceCard` rather than padding at the call site.
+
+**Related bottom-nav clearance:** `BOTTOM_NAV_PADDING` is now `140.dp`; `M3EPageShell`'s default bottom padding is `0.dp`, and scrolling screens own the 140 dp clearance explicitly (shared constant preferred over magic numbers).

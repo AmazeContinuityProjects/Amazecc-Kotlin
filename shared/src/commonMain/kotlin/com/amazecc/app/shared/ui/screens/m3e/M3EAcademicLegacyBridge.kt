@@ -1,0 +1,726 @@
+package com.amazecc.app.shared.ui.screens.m3e
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
+import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.domain.Projections
+import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AcademicDerivers.resolveCurrentSemester
+import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
+import com.amazecc.app.shared.state.AppDataStore
+import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.FfcsViewModel
+import com.amazecc.app.shared.state.FriendsViewModel
+import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.UserStore
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.utils.ContentData
+import com.amazecc.app.shared.utils.SocialUtils
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+private const val M3E_OD_TRACKER_KEY = "m3e_od_tracker"
+private val m3eOdTrackerJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * Stateful host wrappers for the converted ACADEMIC & SOCIAL M3E screens.
+ *
+ * Every host collects the existing [AppState] / ViewModel flows, builds an immutable
+ * screen state, wires user intents back to the existing AppState methods, and renders
+ * the matching 100% stateless `M3E*Screen`. All side effects (network, storage,
+ * navigation, clipboard, URI handling) live here — never in the stateless screens.
+ *
+ * Both data paths are preserved: online scraper/API calls go through [AmazeClient],
+ * while offline data comes from the cached [AppDataStore] / [AppState.domain] flows.
+ */
+object M3EAcademicLegacyBridge
+
+private fun backTo(screen: Screen) {
+    if (!AppState.navigateBack()) AppState.navigateTo(screen)
+}
+
+private fun backToHub() {
+    if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE)
+}
+
+// ============================================================================
+// 1. Course Attendance (Bunk-O-Meter)
+// ============================================================================
+
+@Composable
+fun M3ECourseAttendanceScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    val domain by AppState.domain.collectAsState()
+    val courseCode by AppState.selectedCourseCode.collectAsState()
+
+    var activeTab by remember { mutableStateOf(M3ECourseAttendanceTab.PREDICTOR) }
+    var cutoffMode by remember { mutableStateOf(M3ECutoffMode.LID) }
+    var whatIfAttend by remember { mutableStateOf(0) }
+    var whatIfMiss by remember { mutableStateOf(0) }
+    var notes by remember(courseCode) { mutableStateOf(SettingsManager.getCourseNote(courseCode ?: "")) }
+    val skippedDates = remember { mutableStateMapOf<Int, Boolean>() }
+
+    val course = remember(domain, courseCode) {
+        Projections.currentSemesterAttendance(domain).firstOrNull { it.courseCode == courseCode }
+    }
+    val total = course?.totalClasses ?: 0
+    val attended = course?.attendedClasses ?: 0
+    val computedPct = if (total > 0) attended.toDouble() / total * 100.0 else 0.0
+    val percentText = course?.attendancePercentage?.replace("%", "")?.toDoubleOrNull()
+    val state = M3ECourseAttendanceState(
+        courseCode = course?.courseCode ?: courseCode.orEmpty(),
+        courseTitle = course?.courseTitle.orEmpty(),
+        slotName = course?.slotName.orEmpty(),
+        courseType = course?.courseType.orEmpty(),
+        attendedClasses = attended,
+        totalClasses = total,
+        currentPercentage = percentText ?: computedPct,
+        activeTab = activeTab,
+        cutoffMode = cutoffMode,
+        // The calendar working-day helper is private to the legacy screen; the what-if
+        // simulator below covers the same projection need without inventing session dates.
+        futureClassDates = emptyList(),
+        whatIfAttend = whatIfAttend,
+        whatIfMiss = whatIfMiss,
+        logs = course?.logs?.map { log ->
+            val normalized = when (log.status.trim().lowercase()) {
+                "present", "p" -> "Present"
+                "on duty", "od", "onduty" -> "On Duty"
+                else -> "Absent"
+            }
+            M3EAttendanceLogEntry(log.date, normalized)
+        }.orEmpty(),
+        notes = notes
+    )
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3ECourseAttendanceScreen(
+            state = state,
+            onAction = { action ->
+                when (action) {
+                    is M3ECourseAttendanceAction.SelectTab -> activeTab = action.tab
+                    is M3ECourseAttendanceAction.SelectCutoffMode -> cutoffMode = action.mode
+                    is M3ECourseAttendanceAction.ToggleSkip -> {
+                        skippedDates[action.key] = !(skippedDates[action.key] ?: false)
+                    }
+                    is M3ECourseAttendanceAction.SetWhatIfAttend -> whatIfAttend = action.count
+                    is M3ECourseAttendanceAction.SetWhatIfMiss -> whatIfMiss = action.count
+                    is M3ECourseAttendanceAction.UpdateNotes -> {
+                        notes = action.text
+                        SettingsManager.saveCourseNote(state.courseCode, action.text)
+                    }
+                    is M3ECourseAttendanceAction.Refresh -> AppState.loadAllData()
+                    is M3ECourseAttendanceAction.Back -> backTo(Screen.ACADEMICS)
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ============================================================================
+// 2. Course Dashboard
+// ============================================================================
+
+@Composable
+fun M3ECourseDashboardScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    val domain by AppState.domain.collectAsState()
+    val semesterMap by AppState.semesterMap.collectAsState()
+    val pastSynced by AppState.pastSemestersSynced.collectAsState()
+    val isLoading by AppState.isLoading.collectAsState()
+
+    var selectedSemester by remember { mutableStateOf("All") }
+
+    val semesters = remember(domain, selectedSemester) {
+        val groups = domain.academics.semesters.map { (semId, sem) ->
+            val courses = sem.courses.values.map { c ->
+                val total = c.attendance?.total ?: 0
+                val attended = c.attendance?.attended ?: 0
+                val pct = if (total > 0) attended.toDouble() / total * 100.0 else null
+                val badge = when {
+                    c.type.contains("Project", ignoreCase = true) -> "PJ"
+                    c.type.contains("Online", ignoreCase = true) -> "OC"
+                    c.type.contains("Embedded", ignoreCase = true) -> "EMB"
+                    c.type.contains("Lab", ignoreCase = true) -> "LO"
+                    else -> "TH"
+                }
+                M3EDashboardCourse(
+                    courseCode = c.code,
+                    title = c.title,
+                    typeBadge = badge,
+                    attendancePct = pct,
+                    faculty = c.faculty.orEmpty(),
+                    semesterId = semId
+                )
+            }
+            M3EDashboardSemester(
+                id = semId,
+                label = semesterMap[semId] ?: AppState.deriveSemesterName(semId),
+                courses = courses
+            )
+        }
+        if (selectedSemester == "All") groups else groups.filter { it.id == selectedSemester }
+    }
+
+    val state = M3ECourseDashboardState(
+        semesters = semesters,
+        availableSemesterIds = listOf("All") + domain.academics.semesters.keys.toList(),
+        semesterLabels = semesterMap,
+        selectedSemesterId = selectedSemester,
+        pastSemestersSynced = pastSynced,
+        isLoading = isLoading
+    )
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3ECourseDashboardScreen(
+            state = state,
+            onAction = { action ->
+                when (action) {
+                    is M3ECourseDashboardAction.SelectSemester -> selectedSemester = action.id
+                    is M3ECourseDashboardAction.OpenCourse -> {
+                        AppState.openCourseDetail(action.courseCode, action.semesterId)
+                    }
+                    is M3ECourseDashboardAction.RefreshPastSemesters -> AppState.refreshPastSemesters()
+                    is M3ECourseDashboardAction.Refresh -> AppState.refreshAllAcademic()
+                    is M3ECourseDashboardAction.Back -> backTo(Screen.ACADEMICS)
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ============================================================================
+// 3. OD Tracker
+// ============================================================================
+
+@Composable
+fun M3EODTrackerScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    val domain by AppState.domain.collectAsState()
+    val isLoading by AppState.isLoading.collectAsState()
+
+    var activeTab by remember { mutableStateOf(M3EODTab.OVERVIEW) }
+    // Wasted/recovered annotations persist across restarts (legacy did this through
+    // SettingsManager.getODTrackerState). They are keyed by "date|courseCode".
+    val tracker = remember {
+        mutableStateMapOf<String, M3EODStatus>().apply {
+            runCatching {
+                val raw = SettingsManager.getString(M3E_OD_TRACKER_KEY, "{}")
+                putAll(m3eOdTrackerJson.decodeFromString<Map<String, M3EODStatus>>(raw))
+            }
+        }
+    }
+
+    val days = remember(domain, tracker) {
+        val raw = mutableListOf<Pair<String, M3EODEntry>>()
+        Projections.currentSemesterAttendance(domain).forEach { course ->
+            course.logs.forEach { log ->
+                val normalized = log.status.trim().lowercase()
+                if (normalized == "on duty" || normalized == "od" || normalized == "onduty") {
+                    val isLab = course.slotName.startsWith("L")
+                    val key = "${log.date}|${course.courseCode}"
+                    raw += log.date to M3EODEntry(
+                        courseCode = course.courseCode,
+                        title = course.courseTitle,
+                        type = if (isLab) "LAB" else "TH",
+                        hours = if (isLab) 2 else 1,
+                        status = tracker[key] ?: M3EODStatus.NONE
+                    )
+                }
+            }
+        }
+        raw.groupBy({ it.first }, { it.second })
+            .map { (date, entries) -> M3EODDay(date, entries) }
+            .sortedByDescending { it.date }
+    }
+
+    val state = M3EODTrackerState(activeTab = activeTab, days = days, isLoading = isLoading)
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3EODTrackerScreen(
+            state = state,
+            onAction = { action ->
+                when (action) {
+                    is M3EODTrackerAction.SelectTab -> activeTab = action.tab
+                    is M3EODTrackerAction.CycleStatus -> {
+                        val key = "${action.date}|${action.courseCode}"
+                        tracker[key] = when (tracker[key]) {
+                            M3EODStatus.WASTED -> M3EODStatus.RECOVERED
+                            M3EODStatus.RECOVERED -> M3EODStatus.NONE
+                            else -> M3EODStatus.WASTED
+                        }
+                        SettingsManager.setString(
+                            M3E_OD_TRACKER_KEY,
+                            m3eOdTrackerJson.encodeToString(tracker.toMap())
+                        )
+                    }
+                    is M3EODTrackerAction.Refresh -> AppState.loadAllData()
+                    is M3EODTrackerAction.Back -> backTo(Screen.ACADEMICS)
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ============================================================================
+// 4. Arrears & Remedial
+// ============================================================================
+
+@Composable
+fun M3EArrearScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    var activeTab by remember { mutableStateOf(M3EArrearTab.SCHEDULE) }
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3EArrearScreen(
+            state = M3EArrearState(activeTab = activeTab),
+            onAction = { action ->
+                when (action) {
+                    is M3EArrearAction.SelectTab -> activeTab = action.tab
+                    is M3EArrearAction.Refresh -> AppState.loadAllData()
+                    is M3EArrearAction.Back -> backTo(Screen.ACADEMICS)
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ============================================================================
+// 5. QBank catalog
+// ============================================================================
+
+@Composable
+fun M3EQBankScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    var courses by remember { mutableStateOf<List<M3EQBankCourse>>(emptyList()) }
+    var searchQuery by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var refreshTick by remember { mutableStateOf(0) }
+
+    val stats = remember(refreshTick) {
+        val all = SettingsManager.getQBankStats().values
+        val attempts = all.sumOf { it.attempts }
+        val correct = all.sumOf { it.correct }
+        if (attempts == 0) null
+        else M3EQBankStats(attempts, correct, correct.toDouble() / attempts * 100.0)
+    }
+
+    LaunchedEffect(refreshTick) {
+        isLoading = true
+        errorMessage = null
+        try {
+            val res = AmazeClient.getQBankCourses()
+            if (res.success) {
+                courses = res.courses
+                    .distinctBy { it.courseCode }
+                    .map { M3EQBankCourse(it.courseCode, it.courseTitle) }
+            } else {
+                errorMessage = res.message ?: res.error ?: "Unable to load question bank"
+            }
+        } catch (e: Exception) {
+            errorMessage = e.message ?: "Unable to load question bank"
+        }
+        isLoading = false
+    }
+
+    val filtered = remember(courses, searchQuery) {
+        courses.filter {
+            it.courseCode.contains(searchQuery, ignoreCase = true) ||
+                it.courseTitle.contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3EQBankScreen(
+            state = M3EQBankState(
+                courses = courses,
+                filteredCourses = filtered,
+                searchQuery = searchQuery,
+                stats = stats,
+                errorMessage = errorMessage,
+                isLoading = isLoading
+            ),
+            onAction = { action ->
+                when (action) {
+                    is M3EQBankAction.SearchQueryChanged -> searchQuery = action.query
+                    is M3EQBankAction.OpenCourse -> {
+                        // Hand the course to the existing QBank workspace mechanism.
+                        AppState.openQBankCourse(action.courseCode)
+                    }
+                    is M3EQBankAction.Refresh -> refreshTick++
+                    is M3EQBankAction.Back -> backToHub()
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ============================================================================
+// 6. Social
+// ============================================================================
+
+@Composable
+fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    val friendsFlow by FriendsViewModel.friends.collectAsState()
+    val groupsFlow by FriendsViewModel.groups.collectAsState()
+    val academic by AppState.academic.collectAsState()
+    val identity by UserStore.identity.collectAsState()
+
+    var activeTab by remember { mutableStateOf(M3ESocialTab.SHARE) }
+    var addFriendOpen by remember { mutableStateOf(false) }
+    var createGroupOpen by remember { mutableStateOf(false) }
+    var addFriendCode by remember { mutableStateOf("") }
+    var newGroupName by remember { mutableStateOf("") }
+
+    val clipboard = LocalClipboardManager.current
+
+    val shareCode = remember(academic, identity) {
+        val attendance = resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
+        if (attendance.isEmpty()) "" else SocialUtils.exportScheduleCode(
+            attendance,
+            identity.displayName.ifBlank { identity.regNo.orEmpty() },
+            identity.regNo.orEmpty()
+        )
+    }
+
+    val friends = remember(friendsFlow) {
+        friendsFlow.map {
+            M3ESocialFriend(it.name, it.regNumber, it.nickname, it.classSlots.size)
+        }
+    }
+    val groups = remember(groupsFlow, friends) {
+        groupsFlow.map { group ->
+            val names = group.memberRegNumbers.map { reg ->
+                friends.firstOrNull { it.regNumber == reg }?.name ?: reg
+            }
+            M3ESocialGroup(group.id, group.name, names)
+        }
+    }
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3ESocialScreen(
+            state = M3ESocialState(
+                activeTab = activeTab,
+                shareCode = shareCode,
+                friends = friends,
+                groups = groups,
+                commonFreeSlots = emptyList(),
+                isAddFriendDialogOpen = addFriendOpen,
+                isCreateGroupDialogOpen = createGroupOpen,
+                addFriendCode = addFriendCode,
+                newGroupName = newGroupName
+            ),
+            onAction = { action ->
+                when (action) {
+                    is M3ESocialAction.SelectTab -> activeTab = action.tab
+                    is M3ESocialAction.UpdateAddFriendCode -> addFriendCode = action.code
+                    is M3ESocialAction.UpdateNewGroupName -> newGroupName = action.name
+                    is M3ESocialAction.OpenAddFriendDialog -> addFriendOpen = true
+                    is M3ESocialAction.CloseAddFriendDialog -> addFriendOpen = false
+                    is M3ESocialAction.OpenCreateGroupDialog -> createGroupOpen = true
+                    is M3ESocialAction.CloseCreateGroupDialog -> createGroupOpen = false
+                    is M3ESocialAction.AddFriend -> {
+                        if (FriendsViewModel.addFriendFromCode(addFriendCode)) {
+                            addFriendCode = ""
+                            addFriendOpen = false
+                        }
+                    }
+                    is M3ESocialAction.CreateGroup -> {
+                        if (newGroupName.isNotBlank()) {
+                            FriendsViewModel.createGroup(newGroupName.trim(), emptyList())
+                            newGroupName = ""
+                            createGroupOpen = false
+                        }
+                    }
+                    is M3ESocialAction.RemoveFriend -> FriendsViewModel.removeFriend(action.regNumber)
+                    is M3ESocialAction.DeleteGroup -> FriendsViewModel.deleteGroup(action.groupId)
+                    is M3ESocialAction.CopyShareCode -> clipboard.setText(AnnotatedString(shareCode))
+                    is M3ESocialAction.Refresh -> AppState.loadAllData()
+                    is M3ESocialAction.Back -> backToHub()
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ============================================================================
+// 7. FFCS Planner
+// ============================================================================
+
+@Composable
+fun M3EFfcsPlannerScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    val isLoading by FfcsViewModel.isLoading.collectAsState()
+    val offerings by FfcsViewModel.courseOfferings.collectAsState()
+    val selectedCodes by FfcsViewModel.selectedCodes.collectAsState()
+    val generated by FfcsViewModel.generatedTimetables.collectAsState()
+    val isGenerating by FfcsViewModel.isGenerating.collectAsState()
+    val error by FfcsViewModel.errorMsg.collectAsState()
+
+    var activeTab by remember { mutableStateOf(M3EFfcsTab.COURSES) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedResultId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        if (offerings.isEmpty()) FfcsViewModel.initFromCsv()
+    }
+
+    val courses = remember(offerings, selectedCodes) {
+        offerings.map { (code, offs) ->
+            M3EFfcsCourse(
+                code = code,
+                title = offs.firstOrNull()?.title.orEmpty(),
+                credits = offs.firstOrNull()?.credits.orEmpty(),
+                offeringCount = offs.size,
+                isSelected = code in selectedCodes
+            )
+        }
+    }
+    val filtered = remember(courses, searchQuery) {
+        courses.filter {
+            it.code.contains(searchQuery, ignoreCase = true) ||
+                it.title.contains(searchQuery, ignoreCase = true)
+        }
+    }
+    val results = remember(generated) {
+        generated.map { timetable ->
+            M3EFfcsResult(
+                id = timetable.id,
+                name = timetable.name,
+                summary = "${timetable.metrics.halfDays} half-days · ${timetable.metrics.gaps} gaps · ${timetable.courses.size} courses"
+            )
+        }
+    }
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3EFfcsPlannerScreen(
+            state = M3EFfcsPlannerState(
+                activeTab = activeTab,
+                courses = courses,
+                filteredCourses = filtered,
+                searchQuery = searchQuery,
+                selectedCount = selectedCodes.size,
+                results = results,
+                selectedResultId = selectedResultId,
+                isGenerating = isGenerating,
+                errorMessage = error,
+                isLoading = isLoading
+            ),
+            onAction = { action ->
+                when (action) {
+                    is M3EFfcsPlannerAction.SelectTab -> activeTab = action.tab
+                    is M3EFfcsPlannerAction.SearchQueryChanged -> searchQuery = action.query
+                    is M3EFfcsPlannerAction.ToggleCourse -> FfcsViewModel.toggleCourse(action.code)
+                    is M3EFfcsPlannerAction.Generate -> {
+                        activeTab = M3EFfcsTab.RESULTS
+                        FfcsViewModel.generate()
+                    }
+                    is M3EFfcsPlannerAction.SelectResult -> selectedResultId = action.id
+                    is M3EFfcsPlannerAction.Refresh -> FfcsViewModel.initFromCsv()
+                    is M3EFfcsPlannerAction.Back -> backToHub()
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ============================================================================
+// 8. Club Detail
+// ============================================================================
+
+@Composable
+fun M3EClubDetailScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    val clubsRes by AppState.clubs.collectAsState()
+    val clubId by AppState.selectedClubId.collectAsState()
+    var isEnrolled by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+
+    val club = remember(clubsRes, clubId) {
+        clubsRes?.clubs?.firstOrNull { it.id == clubId }
+    }
+    val state = M3EClubDetailState(
+        clubId = club?.id.orEmpty(),
+        name = club?.name.orEmpty(),
+        description = club?.description.orEmpty(),
+        website = club?.website,
+        instagram = club?.instagram,
+        whatsapp = club?.whatsapp,
+        isEnrolled = isEnrolled
+    )
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3EClubDetailScreen(
+            state = state,
+            onAction = { action ->
+                when (action) {
+                    is M3EClubDetailAction.ToggleEnroll -> isEnrolled = !isEnrolled
+                    is M3EClubDetailAction.OpenLink -> {
+                        try { uriHandler.openUri(action.url) } catch (_: Exception) { }
+                    }
+                    is M3EClubDetailAction.Refresh -> AppState.syncEventsAndClubs()
+                    is M3EClubDetailAction.Back -> backTo(Screen.CLUB_HUB)
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ============================================================================
+// 9. Feedback Status
+// ============================================================================
+
+@Composable
+fun M3EFeedbackStatusScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    var semesters by remember { mutableStateOf<List<M3EFeedbackSemester>>(emptyList()) }
+    var selectedSemester by remember { mutableStateOf<String?>(null) }
+    var rows by remember { mutableStateOf<List<M3EFeedbackRow>>(emptyList()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(true) }
+    var refreshTick by remember { mutableStateOf(0) }
+
+    LaunchedEffect(refreshTick) {
+        isLoading = true
+        errorMessage = null
+        try {
+            val res = AmazeClient.getFeedbackStatus()
+            val loaded = res.semesters.orEmpty().map {
+                M3EFeedbackSemester(it.value, it.text)
+            }
+            semesters = loaded.ifEmpty {
+                AppDataStore.academic.value.semesters.keys.map { id ->
+                    M3EFeedbackSemester(id, AppState.semesterMap.value[id] ?: AppState.deriveSemesterName(id))
+                }
+            }
+            if (selectedSemester == null) {
+                selectedSemester = semesters.firstOrNull { it.value == AppState.selectedSemester.value }?.value
+                    ?: semesters.firstOrNull()?.value
+            }
+        } catch (e: Exception) {
+            errorMessage = e.message ?: "Unable to load feedback status"
+        }
+        isLoading = false
+    }
+
+    LaunchedEffect(selectedSemester) {
+        val sem = selectedSemester ?: return@LaunchedEffect
+        try {
+            val res = AmazeClient.getFeedbackStatus(sem)
+            rows = res.feedbackTable.orEmpty().map {
+                M3EFeedbackRow(it.feedbackType.orEmpty(), it.midSemester.orEmpty(), it.teeSemester.orEmpty())
+            }
+            errorMessage = null
+        } catch (e: Exception) {
+            errorMessage = e.message ?: "Unable to load feedback rows"
+        }
+    }
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3EFeedbackStatusScreen(
+            state = M3EFeedbackStatusState(
+                semesters = semesters,
+                selectedSemesterValue = selectedSemester,
+                rows = rows,
+                errorMessage = errorMessage,
+                isLoading = isLoading
+            ),
+            onAction = { action ->
+                when (action) {
+                    is M3EFeedbackStatusAction.SelectSemester -> selectedSemester = action.value
+                    is M3EFeedbackStatusAction.Refresh -> refreshTick++
+                    is M3EFeedbackStatusAction.Back -> backTo(Screen.ACADEMICS)
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ============================================================================
+// 10. Fresher Welcome
+// ============================================================================
+
+@Composable
+fun M3EFresherWelcomeScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    val sections = listOf(
+        M3EFresherSection(M3EFresherCategory.CAMPUS, "Campus", "VIT has state-of-the-art labs, libraries, sports facilities and hostels. Get your ID card and explore!"),
+        M3EFresherSection(M3EFresherCategory.ACADEMICS, "Academics", "Attend orientation, understand CBCS, manage registration, and track attendance and grades via VTOP."),
+        M3EFresherSection(M3EFresherCategory.HOSTEL, "Hostel", "Accommodation, mess timings, laundry and counselling are managed in the Hostel module."),
+        M3EFresherSection(M3EFresherCategory.TRANSPORT, "Transport", "College buses run on fixed routes. Day-boarders can register for bus passes in Transport."),
+        M3EFresherSection(M3EFresherCategory.EVENTS, "Events", "Join clubs, hackathons, cultural fests and tech talks via Events and Social.")
+    )
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3EFresherWelcomeScreen(
+            state = M3EFresherWelcomeState(sections = sections),
+            onAction = { action ->
+                when (action) {
+                    is M3EFresherWelcomeAction.OpenSection -> {
+                        when (action.category) {
+                            M3EFresherCategory.CAMPUS -> AppState.navigateTo(Screen.MORE)
+                            M3EFresherCategory.ACADEMICS -> AppState.navigateTo(Screen.ACADEMICS)
+                            M3EFresherCategory.HOSTEL -> AppState.navigateTo(Screen.HOSTEL)
+                            M3EFresherCategory.TRANSPORT -> AppState.navigateTo(Screen.TRANSPORT)
+                            M3EFresherCategory.EVENTS -> AppState.navigateTo(Screen.EVENTS)
+                        }
+                    }
+                    is M3EFresherWelcomeAction.Back -> backToHub()
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ============================================================================
+// 11. Hall of Fame
+// ============================================================================
+
+@Composable
+fun M3EHallOfFameScreenHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    var contributors by remember { mutableStateOf<List<M3EHallOfFameContributor>>(emptyList()) }
+    var refreshTick by remember { mutableStateOf(0) }
+
+    LaunchedEffect(refreshTick) {
+        contributors = ContentData.contributors().map {
+            M3EHallOfFameContributor(it.name, it.role)
+        }
+    }
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3EHallOfFameScreen(
+            state = M3EHallOfFameState(contributors = contributors),
+            onAction = { action ->
+                when (action) {
+                    is M3EHallOfFameAction.Refresh -> refreshTick++
+                    is M3EHallOfFameAction.Back -> backToHub()
+                }
+            },
+            modifier = modifier
+        )
+    }
+}

@@ -109,8 +109,8 @@ object VtopSession {
      * `nocache` is a millisecond epoch so VTOP does not serve a cached fragment.
      */
     fun verifyMenuParams(nowMs: Long): String? {
-        val id = _authorizedID.value ?: return null
-        val token = _csrf.value ?: return null
+        val id = _authorizedID.value?.takeIf { it.isNotBlank() } ?: return null
+        val token = _csrf.value?.takeIf { it.isNotBlank() } ?: return null
         return "verifyMenu=true&authorizedID=$id&_csrf=$token&nocache=$nowMs"
     }
 

@@ -150,12 +150,19 @@ data class StudentIdentity(
 
     val displayRegNo: String get() = regNo ?: ""
 
-    val initials: String get() = displayName
-        .split(" ")
-        .filter { it.isNotBlank() }
-        .take(2)
-        .joinToString("") { it.first().uppercase() }
-        .ifEmpty { "?" }
+    val initials: String get() {
+        // A real name yields the first letter of up to two words ("Aditya Sharma" -> AS).
+        // When no name is available the registration number is the identity, so use its
+        // leading two characters ("21BCE1001" -> 21) rather than a single "2".
+        val named = friendlyName?.takeIf { it.isNotBlank() }
+            ?: name?.takeIf { it.isNotBlank() }
+        val fromName = named?.trim()?.split(Regex("\\s+"))
+            ?.filter { it.isNotBlank() }
+            ?.take(2)
+            ?.joinToString("") { it.first().uppercase() }
+            ?.takeIf { it.isNotBlank() }
+        return fromName ?: regNo?.trim()?.takeIf { it.isNotBlank() }?.take(2)?.uppercase() ?: "?"
+    }
 
     val hasIdentity: Boolean
         get() = regNo != null || name != null || photoBase64 != null

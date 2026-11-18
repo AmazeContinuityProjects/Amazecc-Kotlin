@@ -129,12 +129,17 @@ object Vtop {
      *
      * Retries up to [maxCaptchaAttempts] times on a bad captcha, matching the reference
      * implementation which reloads `/login` to pick up a fresh image.
+     *
+     * When [forceFresh] is true, any existing WebView session and cached tokens are discarded so
+     * the full prelogin -> login -> captcha flow runs instead of reusing a live JSESSIONID. The sync
+     * engine passes true for every sweep; an ordinary interactive login leaves it false.
      */
     suspend fun login(
         username: String,
         password: String,
         captchaHandler: CaptchaHandler,
-        maxCaptchaAttempts: Int = 3
+        maxCaptchaAttempts: Int = 3,
+        forceFresh: Boolean = false
     ): LoginResult {
         if (!vtopEngineSupported) {
             return LoginResult.Failure("Local VTOP access is not available on this platform")
@@ -145,6 +150,16 @@ object Vtop {
 
         val e = engine()
         return try {
+            if (forceFresh) {
+                // A still-valid WebView JSESSIONID would make performLogin() short-circuit straight
+                // to completeSession(). Drop it and the cached tokens so the canonical
+                // prelogin/setup -> login+captcha -> open page -> authorizedID flow always runs and
+                // genuinely fresh cookies/csrf/authorizedID are captured for this sync.
+                // initialize() is idempotent; the cookie jar must exist before it can be cleared.
+                e.initialize()
+                runCatching { e.clearCookies() }
+                VtopSession.clear()
+            }
             performLogin(e, username, password, captchaHandler, maxCaptchaAttempts)
         } catch (t: Throwable) {
             _stage.value = VtopAuthStage.Failed(t.message ?: "Login failed")

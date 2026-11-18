@@ -113,9 +113,7 @@ fun M3EAttendanceScreen(
                         containerLevel = SurfaceContainerLevel.LOW
                     ) {
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(

@@ -1473,8 +1473,15 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
     val proctor = identityState.proctor
     val hostel = hostelRes?.hostelInfo
     val currentSem = domain.academics.semesters[selectedSemId]
-    val cgpa = domain.academics.cgpa ?: currentSem?.gpa?.trim()?.toDoubleOrNull() ?: if (identityState.hasIdentity) 0.0 else 9.24
-    val attendancePct = domain.academics.overallAttendancePct ?: if (identityState.hasIdentity) 0.0 else 88.5
+    val cgpa = currentSem?.gpa?.trim()?.toDoubleOrNull() ?: if (identityState.hasIdentity) 0.0 else 9.24
+    // Academics is the single source of truth for attendance; derive the overall
+    // percentage from the selected semester's courses exactly like the home quick stats.
+    val profileCourses = currentSem?.courses?.values?.toList().orEmpty()
+    val profileTotalClasses = profileCourses.sumOf { it.attendance?.total ?: 0 }
+    val profileAttendedClasses = profileCourses.sumOf { it.attendance?.attended ?: 0 }
+    val attendancePct = if (profileTotalClasses > 0) {
+        (profileAttendedClasses.toDouble() / profileTotalClasses) * 100.0
+    } else if (identityState.hasIdentity) 0.0 else 88.5
 
     val mentors = remember(identityState) {
         val list = mutableListOf<com.amazecc.app.shared.domain.overhaul.M3EMentorItem>()
@@ -1545,7 +1552,7 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
         )
     }
 
-    val vtopCred = identityState.credentials.firstOrNull { it.accountType.contains("VTOP", ignoreCase = true) }
+    val vtopCred = identityState.credentials.firstOrNull { it.account.contains("VTOP", ignoreCase = true) }
     val vtopUser = vtopCred?.username ?: identityState.regNo ?: ""
     val vtopPass = vtopCred?.password ?: ""
 
@@ -1576,9 +1583,30 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
         proctorPhone = proctor?.phone,
         proctorDepartment = proctor?.department ?: proctor?.school,
         proctorDesignation = proctor?.designation,
-        bankInfo = identityState.bank?.let { b -> if (b.name != null) "${b.name} (${b.accountNumber ?: "Active"})" else "Verified & On File" },
-        apaarId = identityState.apaar?.apaarId ?: if (identityState.apaar?.hasApaar == true) "Linked to Portal" else null,
-        dayboarderInfo = identityState.dayboarder?.let { if (it.isDayboarder) "Day Boarder (${it.campus ?: "Verified"})" else "Hosteller" },
+        bankInfo = identityState.bank?.let { b ->
+            // BankInfo keeps the decrypted VTOP rows in [BankInfo.fields]; there is no
+            // dedicated accountNumber property, so read the labelled row.
+            val accountNo = b.fields.firstOrNull {
+                it.label.contains("account", ignoreCase = true) && it.label.contains("no", ignoreCase = true)
+            }?.value ?: b.fields.firstOrNull { it.label.contains("account", ignoreCase = true) }?.value
+            when {
+                !b.name.isNullOrBlank() && !accountNo.isNullOrBlank() -> "${b.name} ($accountNo)"
+                !b.name.isNullOrBlank() -> b.name
+                !accountNo.isNullOrBlank() -> "Account $accountNo"
+                else -> "Verified & On File"
+            }
+        },
+        apaarId = identityState.apaar?.let { a ->
+            a.fields.firstOrNull {
+                it.label.contains("apaar", ignoreCase = true) ||
+                    it.label.contains("abc", ignoreCase = true) ||
+                    it.label.contains("id", ignoreCase = true)
+            }?.value ?: if (a.hasApaar) "Linked to Portal" else null
+        },
+        dayboarderInfo = identityState.dayboarder?.let { d ->
+            val campusLabel = d.fields.firstOrNull { it.label.contains("campus", ignoreCase = true) }?.value
+            if (d.isDayboarder) "Day Boarder (${campusLabel ?: "Verified"})" else "Hosteller"
+        },
         eptStatus = if (identityState.eptTables.isNotEmpty()) "${identityState.eptTables.size} Scheduled Exams" else "No Active Exams",
         rankAir = identityState.ranks.firstOrNull()?.rank?.let { "AIR $it" },
         registrationSchedule = identityState.registrationTables.firstOrNull()?.caption ?: identityState.registrationFields.firstOrNull()?.value,

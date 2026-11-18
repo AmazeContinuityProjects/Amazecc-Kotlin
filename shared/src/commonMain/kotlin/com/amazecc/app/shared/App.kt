@@ -43,12 +43,9 @@ import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.screens.*
 import com.amazecc.app.shared.ui.screens.m3e.*
-import com.amazecc.app.shared.ui.screens.libraries.LibrariesScreen
 import com.amazecc.app.shared.ui.screens.academics.*
 import com.amazecc.app.shared.ui.components.MainTabPager
-import com.amazecc.app.shared.ui.screens.moodle.MoodleScreen
 import com.amazecc.app.shared.ui.screens.onboarding.OnboardingScreen
-import com.amazecc.app.shared.ui.screens.payments.PaymentsScreen
 import com.amazecc.app.shared.ui.m3e.components.M3ENavigationBar
 
 @Composable
@@ -149,47 +146,47 @@ fun App() {
                             )
                         } else {
                             when (targetScreen) {
-                                Screen.SPLASH -> SplashScreen()
+                                Screen.SPLASH -> M3ESplashScreen()
                                 Screen.LOGIN -> M3ELoginScreen()
                                 Screen.ONBOARDING -> OnboardingScreen()
-                                Screen.PAYMENTS -> PaymentsScreen()
+                                Screen.PAYMENTS -> M3EPaymentsScreenHost()
                                 Screen.HOSTEL -> M3EHostelScreen()
                                 Screen.CABSHARE -> M3ECabShareScreen()
                                 Screen.TRANSPORT -> M3ETransportScreen()
                                 Screen.EVENTS -> M3EEventHubScreen()
                                 Screen.SETTINGS -> M3ESettingsScreen()
-                                Screen.QBANK -> QBankScreen()
-                                Screen.SOCIAL -> SocialScreen()
-                                Screen.FFCS_PLANNER -> FfcsPlannerScreen()
+                                Screen.QBANK -> M3EQBankScreenHost()
+                                Screen.SOCIAL -> M3ESocialScreenHost()
+                                Screen.FFCS_PLANNER -> M3EFfcsPlannerScreenHost()
                                 Screen.FREE_CLASSROOMS -> M3EFreeClassroomsScreen()
-                                Screen.CALENDAR -> CalendarScreen(onBack = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) })
+                                Screen.CALENDAR -> M3ECalendarScreenHost()
                                 Screen.GRADES -> M3EGradesHistoryScreen()
                                 Screen.GPA_PREDICTOR -> M3EMarksPredictorScreen()
                                 Screen.COURSE_DETAIL -> M3ECourseDetailScreen()
-                                Screen.COURSE_ATTENDANCE -> CourseAttendanceScreen()
-                                Screen.CIRCULARS -> CircularsScreen()
+                                Screen.COURSE_ATTENDANCE -> M3ECourseAttendanceScreenHost()
+                                Screen.CIRCULARS -> M3ECircularsScreenHost()
                                 Screen.CURRICULUM -> M3ECurriculumScreen()
-                                Screen.OD_TRACKER -> ODTrackerScreen()
-                                Screen.COURSE_DASHBOARD -> CourseDashboardScreen { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
+                                Screen.OD_TRACKER -> M3EODTrackerScreenHost()
+                                Screen.COURSE_DASHBOARD -> M3ECourseDashboardScreenHost()
                                 Screen.FACULTY_INFO -> M3EFacultyScreen()
-                                Screen.COURSE_MANAGEMENT -> CourseManagementScreen()
-                                Screen.FEEDBACK_STATUS -> FeedbackStatusScreen()
-                                Screen.FRESHER_WELCOME -> FresherWelcomeScreen()
-                                Screen.DOCUMENTS -> DocumentsScreen()
-                                Screen.ABOUT -> AboutScreen()
+                                Screen.COURSE_MANAGEMENT -> M3ECourseManagementScreenHost()
+                                Screen.FEEDBACK_STATUS -> M3EFeedbackStatusScreenHost()
+                                Screen.FRESHER_WELCOME -> M3EFresherWelcomeScreenHost()
+                                Screen.DOCUMENTS -> M3EDocumentsScreenHost()
+                                Screen.ABOUT -> M3EAboutScreenHost()
                                 Screen.CLUB_HUB -> M3EClubHubScreen()
-                                Screen.CLUB_DETAIL -> com.amazecc.app.shared.ui.screens.events.ClubDetailScreen()
-                                Screen.MOODLE -> MoodleScreen()
+                                Screen.CLUB_DETAIL -> M3EClubDetailScreenHost()
+                                Screen.MOODLE -> M3EMoodleScreenHost()
                                 Screen.TASKS -> M3ETasksScreen()
                                 Screen.EXAM_SCHEDULE -> M3EExamScheduleScreen()
-                                Screen.CHANGELOG -> ChangelogScreen()
-                                Screen.HALL_OF_FAME -> HallOfFameScreen()
-                                Screen.ARREAR -> ArrearTabScreen()
+                                Screen.CHANGELOG -> M3EChangelogScreenHost()
+                                Screen.HALL_OF_FAME -> M3EHallOfFameScreenHost()
+                                Screen.ARREAR -> M3EArrearScreenHost()
                                 Screen.HOME -> M3EHomeScreen()
                                 Screen.HOME_LEGACY -> M3EHomeScreen()
                                 Screen.ATTENDANCE -> M3EAttendanceScreen()
                                 Screen.ACADEMICS -> M3EAcademicsScreen()
-                                Screen.LIBRARIES -> LibrariesScreen()
+                                Screen.LIBRARIES -> M3ELibrariesScreenHost()
                                 Screen.PROFILE -> M3EProfileScreen()
                                 Screen.MORE -> M3EMoreHubScreen()
                             }

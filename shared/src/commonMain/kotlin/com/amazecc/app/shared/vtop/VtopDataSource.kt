@@ -238,9 +238,15 @@ object VtopDataSource {
      * Guarantees a valid, unexpired VTOP session before performing any headless scraping.
      * Delegates to [com.amazecc.app.shared.api.AmazeClient.ensureSession] to ensure
      * consistent token persistence, session lifetime management, and UserStore synchronization.
+     *
+     * Defaults to [forceFresh] = true, so a direct caller always gets a real VTOP login rather than
+     * a cached-fresh session. The per-module scrape helpers ([rows] / [evaluate]) instead pass
+     * `forceFresh = false` because the sweep already logged in once — they only verify the tokens
+     * that gate established. The one retry path on an expired session keeps the default true so it
+     * genuinely re-logs in.
      */
     suspend fun ensureSession(
-        forceFresh: Boolean = false,
+        forceFresh: Boolean = true,
         captchaHandler: CaptchaHandler = CaptchaHandler { challenge -> Vtop.awaitUiCaptcha(challenge) }
     ): Boolean {
         return com.amazecc.app.shared.api.AmazeClient.ensureSession(forceFresh, captchaHandler)
@@ -255,7 +261,8 @@ object VtopDataSource {
         captures: List<VtopScripts.Capture> = emptyList(),
         headerRowsToSkip: Int = 0
     ): VtopRows = withContext(Dispatchers.Default) {
-        ensureSession()
+        // Verify only: the sweep's gate already performed the single fresh login.
+        ensureSession(forceFresh = false)
         var currentBody = body
         if (VtopSession.csrf.value != null && currentBody.contains("_csrf=")) {
             currentBody = currentBody.replace(Regex("_csrf=[^&]*"), "_csrf=${VtopSession.csrf.value}")
@@ -279,10 +286,11 @@ object VtopDataSource {
             )
         )
 
-        // If the table is empty or VTOP timed out, try re-logging in and retrying once
+        // If the table is empty or VTOP timed out, try re-logging in and retrying once. This is
+        // the one per-module path that deliberately forces a genuinely fresh login.
         if (result.rows.isEmpty() && (VtopSession.isExpired || !VtopSession.hasSession)) {
             VtopSession.clear()
-            if (ensureSession()) {
+            if (ensureSession(forceFresh = true)) {
                 var retryBody = body
                 if (VtopSession.csrf.value != null && retryBody.contains("_csrf=")) {
                     retryBody = retryBody.replace(Regex("_csrf=[^&]*"), "_csrf=${VtopSession.csrf.value}")
@@ -310,7 +318,8 @@ object VtopDataSource {
     }
 
     private suspend fun evaluate(script: String): String = withContext(Dispatchers.Default) {
-        ensureSession()
+        // Verify only: the sweep's gate already performed the single fresh login.
+        ensureSession(forceFresh = false)
         Vtop.engineInstance().evaluate(script, timeoutMs = 30_000)
     }
 

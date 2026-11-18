@@ -1,11 +1,31 @@
 package com.amazecc.app.shared.ui.screens.onboarding
 
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -16,16 +36,34 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.*
 import androidx.compose.material.icons.rounded.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -40,42 +78,85 @@ import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.state.SyncScheduler
 import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.theme.AccentTheme
-import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
-import com.amazecc.app.shared.theme.verdantAccentFor
-import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.components.LocalNotificationPermissionManager
+import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
+import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3EMotion
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingAccountState
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingAction
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingAutoSyncState
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingBadge
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingChoiceChip
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingCustomAccentSheet
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingFeature
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingPickerField
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingProfile
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingSectionLabel
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingSemesterSheet
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingState
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingSyncStep
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingSwitchRow
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingTimePickerSheet
+import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingTone
+import com.amazecc.app.shared.ui.screens.m3e.m3eScreenIconAndLabel
+import com.amazecc.app.shared.ui.screens.m3e.m3eWidgetTitle
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalTime
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
-private data class OnboardingPage(
+private data class M3EOnboardingPage(
     val title: String,
     val subtitle: String,
     val icon: ImageVector,
     val phaseLabel: String
 )
 
-private data class DiscoverFeature(
-    val title: String,
-    val description: String,
-    val icon: ImageVector,
-    val tint: Color
+private val ONBOARDING_PHASES = listOf("Discover", "Plan", "Tell")
+
+private val ONBOARDING_PAGES = listOf(
+    M3EOnboardingPage("Welcome to AmazeCC", "Your all-in-one campus companion", Icons.Rounded.AutoAwesome, ONBOARDING_PHASES[0]),
+    M3EOnboardingPage("Discover AmazeCC", "Everything in one place", Icons.Rounded.Explore, ONBOARDING_PHASES[0]),
+    M3EOnboardingPage("Personalize", "Theme, accent & display preferences", Icons.Rounded.Palette, ONBOARDING_PHASES[1]),
+    M3EOnboardingPage("Academic Preferences", "Semester & default calendar type", Icons.Rounded.CalendarMonth, ONBOARDING_PHASES[1]),
+    M3EOnboardingPage("Residence & Alerts", "Notifications & residential info", Icons.Rounded.Notifications, ONBOARDING_PHASES[1]),
+    M3EOnboardingPage("Choose Your Modules", "Pin your most-used sections", Icons.Rounded.Apps, ONBOARDING_PHASES[2]),
+    M3EOnboardingPage("Dashboard Widgets", "Pick what your home screen shows", Icons.Rounded.DashboardCustomize, ONBOARDING_PHASES[2]),
+    M3EOnboardingPage("Link Accounts", "Optional: Moodle & Library login", Icons.Rounded.Link, ONBOARDING_PHASES[2]),
+    M3EOnboardingPage("Auto Sync", "Keep data fresh on a schedule", Icons.Rounded.Timelapse, ONBOARDING_PHASES[2]),
+    M3EOnboardingPage("You're All Set!", "Your data is loading in the background", Icons.Rounded.CheckCircle, ONBOARDING_PHASES[2])
 )
 
-private val PHASES = listOf("Discover", "Plan", "Tell")
+private val PINNABLE_MODULES = listOf(
+    Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE,
+    Screen.PAYMENTS, Screen.CABSHARE, Screen.TRANSPORT, Screen.CALENDAR,
+    Screen.FFCS_PLANNER, Screen.FREE_CLASSROOMS, Screen.QBANK, Screen.SOCIAL
+)
 
+/**
+ * Public entry point. This is the ONLY composable that reads singletons or writes settings.
+ * All ten inner pages are stateless and communicate exclusively through [M3EOnboardingState]
+ * and [M3EOnboardingAction].
+ */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OnboardingScreen() {
     val isDark = AppState.theme.value == AppTheme.DARK || (AppState.theme.value == AppTheme.SYSTEM && androidx.compose.foundation.isSystemInDarkTheme())
 
     AmazeM3ETheme(isDark = isDark) {
-        val m3eColors = M3ETheme.colors
-        val colors = AmazeTheme.colors
+        val notifPermissionManager = LocalNotificationPermissionManager.current
+        val scope = rememberCoroutineScope()
+
+        // ── Flow-backed reads live in the stateful wrapper only ──
         var currentPage by remember { mutableStateOf(0) }
+        val moduleStates by SyncEngine.moduleStates.collectAsState()
+        val customAccent by AppState.customAccentColor.collectAsState()
+        val semesterMap by AppState.semesterMap.collectAsState()
+        val rawProfiles by SyncEngine.profiles.collectAsState()
 
         // Personalization
         var selectedTheme by remember { mutableStateOf(AppState.theme.value) }
@@ -85,12 +166,14 @@ fun OnboardingScreen() {
         var attendanceMode by remember { mutableStateOf(AppState.attendanceDisplayMode.value) }
         var hapticsEnabled by remember { mutableStateOf(AppState.hapticEnabled.value) }
         var animationsEnabled by remember { mutableStateOf(AppState.animationsEnabled.value) }
+        var showCustomAccent by remember { mutableStateOf(false) }
 
-        // Academic Preferences
+        // Academic preferences
         var selectedSemester by remember { mutableStateOf(AppState.selectedSemester.value) }
         var selectedCalendar by remember { mutableStateOf(SettingsManager.getPreferredCalendar() ?: AmazeClient.calendarTypes.first().second) }
+        var showSemesterSheet by remember { mutableStateOf(false) }
 
-        // Residential & Notifications
+        // Residential & notifications
         var residentialStatus by remember { mutableStateOf(AppState.residentialStatus.value) }
         var classNotif by remember { mutableStateOf(SettingsManager.isNotifClassRemindersEnabled()) }
         var assignNotif by remember { mutableStateOf(SettingsManager.isNotifAssignmentRemindersEnabled()) }
@@ -98,25 +181,36 @@ fun OnboardingScreen() {
         var examNotif by remember { mutableStateOf(SettingsManager.isNotifExamRemindersEnabled()) }
         var offsetMinutes by remember { mutableStateOf(SettingsManager.getNotifOffsetMinutes()) }
 
-        // Modules
-        val availableModules = listOf(
-            Screen.ATTENDANCE, Screen.ACADEMICS, Screen.LIBRARIES, Screen.PROFILE,
-            Screen.PAYMENTS, Screen.CABSHARE, Screen.TRANSPORT, Screen.CALENDAR,
-            Screen.FFCS_PLANNER, Screen.FREE_CLASSROOMS, Screen.QBANK, Screen.SOCIAL
-        )
+        // Modules & widgets
         var selectedModules by remember { mutableStateOf(AppState.pinnedNavTabs.value) }
+        var widgetOrder by remember { mutableStateOf(AppState.widgetOrder.value) }
 
-        // Accounts
+        // Optional accounts
         var moodleUser by remember { mutableStateOf("") }
         var moodlePass by remember { mutableStateOf("") }
         var libUser by remember { mutableStateOf("") }
         var libPass by remember { mutableStateOf("") }
+        var moodleAccount by remember { mutableStateOf(M3EOnboardingAccountState()) }
+        var libAccount by remember { mutableStateOf(M3EOnboardingAccountState()) }
 
-        val moduleStates by SyncEngine.moduleStates.collectAsState()
+        // Auto sync schedule
+        var autoSyncEnabled by remember { mutableStateOf(SyncScheduler.isEnabled()) }
+        var lightDaily by remember { mutableStateOf(SyncScheduler.isLightDaily()) }
+        var lightInterval by remember { mutableStateOf(SyncScheduler.lightIntervalDays()) }
+        var lightHour by remember { mutableStateOf(SyncScheduler.lightHour()) }
+        var lightMinute by remember { mutableStateOf(SyncScheduler.lightMinute()) }
+        var lightProfileId by remember { mutableStateOf(SyncScheduler.lightProfileId()) }
+        var fullDay by remember { mutableStateOf(SyncScheduler.fullDayOfWeek()) }
+        var fullHour by remember { mutableStateOf(SyncScheduler.fullHour()) }
+        var fullMinute by remember { mutableStateOf(SyncScheduler.fullMinute()) }
+        var fullProfileId by remember { mutableStateOf(SyncScheduler.fullProfileId()) }
+        var showLightTimePicker by remember { mutableStateOf(false) }
+        var showFullTimePicker by remember { mutableStateOf(false) }
+
         val syncSteps = remember(moduleStates) {
             moduleStates.filterKeys { it != SyncModule.EVENTS }
                 .entries.map { (module, state) ->
-                    AppState.SyncStep(
+                    M3EOnboardingSyncStep(
                         name = module.displayName,
                         status = when (state.status) {
                             SyncStatus.SUCCESS -> "done"
@@ -127,329 +221,510 @@ fun OnboardingScreen() {
                     )
                 }
         }
+        val profiles = remember(rawProfiles) {
+            rawProfiles.map { M3EOnboardingProfile(id = it.id, name = it.name) }
+        }
+
         LaunchedEffect(Unit) {
             AppState.loadAllData()
         }
 
-        val pages = listOf(
-            OnboardingPage("Welcome to AmazeCC", "Your all-in-one campus companion", Icons.Rounded.AutoAwesome, PHASES[0]),
-            OnboardingPage("Discover AmazeCC", "Everything in one place", Icons.Rounded.Explore, PHASES[0]),
-            OnboardingPage("Personalize", "Theme, accent & display preferences", Icons.Rounded.Palette, PHASES[1]),
-            OnboardingPage("Academic Preferences", "Semester & default calendar type", Icons.Rounded.CalendarMonth, PHASES[1]),
-            OnboardingPage("Residence & Alerts", "Notifications & residential info", Icons.Rounded.Notifications, PHASES[1]),
-            OnboardingPage("Choose Your Modules", "Pin your most-used sections", Icons.Rounded.Apps, PHASES[2]),
-            OnboardingPage("Dashboard Widgets", "Pick what your home screen shows", Icons.Rounded.DashboardCustomize, PHASES[2]),
-            OnboardingPage("Link Accounts", "Optional: Moodle & Library login", Icons.Rounded.Link, PHASES[2]),
-            OnboardingPage("Auto Sync", "Keep data fresh on a schedule", Icons.Rounded.Timelapse, PHASES[2]),
-            OnboardingPage("You're All Set!", "Your data is loading in the background", Icons.Rounded.CheckCircle, PHASES[2])
+        val state = M3EOnboardingState(
+            currentPage = currentPage,
+            syncSteps = syncSteps,
+            theme = selectedTheme,
+            accent = selectedAccent,
+            customAccentColor = customAccent,
+            uiScale = uiScale,
+            cgpaHidden = cgpaHidden,
+            attendanceMode = attendanceMode,
+            hapticsEnabled = hapticsEnabled,
+            animationsEnabled = animationsEnabled,
+            showCustomAccentSheet = showCustomAccent,
+            semester = selectedSemester,
+            semesterMap = semesterMap,
+            calendar = selectedCalendar,
+            calendarTypes = AmazeClient.calendarTypes,
+            showSemesterSheet = showSemesterSheet,
+            residentialStatus = residentialStatus,
+            classNotif = classNotif,
+            assignNotif = assignNotif,
+            taskNotif = taskNotif,
+            examNotif = examNotif,
+            notifOffsetMinutes = offsetMinutes,
+            availableModules = PINNABLE_MODULES,
+            selectedModules = selectedModules,
+            widgetOrder = widgetOrder,
+            moodleUser = moodleUser,
+            moodlePass = moodlePass,
+            libraryUser = libUser,
+            libraryPass = libPass,
+            moodle = moodleAccount,
+            library = libAccount,
+            autoSync = M3EOnboardingAutoSyncState(
+                enabled = autoSyncEnabled,
+                lightDaily = lightDaily,
+                lightIntervalDays = lightInterval,
+                lightHour = lightHour,
+                lightMinute = lightMinute,
+                lightProfileId = lightProfileId,
+                fullDayOfWeek = fullDay,
+                fullHour = fullHour,
+                fullMinute = fullMinute,
+                fullProfileId = fullProfileId,
+                profiles = profiles,
+                showLightTimePicker = showLightTimePicker,
+                showFullTimePicker = showFullTimePicker
+            )
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(m3eColors.surfaceContainerLowest)
-                .statusBarsPadding()
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(m3eColors.surfaceContainerLow)
-                    .padding(top = 20.dp, bottom = 20.dp, start = 20.dp, end = 20.dp)
-            ) {
-                Column {
-                    AnimatedContent(
-                        targetState = currentPage,
-                        transitionSpec = {
-                            if (targetState > initialState) {
-                                (slideInHorizontally { it / 3 } + fadeIn()).togetherWith(
-                                    slideOutHorizontally { -it / 3 } + fadeOut()
-                                )
-                            } else {
-                                (slideInHorizontally { -it / 3 } + fadeIn()).togetherWith(
-                                    slideOutHorizontally { it / 3 } + fadeOut()
-                                )
-                            }
+        val onAction: (M3EOnboardingAction) -> Unit = { action ->
+            when (action) {
+                M3EOnboardingAction.Next -> if (currentPage < ONBOARDING_PAGES.lastIndex) currentPage++
+                M3EOnboardingAction.Back -> if (currentPage > 0) currentPage--
+                M3EOnboardingAction.Finish -> {
+                    AppState.changeTheme(selectedTheme)
+                    AppState.changeAccent(selectedAccent)
+                    AppState.changeUiScale(uiScale)
+                    AppState.setCgpaHidden(cgpaHidden)
+                    AppState.setAttendanceDisplayMode(attendanceMode)
+                    AppState.setHapticEnabled(hapticsEnabled)
+                    AppState.setAnimationsEnabled(animationsEnabled)
+                    AppState.setResidentialStatus(residentialStatus)
+                    AppState.setPinnedNavTabs(selectedModules)
+                    SettingsManager.savePreferredCalendar(selectedCalendar)
+                    if (selectedSemester != AppState.selectedSemester.value) AppState.selectSemester(selectedSemester)
+                    SettingsManager.setNotifClassRemindersEnabled(classNotif)
+                    SettingsManager.setNotifAssignmentRemindersEnabled(assignNotif)
+                    SettingsManager.setNotifTaskRemindersEnabled(taskNotif)
+                    SettingsManager.setNotifExamRemindersEnabled(examNotif)
+                    SettingsManager.setNotifOffsetMinutes(offsetMinutes)
+                    SettingsManager.setOnboardingComplete(true)
+                    AppState.navigateTo(Screen.HOME)
+                }
+
+                is M3EOnboardingAction.SetTheme -> {
+                    selectedTheme = action.theme
+                    AppState.changeTheme(action.theme)
+                }
+                is M3EOnboardingAction.SetAccent -> {
+                    selectedAccent = action.accent
+                    AppState.changeAccent(action.accent)
+                }
+                is M3EOnboardingAction.SetCustomAccent -> {
+                    AppState.setCustomAccent(action.color)
+                    selectedAccent = AccentTheme.CUSTOM
+                    AppState.changeAccent(AccentTheme.CUSTOM)
+                    showCustomAccent = false
+                }
+                is M3EOnboardingAction.SetCustomAccentSheet -> showCustomAccent = action.show
+                is M3EOnboardingAction.SetUiScale -> {
+                    uiScale = action.scale
+                    AppState.changeUiScale(action.scale)
+                }
+                is M3EOnboardingAction.SetCgpaHidden -> {
+                    cgpaHidden = action.hidden
+                    AppState.setCgpaHidden(action.hidden)
+                }
+                is M3EOnboardingAction.SetAttendanceMode -> attendanceMode = action.mode
+                is M3EOnboardingAction.SetHaptics -> {
+                    hapticsEnabled = action.enabled
+                    AppState.setHapticEnabled(action.enabled)
+                }
+                is M3EOnboardingAction.SetAnimations -> {
+                    animationsEnabled = action.enabled
+                    AppState.setAnimationsEnabled(action.enabled)
+                }
+
+                is M3EOnboardingAction.SetSemester -> selectedSemester = action.id
+                is M3EOnboardingAction.SetSemesterSheet -> showSemesterSheet = action.show
+                is M3EOnboardingAction.SetCalendar -> selectedCalendar = action.name
+
+                is M3EOnboardingAction.SetResidentialStatus -> {
+                    residentialStatus = action.status
+                    AppState.setResidentialStatus(action.status)
+                }
+                is M3EOnboardingAction.SetClassNotif -> {
+                    if (action.enabled) notifPermissionManager?.requestPermission()
+                    classNotif = action.enabled
+                }
+                is M3EOnboardingAction.SetAssignNotif -> {
+                    if (action.enabled) notifPermissionManager?.requestPermission()
+                    assignNotif = action.enabled
+                }
+                is M3EOnboardingAction.SetTaskNotif -> {
+                    if (action.enabled) notifPermissionManager?.requestPermission()
+                    taskNotif = action.enabled
+                }
+                is M3EOnboardingAction.SetExamNotif -> {
+                    if (action.enabled) notifPermissionManager?.requestPermission()
+                    examNotif = action.enabled
+                }
+                is M3EOnboardingAction.SetNotifOffset -> offsetMinutes = action.minutes
+
+                is M3EOnboardingAction.ToggleModule -> {
+                    selectedModules = if (action.module in selectedModules) {
+                        selectedModules - action.module
+                    } else if (selectedModules.size < 4) {
+                        selectedModules + action.module
+                    } else {
+                        selectedModules
+                    }
+                }
+                is M3EOnboardingAction.ToggleWidget -> {
+                    val enabled = action.widget !in widgetOrder
+                    AppState.setWidgetEnabled(action.widget, enabled)
+                    widgetOrder = if (enabled) widgetOrder + action.widget else widgetOrder - action.widget
+                }
+
+                is M3EOnboardingAction.SetMoodleUser -> moodleUser = action.value
+                is M3EOnboardingAction.SetMoodlePass -> moodlePass = action.value
+                is M3EOnboardingAction.SetLibraryUser -> libUser = action.value
+                is M3EOnboardingAction.SetLibraryPass -> libPass = action.value
+                M3EOnboardingAction.LinkMoodle -> {
+                    if (moodleUser.isBlank() || moodlePass.isBlank()) {
+                        moodleAccount = moodleAccount.copy(error = "Please fill in both fields")
+                    } else {
+                        moodleAccount = moodleAccount.copy(loading = true, error = null)
+                        scope.launch {
+                            AppState.saveMoodleCredentials(moodleUser, moodlePass)
+                            moodleAccount = moodleAccount.copy(loading = false, linked = true)
                         }
-                    ) { page ->
+                    }
+                }
+                M3EOnboardingAction.SkipMoodle -> {
+                    moodleUser = ""
+                    moodlePass = ""
+                    moodleAccount = moodleAccount.copy(error = null)
+                }
+                M3EOnboardingAction.UnlinkMoodle -> moodleAccount = moodleAccount.copy(linked = false, error = null)
+                M3EOnboardingAction.LinkLibrary -> {
+                    if (libUser.isBlank() || libPass.isBlank()) {
+                        libAccount = libAccount.copy(error = "Please fill in both fields")
+                    } else {
+                        libAccount = libAccount.copy(loading = true, error = null)
+                        scope.launch {
+                            AppState.saveLibraryCredentials(libUser, libPass)
+                            libAccount = libAccount.copy(loading = false, linked = true)
+                        }
+                    }
+                }
+                M3EOnboardingAction.SkipLibrary -> {
+                    libUser = ""
+                    libPass = ""
+                    libAccount = libAccount.copy(error = null)
+                }
+                M3EOnboardingAction.UnlinkLibrary -> libAccount = libAccount.copy(linked = false, error = null)
+
+                is M3EOnboardingAction.SetAutoSyncEnabled -> {
+                    SyncScheduler.setEnabled(action.enabled)
+                    autoSyncEnabled = action.enabled
+                }
+                is M3EOnboardingAction.SetLightDaily -> {
+                    SyncScheduler.setLightRecurrence(action.daily)
+                    lightDaily = action.daily
+                }
+                is M3EOnboardingAction.SetLightInterval -> {
+                    SyncScheduler.setLightIntervalDays(action.days)
+                    lightInterval = action.days
+                }
+                is M3EOnboardingAction.SetLightTimePicker -> showLightTimePicker = action.show
+                is M3EOnboardingAction.SetLightTime -> {
+                    SyncScheduler.setLightTime(action.hour, action.minute)
+                    lightHour = action.hour
+                    lightMinute = action.minute
+                    showLightTimePicker = false
+                }
+                is M3EOnboardingAction.SetLightProfile -> {
+                    SyncScheduler.setLightProfileId(action.id)
+                    lightProfileId = action.id
+                }
+                is M3EOnboardingAction.SetFullDay -> {
+                    SyncScheduler.setFullDayOfWeek(action.day)
+                    fullDay = action.day
+                }
+                is M3EOnboardingAction.SetFullTimePicker -> showFullTimePicker = action.show
+                is M3EOnboardingAction.SetFullTime -> {
+                    SyncScheduler.setFullTime(action.hour, action.minute)
+                    fullHour = action.hour
+                    fullMinute = action.minute
+                    showFullTimePicker = false
+                }
+                is M3EOnboardingAction.SetFullProfile -> {
+                    SyncScheduler.setFullProfileId(action.id)
+                    fullProfileId = action.id
+                }
+            }
+        }
+
+        M3EOnboardingContent(state = state, onAction = onAction)
+    }
+}
+
+// ─── Stateless M3E shell ───
+
+@Composable
+private fun M3EOnboardingContent(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.surfaceContainerLowest)
+            .statusBarsPadding()
+    ) {
+        M3EOnboardingHeader(state = state)
+        Box(modifier = Modifier.weight(1f)) {
+            AnimatedContent(
+                targetState = state.currentPage,
+                transitionSpec = { onboardingPageTransition(targetState, initialState) },
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                when (page) {
+                    0 -> M3EOnboardingWelcomePage(state = state, onAction = onAction)
+                    1 -> M3EOnboardingDiscoverPage(state = state, onAction = onAction)
+                    2 -> M3EOnboardingPersonalizePage(state = state, onAction = onAction)
+                    3 -> M3EOnboardingAcademicPrefsPage(state = state, onAction = onAction)
+                    4 -> M3EOnboardingResidentialNotifPage(state = state, onAction = onAction)
+                    5 -> M3EOnboardingModulesPage(state = state, onAction = onAction)
+                    6 -> M3EOnboardingWidgetsPage(state = state, onAction = onAction)
+                    7 -> M3EOnboardingAccountsPage(state = state, onAction = onAction)
+                    8 -> M3EOnboardingAutoSyncPage(state = state, onAction = onAction)
+                    9 -> M3EOnboardingCompletionPage(state = state, onAction = onAction)
+                }
+            }
+        }
+        M3EOnboardingFooter(state = state, onAction = onAction)
+    }
+}
+
+/** M3E spring-driven page transition (spatial for position, effects for alpha). */
+private fun onboardingPageTransition(target: Int, initial: Int): ContentTransform {
+    val direction = if (target > initial) 1 else -1
+    val enter = slideInHorizontally(
+        initialOffsetX = { it / 4 * direction },
+        animationSpec = M3EMotion.spatialDefault()
+    ) + fadeIn(animationSpec = M3EMotion.effectsDefault())
+    val exit = slideOutHorizontally(
+        targetOffsetX = { -it / 4 * direction },
+        animationSpec = M3EMotion.spatialDefault()
+    ) + fadeOut(animationSpec = M3EMotion.effectsDefault())
+    return enter togetherWith exit
+}
+
+@Composable
+private fun M3EOnboardingHeader(state: M3EOnboardingState) {
+    val colors = M3ETheme.colors
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.surfaceContainerLow)
+            .padding(horizontal = 20.dp, vertical = 18.dp)
+    ) {
+        Column {
+            AnimatedContent(
+                targetState = state.currentPage,
+                transitionSpec = { onboardingPageTransition(targetState, initialState) }
+            ) { index ->
+                val p = ONBOARDING_PAGES[index]
+                Column {
+                    Text(
+                        text = "PHASE ${ONBOARDING_PHASES.indexOf(p.phaseLabel) + 1} OF 3 · ${p.phaseLabel.uppercase()}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.primary,
+                        letterSpacing = 1.4.sp
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(colors.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(p.icon, contentDescription = null, tint = colors.onPrimaryContainer, modifier = Modifier.size(22.dp))
+                        }
+                        Spacer(Modifier.width(14.dp))
                         Column {
                             Text(
-                                "PHASE ${PHASES.indexOf(pages[page].phaseLabel) + 1} OF 3 · ${pages[page].phaseLabel.uppercase()}",
-                                color = m3eColors.primary,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                letterSpacing = 1.5.sp
+                                p.title,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                                color = colors.onSurface
                             )
-                            Spacer(Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(m3eColors.primaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(pages[page].icon, null, tint = m3eColors.onPrimaryContainer, modifier = Modifier.size(22.dp))
-                                }
-                                Spacer(Modifier.width(14.dp))
-                                Column {
-                                    Text(
-                                        pages[page].title,
-                                        style = MaterialTheme.typography.titleMedium.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = m3eColors.onSurface
-                                        )
-                                    )
-                                    Text(
-                                        pages[page].subtitle,
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            color = m3eColors.onSurfaceVariant
-                                        )
-                                    )
-                                }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    M3EWavyLinearProgress(
-                        progress = (currentPage + 1).toFloat() / pages.size,
-                        modifier = Modifier.fillMaxWidth().height(8.dp)
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        pages.indices.forEach { i ->
-                            val isSelected = i == currentPage
-                            val isPast = i <= currentPage
-                            val width by animateDpAsState(
-                                targetValue = if (isSelected) 24.dp else 8.dp,
-                                animationSpec = M3EMotion.spatialDefault()
-                            )
-                            val color by animateColorAsState(
-                                targetValue = if (isPast) m3eColors.primary else m3eColors.outlineVariant
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(width, 6.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                            )
+                            Text(p.subtitle, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                         }
                     }
                 }
             }
-
-            Box(modifier = Modifier.weight(1f)) {
-                AnimatedContent(
-                    targetState = currentPage,
-                    transitionSpec = {
-                        if (targetState > initialState) {
-                            (slideInHorizontally { it / 3 } + fadeIn()).togetherWith(
-                                slideOutHorizontally { -it / 3 } + fadeOut()
-                            )
-                        } else {
-                            (slideInHorizontally { -it / 3 } + fadeIn()).togetherWith(
-                                slideOutHorizontally { it / 3 } + fadeOut()
-                            )
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
-                    when (page) {
-                        0 -> WelcomePage(colors, syncSteps)
-                        1 -> DiscoverPage(colors)
-                        2 -> PersonalizationPage(colors, selectedTheme, { selectedTheme = it }, selectedAccent, { selectedAccent = it }, uiScale, { uiScale = it }, cgpaHidden, { cgpaHidden = it }, attendanceMode, { attendanceMode = it }, hapticsEnabled, { hapticsEnabled = it }, animationsEnabled, { animationsEnabled = it })
-                        3 -> AcademicPrefsPage(colors, selectedSemester, { selectedSemester = it }, selectedCalendar, { selectedCalendar = it })
-                        4 -> ResidentialNotifPage(colors, residentialStatus, { residentialStatus = it }, classNotif, { classNotif = it }, assignNotif, { assignNotif = it }, taskNotif, { taskNotif = it }, examNotif, { examNotif = it }, offsetMinutes, { offsetMinutes = it })
-                        5 -> ModulesPage(colors, availableModules, selectedModules) { selectedModules = it }
-                        6 -> DashboardWidgetsPage(colors)
-                        7 -> AccountsPage(colors, moodleUser, { moodleUser = it }, moodlePass, { moodlePass = it }, libUser, { libUser = it }, libPass, { libPass = it })
-                        8 -> AutoSyncPage(colors)
-                        9 -> CompletionPage(colors, syncSteps)
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(m3eColors.surfaceContainerLow)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (currentPage > 0) {
-                    OutlinedButton(
-                        onClick = { currentPage-- },
-                        shape = CircleShape,
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = m3eColors.onSurface
-                        )
-                    ) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Back", fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Spacer(Modifier.width(1.dp))
-                }
-
-                if (currentPage < pages.size - 1) {
-                    ElevatedButton(
-                        onClick = { currentPage++ },
-                        shape = CircleShape,
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = m3eColors.primary,
-                            contentColor = m3eColors.onPrimary
-                        )
-                    ) {
-                        Text("Next", fontWeight = FontWeight.Bold)
-                        Spacer(Modifier.width(6.dp))
-                        Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, modifier = Modifier.size(16.dp))
-                    }
-                } else {
-                    ElevatedButton(
-                        onClick = {
-                            AppState.changeTheme(selectedTheme)
-                            AppState.changeAccent(selectedAccent)
-                            AppState.changeUiScale(uiScale)
-                            AppState.setCgpaHidden(cgpaHidden)
-                            AppState.setAttendanceDisplayMode(attendanceMode)
-                            AppState.setHapticEnabled(hapticsEnabled)
-                            AppState.setAnimationsEnabled(animationsEnabled)
-                            AppState.setResidentialStatus(residentialStatus)
-                            AppState.setPinnedNavTabs(selectedModules)
-                            SettingsManager.savePreferredCalendar(selectedCalendar)
-                            if (selectedSemester != AppState.selectedSemester.value) AppState.selectSemester(selectedSemester)
-                            SettingsManager.setNotifClassRemindersEnabled(classNotif)
-                            SettingsManager.setNotifAssignmentRemindersEnabled(assignNotif)
-                            SettingsManager.setNotifTaskRemindersEnabled(taskNotif)
-                            SettingsManager.setNotifExamRemindersEnabled(examNotif)
-                            SettingsManager.setNotifOffsetMinutes(offsetMinutes)
-                            SettingsManager.setOnboardingComplete(true)
-                            AppState.navigateTo(Screen.HOME)
-                        },
-                        shape = CircleShape,
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = m3eColors.primary,
-                            contentColor = m3eColors.onPrimary
-                        )
-                    ) {
-                        Icon(Icons.Rounded.RocketLaunch, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Get Started", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
-// ─── Shared Onboarding Components ───
-
-@Composable
-private fun OnboardingSectionLabel(text: String, colors: com.amazecc.app.shared.theme.AmazeColors, tint: Color = colors.textSecondary) {
-    Text(
-        text,
-        style = AmazeTheme.typography.smallLabel.copy(
-            fontWeight = FontWeight.Bold,
-            color = tint,
-            letterSpacing = 1.sp
-        )
-    )
-}
-
-@Composable
-private fun OnboardingHeroCard(
-    icon: ImageVector,
-    title: String,
-    badge: String?,
-    colors: com.amazecc.app.shared.theme.AmazeColors,
-    content: @Composable ColumnScope.(HeroPalette) -> Unit
-) {
-    HeroCard(colors = colors, modifier = Modifier.fillMaxWidth()) { p ->
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = p.text, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
-            Text(
-                title,
-                color = p.textSecondary,
-                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(16.dp))
+            M3EWavyLinearProgress(
+                progress = (state.currentPage + 1).toFloat() / ONBOARDING_PAGES.size,
+                modifier = Modifier.fillMaxWidth()
             )
-            if (badge != null) {
-                Spacer(Modifier.weight(1f))
-                HeroChip(text = badge, p = p)
+            Spacer(Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                ONBOARDING_PAGES.indices.forEach { i ->
+                    val isSelected = i == state.currentPage
+                    val isPast = i <= state.currentPage
+                    val width by animateDpAsState(
+                        targetValue = if (isSelected) 24.dp else 8.dp,
+                        animationSpec = M3EMotion.spatialDefault(),
+                        label = "OnboardingPageDot"
+                    )
+                    val color by androidx.compose.animation.animateColorAsState(
+                        targetValue = if (isPast) colors.primary else colors.outlineVariant,
+                        animationSpec = M3EMotion.effectsDefault(),
+                        label = "OnboardingPageDotColor"
+                    )
+                    Box(Modifier.size(width, 6.dp).clip(CircleShape).background(color))
+                }
             }
         }
-        content(p)
     }
 }
 
 @Composable
-private fun FrostedPanel(p: HeroPalette, content: @Composable ColumnScope.() -> Unit) {
-    HeroPanel(p = p, modifier = Modifier.fillMaxWidth()) {
-        content()
+private fun M3EOnboardingFooter(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colors.surfaceContainerLow)
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (state.currentPage > 0) {
+            OutlinedButton(
+                onClick = { onAction(M3EOnboardingAction.Back) },
+                shape = CircleShape,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.onSurface)
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Back", fontWeight = FontWeight.Bold)
+            }
+        } else {
+            Spacer(Modifier.width(1.dp))
+        }
+
+        if (state.currentPage < ONBOARDING_PAGES.lastIndex) {
+            Button(
+                onClick = { onAction(M3EOnboardingAction.Next) },
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = colors.primary, contentColor = colors.onPrimary)
+            ) {
+                Text("Next", fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(6.dp))
+                Icon(Icons.AutoMirrored.Rounded.ArrowForward, contentDescription = null, modifier = Modifier.size(16.dp))
+            }
+        } else {
+            Button(
+                onClick = { onAction(M3EOnboardingAction.Finish) },
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = colors.primary, contentColor = colors.onPrimary)
+            ) {
+                Icon(Icons.Rounded.RocketLaunch, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Get Started", fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }
 
 // ─── Page 0: Welcome ───
 @Composable
-private fun WelcomePage(colors: com.amazecc.app.shared.theme.AmazeColors, syncSteps: List<AppState.SyncStep>) {
-    val scrollState = rememberScrollState()
+private fun M3EOnboardingWelcomePage(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    val scroll = rememberScrollState()
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        OnboardingHeroCard(Icons.Rounded.AutoAwesome, "Welcome to AmazeCC", "DISCOVER", colors) { p ->
-            Text(
-                "We're setting up everything for you in the background — attendance, timetable, grades & more.",
-                color = p.textSecondary,
-                fontSize = AmazeTheme.fontSize.sm,
-                lineHeight = 20.sp
-            )
-            FrostedPanel(p) {
-                val doneCount = syncSteps.count { it.status == "done" }
-                val total = syncSteps.size
-                val progress = if (total > 0) doneCount.toFloat() / total else 0f
+        M3ESurfaceCard(
+            modifier = Modifier.fillMaxWidth(),
+            containerLevel = SurfaceContainerLevel.LOW,
+            cornerRadius = 28.dp
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(44.dp).clip(CircleShape).background(colors.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Rounded.AutoAwesome, contentDescription = null, tint = colors.onPrimaryContainer, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Your campus, fully synced",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Black,
+                        color = colors.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    M3EOnboardingBadge("DISCOVER", colors.primary)
+                }
+                Text(
+                    "We're setting up everything for you in the background — attendance, timetable, grades & more.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant
+                )
+                HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         "SYNC PROGRESS",
-                        style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = p.text, letterSpacing = 1.sp)
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.primary,
+                        letterSpacing = 1.2.sp
                     )
                     Spacer(Modifier.weight(1f))
-                    Text("$doneCount/$total", color = p.textSecondary, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.xs)
+                    val done = state.syncSteps.count { it.status == "done" }
+                    Text(
+                        "$done/${state.syncSteps.size}",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.primary
+                    )
                 }
+                val done = state.syncSteps.count { it.status == "done" }
+                val total = state.syncSteps.size
                 M3EWavyLinearProgress(
-                    progress = progress,
-                    modifier = Modifier.fillMaxWidth().height(8.dp)
+                    progress = if (total > 0) done.toFloat() / total else 0f,
+                    modifier = Modifier.fillMaxWidth()
                 )
-                syncSteps.forEach { step ->
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        val icon = when (step.status) {
-                            "done" -> Icons.Rounded.CheckCircle
-                            "failed" -> Icons.Rounded.Error
-                            "syncing" -> Icons.Rounded.Sync
-                            else -> Icons.Rounded.RadioButtonUnchecked
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    state.syncSteps.forEach { step ->
+                        val (icon, tint, label) = when (step.status) {
+                            "done" -> Triple(Icons.Rounded.CheckCircle, colors.success, "Synced")
+                            "failed" -> Triple(Icons.Rounded.Error, colors.error, "Failed")
+                            "syncing" -> Triple(Icons.Rounded.Sync, colors.primary, "Syncing")
+                            else -> Triple(Icons.Rounded.RadioButtonUnchecked, colors.outline, "Pending")
                         }
-                        Icon(
-                            icon,
-                            null,
-                            tint = p.text.copy(alpha = when (step.status) {
-                                "done" -> 0.95f; "syncing" -> 0.9f; "failed" -> 0.6f; else -> 0.4f
-                            }),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            step.name,
-                            color = p.text.copy(alpha = if (step.status == "pending") 0.45f else 0.9f),
-                            fontSize = AmazeTheme.fontSize.xs,
-                            modifier = Modifier.weight(1f)
-                        )
-                        if (step.status == "syncing") {
-                            Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(p.progress))
-                        } else {
-                            val label = when (step.status) { "done" -> "Synced"; "failed" -> "Failed"; else -> "Pending" }
-                            Text(label, color = p.text.copy(alpha = 0.65f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.SemiBold)
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                step.name,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = tint)
                         }
                     }
                 }
@@ -460,424 +735,381 @@ private fun WelcomePage(colors: com.amazecc.app.shared.theme.AmazeColors, syncSt
 
 // ─── Page 1: Discover ───
 @Composable
-private fun DiscoverPage(colors: com.amazecc.app.shared.theme.AmazeColors) {
+private fun M3EOnboardingDiscoverPage(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
+) {
+    val colors = M3ETheme.colors
     val features = listOf(
-        DiscoverFeature("Course Hub", "Courses, attendance, marks & faculty", Icons.AutoMirrored.Rounded.MenuBook, colors.accent),
-        DiscoverFeature("Curriculum", "Credits & degree progress", Icons.Rounded.AccountTree, colors.success),
-        DiscoverFeature("Attendance Log", "Per-course breakdown & predictor", Icons.Rounded.FactCheck, colors.info),
-        DiscoverFeature("Exam Schedule", "Seat plans & countdowns", Icons.Rounded.EventSeat, colors.chart1),
-        DiscoverFeature("Tasks", "Assignments, deadlines & reminders", Icons.Rounded.TaskAlt, colors.chart2),
-        DiscoverFeature("CGPA Predictor", "What-if grade projections", Icons.Rounded.Insights, colors.warning),
-        DiscoverFeature("QBank", "Practice quizzes & tests", Icons.Rounded.Quiz, colors.chart4),
-        DiscoverFeature("Campus Life", "Events, clubs, transport & more", Icons.Rounded.Celebration, colors.danger)
+        M3EOnboardingFeature("Course Hub", "Courses, attendance, marks & faculty", Icons.AutoMirrored.Rounded.MenuBook, M3EOnboardingTone.PRIMARY),
+        M3EOnboardingFeature("Curriculum", "Credits & degree progress", Icons.Rounded.AccountTree, M3EOnboardingTone.SUCCESS),
+        M3EOnboardingFeature("Attendance Log", "Per-course breakdown & predictor", Icons.Rounded.FactCheck, M3EOnboardingTone.SECONDARY),
+        M3EOnboardingFeature("Exam Schedule", "Seat plans & countdowns", Icons.Rounded.EventSeat, M3EOnboardingTone.TERTIARY),
+        M3EOnboardingFeature("Tasks", "Assignments, deadlines & reminders", Icons.Rounded.TaskAlt, M3EOnboardingTone.WARNING),
+        M3EOnboardingFeature("CGPA Predictor", "What-if grade projections", Icons.Rounded.Insights, M3EOnboardingTone.PRIMARY),
+        M3EOnboardingFeature("QBank", "Practice quizzes & tests", Icons.Rounded.Quiz, M3EOnboardingTone.SECONDARY),
+        M3EOnboardingFeature("Campus Life", "Events, clubs, transport & more", Icons.Rounded.Celebration, M3EOnboardingTone.ERROR)
     )
-    val scrollState = rememberScrollState()
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+    val scroll = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+    ) {
         Text(
             "Here's what AmazeCC brings to your campus life — everything syncs automatically from VTOP.",
-            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-            lineHeight = 18.sp
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant
         )
-        Spacer(Modifier.height(AmazeTheme.spacing.md))
+        Spacer(Modifier.height(16.dp))
         features.chunked(2).forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { feature ->
-                    DiscoverFeatureCard(feature, Modifier.weight(1f))
+                    val (accent, container) = onboardingToneColors(feature.tone, colors)
+                    M3ESurfaceCard(
+                        modifier = Modifier.weight(1f),
+                        containerLevel = SurfaceContainerLevel.STANDARD,
+                        cornerRadius = 24.dp
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Box(
+                                Modifier.size(34.dp).clip(RoundedCornerShape(12.dp)).background(container),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(feature.icon, contentDescription = null, tint = accent, modifier = Modifier.size(18.dp))
+                            }
+                            Text(feature.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = colors.onSurface)
+                            Text(feature.description, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                        }
+                    }
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
 
-@Composable
-private fun DiscoverFeatureCard(feature: DiscoverFeature, modifier: Modifier = Modifier) {
-    HeroCard(
-        tint = feature.tint,
-        modifier = modifier,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-        spacing = 8.dp
-    ) { p ->
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                .background(p.chipBg),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(feature.icon, null, tint = p.text, modifier = Modifier.size(18.dp))
-        }
-        Text(feature.title, color = p.text, fontWeight = FontWeight.Bold, fontSize = AmazeTheme.fontSize.sm)
-        Text(feature.description, color = p.textSecondary, fontSize = AmazeTheme.fontSize.micro, lineHeight = 15.sp)
+private fun onboardingToneColors(tone: M3EOnboardingTone, colors: com.amazecc.app.shared.ui.m3e.theme.M3EColorPalette): Pair<Color, Color> =
+    when (tone) {
+        M3EOnboardingTone.PRIMARY -> colors.primary to colors.primaryContainer
+        M3EOnboardingTone.SECONDARY -> colors.secondary to colors.secondaryContainer
+        M3EOnboardingTone.TERTIARY -> colors.tertiary to colors.tertiaryContainer
+        M3EOnboardingTone.SUCCESS -> colors.success to colors.successContainer
+        M3EOnboardingTone.WARNING -> colors.warning to colors.warningContainer
+        M3EOnboardingTone.ERROR -> colors.error to colors.errorContainer
     }
-}
 
 // ─── Page 2: Personalization ───
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun PersonalizationPage(
-    colors: com.amazecc.app.shared.theme.AmazeColors,
-    selectedTheme: AppTheme, onThemeChange: (AppTheme) -> Unit,
-    selectedAccent: AccentTheme, onAccentChange: (AccentTheme) -> Unit,
-    uiScale: Float, onUiScaleChange: (Float) -> Unit,
-    cgpaHidden: Boolean, onCgpaHiddenChange: (Boolean) -> Unit,
-    attendanceMode: AttendanceDisplayMode, onAttendanceModeChange: (AttendanceDisplayMode) -> Unit,
-    hapticsEnabled: Boolean, onHapticsChange: (Boolean) -> Unit,
-    animationsEnabled: Boolean, onAnimationsChange: (Boolean) -> Unit
+private fun M3EOnboardingPersonalizePage(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
 ) {
-    val scrollState = rememberScrollState()
-    val customAccent by AppState.customAccentColor.collectAsState()
-    var showCustomAccent by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+    val colors = M3ETheme.colors
+    val scroll = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        M3EOnboardingSectionLabel("COLOR THEME")
+        M3EConnectedButtonGroup(
+            items = listOf(AppTheme.LIGHT, AppTheme.DARK, AppTheme.SYSTEM),
+            selectedItem = state.theme,
+            onItemSelected = { onAction(M3EOnboardingAction.SetTheme(it)) },
+            labelProvider = { it.name },
+            modifier = Modifier.fillMaxWidth()
+        )
 
-        OnboardingSectionLabel("COLOR THEME", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            listOf(AppTheme.LIGHT to Icons.Rounded.LightMode, AppTheme.DARK to Icons.Rounded.DarkMode, AppTheme.SYSTEM to Icons.Rounded.BrightnessAuto).forEach { (theme, icon) ->
-                val isSelected = selectedTheme == theme
-                AmazeCard(
-                    modifier = Modifier.weight(1f),
-                    variant = CardVariant.DEFAULT,
-                    onClick = { onThemeChange(theme); AppState.changeTheme(theme) }
-                ) {
+        M3EOnboardingSectionLabel("ACCENT COLOR")
+        val accents = listOf(
+            AccentTheme.OCEAN to colors.primary,
+            AccentTheme.FOREST to colors.success,
+            AccentTheme.VERDANT to colors.tertiary,
+            AccentTheme.LAVENDER to colors.secondary,
+            AccentTheme.SUNSET to colors.warning,
+            AccentTheme.CUSTOM to state.customAccentColor
+        )
+        accents.chunked(3).forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                row.forEach { (accent, swatch) ->
+                    val isSelected = state.accent == accent
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = AmazeTheme.spacing.md)
-                    ) {
-                        Icon(icon, null, tint = if (isSelected) colors.accent else colors.textSecondary, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                        Text(theme.name, color = if (isSelected) colors.accent else colors.textPrimary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold))
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(AmazeTheme.spacing.lg))
-        OnboardingSectionLabel("ACCENT COLOR", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        val accentOptions = listOf(
-            AccentTheme.OCEAN to colors.accent,
-            AccentTheme.FOREST to colors.success,
-            AccentTheme.VERDANT to verdantAccentFor(colors.background),
-            AccentTheme.LAVENDER to colors.info,
-            AccentTheme.SUNSET to colors.chart1,
-            AccentTheme.CUSTOM to customAccent
-        ).chunked(4)
-        accentOptions.forEach { accentRow ->
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                accentRow.forEach { (accent, accentColor) ->
-                    val isSelected = selectedAccent == accent
-                    val isCustom = accent == AccentTheme.CUSTOM
-                    val circleBrush = if (isCustom) {
-                        Brush.linearGradient(listOf(accentColor, accentColor.copy(alpha = 0.45f)))
-                    } else {
-                        Brush.linearGradient(listOf(accentColor, accentColor))
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable {
-                        if (isCustom) showCustomAccent = true else { onAccentChange(accent); AppState.changeAccent(accent) }
-                    }) {
-                        Box(
-                            modifier = Modifier.size(44.dp).clip(CircleShape).background(circleBrush)
-                                .border(if (isSelected) 3.dp else 0.dp, if (isSelected) colors.textPrimary else Color.Transparent, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isCustom) {
-                                Icon(Icons.Rounded.Palette, null, tint = Color.White, modifier = Modifier.size(20.dp))
-                            } else if (isSelected) {
-                                Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                        modifier = Modifier.weight(1f).clickable {
+                            if (accent == AccentTheme.CUSTOM) {
+                                onAction(M3EOnboardingAction.SetCustomAccentSheet(true))
+                            } else {
+                                onAction(M3EOnboardingAction.SetAccent(accent))
                             }
                         }
-                        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                        Text(accent.name, style = AmazeTheme.typography.smallLabel.copy(color = if (isSelected) colors.textPrimary else colors.textSecondary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(CircleShape)
+                                .background(swatch)
+                                .border(if (isSelected) 3.dp else 0.dp, if (isSelected) colors.onSurface else Color.Transparent, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSelected) Icon(Icons.Rounded.Check, contentDescription = null, tint = colors.onPrimary, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            accent.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) colors.onSurface else colors.onSurfaceVariant
+                        )
                     }
                 }
             }
-            if (accentRow !== accentOptions.last()) Spacer(Modifier.height(AmazeTheme.spacing.md))
-        }
-        if (showCustomAccent) {
-            ColorPickerSheet(
-                title = "Custom Accent",
-                initial = customAccent,
-                colors = colors,
-                onSelected = { color ->
-                    AppState.setCustomAccent(color)
-                    onAccentChange(AccentTheme.CUSTOM)
-                    showCustomAccent = false
-                },
-                onDismiss = { showCustomAccent = false }
-            )
         }
 
-        Spacer(Modifier.height(AmazeTheme.spacing.lg))
-        OnboardingSectionLabel("FEEL", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
-            Column(modifier = Modifier.padding(4.dp)) {
-                ToggleRow("Haptic Feedback", "Vibrate on button taps, card presses & navigation", Icons.Rounded.Vibration, hapticsEnabled, onHapticsChange, colors, requestPermission = false)
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = colors.border)
-                ToggleRow("Spring Animations", "Bouncy press-scale physics on interactive cards", Icons.Rounded.Animation, animationsEnabled, onAnimationsChange, colors, requestPermission = false)
-            }
-        }
-
-        Spacer(Modifier.height(AmazeTheme.spacing.lg))
-        OnboardingSectionLabel("UI SCALE", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf(0.85f to "Small", 1.0f to "Default", 1.15f to "Large").forEach { (scale, label) ->
-                AmazePill(
-                    label = label,
-                    selected = uiScale == scale,
-                    colors = colors,
-                    onClick = { onUiScaleChange(scale); AppState.changeUiScale(scale) }
+        M3EOnboardingSectionLabel("FEEL")
+        M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.STANDARD) {
+            Column {
+                M3EOnboardingSwitchRow(
+                    title = "Haptic Feedback",
+                    subtitle = "Vibrate on taps, card presses & navigation",
+                    icon = Icons.Rounded.Vibration,
+                    checked = state.hapticsEnabled,
+                    onCheckedChange = { onAction(M3EOnboardingAction.SetHaptics(it)) },
+                    tint = colors.primary
+                )
+                HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
+                M3EOnboardingSwitchRow(
+                    title = "Spring Animations",
+                    subtitle = "Bouncy press-scale physics on interactive cards",
+                    icon = Icons.Rounded.Animation,
+                    checked = state.animationsEnabled,
+                    onCheckedChange = { onAction(M3EOnboardingAction.SetAnimations(it)) },
+                    tint = colors.tertiary
                 )
             }
         }
 
-        Spacer(Modifier.height(AmazeTheme.spacing.lg))
-        OnboardingSectionLabel("DISPLAY", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
-            Column {
-                Row(modifier = Modifier.fillMaxWidth().clickable { onCgpaHiddenChange(!cgpaHidden) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(if (cgpaHidden) colors.chart5.copy(alpha = 0.12f) else colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                        Icon(if (cgpaHidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, null, tint = if (cgpaHidden) colors.chart5 else colors.accent, modifier = Modifier.size(18.dp))
-                    }
-                    Spacer(Modifier.width(AmazeTheme.spacing.md))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Hide CGPA", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary))
-                        Text("Keep your CGPA private on dashboard", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                    }
-                    Switch(checked = cgpaHidden, onCheckedChange = onCgpaHiddenChange, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = Color.White))
-                }
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = colors.border)
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.accent.copy(alpha = 0.1f)), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Percent, null, tint = colors.accent, modifier = Modifier.size(18.dp))
-                        }
-                        Spacer(Modifier.width(AmazeTheme.spacing.md))
-                        Text("Attendance Display", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary), modifier = Modifier.weight(1f))
-                    }
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(AttendanceDisplayMode.PERCENTAGE to "Percentage", AttendanceDisplayMode.FRACTION to "Fraction").forEach { (mode, label) ->
-                            AmazePill(
-                                label = label,
-                                selected = attendanceMode == mode,
-                                colors = colors,
-                                onClick = { onAttendanceModeChange(mode) }
-                            )
-                        }
-                    }
-                }
+        M3EOnboardingSectionLabel("UI SCALE")
+        M3EConnectedButtonGroup(
+            items = listOf(0.85f, 1.0f, 1.15f),
+            selectedItem = state.uiScale,
+            onItemSelected = { onAction(M3EOnboardingAction.SetUiScale(it)) },
+            labelProvider = { when (it) { 0.85f -> "Small"; 1.0f -> "Default"; else -> "Large" } },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        M3EOnboardingSectionLabel("DISPLAY")
+        M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.STANDARD) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                M3EOnboardingSwitchRow(
+                    title = "Hide CGPA",
+                    subtitle = "Keep your CGPA private on dashboard",
+                    icon = if (state.cgpaHidden) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                    checked = state.cgpaHidden,
+                    onCheckedChange = { onAction(M3EOnboardingAction.SetCgpaHidden(it)) },
+                    tint = colors.error
+                )
+                HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
+                Text("Attendance Display", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = colors.onSurface)
+                M3EConnectedButtonGroup(
+                    items = listOf(AttendanceDisplayMode.PERCENTAGE, AttendanceDisplayMode.FRACTION),
+                    selectedItem = state.attendanceMode,
+                    onItemSelected = { onAction(M3EOnboardingAction.SetAttendanceMode(it)) },
+                    labelProvider = { if (it == AttendanceDisplayMode.PERCENTAGE) "Percentage" else "Fraction" },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
+    }
+
+    if (state.showCustomAccentSheet) {
+        M3EOnboardingCustomAccentSheet(
+            initial = state.customAccentColor,
+            onSelected = { onAction(M3EOnboardingAction.SetCustomAccent(it)) },
+            onDismiss = { onAction(M3EOnboardingAction.SetCustomAccentSheet(false)) }
+        )
     }
 }
 
 // ─── Page 3: Academic Preferences ───
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AcademicPrefsPage(
-    colors: com.amazecc.app.shared.theme.AmazeColors,
-    selectedSemester: String, onSemesterChange: (String) -> Unit,
-    selectedCalendar: String, onCalendarChange: (String) -> Unit
+private fun M3EOnboardingAcademicPrefsPage(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
 ) {
-    val semesterMap by AppState.semesterMap.collectAsState()
-    val scrollState = rememberScrollState()
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        OnboardingSectionLabel("SEMESTER", colors, tint = colors.success)
-        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-        Text("Your data is synced for this semester. Change anytime in Settings", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        val semIds = semesterMap.keys.toList().sortedDescending()
-        if (semIds.isEmpty()) {
-            Text("Semesters are still syncing — your current semester stays selected", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
-            Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        }
-        var showSemesterSheet by remember { mutableStateOf(false) }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(AmazeTheme.radius.medium))
-                .background(colors.surface)
-                .border(1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.medium))
-                .clickable { showSemesterSheet = true }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+    val colors = M3ETheme.colors
+    val scroll = rememberScrollState()
+    val semIds = state.semesterMap.keys.toList().sortedDescending()
+    val semesterOptions = semIds.map { it to (state.semesterMap[it] ?: it) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        M3EOnboardingSectionLabel("SEMESTER", colors.success)
+        Text("Your data is synced for this semester. Change anytime in Settings", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        M3ESurfaceCard(
+            modifier = Modifier.fillMaxWidth(),
+            containerLevel = SurfaceContainerLevel.STANDARD,
+            onClick = { onAction(M3EOnboardingAction.SetSemesterSheet(true)) }
         ) {
-            Icon(Icons.Rounded.CalendarMonth, null, tint = colors.success, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    semesterMap[selectedSemester] ?: selectedSemester,
-                    style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                )
-                if (semIds.isNotEmpty()) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(colors.successContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = colors.success, modifier = Modifier.size(19.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
                     Text(
-                        "$selectedSemester is ${semesterMap[selectedSemester] ?: AppState.deriveSemesterName(selectedSemester)}",
-                        style = AmazeTheme.typography.caption.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.xs)
+                        state.semesterMap[state.semester] ?: state.semester,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onSurface
                     )
+                    Text(state.semester, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                 }
+                Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(20.dp))
             }
-            Icon(Icons.Rounded.KeyboardArrowDown, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
         }
-        if (showSemesterSheet) {
-            SemesterPickerSheet(
-                semIds = semIds,
-                selectedId = selectedSemester,
-                colors = colors,
-                onDismiss = { showSemesterSheet = false },
-                onSelect = { semId ->
-                    showSemesterSheet = false
-                    if (semId != selectedSemester) onSemesterChange(semId)
-                }
-            )
+        if (semIds.isEmpty()) {
+            Text("Semesters are still syncing — your current semester stays selected", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
 
-        Spacer(Modifier.height(AmazeTheme.spacing.lg))
-        OnboardingSectionLabel("DEFAULT CALENDAR", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-        Text("Which class-group calendar to show on the Calendar page", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            AmazeClient.calendarTypes.forEach { (_, name) ->
-                AmazePill(
-                    label = name,
-                    selected = selectedCalendar == name,
-                    colors = colors,
-                    onClick = { onCalendarChange(name) }
-                )
-            }
-        }
+        Spacer(Modifier.height(8.dp))
+        M3EOnboardingSectionLabel("DEFAULT CALENDAR")
+        Text("Which class-group calendar to show on the Calendar page", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        M3EConnectedButtonGroup(
+            items = state.calendarTypes.map { it.second },
+            selectedItem = state.calendar,
+            onItemSelected = { onAction(M3EOnboardingAction.SetCalendar(it)) },
+            labelProvider = { it },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+
+    if (state.showSemesterSheet) {
+        M3EOnboardingSemesterSheet(
+            options = semesterOptions,
+            selectedId = state.semester,
+            onDismiss = { onAction(M3EOnboardingAction.SetSemesterSheet(false)) },
+            onSelect = { onAction(M3EOnboardingAction.SetSemester(it)) }
+        )
     }
 }
 
 // ─── Page 4: Residential & Notifications ───
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ResidentialNotifPage(
-    colors: com.amazecc.app.shared.theme.AmazeColors,
-    residentialStatus: String, onResidentialChange: (String) -> Unit,
-    classNotif: Boolean, onClassNotifChange: (Boolean) -> Unit,
-    assignNotif: Boolean, onAssignNotifChange: (Boolean) -> Unit,
-    taskNotif: Boolean, onTaskNotifChange: (Boolean) -> Unit,
-    examNotif: Boolean, onExamNotifChange: (Boolean) -> Unit,
-    offsetMinutes: Int, onOffsetChange: (Int) -> Unit
+private fun M3EOnboardingResidentialNotifPage(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
 ) {
-    val scrollState = rememberScrollState()
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        OnboardingSectionLabel("RESIDENTIAL STATUS", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-        Text("Helps us show relevant campus info", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf("hosteller" to Icons.Rounded.Apartment, "dayscholar" to Icons.Rounded.Home, "unknown" to Icons.AutoMirrored.Rounded.HelpOutline).forEach { (status, icon) ->
-                AmazePill(
-                    label = when (status) { "hosteller" -> "Hosteller"; "dayscholar" -> "Day Scholar"; else -> "Not Sure" },
-                    selected = residentialStatus == status,
-                    colors = colors,
-                    icon = icon,
-                    onClick = { onResidentialChange(status) }
-                )
+    val colors = M3ETheme.colors
+    val scroll = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        M3EOnboardingSectionLabel("RESIDENTIAL STATUS")
+        Text("Helps us show relevant campus info", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        M3EConnectedButtonGroup(
+            items = listOf("hosteller", "dayscholar", "unknown"),
+            selectedItem = state.residentialStatus,
+            onItemSelected = { onAction(M3EOnboardingAction.SetResidentialStatus(it)) },
+            labelProvider = { when (it) { "hosteller" -> "Hosteller"; "dayscholar" -> "Day Scholar"; else -> "Not Sure" } },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(8.dp))
+        M3EOnboardingSectionLabel("NOTIFICATIONS & ALERTS")
+        Text("We'll remind you so you never miss out", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.STANDARD) {
+            Column {
+                M3EOnboardingSwitchRow("Class Reminders", "Notify before each class starts", Icons.Rounded.Schedule, state.classNotif, { onAction(M3EOnboardingAction.SetClassNotif(it)) }, colors.primary)
+                HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
+                M3EOnboardingSwitchRow("Assignment Reminders", "Remind before deadlines", Icons.AutoMirrored.Rounded.Assignment, state.assignNotif, { onAction(M3EOnboardingAction.SetAssignNotif(it)) }, colors.secondary)
+                HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
+                M3EOnboardingSwitchRow("Task Reminders", "Remind about tasks on due date", Icons.Rounded.TaskAlt, state.taskNotif, { onAction(M3EOnboardingAction.SetTaskNotif(it)) }, colors.tertiary)
+                HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
+                M3EOnboardingSwitchRow("Exam Reminders", "Remind 24h prior & at reporting time", Icons.Rounded.EventSeat, state.examNotif, { onAction(M3EOnboardingAction.SetExamNotif(it)) }, colors.warning)
             }
         }
 
-        Spacer(Modifier.height(AmazeTheme.spacing.lg))
-        OnboardingSectionLabel("NOTIFICATIONS & ALERTS", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-        Text("We'll remind you so you never miss out", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
-            Column(modifier = Modifier.padding(4.dp)) {
-                ToggleRow("Class Reminders", "Notify before each class starts", Icons.Rounded.Schedule, classNotif, onClassNotifChange, colors)
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = colors.border)
-                ToggleRow("Assignment Reminders", "Remind before deadlines", Icons.AutoMirrored.Rounded.Assignment, assignNotif, onAssignNotifChange, colors)
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = colors.border)
-                ToggleRow("Task Reminders", "Remind about tasks on due date", Icons.Rounded.TaskAlt, taskNotif, onTaskNotifChange, colors)
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = colors.border)
-                ToggleRow("Exam Reminders", "Remind 24h prior & at reporting time", Icons.Rounded.EventSeat, examNotif, onExamNotifChange, colors)
-            }
-        }
-
-        Spacer(Modifier.height(AmazeTheme.spacing.lg))
-        OnboardingSectionLabel("CLASS REMINDER LEAD TIME", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-        Text("How many minutes early class alerts should trigger", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            listOf(5, 10, 15, 30, 60).forEach { preset ->
-                AmazePill(
-                    label = "$preset min",
-                    selected = offsetMinutes == preset,
-                    colors = colors,
-                    onClick = { onOffsetChange(preset) }
-                )
-            }
-        }
+        Spacer(Modifier.height(8.dp))
+        M3EOnboardingSectionLabel("CLASS REMINDER LEAD TIME")
+        Text("How many minutes early class alerts should trigger", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        M3EConnectedButtonGroup(
+            items = listOf(5, 10, 15, 30, 60),
+            selectedItem = state.notifOffsetMinutes,
+            onItemSelected = { onAction(M3EOnboardingAction.SetNotifOffset(it)) },
+            labelProvider = { "$it min" },
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
 // ─── Page 5: Modules ───
 @Composable
-private fun ModulesPage(
-    colors: com.amazecc.app.shared.theme.AmazeColors,
-    availableModules: List<Screen>,
-    selectedModules: List<Screen>,
-    onSelectionChange: (List<Screen>) -> Unit
+private fun M3EOnboardingModulesPage(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
 ) {
-    val scrollState = rememberScrollState()
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        OnboardingSectionLabel("PINNED TABS", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-        Text("These appear in your bottom nav bar (max 4)", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(AmazeTheme.spacing.md))
-
-        val chunked = availableModules.chunked(2)
-        chunked.forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    val colors = M3ETheme.colors
+    val scroll = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+    ) {
+        M3EOnboardingSectionLabel("PINNED TABS")
+        Spacer(Modifier.height(4.dp))
+        Text("These appear in your bottom nav bar (max 4)", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        Spacer(Modifier.height(16.dp))
+        state.availableModules.chunked(2).forEach { row ->
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 row.forEach { module ->
-                    val isSelected = selectedModules.contains(module)
-                    val (icon, label) = getScreenIconAndLabel(module)
-                    AmazeCard(
+                    val selected = module in state.selectedModules
+                    val (icon, label) = m3eScreenIconAndLabel(module)
+                    M3ESurfaceCard(
                         modifier = Modifier.weight(1f),
-                        variant = CardVariant.DEFAULT,
-                        onClick = { if (isSelected) onSelectionChange(selectedModules - module) else if (selectedModules.size < 4) onSelectionChange(selectedModules + module) }
+                        containerLevel = if (selected) SurfaceContainerLevel.HIGH else SurfaceContainerLevel.STANDARD,
+                        cornerRadius = 24.dp,
+                        borderColor = if (selected) colors.primary else null,
+                        onClick = { onAction(M3EOnboardingAction.ToggleModule(module)) }
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.fillMaxWidth().padding(16.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(icon, null, tint = if (isSelected) colors.accent else colors.textSecondary, modifier = Modifier.size(28.dp))
-                            Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                            Text(label, color = if (isSelected) colors.accent else colors.textSecondary, style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold), textAlign = TextAlign.Center, maxLines = 1)
-                            if (isSelected) { Spacer(Modifier.height(AmazeTheme.spacing.xs)); Icon(Icons.Rounded.CheckCircle, null, tint = colors.accent, modifier = Modifier.size(14.dp)) }
+                            Box(
+                                Modifier.size(46.dp).clip(RoundedCornerShape(16.dp)).background(if (selected) colors.primaryContainer else colors.surfaceContainerHigh),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(icon, contentDescription = null, tint = if (selected) colors.primary else colors.onSurfaceVariant, modifier = Modifier.size(24.dp))
+                            }
+                            Text(label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = if (selected) colors.primary else colors.onSurfaceVariant, textAlign = TextAlign.Center, maxLines = 1)
+                            if (selected) Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
                         }
                     }
                 }
                 if (row.size == 1) Spacer(Modifier.weight(1f))
             }
-            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+            Spacer(Modifier.height(12.dp))
         }
     }
 }
@@ -885,144 +1117,187 @@ private fun ModulesPage(
 // ─── Page 6: Dashboard Widgets ───
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun DashboardWidgetsPage(colors: com.amazecc.app.shared.theme.AmazeColors) {
-    val widgetOrder by AppState.widgetOrder.collectAsState()
-    val scrollState = rememberScrollState()
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        OnboardingSectionLabel("HOME SCREEN WIDGETS", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-        Text("Toggle the widgets you want on your home screen — reorder them later in Settings", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(AmazeTheme.spacing.md))
+private fun M3EOnboardingWidgetsPage(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    val scroll = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+    ) {
+        M3EOnboardingSectionLabel("HOME SCREEN WIDGETS")
+        Spacer(Modifier.height(4.dp))
+        Text("Toggle the widgets you want on your home screen — reorder them later in Settings", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        Spacer(Modifier.height(16.dp))
         FlowRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             DashboardWidget.entries.forEach { widget ->
-                AmazePill(
-                    label = getWidgetTitle(widget),
-                    selected = widget in widgetOrder,
-                    colors = colors,
-                    onClick = { AppState.setWidgetEnabled(widget, widget !in widgetOrder) }
+                M3EOnboardingChoiceChip(
+                    label = m3eWidgetTitle(widget),
+                    selected = widget in state.widgetOrder,
+                    onClick = { onAction(M3EOnboardingAction.ToggleWidget(widget)) }
                 )
             }
         }
-        Spacer(Modifier.height(AmazeTheme.spacing.md))
+        Spacer(Modifier.height(16.dp))
         Text(
-            "${widgetOrder.size} of ${DashboardWidget.entries.size} widgets visible",
-            style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+            "${state.widgetOrder.size} of ${DashboardWidget.entries.size} widgets visible",
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onSurfaceVariant
         )
     }
 }
 
 // ─── Page 7: Accounts ───
 @Composable
-private fun AccountsPage(
-    colors: com.amazecc.app.shared.theme.AmazeColors,
-    moodleUser: String, onMoodleUserChange: (String) -> Unit,
-    moodlePass: String, onMoodlePassChange: (String) -> Unit,
-    libUser: String, onLibUserChange: (String) -> Unit,
-    libPass: String, onLibPassChange: (String) -> Unit
+private fun M3EOnboardingAccountsPage(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val scrollState = rememberScrollState()
-    var moodleLinked by remember { mutableStateOf(false) }
-    var moodleLoading by remember { mutableStateOf(false) }
-    var moodleError by remember { mutableStateOf<String?>(null) }
-    var libLinked by remember { mutableStateOf(false) }
-    var libLoading by remember { mutableStateOf(false) }
-    var libError by remember { mutableStateOf<String?>(null) }
+    val colors = M3ETheme.colors
+    val scroll = rememberScrollState()
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
+    ) {
+        M3EOnboardingSectionLabel("LINK YOUR ACCOUNTS")
+        Spacer(Modifier.height(4.dp))
+        Text("Optional — you can always set these up later in Settings", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        Spacer(Modifier.height(20.dp))
 
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        OnboardingSectionLabel("LINK YOUR ACCOUNTS", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-        Text("Optional — you can always set these up later in Settings", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(AmazeTheme.spacing.sectionGap))
+        M3EOnboardingAccountCard(
+            title = "Moodle",
+            subtitle = "Course materials & assignments",
+            icon = Icons.AutoMirrored.Rounded.MenuBook,
+            tint = colors.secondary,
+            account = state.moodle,
+            user = state.moodleUser,
+            pass = state.moodlePass,
+            userLabel = "Username",
+            onUserChange = { onAction(M3EOnboardingAction.SetMoodleUser(it)) },
+            onPassChange = { onAction(M3EOnboardingAction.SetMoodlePass(it)) },
+            onLink = { onAction(M3EOnboardingAction.LinkMoodle) },
+            onSkip = { onAction(M3EOnboardingAction.SkipMoodle) },
+            onUnlink = { onAction(M3EOnboardingAction.UnlinkMoodle) },
+            linkedLabel = "Moodle linked"
+        )
+        Spacer(Modifier.height(16.dp))
+        M3EOnboardingAccountCard(
+            title = "Library",
+            subtitle = "Borrowed books & due dates",
+            icon = Icons.Rounded.LocalLibrary,
+            tint = colors.tertiary,
+            account = state.library,
+            user = state.libraryUser,
+            pass = state.libraryPass,
+            userLabel = "Library ID",
+            onUserChange = { onAction(M3EOnboardingAction.SetLibraryUser(it)) },
+            onPassChange = { onAction(M3EOnboardingAction.SetLibraryPass(it)) },
+            onLink = { onAction(M3EOnboardingAction.LinkLibrary) },
+            onSkip = { onAction(M3EOnboardingAction.SkipLibrary) },
+            onUnlink = { onAction(M3EOnboardingAction.UnlinkLibrary) },
+            linkedLabel = "Library linked"
+        )
+    }
+}
 
-        // Moodle
-        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.chart2.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { Icon(Icons.AutoMirrored.Rounded.MenuBook, null, tint = colors.chart2, modifier = Modifier.size(20.dp)) }
-                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                    Column(modifier = Modifier.weight(1f)) { Text("Moodle", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)); Text("Course materials & assignments", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)) }
+@Composable
+private fun M3EOnboardingAccountCard(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    tint: Color,
+    account: M3EOnboardingAccountState,
+    user: String,
+    pass: String,
+    userLabel: String,
+    onUserChange: (String) -> Unit,
+    onPassChange: (String) -> Unit,
+    onLink: () -> Unit,
+    onSkip: () -> Unit,
+    onUnlink: () -> Unit,
+    linkedLabel: String
+) {
+    val colors = M3ETheme.colors
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = colors.onSurface,
+        unfocusedTextColor = colors.onSurface,
+        focusedBorderColor = colors.primary,
+        unfocusedBorderColor = colors.outlineVariant,
+        focusedContainerColor = colors.surfaceContainerHigh,
+        unfocusedContainerColor = colors.surfaceContainerLow,
+        focusedLabelColor = colors.primary,
+        unfocusedLabelColor = colors.onSurfaceVariant,
+        cursorColor = colors.primary
+    )
+    M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.STANDARD) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(38.dp).clip(CircleShape).background(tint.copy(alpha = 0.16f)), contentAlignment = Alignment.Center) {
+                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
                 }
-                Spacer(Modifier.height(AmazeTheme.spacing.md))
-                if (!moodleLinked) {
-                    AmazeTextField(value = moodleUser, onValueChange = onMoodleUserChange, label = "Username", placeholder = "", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    AmazeTextField(value = moodlePass, onValueChange = onMoodlePassChange, label = "Password", placeholder = "", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(AmazeTheme.spacing.md))
-                    val me = moodleError; if (me != null) { Spacer(Modifier.height(AmazeTheme.spacing.xs)); Text(me, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        AmazeButton(text = "Skip", onClick = { onMoodleUserChange(""); onMoodlePassChange("") }, enabled = !moodleLoading, variant = ButtonVariant.GHOST)
-                        if (moodleLoading) {
-                            Box(modifier = Modifier.height(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(20.dp), color = colors.accent, strokeWidth = 2.dp) }
-                        } else {
-                            AmazeButton(text = "Link Account", onClick = {
-                                if (moodleUser.isBlank() || moodlePass.isBlank()) { moodleError = "Please fill in both fields"; return@AmazeButton }
-                                moodleLoading = true; moodleError = null
-                                scope.launch {
-                                    AppState.saveMoodleCredentials(moodleUser, moodlePass)
-                                    moodleLoading = false
-                                    moodleLinked = true
-                                }
-                            })
-                        }
-                    }
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.CheckCircle, null, tint = colors.chart1, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                        Text("Moodle linked", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart1, fontWeight = FontWeight.SemiBold))
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { moodleLinked = false; moodleError = null }) { Text("Unlink", style = AmazeTheme.typography.smallLabel.copy(color = colors.dangerText)) }
-                    }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = colors.onSurface)
+                    Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                 }
             }
-        }
-
-        Spacer(Modifier.height(AmazeTheme.spacing.md))
-
-        // Library
-        AmazeCard(modifier = Modifier.fillMaxWidth(), variant = CardVariant.DEFAULT) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.chart4.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) { Icon(Icons.Rounded.LocalLibrary, null, tint = colors.chart4, modifier = Modifier.size(20.dp)) }
-                    Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                    Column(modifier = Modifier.weight(1f)) { Text("Library", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)); Text("Borrowed books & due dates", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)) }
+            if (!account.linked) {
+                OutlinedTextField(
+                    value = user,
+                    onValueChange = onUserChange,
+                    label = { Text(userLabel) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = fieldColors,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = pass,
+                    onValueChange = onPassChange,
+                    label = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = fieldColors,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (account.error != null) {
+                    Text(account.error.orEmpty(), style = MaterialTheme.typography.bodySmall, color = colors.error)
                 }
-                Spacer(Modifier.height(AmazeTheme.spacing.md))
-                if (!libLinked) {
-                    AmazeTextField(value = libUser, onValueChange = onLibUserChange, label = "Library ID", placeholder = "", modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    AmazeTextField(value = libPass, onValueChange = onLibPassChange, label = "Password", placeholder = "", visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(AmazeTheme.spacing.md))
-                    val le = libError; if (le != null) { Spacer(Modifier.height(AmazeTheme.spacing.xs)); Text(le, style = AmazeTheme.typography.caption.copy(color = colors.dangerText)) }
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        AmazeButton(text = "Skip", onClick = { onLibUserChange(""); onLibPassChange("") }, enabled = !libLoading, variant = ButtonVariant.GHOST)
-                        if (libLoading) {
-                            Box(modifier = Modifier.height(40.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(modifier = Modifier.size(20.dp), color = colors.accent, strokeWidth = 2.dp) }
-                        } else {
-                            AmazeButton(text = "Link Account", onClick = {
-                                if (libUser.isBlank() || libPass.isBlank()) { libError = "Please fill in both fields"; return@AmazeButton }
-                                libLoading = true; libError = null
-                                scope.launch {
-                                    AppState.saveLibraryCredentials(libUser, libPass)
-                                    libLoading = false
-                                    libLinked = true
-                                }
-                            })
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = onSkip, enabled = !account.loading) {
+                        Text("Skip", fontWeight = FontWeight.Bold, color = colors.onSurfaceVariant)
+                    }
+                    if (account.loading) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = colors.primary, strokeWidth = 2.dp)
+                    } else {
+                        Button(
+                            onClick = onLink,
+                            shape = CircleShape,
+                            colors = ButtonDefaults.buttonColors(containerColor = colors.primary, contentColor = colors.onPrimary)
+                        ) {
+                            Text("Link Account", fontWeight = FontWeight.Bold)
                         }
                     }
-                } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.CheckCircle, null, tint = colors.chart1, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                        Text("Library linked", style = AmazeTheme.typography.smallLabel.copy(color = colors.chart1, fontWeight = FontWeight.SemiBold))
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = { libLinked = false; libError = null }) { Text("Unlink", style = AmazeTheme.typography.smallLabel.copy(color = colors.dangerText)) }
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = colors.success, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(linkedLabel, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = colors.success)
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = onUnlink) {
+                        Text("Unlink", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = colors.error)
                     }
                 }
             }
@@ -1038,329 +1313,206 @@ private fun formatClock(hour: Int, minute: Int): String {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AutoSyncPage(colors: com.amazecc.app.shared.theme.AmazeColors) {
-    var refreshKey by remember { mutableStateOf(0) }
-    val refresh = { refreshKey++ }
-
-    val profiles by SyncEngine.profiles.collectAsState()
-    val enabled = remember(refreshKey) { SyncScheduler.isEnabled() }
-    val lightDaily = remember(refreshKey) { SyncScheduler.isLightDaily() }
-    val lightInterval = remember(refreshKey) { SyncScheduler.lightIntervalDays() }
-    val lightHour = remember(refreshKey) { SyncScheduler.lightHour() }
-    val lightMinute = remember(refreshKey) { SyncScheduler.lightMinute() }
-    val lightProfileId = remember(refreshKey) { SyncScheduler.lightProfileId() }
-    val fullDay = remember(refreshKey) { SyncScheduler.fullDayOfWeek() }
-    val fullHour = remember(refreshKey) { SyncScheduler.fullHour() }
-    val fullMinute = remember(refreshKey) { SyncScheduler.fullMinute() }
-    val fullProfileId = remember(refreshKey) { SyncScheduler.fullProfileId() }
-
-    var showLightTimePicker by remember { mutableStateOf(false) }
-    var showFullTimePicker by remember { mutableStateOf(false) }
-
+private fun M3EOnboardingAutoSyncPage(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    val auto = state.autoSync
+    val scroll = rememberScrollState()
     val weekdays = listOf("Mon" to 1, "Tue" to 2, "Wed" to 3, "Thu" to 4, "Fri" to 5, "Sat" to 6, "Sun" to 7)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        M3EOnboardingSectionLabel("AUTO SYNC")
+        Text("Keep your data fresh in the background — light refreshes daily, a full sync runs weekly", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
 
-    val scrollState = rememberScrollState()
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)) {
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        OnboardingSectionLabel("AUTO SYNC", colors)
-        Spacer(Modifier.height(AmazeTheme.spacing.xs))
-        Text("Keep your data fresh in the background — light refreshes daily, a full sync runs weekly", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        Spacer(Modifier.height(AmazeTheme.spacing.md))
-
-        Card(
-            colors = CardDefaults.cardColors(containerColor = colors.surface),
-            shape = RoundedCornerShape(AmazeTheme.radius.medium),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (enabled) colors.accent.copy(alpha = 0.15f) else colors.background),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Rounded.Schedule,
-                            null,
-                            tint = if (enabled) colors.accent else colors.textMuted,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text("Auto Sync", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Text("Background sync on a schedule", style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary))
-                    }
-                }
-                Switch(
-                    checked = enabled,
-                    onCheckedChange = { SyncScheduler.setEnabled(it); refresh() },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = colors.surface,
-                        checkedTrackColor = colors.accent,
-                        uncheckedThumbColor = colors.textMuted,
-                        uncheckedTrackColor = colors.background
-                    )
-                )
-            }
-        }
-
-        if (!enabled) {
-            Text(
-                "Auto sync is turned off — nothing runs on a schedule.",
-                style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
+        M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.STANDARD) {
+            M3EOnboardingSwitchRow(
+                title = "Auto Sync",
+                subtitle = "Background sync on a schedule",
+                icon = Icons.Rounded.Schedule,
+                checked = auto.enabled,
+                onCheckedChange = { onAction(M3EOnboardingAction.SetAutoSyncEnabled(it)) },
+                tint = colors.primary
             )
         }
+        if (!auto.enabled) {
+            Text("Auto sync is turned off — nothing runs on a schedule.", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        }
 
-        Spacer(Modifier.height(AmazeTheme.spacing.md))
-
-        // ── Daily quick sync ──
-        Card(
-            colors = CardDefaults.cardColors(containerColor = colors.surface),
-            shape = RoundedCornerShape(AmazeTheme.radius.medium),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+        // Daily quick sync
+        M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.HIGH) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(colors.accent.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.Bolt, null, tint = colors.accent, modifier = Modifier.size(18.dp))
+                    Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(colors.primaryContainer), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Bolt, contentDescription = null, tint = colors.onPrimaryContainer, modifier = Modifier.size(19.dp))
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(12.dp))
                     Column {
-                        Text(
-                            "DAILY QUICK SYNC",
-                            style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent, letterSpacing = 1.sp)
-                        )
-                        Text(
-                            "Refreshes the chosen profile once a day",
-                            style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary)
-                        )
+                        Text("DAILY QUICK SYNC", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = colors.primary, letterSpacing = 1.2.sp)
+                        Text("Refreshes the chosen profile once a day", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                     }
                 }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    AmazePill(
-                        label = "Every Day",
-                        selected = lightDaily,
-                        colors = colors,
-                        onClick = { SyncScheduler.setLightRecurrence(true); refresh() }
-                    )
-                    AmazePill(
-                        label = "Every N Days",
-                        selected = !lightDaily,
-                        colors = colors,
-                        onClick = { SyncScheduler.setLightRecurrence(false); refresh() }
-                    )
-                }
-
-                if (!lightDaily) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text("Every", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-                        IconButton(
-                            onClick = { SyncScheduler.setLightIntervalDays(lightInterval - 1); refresh() },
-                            enabled = lightInterval > 1,
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(Icons.Rounded.Remove, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                M3EConnectedButtonGroup(
+                    items = listOf(true, false),
+                    selectedItem = auto.lightDaily,
+                    onItemSelected = { onAction(M3EOnboardingAction.SetLightDaily(it)) },
+                    labelProvider = { if (it) "Every Day" else "Every N Days" },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (!auto.lightDaily) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Every", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                        IconButton(onClick = { onAction(M3EOnboardingAction.SetLightInterval(auto.lightIntervalDays - 1)) }, enabled = auto.lightIntervalDays > 1) {
+                            Icon(Icons.Rounded.Remove, contentDescription = null, tint = colors.primary, modifier = Modifier.size(18.dp))
                         }
-                        Text(
-                            "$lightInterval day${if (lightInterval > 1) "s" else ""}",
-                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                        )
-                        IconButton(
-                            onClick = { SyncScheduler.setLightIntervalDays(lightInterval + 1); refresh() },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(Icons.Rounded.Add, null, tint = colors.accent, modifier = Modifier.size(16.dp))
+                        Text("${auto.lightIntervalDays} day${if (auto.lightIntervalDays > 1) "s" else ""}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = colors.onSurface)
+                        IconButton(onClick = { onAction(M3EOnboardingAction.SetLightInterval(auto.lightIntervalDays + 1)) }) {
+                            Icon(Icons.Rounded.Add, contentDescription = null, tint = colors.primary, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
-
-                PickerField(
-                    value = formatClock(lightHour, lightMinute),
+                M3EOnboardingPickerField(
+                    value = formatClock(auto.lightHour, auto.lightMinute),
                     label = "Sync time",
-                    colors = colors,
                     icon = Icons.Rounded.Schedule,
-                    onClick = { showLightTimePicker = true }
+                    onClick = { onAction(M3EOnboardingAction.SetLightTimePicker(true)) },
+                    modifier = Modifier.fillMaxWidth()
                 )
-
-                Text(
-                    "PROFILE",
-                    style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted, letterSpacing = 1.sp, fontSize = AmazeTheme.fontSize.micro)
-                )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(profiles, key = { it.id }) { profile ->
-                        AmazePill(
+                M3EOnboardingSectionLabel("PROFILE", colors.onSurfaceVariant)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(auto.profiles, key = { it.id }) { profile ->
+                        M3EOnboardingChoiceChip(
                             label = profile.name,
-                            selected = profile.id == lightProfileId,
-                            colors = colors,
-                            onClick = { SyncScheduler.setLightProfileId(profile.id); refresh() }
+                            selected = profile.id == auto.lightProfileId,
+                            onClick = { onAction(M3EOnboardingAction.SetLightProfile(profile.id)) }
                         )
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(AmazeTheme.spacing.md))
-
-        // ── Weekly full sync ──
-        Card(
-            colors = CardDefaults.cardColors(containerColor = colors.surface),
-            shape = RoundedCornerShape(AmazeTheme.radius.medium),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+        // Weekly full sync
+        M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.HIGH) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(colors.chart1.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.DateRange, null, tint = colors.chart1, modifier = Modifier.size(18.dp))
+                    Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(colors.tertiaryContainer), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.DateRange, contentDescription = null, tint = colors.onTertiaryContainer, modifier = Modifier.size(19.dp))
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(12.dp))
                     Column {
-                        Text(
-                            "WEEKLY FULL SYNC",
-                            style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.chart1, letterSpacing = 1.sp)
-                        )
-                        Text(
-                            "Full refresh of everything, once a week",
-                            style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.xs, color = colors.textSecondary)
-                        )
+                        Text("WEEKLY FULL SYNC", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = colors.tertiary, letterSpacing = 1.2.sp)
+                        Text("Full refresh of everything, once a week", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                     }
                 }
-
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    weekdays.forEach { (label, value) ->
-                        AmazePill(
-                            label = label,
-                            selected = fullDay == value,
-                            colors = colors,
-                            tint = colors.chart1,
-                            onClick = { SyncScheduler.setFullDayOfWeek(value); refresh() }
-                        )
-                    }
-                }
-
-                PickerField(
-                    value = formatClock(fullHour, fullMinute),
+                M3EConnectedButtonGroup(
+                    items = weekdays.map { it.second },
+                    selectedItem = auto.fullDayOfWeek,
+                    onItemSelected = { onAction(M3EOnboardingAction.SetFullDay(it)) },
+                    labelProvider = { value -> weekdays.firstOrNull { it.second == value }?.first ?: value.toString() },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                M3EOnboardingPickerField(
+                    value = formatClock(auto.fullHour, auto.fullMinute),
                     label = "Sync time",
-                    colors = colors,
                     icon = Icons.Rounded.Schedule,
-                    onClick = { showFullTimePicker = true }
+                    onClick = { onAction(M3EOnboardingAction.SetFullTimePicker(true)) },
+                    modifier = Modifier.fillMaxWidth()
                 )
-
-                Text(
-                    "PROFILE",
-                    style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.textMuted, letterSpacing = 1.sp, fontSize = AmazeTheme.fontSize.micro)
-                )
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(profiles, key = { it.id }) { profile ->
-                        AmazePill(
+                M3EOnboardingSectionLabel("PROFILE", colors.onSurfaceVariant)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(auto.profiles, key = { it.id }) { profile ->
+                        M3EOnboardingChoiceChip(
                             label = profile.name,
-                            selected = profile.id == fullProfileId,
-                            colors = colors,
-                            onClick = { SyncScheduler.setFullProfileId(profile.id); refresh() }
+                            selected = profile.id == auto.fullProfileId,
+                            onClick = { onAction(M3EOnboardingAction.SetFullProfile(profile.id)) },
+                            tint = colors.tertiary
                         )
                     }
                 }
             }
         }
-
-        Spacer(Modifier.height(AmazeTheme.spacing.md))
         Text(
             "Syncs also run when the app opens if a scheduled time was missed. You can tune all of this later in Settings.",
-            style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.xs, color = colors.textMuted)
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onSurfaceVariant
         )
     }
 
-    if (showLightTimePicker) {
-        TimePickerSheet(
+    if (auto.showLightTimePicker) {
+        M3EOnboardingTimePickerSheet(
             title = "Daily Sync Time",
-            initial = LocalTime(lightHour, lightMinute),
-            colors = colors,
-            onSelected = { time ->
-                SyncScheduler.setLightTime(time.hour, time.minute)
-                refresh()
-            },
-            onDismiss = { showLightTimePicker = false }
+            initial = LocalTime(auto.lightHour, auto.lightMinute),
+            onSelected = { onAction(M3EOnboardingAction.SetLightTime(it.hour, it.minute)) },
+            onDismiss = { onAction(M3EOnboardingAction.SetLightTimePicker(false)) }
         )
     }
-
-    if (showFullTimePicker) {
-        TimePickerSheet(
+    if (auto.showFullTimePicker) {
+        M3EOnboardingTimePickerSheet(
             title = "Weekly Sync Time",
-            initial = LocalTime(fullHour, fullMinute),
-            colors = colors,
-            onSelected = { time ->
-                SyncScheduler.setFullTime(time.hour, time.minute)
-                refresh()
-            },
-            onDismiss = { showFullTimePicker = false }
+            initial = LocalTime(auto.fullHour, auto.fullMinute),
+            onSelected = { onAction(M3EOnboardingAction.SetFullTime(it.hour, it.minute)) },
+            onDismiss = { onAction(M3EOnboardingAction.SetFullTimePicker(false)) }
         )
     }
 }
 
 // ─── Page 9: Completion ───
 @Composable
-private fun CompletionPage(colors: com.amazecc.app.shared.theme.AmazeColors, syncSteps: List<AppState.SyncStep>) {
-    val scrollState = rememberScrollState()
+private fun M3EOnboardingCompletionPage(
+    state: M3EOnboardingState,
+    onAction: (M3EOnboardingAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    val scroll = rememberScrollState()
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(24.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scroll)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
-        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-        OnboardingHeroCard(Icons.Rounded.CheckCircle, "You're all set!", "TELL", colors) { p ->
-            Text(
-                "Your preferences are saved. Tap Get Started to dive in!",
-                color = p.textSecondary,
-                fontSize = AmazeTheme.fontSize.sm
-            )
-            FrostedPanel(p) {
-                val doneCount = syncSteps.count { it.status == "done" }
-                val failedCount = syncSteps.count { it.status == "failed" }
-                val activeCount = syncSteps.count { it.status == "syncing" }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    CompletionStat("Completed", "$doneCount", p)
-                    CompletionStat("Failed", "$failedCount", p)
-                    CompletionStat("In Progress", "$activeCount", p)
+        M3ESurfaceCard(
+            modifier = Modifier.fillMaxWidth(),
+            containerLevel = SurfaceContainerLevel.HIGH,
+            cornerRadius = 28.dp
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(colors.primaryContainer), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = colors.onPrimaryContainer, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Text("You're all set!", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black, color = colors.onSurface, modifier = Modifier.weight(1f))
+                    M3EOnboardingBadge("TELL", colors.tertiary)
                 }
-                if (syncSteps.isNotEmpty()) {
-                    Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                    syncSteps.forEach { step ->
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            val alpha = when (step.status) { "done" -> 0.95f; "syncing" -> 0.9f; "failed" -> 0.55f; else -> 0.4f }
-                            Box(modifier = Modifier.size(7.dp).clip(CircleShape).background(p.progress.copy(alpha = alpha)))
-                            Spacer(Modifier.width(10.dp))
-                            Text(step.name, color = p.text.copy(alpha = if (step.status == "pending") 0.45f else 0.9f), fontSize = AmazeTheme.fontSize.xs, modifier = Modifier.weight(1f))
-                            val label = when (step.status) { "done" -> "Synced"; "failed" -> "Failed"; "syncing" -> "Syncing"; else -> "Pending" }
-                            Text(label, color = p.text.copy(alpha = if (step.status == "pending") 0.4f else 0.75f), fontSize = AmazeTheme.fontSize.micro, fontWeight = FontWeight.SemiBold)
+                Text("Your preferences are saved. Tap Get Started to dive in!", style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.6f))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    M3EOnboardingCompletionStat("Completed", state.syncSteps.count { it.status == "done" }.toString(), colors.primary)
+                    M3EOnboardingCompletionStat("Failed", state.syncSteps.count { it.status == "failed" }.toString(), colors.error)
+                    M3EOnboardingCompletionStat("In Progress", state.syncSteps.count { it.status == "syncing" }.toString(), colors.tertiary)
+                }
+                if (state.syncSteps.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        state.syncSteps.forEach { step ->
+                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                val tint = when (step.status) {
+                                    "done" -> colors.success
+                                    "failed" -> colors.error
+                                    "syncing" -> colors.primary
+                                    else -> colors.outline
+                                }
+                                Box(Modifier.size(7.dp).clip(CircleShape).background(tint))
+                                Spacer(Modifier.width(10.dp))
+                                Text(step.name, style = MaterialTheme.typography.bodySmall, color = colors.onSurface, modifier = Modifier.weight(1f))
+                                val label = when (step.status) { "done" -> "Synced"; "failed" -> "Failed"; "syncing" -> "Syncing"; else -> "Pending" }
+                                Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = tint)
+                            }
                         }
                     }
                 }
@@ -1370,40 +1522,73 @@ private fun CompletionPage(colors: com.amazecc.app.shared.theme.AmazeColors, syn
 }
 
 @Composable
-private fun CompletionStat(label: String, value: String, p: HeroPalette) {
+private fun M3EOnboardingCompletionStat(label: String, value: String, tint: Color) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Black, color = p.text))
-        Text(label, style = AmazeTheme.typography.smallLabel.copy(color = p.textSecondary))
+        Text(value, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black, color = tint)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = M3ETheme.colors.onSurfaceVariant)
     }
 }
 
-// ─── Shared Components ───
+// ─── IDE Previews ───
+private fun previewOnboardingState(page: Int) = M3EOnboardingState(
+    currentPage = page,
+    syncSteps = listOf(
+        M3EOnboardingSyncStep("Session", "done"),
+        M3EOnboardingSyncStep("Attendance", "syncing"),
+        M3EOnboardingSyncStep("Timetable", "pending")
+    ),
+    theme = AppTheme.SYSTEM,
+    accent = AccentTheme.OCEAN,
+    customAccentColor = Color(0xFF0B57D0),
+    uiScale = 1.0f,
+    cgpaHidden = false,
+    attendanceMode = AttendanceDisplayMode.PERCENTAGE,
+    hapticsEnabled = true,
+    animationsEnabled = true,
+    semester = "CH20262701",
+    semesterMap = mapOf("CH20262701" to "Fall Semester 2026-27"),
+    calendar = "Class Group 1",
+    calendarTypes = listOf("1" to "Class Group 1", "2" to "Class Group 2"),
+    residentialStatus = "hosteller",
+    classNotif = true,
+    assignNotif = true,
+    taskNotif = false,
+    examNotif = true,
+    notifOffsetMinutes = 10,
+    availableModules = PINNABLE_MODULES,
+    selectedModules = listOf(Screen.ATTENDANCE, Screen.ACADEMICS),
+    widgetOrder = listOf(DashboardWidget.METRIC_CARDS),
+    moodleUser = "",
+    moodlePass = "",
+    libraryUser = "",
+    libraryPass = "",
+    autoSync = M3EOnboardingAutoSyncState(
+        enabled = true,
+        lightDaily = true,
+        lightIntervalDays = 1,
+        lightHour = 8,
+        lightMinute = 30,
+        lightProfileId = "p1",
+        fullDayOfWeek = 1,
+        fullHour = 2,
+        fullMinute = 0,
+        fullProfileId = "p1",
+        profiles = listOf(M3EOnboardingProfile("p1", "Main Profile"))
+    )
+)
+
+@Preview
 @Composable
-private fun ToggleRow(
-    title: String,
-    subtitle: String,
-    icon: ImageVector,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    colors: com.amazecc.app.shared.theme.AmazeColors,
-    requestPermission: Boolean = true
-) {
-    val notifPermissionManager = LocalNotificationPermissionManager.current
-    val handleToggle: (Boolean) -> Unit = { newChecked ->
-        if (newChecked && requestPermission) {
-            notifPermissionManager?.requestPermission()
-        }
-        onCheckedChange(newChecked)
+private fun M3EOnboardingScreenPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EOnboardingContent(state = previewOnboardingState(0), onAction = {})
     }
-    Row(modifier = Modifier.fillMaxWidth().clickable { handleToggle(!checked) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(if (checked) colors.chart5.copy(alpha = 0.12f) else colors.accent.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) {
-            Icon(icon, null, tint = if (checked) colors.chart5 else colors.accent, modifier = Modifier.size(18.dp))
-        }
-        Spacer(Modifier.width(AmazeTheme.spacing.sm))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary))
-            Text(subtitle, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-        }
-        Switch(checked = checked, onCheckedChange = handleToggle, colors = SwitchDefaults.colors(checkedTrackColor = colors.accent, checkedThumbColor = Color.White))
+}
+
+@Preview
+@Composable
+private fun M3EOnboardingScreenDarkPreview() {
+    AmazeM3ETheme(isDark = true) {
+        M3EOnboardingContent(state = previewOnboardingState(2), onAction = {})
     }
 }

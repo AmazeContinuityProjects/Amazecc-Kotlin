@@ -181,16 +181,14 @@ fun M3EProfileScreen(
         }
 
         // 4. Status Cards Grid
-        val statusCards = remember(state) {
-            listOfNotNull(
-                state.bankInfo?.let { Triple("Bank Details", it, Icons.Rounded.AccountBalance) },
-                state.apaarId?.let { Triple("APAAR / ABC ID", it, Icons.Rounded.Badge) },
-                state.dayboarderInfo?.let { Triple("Campus Residence", it, Icons.Rounded.Home) },
-                state.eptStatus?.let { Triple("EPT Schedule", it, Icons.Rounded.School) },
-                state.registrationSchedule?.let { Triple("Registration", it, Icons.Rounded.HowToReg) },
-                state.rankAir?.let { Triple("Entrance Rank", it, Icons.Rounded.EmojiEvents) }
-            )
-        }
+        val statusCards = listOfNotNull(
+            state.bankInfo?.let { Triple("Bank Details", it, Icons.Rounded.AccountBalance) },
+            state.apaarId?.let { Triple("APAAR / ABC ID", it, Icons.Rounded.Badge) },
+            state.dayboarderInfo?.let { Triple("Campus Residence", it, Icons.Rounded.Home) },
+            state.eptStatus?.let { Triple("EPT Schedule", it, Icons.Rounded.School) },
+            state.registrationSchedule?.let { Triple("Registration", it, Icons.Rounded.HowToReg) },
+            state.rankAir?.let { Triple("Entrance Rank", it, Icons.Rounded.EmojiEvents) }
+        )
         if (statusCards.isNotEmpty()) {
             item {
                 StatusCardsSection(statusCards = statusCards)
@@ -207,9 +205,7 @@ fun M3EProfileScreen(
         }
 
         // 6. Faculty Mentors & Leadership Cards (if any HoD/Dean mentors exist)
-        val leadershipMentors = remember(state.mentors) {
-            state.mentors.filter { it.role != "Proctor" }
-        }
+        val leadershipMentors = state.mentors.filter { it.role != "Proctor" }
         if (leadershipMentors.isNotEmpty()) {
             item {
                 MentorsSection(
@@ -692,9 +688,7 @@ private fun ProctorContactCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
@@ -793,9 +787,7 @@ private fun MentorsSection(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
@@ -894,9 +886,7 @@ private fun PersonalDetailsCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
@@ -926,9 +916,7 @@ private fun PersonalRecordsSection(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
@@ -957,9 +945,7 @@ private fun AddressRecordsSection(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             Text(
@@ -1005,9 +991,7 @@ private fun CredentialsCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(

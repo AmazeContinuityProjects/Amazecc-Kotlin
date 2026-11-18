@@ -1056,16 +1056,15 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     private var sweepJob: Job? = null
 
     /**
-     * Gives a sweep a VTOP session to work with, before any module runs.
+     * Gives a sweep a genuinely fresh VTOP session to work with, before any module runs.
      *
-     * [com.amazecc.app.shared.vtop.VtopSession] is memory-only on purpose — the real `JSESSIONID`
-     * never leaves the WebView's cookie store — so it is empty after a cold start and after the
-     * cookie's ten-minute life expires. Every fetcher in `VtopDataSource` bails out with
-     * `"No VTOP session"` when it is, which is why *every* per-module refresh button was dead:
-     * only `loadAllData` re-hydrated, and nothing else called it first.
+     * This is the single login choke point for a sweep: it forces a real VTOP prelogin/setup ->
+     * login (with captcha) -> open page -> authorizedID, persisting fresh cookies/csrf/authorizedID.
+     * A cached-fresh session is never accepted here. Modules do their own lightweight verification
+     * from the session established by this one call, so there is exactly one login per sweep.
      *
-     * Doing it here rather than in `syncModule` keeps it to one round trip per sweep instead of one
-     * per module, and skips it entirely for the two sweeps that need no VTOP session at all.
+     * Skipped entirely for the two sweeps that need no VTOP session (LMS / MOODLE only) and for
+     * [com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE].
      *
      * Never throws: with no Activity to attach a WebView to — a background sync, say — the modules
      * are left to report their own failure, which is more informative than an exception here.
@@ -1076,7 +1075,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         if (!needsVtop) return true
 
         val authenticated = runCatching {
-            SyncEngine.ensureAuthenticatedSession(modules)
+            SyncEngine.ensureAuthenticatedSession(modules, forceFresh = true)
         }.getOrElse { false }
 
         if (authenticated) return true
@@ -2643,9 +2642,10 @@ fun updateMoodleData(data: MoodleRes?) {
             )
             _onboardingSyncSteps.value = steps.map { AppState.SyncStep(it, "pending") }
 
-            // Session refresh
+            // The sweep's single forced login (ensureVtopSessionForSweep) already established a
+            // fresh session; only verify it here so onboarding does not trigger a second login.
             updateOnboardingStep("Session", "syncing")
-            val ok = SyncEngine.ensureAuthenticatedSession()
+            val ok = SyncEngine.ensureAuthenticatedSession(forceFresh = false)
             if (!ok) {
                 updateOnboardingStep("Session", "failed")
                 return@withStageProfile

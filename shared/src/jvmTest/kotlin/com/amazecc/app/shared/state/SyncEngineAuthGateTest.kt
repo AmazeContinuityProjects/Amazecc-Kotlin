@@ -22,6 +22,7 @@ class SyncEngineAuthGateTest {
 
     @AfterTest
     fun tearDown() {
+        AmazeClient.sessionLoginOverride = null
         AmazeClient.setVtopSource(previousVtopSource)
         VtopSession.clear()
     }
@@ -51,27 +52,58 @@ class SyncEngineAuthGateTest {
     }
 
     @Test
-    fun testSweepSkipsLoginWhenSessionIsActiveAndFresh() = runBlocking {
+    fun testSweepForcesFreshLoginEvenWhenSessionIsActiveAndFresh() = runBlocking {
         AmazeClient.setVtopSource(VtopSource.LOCAL)
         val now = Clock.System.now().toEpochMilliseconds()
         VtopSession.save(csrf = "active_csrf", authorizedID = "21BCE9999", authorizedIDX = "idx_active")
         VtopSession.markActive(now)
 
-        assertTrue(VtopSession.isValid, "Session must be valid")
+        assertTrue(VtopSession.isValid, "Session must be valid before the gate runs")
 
-        // Pre-flight check should return true immediately without calling login or WebView
+        // Replace the real (platform-specific) login so the test can observe the login path.
+        var loginCalls = 0
+        var forcedFlag: Boolean? = null
+        AmazeClient.sessionLoginOverride = { forceFresh ->
+            loginCalls++
+            forcedFlag = forceFresh
+            true
+        }
+
         val ok = SyncEngine.ensureAuthenticatedSession(
-            modules = setOf(SyncModule.ATTENDANCE, SyncModule.TIMETABLE),
-            forceFresh = false
+            modules = setOf(SyncModule.ATTENDANCE, SyncModule.TIMETABLE)
         )
-        assertTrue(ok, "Fresh active session must pass authentication pre-flight immediately")
+        assertTrue(ok, "A fresh login must satisfy the auth gate")
+        assertEquals(1, loginCalls, "Login path must run once even with a cached-fresh session")
+        assertEquals(true, forcedFlag, "Sync gate must force a fresh login, not reuse cached tokens")
+    }
+
+    @Test
+    fun testNoArgEnsureAuthenticatedSessionAlwaysInvokesLoginPath() = runBlocking {
+        AmazeClient.setVtopSource(VtopSource.LOCAL)
+        VtopSession.save(csrf = "fresh_csrf", authorizedID = "21BCE7777", authorizedIDX = "idx_fresh")
+        VtopSession.markActive()
+        assertTrue(VtopSession.isValid, "A cached-fresh session must be present")
+
+        var loginCalls = 0
+        var forcedFlag: Boolean? = null
+        AmazeClient.sessionLoginOverride = { forceFresh ->
+            loginCalls++
+            forcedFlag = forceFresh
+            true
+        }
+
+        // No explicit forceFresh: the default must still perform a real login, which is the form
+        // used by the onboarding session step and every sync sweep.
+        assertTrue(SyncEngine.ensureAuthenticatedSession())
+        assertEquals(1, loginCalls, "Default gate call must invoke the login path")
+        assertEquals(true, forcedFlag, "Default gate call must force a fresh VTOP login")
     }
 
     @Test
     fun testSweepDetectsExpiredSessionAndRequiresReauth() = runBlocking {
         AmazeClient.setVtopSource(VtopSource.LOCAL)
         // Clear saved credentials to verify rejection on expired session
-        SettingsManager.clearCredentials()
+        SettingsManager.saveCredentials("", "")
 
         val staleTs = Clock.System.now().toEpochMilliseconds() - (15 * 60 * 1000L)
         VtopSession.save(csrf = "stale_csrf", authorizedID = "21BCE9999", authorizedIDX = "idx_stale")

@@ -267,9 +267,7 @@ fun M3ELoginScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

@@ -89,6 +89,43 @@ Data structures are backed by the high-performance Hono API server in `../AmazeC
 2. **`M3ESettingsScreen.kt`**: Theme mode (Midnight OLED, Classic Light, Follow System), M3E palette presets, Hono API connection, and offline cache purger.
 3. **`M3EMoreHubScreen.kt`**: Central campus feature navigator organizing all modules into Academic Analytics, Campus Life, Student Hub, and System sections.
 
+### Phase 7: Legacy Conversion, Profile Parity & Sync Gate (2026-11)
+Following the resumed session, the remaining legacy screens were converted. All follow the strict
+stateless `(state, onAction, modifier)` pattern with a zero-arg host in a dedicated bridge file;
+all data comes from the existing `AppState` flows plus `AmazeClient` (ONLINE) / `VtopDataSource`
+(OFFLINE) scrapers. `App.kt` routes to the hosts — no legacy screen in this phase remains reachable.
+
+**Academic & social wave** — hosts in `M3EAcademicLegacyBridge.kt`:
+`M3ECourseAttendanceScreenHost`, `M3ECourseDashboardScreenHost`, `M3EODTrackerScreenHost`,
+`M3EArrearScreenHost`, `M3EQBankScreenHost`, `M3ESocialScreenHost`, `M3EFfcsPlannerScreenHost`,
+`M3EClubDetailScreenHost`, `M3EFeedbackStatusScreenHost`, `M3EFresherWelcomeScreenHost`,
+`M3EHallOfFameScreenHost`.
+
+**Campus & services wave** — hosts in `M3ECampusLegacyBridge.kt`:
+`M3EPaymentsScreenHost`, `M3ELibrariesScreenHost`, `M3ECalendarScreenHost`,
+`M3ECircularsScreenHost`, `M3EMoodleScreenHost`, `M3EDocumentsScreenHost`,
+`M3EChangelogScreenHost`, `M3EAboutScreenHost`.
+
+**Final two legacy screens** — `M3ESplashScreen.kt` (M3E launch/branding with spring reveal) and
+`M3ECourseManagementScreen.kt` + `M3ERemainingLegacyBridge.kt` (four scraper-backed tabs, M3E
+connected button group and wavy progress). With these, no legacy screen remains routed from `App.kt`.
+
+**Onboarding** — `OnboardingScreen.kt` fully converted (no legacy `AmazeTheme`/`AccentTheme`/
+`HeroPanel`/`AmazeTextField`), with new `M3EOnboardingState.kt` + `M3EOnboardingComponents.kt`.
+
+**Student Profile** — `M3EProfileScreen.kt` now consumes the whole `StudentIdentity` aggregate
+(`/api/me` + per-endpoint scrapers with offline VTOP fallbacks): bank, APAAR, dayboarder, EPT,
+registration, rank, credentials, proctor/HoD mentors, addresses and personal records.
+
+**Sync gate** — every sweep now forces a real VTOP login (prelogin/setup → cookies/csrf →
+captcha login → open page → authorizedID) through `SyncEngine.ensureAuthenticatedSession`, with
+`OFFLINE_CACHE` and LMS/MOODLE-only bypasses preserved.
+
+**Double padding** — root cause was `M3ESurfaceCard`'s internal 16 dp padding being stacked with
+caller padding; all M3E screens now leave card content unpadded (see `BUGS.md`).
+
+Verification: `:shared:jvmTest` and `:androidApp:assembleDebug` both green.
+
 ---
 
 ## 5. Screen Migration Standard Operating Procedure (SOP)

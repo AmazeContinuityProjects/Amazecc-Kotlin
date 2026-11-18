@@ -518,16 +518,22 @@ object SyncEngine {
     /**
      * Authoritative pre-flight session check for all sync sweeps and operations.
      *
-     * Guarantees that VTOP credentials / session cookies are verified, fresh,
-     * and authenticated before any route scraping or API fetching begins.
+     * A cached-fresh session is **never** sufficient: by default [forceFresh] is true, so this
+     * forces a real VTOP prelogin/setup -> login (with [captchaHandler]) -> open page ->
+     * authorizedID, persists the freshly captured cookies/csrf/authorizedID via
+     * [com.amazecc.app.shared.api.AmazeClient.ensureSession], and only then returns true. Module
+     * scraping must not start until that succeeds.
      *
      * Bypassed automatically when:
      * - [com.amazecc.app.shared.api.AmazeClient.vtopSource] is [com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE].
      * - The sweep contains only modules that do not use VTOP (e.g. LMS, MOODLE).
+     *
+     * Pass [forceFresh] = false only for a lightweight verification of an already-established
+     * session (e.g. after the sweep's single login), never as the sweep's own gate.
      */
     suspend fun ensureAuthenticatedSession(
         modules: Set<SyncModule> = emptySet(),
-        forceFresh: Boolean = false,
+        forceFresh: Boolean = true,
         captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler? = null
     ): Boolean {
         if (com.amazecc.app.shared.api.AmazeClient.vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
@@ -725,6 +731,8 @@ object SyncEngine {
     fun resetAllStates() {
         _moduleStates.value = SyncModule.entries.associateWith { ModuleState(status = SyncStatus.IDLE) }
         _logLines.value = emptyList()
+        sweepActive = false
+        _syncProgress.value = SyncProgress()
     }
 
     // ── Logging ──
@@ -757,18 +765,16 @@ object SyncEngine {
         val successCount = states.count { (_, s) -> s.status == SyncStatus.SUCCESS }
         val errorCount = states.count { (_, s) -> s.status == SyncStatus.ERROR }
 
-        val flatProgress = if (sweepActive) {
-            SyncProgress(
-                totalModules = total,
-                completedModules = completed,
-                activeModules = active,
-                successCount = successCount,
-                errorCount = errorCount
-            )
-        } else {
-            SyncProgress(completedModules = completed, activeModules = active, successCount = successCount, errorCount = errorCount)
-        }
-        _syncProgress.value = flatProgress
+        // Keep the final total after a sweep ends: the UI still shows "All N modules updated"
+        // (or "Completed with N errors") until the next sweep begins. Only an explicit
+        // cancelAll()/reset clears it back to a zeroed SyncProgress.
+        _syncProgress.value = SyncProgress(
+            totalModules = total,
+            completedModules = completed,
+            activeModules = active,
+            successCount = successCount,
+            errorCount = errorCount
+        )
     }
 
     // ── Sync Modes & Cadence Tiers ──

@@ -19,7 +19,7 @@ class M3EProfileStateBridgeTest {
         email: String = "aditya.sharma2021@vitstudent.ac.in",
         phone: String = "+91 98765 43210",
         proctorName: String = "Dr. Ramesh Babu",
-        proctorEmail = "ramesh.babu@vit.ac.in",
+        proctorEmail: String = "ramesh.babu@vit.ac.in",
         proctorCabin: String? = "SJT 413",
         hostelBlock: String? = "Q Block",
         hostelRoom: String? = "514",
@@ -260,6 +260,11 @@ class M3EProfileStateBridgeTest {
                 is M3EProfileAction.CopyRegNo -> {}
                 is M3EProfileAction.ContactProctor -> {}
                 is M3EProfileAction.SignOut -> {}
+                is M3EProfileAction.SaveFriendlyName -> {}
+                is M3EProfileAction.ToggleVtopPasswordVisibility -> {}
+                is M3EProfileAction.CopyText -> {}
+                is M3EProfileAction.OpenEmail -> {}
+                is M3EProfileAction.OpenPhone -> {}
             }
         }
 

@@ -164,7 +164,8 @@ object AmazeClient {
         password: String,
         captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler = com.amazecc.app.shared.vtop.CaptchaHandler { challenge ->
             com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha(challenge)
-        }
+        },
+        forceFresh: Boolean = false
     ): LoginResponse {
         if (!com.amazecc.app.shared.vtop.Vtop.isSupported) {
             return LoginResponse(
@@ -181,7 +182,7 @@ object AmazeClient {
             )
         }
 
-        return when (val result = com.amazecc.app.shared.vtop.Vtop.login(username, password, captchaHandler)) {
+        return when (val result = com.amazecc.app.shared.vtop.Vtop.login(username, password, captchaHandler, forceFresh = forceFresh)) {
             is com.amazecc.app.shared.vtop.LoginResult.Success -> LoginResponse(
                 success = true,
                 message = "Login successful!",
@@ -1970,24 +1971,35 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
     }
 
     /**
+     * Test seam: when non-null, replaces the real VTOP login inside [ensureSession].
+     * Receives the effective `forceFresh` flag so tests can assert the sync gate forces a real
+     * login. Null in production. Set/cleared only by auth-gate tests.
+     */
+    internal var sessionLoginOverride: (suspend (forceFresh: Boolean) -> Boolean)? = null
+
+    /**
      * Guarantees that [com.amazecc.app.shared.vtop.VtopSession] and [SessionManager] hold valid,
      * fresh authentication tokens before any sync or scraping operation begins.
      *
      * In [com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE], always returns true.
      *
      * In [com.amazecc.app.shared.vtop.VtopSource.LOCAL]:
-     * 1. Checks cached session freshness (![com.amazecc.app.shared.vtop.VtopSession.isExpired]).
-     * 2. If expired or [forceFresh] is true, attempts silent restoration via
-     *    [com.amazecc.app.shared.vtop.Vtop.restoreSessionIfPossible()].
-     * 3. If silent restoration fails or session remains expired, retrieves saved credentials from
-     *    [SettingsManager.getCredentials] and attempts [loginLocal] with [captchaHandler].
-     * 4. Upon successful authentication, validates tokens, marks [com.amazecc.app.shared.vtop.VtopSession]
-     *    active, persists to [SessionManager.saveSession], and merges identity into [UserStore].
+     * 1. When [forceFresh] is true (the sync-gate default), a cached-fresh session is **never**
+     *    accepted. Cached tokens are discarded, the WebView `JSESSIONID` is dropped and a real
+     *    VTOP login runs: prelogin/setup -> login (with [captchaHandler]) -> open page -> authorizedID.
+     * 2. When [forceFresh] is false (per-module verification only), a still-fresh session is reused;
+     *    otherwise silent restoration via [com.amazecc.app.shared.vtop.Vtop.restoreSessionIfPossible()]
+     *    is attempted before falling back to [loginLocal] with stored credentials.
+     * 3. Upon successful authentication, tokens are captured into
+     *    [com.amazecc.app.shared.vtop.VtopSession], marked active, persisted via
+     *    [SessionManager.saveSession] and `SettingsManager`, and the identity is merged into [UserStore].
      *
      * In [com.amazecc.app.shared.vtop.VtopSource.REMOTE]:
-     * Verifies [SessionManager.isLoggedIn] and not stale, otherwise calls [refreshSession].
+     * A cached session is accepted only when not [forceFresh]; otherwise [refreshSession] performs a
+     * fresh login through the Hono backend (which runs the canonical VTOP flow server-side).
      *
-     * @param forceFresh If true, bypasses in-memory session freshness and forces a session refresh or re-login.
+     * @param forceFresh If true, always performs a real VTOP login and never accepts a cached-fresh
+     *   session. Sync sweeps pass true; per-module token checks pass false.
      * @param captchaHandler Handler to resolve captcha challenges. Defaults to [com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha].
      * @return true if an authenticated, unexpired session is ready; false otherwise.
      */
@@ -1998,6 +2010,10 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
         }
     ): Boolean {
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return true
+
+        // Test seam runs before any cached-session short-circuit so tests can prove the login path
+        // is reached even when a fresh session is already present.
+        sessionLoginOverride?.let { return it(forceFresh) }
 
         // 1. If not forcing fresh and session is still fresh and valid, return true immediately
         if (!forceFresh) {
@@ -2037,11 +2053,13 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
                 }
             }
 
-            // Step B: Auto-login with stored credentials
+            // Step B: Auto-login with stored credentials. When forcing fresh, discard the cached
+            // in-memory tokens first so only tokens captured by THIS login can satisfy the gate.
+            if (forceFresh) com.amazecc.app.shared.vtop.VtopSession.clear()
             val creds = SettingsManager.getCredentials() ?: return false
             if (creds.first.isBlank() || creds.second.isBlank()) return false
 
-            val loginRes = loginLocal(creds.first, creds.second, captchaHandler)
+            val loginRes = loginLocal(creds.first, creds.second, captchaHandler, forceFresh = forceFresh)
             if (loginRes.success && !loginRes.csrf.isNullOrBlank() && !loginRes.authorizedID.isNullOrBlank()) {
                 com.amazecc.app.shared.vtop.VtopSession.markActive()
                 SessionManager.saveSession(

@@ -77,7 +77,10 @@ object SessionManager {
 
     /** True when the session is older than [maxAgeMs] or its age is unknown (legacy install). */
     fun isSessionStale(maxAgeMs: Long): Boolean {
-        val created = _sessionCreatedAt.value
+        // The persisted timestamp is authoritative so a stale session written by another
+        // process (or restored on cold start) cannot be masked by an in-memory "fresh" value.
+        val created = SettingsManager.getLong(SettingsManager.SESSION_CREATED_AT)
+            .takeIf { it > 0L } ?: _sessionCreatedAt.value
         if (created <= 0L) return true
         return Clock.System.now().toEpochMilliseconds() - created > maxAgeMs
     }
