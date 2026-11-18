@@ -987,3 +987,40 @@ sealed interface M3ESettingsAction {
     data object RunDiagnostics : M3ESettingsAction
     data object OpenGithubRepo : M3ESettingsAction
 }
+
+// ==========================================
+// 22. MORE HUB NAVIGATION IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class M3ESubScreen(val label: String, val category: String) {
+    COURSE_DETAIL("Course Detail", "Academics"),
+    FACULTY("Faculty Directory", "Academics"),
+    CURRICULUM("Degree Curriculum", "Academics"),
+    MARKS_PREDICTOR("FAT Marks Predictor", "Academics"),
+    EXAM_SCHEDULE("Exam Schedules & Seating", "Academics"),
+    GRADES_HISTORY("Grades History", "Academics"),
+    STUDENT_REPORT("Student Academic Report", "Academics"),
+
+    HOSTEL("Hostel & Mess", "Campus Life"),
+    TRANSPORT("Bus Routes & Transit", "Campus Life"),
+    CAB_SHARE("Cab Share Pool", "Campus Life"),
+    FREE_CLASSROOMS("Free Classrooms", "Campus Life"),
+
+    EVENT_HUB("Event Hub", "Student Hub"),
+    CLUB_HUB("Club Directory", "Student Hub"),
+    TASKS("Tasks & Assignments", "Student Hub"),
+
+    PROFILE("Digital Student ID", "Account & System"),
+    SETTINGS("Settings & Engine", "Account & System")
+}
+
+data class M3EMoreHubState(
+    val searchQuery: String = "",
+    val activeSubScreen: M3ESubScreen? = null
+)
+
+sealed interface M3EMoreHubAction {
+    data class SearchQueryChanged(val query: String) : M3EMoreHubAction
+    data class OpenSubScreen(val screen: M3ESubScreen) : M3EMoreHubAction
+    data object BackToHub : M3EMoreHubAction
+}

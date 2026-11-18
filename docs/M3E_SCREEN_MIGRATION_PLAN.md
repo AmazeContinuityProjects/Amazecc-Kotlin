@@ -57,67 +57,37 @@ Data structures are backed by the high-performance Hono API server in `../AmazeC
 
 ## 4. Phased Implementation Roadmap
 
-### Phase 1: Core Academic Engine & Shell (COMPLETED)
+### Phase 1: Core Academic Engine & Shell (COMPLETED & VERIFIED)
 - Implemented `M3EAppScaffold`, `M3EHomeScreen`, `M3EAttendanceScreen`, `M3ETimetableScreen`, and `M3EAcademicsScreen`.
 - Created signature M3E components: `M3EWavyLinearProgress`, `M3EConnectedButtonGroup`, `M3EWeekStrip`, `M3ESurfaceCard`, `M3EFloatingToolbar`.
 - Headless JVM test suite configured and passing (`run_tests.ps1`).
 
-### Phase 2: Course Deep-Dive & Faculty Suite
-1. **`M3ECourseDetailScreen.kt`**:
-   - Course overview, syllabus units, textbook references, and faculty info.
-   - Slot-level attendance breakdown (Theory vs Lab).
-   - Past grade distribution and cohort statistics.
-2. **`M3EFacultyScreen.kt`**:
-   - Searchable faculty directory with designation, cabin location, and email.
-   - Timetable overlay showing when the faculty is teaching vs available in cabin.
-   - Anonymous course reviews & feedback insights.
-3. **`M3ECurriculumScreen.kt`**:
-   - Degree completion progress bar (University Core, Program Core, Program Electives, University Electives).
-   - Basket-wise credit tracking and remaining credit requisites.
-4. **`M3EMarksPredictorScreen.kt`**:
-   - Interactive slider simulation for FAT (Final Assessment Test) and CAT scores.
-   - Target grade selector ("S", "A", "B", etc.) computing required target marks.
+### Phase 2: Course Deep-Dive & Faculty Suite (COMPLETED & VERIFIED)
+1. **`M3ECourseDetailScreen.kt`**: Course overview, syllabus breakdown, textbook references, and target FAT grade predictor.
+2. **`M3EFacultyScreen.kt`**: Searchable faculty directory, cabin finder, timetable overlay, and direct email action.
+3. **`M3ECurriculumScreen.kt`**: Degree completion progress, Program Core / Program Elective / University Core credit baskets.
+4. **`M3EMarksPredictorScreen.kt`**: Projected SGPA hero, course-by-course target grade selector, and FAT marks required calculator.
 
-### Phase 3: Exams & Academic Analytics
-1. **`M3EExamScheduleScreen.kt`**:
-   - Timeline cards for upcoming CAT-1, CAT-2, and FAT examinations.
-   - Venue, seating slot, reporting time, and countdown timer.
-2. **`M3EGradesHistoryScreen.kt`**:
-   - Semester-by-semester SGPA vs CGPA progression graph.
-   - Tabular view of letter grades, course credits, and grade point multipliers.
-3. **`M3EStudentReportScreen.kt`**:
-   - Comprehensive student profile, academic standing, and attendance history summary.
-   - Export report feature to PDF / JSON.
+### Phase 3: Exams & Academic Analytics (COMPLETED & VERIFIED)
+1. **`M3EExamScheduleScreen.kt`**: CAT-1, CAT-2, and FAT countdown timeline, venue seating allocation, and exam series filter.
+2. **`M3EGradesHistoryScreen.kt`**: Semester-by-semester SGPA progression, letter grade counts (S/A/B), and credit multipliers.
+3. **`M3EStudentReportScreen.kt`**: Comprehensive student profile, academic standing, attendance records, and PDF/JSON export actions.
 
-### Phase 4: Campus Life & Facilities
-1. **`M3EHostelScreen.kt`**:
-   - Block name, room number, room type (AC/Non-AC, bed count).
-   - Daily mess menu with breakfast, lunch, snacks, and dinner schedules.
-   - Online leave application history and status.
-2. **`M3ETransportScreen.kt`**:
-   - Campus shuttle timings and live bus schedules.
-   - Route stops and driver / dispatch contact info.
-3. **`M3ECabShareScreen.kt`**:
-   - Airport / Railway station cab sharing board.
-   - Post ride requests, view fellow student listings, and split fares.
-4. **`M3EFreeClassroomsScreen.kt`**:
-   - Live campus classroom occupancy filter to find quiet study slots.
+### Phase 4: Campus Life & Facilities (COMPLETED & VERIFIED)
+1. **`M3EHostelScreen.kt`**: Block & room allocation hero, daily mess menu (breakfast, lunch, snacks, dinner), online leave history, and warden contact.
+2. **`M3ETransportScreen.kt`**: Bus route directory, morning pickup stops timeline, 5PM/6PM evening dispersal bays, driver contact, and WhatsApp route chat.
+3. **`M3ECabShareScreen.kt`**: Chennai/Bengaluru Airport and Katpadi Railway Station ride splitting pool, seat availability meter, gender preference tags, and creator contact.
+4. **`M3EFreeClassroomsScreen.kt`**: Campus building occupancy filter (SJT, TT, MB, SMV, GDN, PRP), floor-by-floor free classroom finder for quiet study.
 
-### Phase 5: Student Hub & Utilities
-1. **`M3EEventHubScreen.kt`**:
-   - Riviera / Gravitas fest events catalog, schedule, venue, and registrations.
-2. **`M3EClubHubScreen.kt`**:
-   - Technical, cultural, and sports club directory with member leads and recruitment updates.
-3. **`M3ETasksScreen.kt`**:
-   - Aggregated task planner combining VTOP assignments, Moodle submissions, and custom todo items.
+### Phase 5: Student Hub & Utilities (COMPLETED & VERIFIED)
+1. **`M3EEventHubScreen.kt`**: Riviera & Gravitas fest events catalog, schedule timeline, venue badges, free/paid registration flow, and certificate tags.
+2. **`M3EClubHubScreen.kt`**: Technical chapters, cultural & sports clubs directory, faculty coordinator info, and live recruitment application banner.
+3. **`M3ETasksScreen.kt`**: Unified academic task planner integrating VTOP digital assignments, Moodle submissions, and personal todo items with tri-state status toggles.
 
-### Phase 6: System, Profile & Settings
-1. **`M3EProfileScreen.kt`**:
-   - Expressive digital student ID card with barcode/QR code for campus library check-in.
-   - Proctors / Advisor details and contact card.
-2. **`M3ESettingsScreen.kt`**:
-   - Theme mode (System, Dark, Light), dynamic M3E palette switcher.
-   - Hono API endpoint configuration, credentials manager, offline cache purger, and sync engine diagnostics.
+### Phase 6: System, Profile, Settings & Navigation (COMPLETED & VERIFIED)
+1. **`M3EProfileScreen.kt`**: Double-sided Digital Student ID card with library barcode simulation, proctor contact, and personal details.
+2. **`M3ESettingsScreen.kt`**: Theme mode (Midnight OLED, Classic Light, Follow System), M3E palette presets, Hono API connection, and offline cache purger.
+3. **`M3EMoreHubScreen.kt`**: Central campus feature navigator organizing all modules into Academic Analytics, Campus Life, Student Hub, and System sections.
 
 ---
 
