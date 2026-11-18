@@ -256,3 +256,180 @@ sealed interface M3EAcademicsAction {
     data class ToggleExpandCourse(val courseCode: String) : M3EAcademicsAction
     data object Refresh : M3EAcademicsAction
 }
+
+// ==========================================
+// 6. COURSE DETAIL IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class CourseDetailTab(val label: String) {
+    OVERVIEW("Overview"),
+    MARKS("Marks"),
+    SYLLABUS("Syllabus"),
+    PREDICTOR("Predictor")
+}
+
+data class M3ECourseSyllabusUnit(
+    val unitNumber: Int,
+    val title: String,
+    val description: String,
+    val hours: Int = 0
+)
+
+data class M3ECourseDetailState(
+    val courseCode: String,
+    val courseTitle: String,
+    val credits: Int,
+    val courseType: String,
+    val slot: String,
+    val venue: String,
+    val facultyName: String,
+    val facultyEmail: String? = null,
+    val facultyCabin: String? = null,
+    val facultyDesignation: String? = null,
+    val attendedClasses: Int = 0,
+    val totalClasses: Int = 0,
+    val attendancePct: Double = 0.0,
+    val bunkMarginSummary: String = "",
+    val tone: M3ECardTone = M3ECardTone.NEUTRAL,
+    val activeTab: CourseDetailTab = CourseDetailTab.OVERVIEW,
+    val internalScored: Double = 0.0,
+    val internalMax: Double = 60.0,
+    val classAverage: Double? = null,
+    val classMax: Double? = null,
+    val assessments: List<M3EAssessmentItem> = emptyList(),
+    val syllabusUnits: List<M3ECourseSyllabusUnit> = emptyList(),
+    val targetGrade: String = "A",
+    val requiredFinalScore: Double? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3ECourseDetailAction {
+    data class SelectTab(val tab: CourseDetailTab) : M3ECourseDetailAction
+    data class SetTargetGrade(val grade: String) : M3ECourseDetailAction
+    data object DownloadSyllabus : M3ECourseDetailAction
+    data object Refresh : M3ECourseDetailAction
+    data object Back : M3ECourseDetailAction
+}
+
+// ==========================================
+// 7. FACULTY DIRECTORY IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+data class M3EFacultyMember(
+    val id: String,
+    val name: String,
+    val designation: String,
+    val school: String,
+    val cabin: String,
+    val email: String,
+    val intercom: String? = null,
+    val rating: Double? = null,
+    val coursesTaught: List<String> = emptyList(),
+    val isMyFaculty: Boolean = false
+)
+
+data class M3EFacultyState(
+    val searchQuery: String = "",
+    val selectedSchool: String = "All",
+    val availableSchools: List<String> = listOf("All", "SCOPE", "SITE", "SENSE", "SELECT", "SMEC", "SSL", "SAS"),
+    val facultyList: List<M3EFacultyMember>,
+    val filteredFaculty: List<M3EFacultyMember>,
+    val expandedFacultyId: String? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3EFacultyAction {
+    data class UpdateSearch(val query: String) : M3EFacultyAction
+    data class SelectSchool(val school: String) : M3EFacultyAction
+    data class ToggleExpand(val facultyId: String) : M3EFacultyAction
+    data class CopyEmail(val email: String) : M3EFacultyAction
+    data class ViewSchedule(val facultyId: String) : M3EFacultyAction
+    data object Refresh : M3EFacultyAction
+}
+
+// ==========================================
+// 8. CURRICULUM IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class CurriculumBasket(val label: String, val code: String) {
+    ALL("All", "ALL"),
+    PROGRAM_CORE("Program Core", "PC"),
+    PROGRAM_ELECTIVE("Program Elective", "PE"),
+    UNIVERSITY_CORE("University Core", "UC"),
+    UNIVERSITY_ELECTIVE("University Elective", "UE")
+}
+
+enum class CourseCompletionStatus(val label: String) {
+    COMPLETED("Completed"),
+    IN_PROGRESS("In Progress"),
+    NOT_STARTED("Not Started")
+}
+
+data class M3ECurriculumCourse(
+    val courseCode: String,
+    val courseTitle: String,
+    val credits: Int,
+    val basket: CurriculumBasket,
+    val courseType: String,
+    val status: CourseCompletionStatus,
+    val grade: String? = null
+)
+
+data class M3EBasketProgress(
+    val basket: CurriculumBasket,
+    val creditsCompleted: Int,
+    val creditsRequired: Int
+)
+
+data class M3ECurriculumState(
+    val programmeName: String,
+    val totalCreditsCompleted: Int,
+    val totalCreditsRequired: Int,
+    val baskets: List<M3EBasketProgress>,
+    val selectedBasket: CurriculumBasket = CurriculumBasket.ALL,
+    val courses: List<M3ECurriculumCourse>,
+    val filteredCourses: List<M3ECurriculumCourse>,
+    val searchQuery: String = "",
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3ECurriculumAction {
+    data class SelectBasket(val basket: CurriculumBasket) : M3ECurriculumAction
+    data class UpdateSearch(val query: String) : M3ECurriculumAction
+    data object DownloadCurriculum : M3ECurriculumAction
+    data object Refresh : M3ECurriculumAction
+}
+
+// ==========================================
+// 9. MARKS PREDICTOR IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+data class M3ECoursePredictionItem(
+    val courseCode: String,
+    val courseTitle: String,
+    val credits: Int,
+    val internalScored: Double,
+    val internalMax: Double,
+    val selectedGrade: String,
+    val requiredFatMark: Double?,
+    val tone: M3ECardTone
+)
+
+data class M3EMarksPredictorState(
+    val predictedGpa: Double,
+    val totalCreditsSimulated: Int,
+    val courses: List<M3ECoursePredictionItem>,
+    val selectedCourseCode: String? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3EMarksPredictorAction {
+    data class SetCourseGrade(val courseCode: String, val grade: String) : M3EMarksPredictorAction
+    data class SelectCourse(val courseCode: String) : M3EMarksPredictorAction
+    data object ResetAll : M3EMarksPredictorAction
+    data object Refresh : M3EMarksPredictorAction
+}
