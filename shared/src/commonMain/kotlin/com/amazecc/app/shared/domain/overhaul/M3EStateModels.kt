@@ -548,3 +548,217 @@ sealed interface M3EStudentReportAction {
     data object ShareReport : M3EStudentReportAction
     data object Refresh : M3EStudentReportAction
 }
+
+// ==========================================
+// 13. HOSTEL & MESS IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+data class M3EHostelDetails(
+    val blockName: String,
+    val roomNumber: String,
+    val roomType: String,
+    val bedNumber: String,
+    val messType: String,
+    val messCaterer: String,
+    val wardenName: String? = null,
+    val wardenPhone: String? = null
+)
+
+data class M3EMessMealItem(
+    val mealName: String,
+    val timing: String,
+    val items: List<String>,
+    val isCurrent: Boolean = false
+)
+
+data class M3ELeaveRecord(
+    val leaveId: String,
+    val visitPlace: String,
+    val reason: String,
+    val leaveType: String,
+    val fromDate: String,
+    val toDate: String,
+    val status: String,
+    val remarks: String? = null
+)
+
+enum class M3EHostelTab(val label: String) {
+    MESS_MENU("Mess Menu"),
+    LEAVE_HISTORY("Leave History"),
+    ROOM_INFO("Room & Warden")
+}
+
+data class M3EHostelState(
+    val hostelDetails: M3EHostelDetails,
+    val selectedTab: M3EHostelTab = M3EHostelTab.MESS_MENU,
+    val todayMessMenu: List<M3EMessMealItem> = emptyList(),
+    val leaves: List<M3ELeaveRecord> = emptyList(),
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3EHostelAction {
+    data class SelectTab(val tab: M3EHostelTab) : M3EHostelAction
+    data object ApplyNewLeave : M3EHostelAction
+    data object CallWarden : M3EHostelAction
+    data object Refresh : M3EHostelAction
+}
+
+// ==========================================
+// 14. TRANSPORT & BUS ROUTES IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+data class M3EBusStop(
+    val stopOrder: Int,
+    val stopName: String,
+    val pickupTime: String
+)
+
+data class M3EBusPlacement(
+    val dispersalTime: String,
+    val zone: String
+)
+
+data class M3EBusRoute(
+    val id: Int,
+    val routeNumber: String,
+    val routeName: String,
+    val isAc: Boolean,
+    val driverName: String,
+    val driverPhone: String,
+    val whatsappGroup: String? = null,
+    val busLocation: String? = null,
+    val stops: List<M3EBusStop> = emptyList(),
+    val placements: List<M3EBusPlacement> = emptyList()
+)
+
+enum class M3ETransportFilter(val label: String) {
+    ALL("All Routes"),
+    AC("AC Buses"),
+    NON_AC("Non-AC"),
+    EVENING_5PM("5:00 PM Dispersal"),
+    EVENING_6PM("6:00 PM Dispersal")
+}
+
+data class M3ETransportState(
+    val routes: List<M3EBusRoute> = emptyList(),
+    val filteredRoutes: List<M3EBusRoute> = emptyList(),
+    val searchQuery: String = "",
+    val activeFilter: M3ETransportFilter = M3ETransportFilter.ALL,
+    val expandedRouteId: Int? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3ETransportAction {
+    data class SearchQueryChanged(val query: String) : M3ETransportAction
+    data class SelectFilter(val filter: M3ETransportFilter) : M3ETransportAction
+    data class ToggleExpandRoute(val routeId: Int) : M3ETransportAction
+    data class CallDriver(val phoneNumber: String) : M3ETransportAction
+    data class OpenWhatsappGroup(val link: String) : M3ETransportAction
+    data object Refresh : M3ETransportAction
+}
+
+// ==========================================
+// 15. CAB SHARE BOARD IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+data class M3ECabShareHub(
+    val id: String,
+    val name: String,
+    val subtitle: String
+)
+
+enum class M3EGenderPreference(val label: String) {
+    ANY("Any Gender"),
+    MALE_ONLY("Boys Only"),
+    FEMALE_ONLY("Girls Only")
+}
+
+data class M3ECabShareRide(
+    val tripId: String,
+    val creatorName: String,
+    val creatorRegNo: String,
+    val hubName: String,
+    val travelDate: String,
+    val preferredTime: String,
+    val toleranceHours: Int,
+    val availableSeats: Int,
+    val totalSeats: Int,
+    val genderPreference: M3EGenderPreference,
+    val notes: String? = null,
+    val creatorPhone: String? = null,
+    val isUserCreator: Boolean = false,
+    val isJoined: Boolean = false,
+    val status: String = "OPEN"
+)
+
+enum class M3ECabShareFilter(val label: String) {
+    ALL("All Trips"),
+    AIRPORT("Airports"),
+    RAILWAY("Railway"),
+    MY_TRIPS("My Trips")
+}
+
+data class M3ECabShareState(
+    val hubs: List<M3ECabShareHub> = emptyList(),
+    val rides: List<M3ECabShareRide> = emptyList(),
+    val activeFilter: M3ECabShareFilter = M3ECabShareFilter.ALL,
+    val searchQuery: String = "",
+    val isCreateDialogOpen: Boolean = false,
+    val isJoiningTripId: String? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3ECabShareAction {
+    data class SelectFilter(val filter: M3ECabShareFilter) : M3ECabShareAction
+    data class SearchQueryChanged(val query: String) : M3ECabShareAction
+    data object OpenCreateDialog : M3ECabShareAction
+    data object CloseCreateDialog : M3ECabShareAction
+    data class JoinTrip(val tripId: String) : M3ECabShareAction
+    data class ContactCreator(val phoneNumber: String) : M3ECabShareAction
+    data object Refresh : M3ECabShareAction
+}
+
+// ==========================================
+// 16. FREE CLASSROOMS FINDER IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class M3EClassroomBuilding(val label: String, val code: String) {
+    ALL("All Buildings", "ALL"),
+    SJT("Silver Jubilee Tower", "SJT"),
+    TT("Technology Tower", "TT"),
+    MB("Main Building", "MB"),
+    SMV("SMV Building", "SMV"),
+    GDN("GDN Block", "GDN"),
+    PRP("PRP Block", "PRP")
+}
+
+data class M3EClassroomSlot(
+    val roomNumber: String,
+    val buildingCode: String,
+    val floor: Int,
+    val capacity: Int,
+    val isAirConditioned: Boolean,
+    val availabilityStatus: String,
+    val isCurrentlyAvailable: Boolean,
+    val nextOccupiedTime: String? = null
+)
+
+data class M3EFreeClassroomsState(
+    val classrooms: List<M3EClassroomSlot> = emptyList(),
+    val filteredClassrooms: List<M3EClassroomSlot> = emptyList(),
+    val selectedBuilding: M3EClassroomBuilding = M3EClassroomBuilding.ALL,
+    val onlyAvailableNow: Boolean = true,
+    val searchQuery: String = "",
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3EFreeClassroomsAction {
+    data class SelectBuilding(val building: M3EClassroomBuilding) : M3EFreeClassroomsAction
+    data class ToggleOnlyAvailable(val onlyAvailable: Boolean) : M3EFreeClassroomsAction
+    data class SearchQueryChanged(val query: String) : M3EFreeClassroomsAction
+    data object Refresh : M3EFreeClassroomsAction
+}

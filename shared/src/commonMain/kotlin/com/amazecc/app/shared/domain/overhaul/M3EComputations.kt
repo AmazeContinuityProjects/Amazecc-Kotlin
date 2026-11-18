@@ -104,4 +104,84 @@ object M3EComputations {
         pct >= targetPct -> M3ECardTone.WARNING
         else -> M3ECardTone.CRITICAL
     }
+
+    /**
+     * Filter bus routes on Dispatchers.Default.
+     */
+    suspend fun filterBusRoutes(
+        routes: List<M3EBusRoute>,
+        filter: M3ETransportFilter,
+        query: String
+    ): List<M3EBusRoute> = withContext(Dispatchers.Default) {
+        routes.filter { route ->
+            val matchesFilter = when (filter) {
+                M3ETransportFilter.ALL -> true
+                M3ETransportFilter.AC -> route.isAc
+                M3ETransportFilter.NON_AC -> !route.isAc
+                M3ETransportFilter.EVENING_5PM -> route.placements.any { it.dispersalTime.contains("5", ignoreCase = true) }
+                M3ETransportFilter.EVENING_6PM -> route.placements.any { it.dispersalTime.contains("6", ignoreCase = true) }
+            }
+
+            val matchesQuery = query.isBlank() ||
+                route.routeNumber.contains(query, ignoreCase = true) ||
+                route.routeName.contains(query, ignoreCase = true) ||
+                route.driverName.contains(query, ignoreCase = true) ||
+                route.stops.any { it.stopName.contains(query, ignoreCase = true) }
+
+            matchesFilter && matchesQuery
+        }
+    }
+
+    /**
+     * Filter cab share rides on Dispatchers.Default.
+     */
+    suspend fun filterCabShareRides(
+        rides: List<M3ECabShareRide>,
+        filter: M3ECabShareFilter,
+        query: String
+    ): List<M3ECabShareRide> = withContext(Dispatchers.Default) {
+        rides.filter { ride ->
+            val matchesFilter = when (filter) {
+                M3ECabShareFilter.ALL -> true
+                M3ECabShareFilter.AIRPORT -> ride.hubName.contains("Airport", ignoreCase = true)
+                M3ECabShareFilter.RAILWAY -> ride.hubName.contains("Station", ignoreCase = true) ||
+                    ride.hubName.contains("Railway", ignoreCase = true) ||
+                    ride.hubName.contains("Katpadi", ignoreCase = true)
+                M3ECabShareFilter.MY_TRIPS -> ride.isUserCreator || ride.isJoined
+            }
+
+            val matchesQuery = query.isBlank() ||
+                ride.hubName.contains(query, ignoreCase = true) ||
+                ride.creatorName.contains(query, ignoreCase = true) ||
+                ride.travelDate.contains(query, ignoreCase = true) ||
+                (ride.notes?.contains(query, ignoreCase = true) == true)
+
+            matchesFilter && matchesQuery
+        }
+    }
+
+    /**
+     * Filter classroom slots on Dispatchers.Default.
+     */
+    suspend fun filterClassrooms(
+        classrooms: List<M3EClassroomSlot>,
+        building: M3EClassroomBuilding,
+        onlyAvailableNow: Boolean,
+        query: String
+    ): List<M3EClassroomSlot> = withContext(Dispatchers.Default) {
+        classrooms.filter { room ->
+            val matchesBuilding = when (building) {
+                M3EClassroomBuilding.ALL -> true
+                else -> room.buildingCode.equals(building.code, ignoreCase = true)
+            }
+
+            val matchesAvailability = !onlyAvailableNow || room.isCurrentlyAvailable
+
+            val matchesQuery = query.isBlank() ||
+                room.roomNumber.contains(query, ignoreCase = true) ||
+                room.buildingCode.contains(query, ignoreCase = true)
+
+            matchesBuilding && matchesAvailability && matchesQuery
+        }
+    }
 }
