@@ -250,6 +250,10 @@ object Vtop {
             ?: VtopSession.authorizedID.value
             ?: authorizedIDX
         VtopSession.save(csrf, authorizedID, authorizedIDX)
+        // Write the `JSESSIONID` out now rather than letting the platform do it on its own
+        // schedule: this is the only point where the cookie is known good, and
+        // `restoreSessionIfPossible` has nothing to work from if the process dies first.
+        runCatching { e.persistCookies() }
 
         _stage.value = VtopAuthStage.FetchingSemesters
         runCatching { fetchSemesters(e) }

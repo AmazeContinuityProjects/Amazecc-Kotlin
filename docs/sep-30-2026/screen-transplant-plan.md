@@ -600,6 +600,103 @@ matches its real weekday, so whoever wires `CalendarScreen` to it needs both.
 Port `lib/curriculum.ts` and `lib/marksPredictor.ts`. Kotlin's `CurriculumScreen` already reads
 `CurriculumRes.categories/details/totalCredits` directly; move that reading into a projection.
 
+> **Note on the first clause, corrected 07 Oct 2026.** `CurriculumRes` is not a `*Res` read that has
+> to move: `Academics.curriculum` already carries it inside the snapshot
+> (`DomainSnapshot.kt:85`), so the screen only had to stop reaching for `AppState.curriculum`.
+
+**Stages 1–2 complete** (07 Oct 2026). `domain/Curriculum.kt` is the `curriculum.ts` port plus the four
+derivations `CurriculumPage` wraps around it, which until now were inline in the composable;
+`CurriculumTest.kt` carries Node's 8 cases with Node's own fixtures plus 23 more. `CurriculumScreen`
+binds only to `AppState.domain` and `Projections.semesterAttendance` — zero `*Res`, zero `Stored*`,
+zero `toXItem()`, so DoD 1 is met for this screen. Suite: **32 suites, 566 tests, 0 failures**.
+
+**Two of Node's shapes are unreachable, and that is recorded rather than emulated:**
+
+* **The flat `curriculum` list.** Node's *primary* source for a category row is that list, dug out
+  of eleven candidate spots in the CGPA and marks payloads by `CurriculumPage.findCurriculum`. This
+  app parses no flat curriculum array anywhere — `CGPAResult` holds only `creditsEarned` and
+  `cgpa` — so Kotlin is permanently on Node's *fallback* path (`categories` + `details`), which it
+  already fetched in two stages. A consequence worth naming: `subCategories`, the separately-listed
+  elective baskets, is fed by that same list, so **it is empty on both sides**, not only here.
+* **The CGPA steps of the totals cascade**, which need `cgpa.creditsRequired` and
+  `cgpa.nonGradedRequirement`.
+
+Five defects fixed on the way, each pinned by a test:
+
+* **`totalRequired` was the literal `160`**, ignoring the `/curriculum` response's own published
+  total. Node prefers `curriculum.totalCredits` and only then falls back to 160.
+* **`totalCredits` was used as the *earned* fallback.** It is the programme's **requirement**
+  (`VtopDataSource.fetchCurriculum:1034` reads it straight off the response, and Node uses it for
+  `totalRequired`), so a first-year student with no graded course was shown 160 of 160 credits
+  earned. Earned now comes from real grades and nothing else.
+* **Course codes were compared case-sensitively.** Node upper-cases both sides
+  (`CurriculumPage.tsx:613`), so any basket item whose code differed from the graded course only in
+  case was silently counted as not done, and its credits vanished from the category total.
+* **`isCompleted` was a boolean**, which threw away Node's third state. A course the student has
+  attendance for now reads as in-progress (tinted row, play icon) instead of untouched.
+* **Per-category earned was recomputed locally** from completed basket items. Node uses VTOP's own
+  `categories[].credits`, so the numbers now come from the payload the module already published.
+
+Divergences from Node, written down as DoD 4 allows:
+
+* **`totalOngoingCredits` sums the raw credits; Node sums the values of the folded map**
+  (`CurriculumPage.tsx:563-566`). Because `ongoingCreditsByCategory` deliberately double-entries an
+  HSSM sub-basket under both its own name and its parent — that is what lets the `Foreign Language`
+  row and its parent agree — summing the map counts those credits twice and inflates the hero
+  number. The map itself is ported verbatim; only the total differs.
+* **Ongoing credits are scoped to the selected term.** Node hands `CurriculumPage` the whole
+  `attendance` array and its `ongoingCourseCodes` is therefore not term-scoped. Kotlin keeps the
+  term scope it already had, because VTOP's attendance module returns the current term anyway.
+  Not yet confirmed against a live payload — worth checking before this is called done.
+* **`ongoingCreditsByCategory` is computed but not yet rendered per category.** `CategoryRow.ongoing`
+  carries it and the hero total uses the same source, but the category card does not show a
+  per-category ongoing figure yet.
+
+**Stage 3 complete** (08 Oct 2026). `domain/MarksPredictor.kt` is the `marksPredictor.ts` port and
+`MarksPredictorTest.kt` carries Node's 9 cases with Node's own fixtures and arithmetic comments plus
+30 more. Suite: **35 suites, 621 tests, 0 failures**.
+
+> **Node's source contradicts Node's own test, and the test wins.** `computeCoursePrediction` reads
+> `Math.round((weightedScoredSum / effectiveCredits) * 100) / 100` (`marksPredictor.ts:439-441`), but
+> `marksPredictor.test.ts:104` asserts `88.88` for a combined score of `88.875` — computed *before*
+> that multiply — and `maxPossibleScaled` is `100 - pointsLostScaled` two lines later, which only
+> means anything while the lost figure is on a 0-100 scale. Taken literally the `* 100` puts every
+> course past 900 and grades all of them **S**. DoD 4 says match Node *for the cases Node tests*,
+> so the multiply is dropped and `computeCoursePrediction` pins Node's asserted values.
+
+**The premise "Kotlin has no predictor" was wrong, and its having one is the point.** Kotlin's
+`GPAPredictorScreen` already had a FAT solver (`GPAPredictorScreen.kt:1230-1275`), but it:
+
+* hardcoded a single regimen — two CATs out of 50 worth 30 marks each, a quiz worth its raw score,
+  FAT at 40% — so a course publishing anything else is answered with the wrong arithmetic;
+* **guessed the embedded split** with a constant and a comment admitting it:
+  `// Let's assume generic 75% Theory, 25% Lab` → `(theoryInternal * 0.75) + (l * 0.25)`;
+* had no answer for the **VIT 40% FAT floor**, no feasibility ladder, no `estimateGrade`, and no
+  `riskLevel`.
+
+So Stage 4 is a rebind of that inline block onto `solveTargetFat` and friends, retiring the guess
+rather than adding a feature. Two behaviour changes to expect there: an embedded target is now
+computed from real credits rather than 75/25, and a target can now be reported as arithmetically
+achievable *and* failing the FAT floor — two states the old code collapsed into one.
+
+Also ported and not previously present: `withInferredFat` (Vit withholds the FAT row until the exam
+is scheduled, so a mid-term course publishes ~30 of 100 and every downstream share-of-100 number
+reads as marks already lost), the seven `PRESET_REGIMENS`, and `normalizeWeights`.
+
+Node's Tailwind class strings (`text-emerald-600`, `bg-teal-500/10`, …) are **not** ported — same
+call as Wave 1's `toneForGrade`; grade colour goes through `gradeColorIndex` onto
+`AmazeColors.chart1..5`.
+
+Stage 3's code has no caller yet, so R8 (`isMinifyEnabled = true`) tree-shakes it out of the
+release dex until Stage 4 wires it up. Verified absent from `classes.dex` for that reason rather
+than assumed present.
+
+Stage 4 (`GPAPredictorScreen` rebind) and Stage 5 (`attendanceTimetable.ts` →
+`domain/AttendanceTimetable.kt` + `TimetableDialog`) are still to do. For Stage 5, the gaps are
+already known: `buildAttendanceDayCardsMap`'s adjacent-slot merge (a course running `A1+A2` becomes
+one row with a combined time range), the Saturday-override, and the low/medium/high attendance band
+on each row — none of which `TimetableDialog` has.
+
 ### Wave 4 — campus
 
 `HostelScreen` (mess/laundry/leave/counselling), `PaymentsScreen`, `LibrariesScreen`,

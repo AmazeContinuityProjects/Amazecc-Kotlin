@@ -38,10 +38,16 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EClassTimelineItem
 import com.amazecc.app.shared.domain.overhaul.M3EHomeAction
 import com.amazecc.app.shared.domain.overhaul.M3EHomeState
+import com.amazecc.app.shared.domain.overhaul.M3EQuickStatsState
+import com.amazecc.app.shared.domain.overhaul.M3EUserIdentityState
+import com.amazecc.app.shared.domain.overhaul.M3EWeekDay
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWeekStrip
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import kotlinx.datetime.LocalDate
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Modern Material 3 Expressive Home Screen for AmazeCC.
@@ -84,7 +90,7 @@ fun M3EHomeScreen(
                 )
             }
 
-            // 3. Quick Stats Grid
+            // 3. Quick Stats Row
             item(key = "quick_stats") {
                 M3EQuickStatsRow(
                     stats = state.quickStats,
@@ -210,7 +216,7 @@ private fun M3EHomeHeader(
 
 @Composable
 private fun M3EQuickStatsRow(
-    stats: com.amazecc.app.shared.domain.overhaul.M3EQuickStatsState,
+    stats: M3EQuickStatsState,
     onAttendanceClick: () -> Unit,
     onAcademicsClick: () -> Unit
 ) {
@@ -401,5 +407,76 @@ private fun M3EClassTimelineCard(
                 }
             }
         }
+    }
+}
+
+// ==========================================
+// IDE PREVIEWS
+// ==========================================
+
+private fun createMockHomeState() = M3EHomeState(
+    identity = M3EUserIdentityState(
+        name = "Aravind Kumar",
+        regNumber = "21BCE1042",
+        programme = "B.Tech CSE",
+        school = "SCOPE",
+        campus = "Vellore"
+    ),
+    weekDays = listOf(
+        M3EWeekDay(
+            date = LocalDate(2026, 9, 29),
+            dayName = "Tue",
+            dayNumber = 29,
+            isToday = true,
+            isSelected = true,
+            hasClasses = true,
+            isHoliday = false
+        ),
+        M3EWeekDay(
+            date = LocalDate(2026, 9, 30),
+            dayName = "Wed",
+            dayNumber = 30,
+            isToday = false,
+            isSelected = false,
+            hasClasses = true,
+            isHoliday = false
+        )
+    ),
+    selectedDayDate = LocalDate(2026, 9, 29),
+    quickStats = M3EQuickStatsState(
+        attendancePercentage = 88.5,
+        cgpa = 9.12,
+        creditsEarned = 120,
+        safeBunksAvailable = 6,
+        attendanceStatusText = "Safe margin across all courses"
+    ),
+    todayClasses = listOf(
+        M3EClassTimelineItem(
+            courseCode = "CSE3002",
+            courseTitle = "Internet and Web Programming",
+            slot = "B1+TB1",
+            venue = "SJT 412",
+            faculty = "Prof. Sundar",
+            startTime = "09:00",
+            endTime = "09:50",
+            isHappeningNow = true
+        )
+    ),
+    insights = emptyList()
+)
+
+@Preview
+@Composable
+private fun M3EHomeScreenPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EHomeScreen(state = createMockHomeState(), onAction = {})
+    }
+}
+
+@Preview
+@Composable
+private fun M3EHomeScreenDarkPreview() {
+    AmazeM3ETheme(isDark = true) {
+        M3EHomeScreen(state = createMockHomeState(), onAction = {})
     }
 }

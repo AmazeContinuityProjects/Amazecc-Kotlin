@@ -38,6 +38,7 @@ import com.amazecc.app.shared.model.StudentProfile
 import com.amazecc.app.shared.model.StudentProfileRes
 import com.amazecc.app.shared.model.TimetableRes
 import com.amazecc.app.shared.model.UniversityDayRes
+import com.amazecc.app.shared.state.AcademicMerge
 import com.amazecc.app.shared.state.TimetableCourseInfo
 import com.amazecc.app.shared.model.EffectiveGradeCourse
 import kotlinx.coroutines.Dispatchers
@@ -374,7 +375,16 @@ object VtopDataSource {
         val venuePattern = Regex("[A-Z]+\\d*\\s*-\\s*\\d+[A-Z]?")
 
         val merged = courses.map { course ->
-            val match = raw.firstOrNull { VtopCourseCode.sameCourse(it.courseCode, course.courseCode) }
+            // `sameCourse` compares *base* codes, which deliberately ignores the component - right
+            // for grouping a card, wrong here. An embedded course has two timetable rows and two
+            // raw rows sharing one base code, so a base-code match sent both timetable rows to the
+            // same first raw row and the lab's attendance was dropped before the merge ever saw it.
+            // The halves are told apart by their own lab-ness instead.
+            val courseIsLab = AcademicMerge.isLabRow(course.category, course.slotVenue)
+            val match = raw.firstOrNull { candidate ->
+                VtopCourseCode.sameCourse(candidate.courseCode, course.courseCode) &&
+                    AcademicMerge.isLabRow(candidate.courseType, candidate.slotName) == courseIsLab
+            }
             val cleanedVenue = venuePattern
                 .findAll(course.slotVenue.replace(Regex("\\s+"), " ").trim())
                 .lastOrNull()?.value

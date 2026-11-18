@@ -29,6 +29,9 @@ actual class VtopEngine actual constructor() {
     actual suspend fun clearCookies() =
         unsupported()
 
+    actual suspend fun persistCookies() =
+        unsupported()
+
     actual suspend fun cookieHeader(): String =
         unsupported()
 

@@ -32,8 +32,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EWeekDay
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import kotlinx.datetime.LocalDate
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun M3EWeekStrip(
@@ -160,6 +162,45 @@ private fun M3EWeekDayDisc(
                         else -> Color.Transparent
                     }
                 )
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun M3EWeekStripPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EWeekStrip(
+            days = listOf(
+                M3EWeekDay(
+                    date = LocalDate(2026, 9, 28),
+                    dayName = "Mon",
+                    dayNumber = 28,
+                    isToday = false,
+                    isSelected = false,
+                    hasClasses = true,
+                    isHoliday = false
+                ),
+                M3EWeekDay(
+                    date = LocalDate(2026, 9, 29),
+                    dayName = "Tue",
+                    dayNumber = 29,
+                    isToday = true,
+                    isSelected = true,
+                    hasClasses = true,
+                    isHoliday = false
+                ),
+                M3EWeekDay(
+                    date = LocalDate(2026, 9, 30),
+                    dayName = "Wed",
+                    dayNumber = 30,
+                    isToday = false,
+                    isSelected = false,
+                    hasClasses = false,
+                    isHoliday = true
+                )
+            ),
+            onDaySelected = {}
         )
     }
 }

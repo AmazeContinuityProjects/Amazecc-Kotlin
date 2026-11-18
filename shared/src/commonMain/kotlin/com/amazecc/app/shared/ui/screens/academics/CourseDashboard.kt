@@ -245,21 +245,17 @@ fun cleanCourseTitle(rawTitle: String): CleanedTitle {
 private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
     val colors = AmazeTheme.colors
 
-    val theoryAtt = course.theoryAtt
-    val labAtt = course.labAtt
-    val isEmbedded = (course.theory != null && course.lab != null) || (course.theoryAtt != null && course.labAtt != null)
+    val model = course.cardModel()
+    val isEmbedded = model.isEmbedded
+    val displayTitle = cleanCourseTitle(course.courseTitle).cleanTitle
 
-    val cleaned = cleanCourseTitle(course.courseTitle)
-    val displayTitle = cleaned.cleanTitle
-
-    fun attColor(pct: Double) = when {
-        pct >= 85.0 -> colors.success
-        pct >= 75.0 -> colors.warning
-        else -> colors.danger
+    // The two palettes the card used to spell out separately, now driven by one band set.
+    val headlineColor = when (model.headlineTone) {
+        CardTone.GOOD -> colors.success
+        CardTone.MID -> colors.warning
+        CardTone.LOW -> colors.danger
     }
-
-    val defaultLabel = if (course.theory?.courseType?.contains("Lab", ignoreCase = true) == true || course.lab?.courseType?.contains("Lab", ignoreCase = true) == true) "LO" else "TH"
-    val label = if (isEmbedded) (cleaned.typeBadgeOverride ?: "EMB") else (cleaned.typeBadgeOverride ?: defaultLabel)
+    val label = model.badge
     val badgeColor = when (label) {
         "PJ" -> Color(0xFF8B5CF6)
         "OC" -> Color(0xFF06B6D4)
@@ -325,22 +321,19 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                     )
                 }
 
-                if (!isEmbedded) {
-                    val attPct = (theoryAtt?.attendancePercentage ?: labAtt?.attendancePercentage ?: "0").replace("%", "").trim().toDoubleOrNull() ?: 0.0
-                    if (attPct > 0) {
-                        val c = attColor(attPct)
-                        Box(
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .background(c.copy(alpha = 0.12f))
-                                .border(1.dp, c.copy(alpha = 0.3f), CircleShape)
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "${attPct.toInt()}%",
-                                style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xs)
-                            )
-                        }
+                if (model.headlineVisible) {
+                    val c = headlineColor
+                    Box(
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(c.copy(alpha = 0.12f))
+                            .border(1.dp, c.copy(alpha = 0.3f), CircleShape)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = "${model.headlinePct.toInt()}%",
+                            style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xs)
+                        )
                     }
                 }
             }
@@ -362,11 +355,9 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                 Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted, modifier = Modifier.size(20.dp))
             }
 
-            val rawFaculty = course.theory?.faculty?.ifBlank { null } ?: course.lab?.faculty?.ifBlank { null }
-                    ?: theoryAtt?.faculty?.ifBlank { null } ?: labAtt?.faculty?.ifBlank { null }
+            val parsedFac = model.faculty
 
-            if (!isEmbedded && !rawFaculty.isNullOrBlank()) {
-                val parsedFac = com.amazecc.app.shared.utils.FacultyUtils.parseFaculty(rawFaculty)
+            if (!isEmbedded && parsedFac != null && parsedFac.name.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -396,9 +387,9 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                 Spacer(Modifier.height(10.dp))
                 Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.4f)))
                 Spacer(Modifier.height(8.dp))
-                embeddedRow(course.theory, theoryAtt, "TH", "Theory", colors.chart2, colors)
+                embeddedRow(model.halves[0], colors.chart2, colors)
                 Spacer(Modifier.height(6.dp))
-                embeddedRow(course.lab, labAtt, "LO", "Lab", colors.chart4, colors)
+                embeddedRow(model.halves[1], colors.chart4, colors)
             }
         }
     }
@@ -406,34 +397,28 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
 
 @Composable
 private fun embeddedRow(
-    item: CourseMarks?,
-    att: CourseAttendance?,
-    label: String,
-    componentName: String,
+    row: CourseHalfRow,
     accent: Color,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
-    val pct = att?.attendancePercentage?.replace("%", "")?.trim()?.toDoubleOrNull() ?: 0.0
-    val c = when {
-        pct >= 85.0 -> colors.chart1
-        pct >= 75.0 -> colors.chart3
-        else -> colors.chart5
+    val c = when (row.tone) {
+        CardTone.GOOD -> colors.chart1
+        CardTone.MID -> colors.chart3
+        CardTone.LOW -> colors.chart5
     }
-    val rawFaculty = item?.faculty?.ifBlank { null } ?: att?.faculty?.ifBlank { null }
-    val slot = item?.slot ?: att?.slotName
+    val parsedFac = row.faculty
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(AmazeTheme.radius.small)).background(accent.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-            Text(label, style = AmazeTheme.typography.smallLabel.copy(color = accent, fontWeight = FontWeight.Black))
+            Text(row.half.badge, style = AmazeTheme.typography.smallLabel.copy(color = accent, fontWeight = FontWeight.Black))
         }
         Spacer(Modifier.width(AmazeTheme.spacing.sm))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = if (slot.isNullOrBlank()) componentName else "$componentName ($slot)",
+                text = row.label,
                 style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
             )
-            if (!rawFaculty.isNullOrBlank()) {
-                val parsedFac = com.amazecc.app.shared.utils.FacultyUtils.parseFaculty(rawFaculty)
+            if (parsedFac != null && parsedFac.name.isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(parsedFac.name, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                     if (!parsedFac.school.isNullOrBlank()) {
@@ -454,9 +439,9 @@ private fun embeddedRow(
             }
         }
         Spacer(Modifier.width(AmazeTheme.spacing.sm))
-        if (pct > 0) {
+        if (row.attendancePct > 0.0) {
             Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs)).padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
-                Text("${pct.toInt()}%", style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black))
+                Text("${row.attendancePct.toInt()}%", style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black))
             }
         }
     }

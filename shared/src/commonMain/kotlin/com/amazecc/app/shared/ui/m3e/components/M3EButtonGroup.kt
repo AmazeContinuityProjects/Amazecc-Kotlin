@@ -25,7 +25,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Material 3 Expressive Connected Button Group (replaces legacy segmented button).
@@ -96,5 +98,17 @@ fun <T> M3EConnectedButtonGroup(
                 }
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun M3EConnectedButtonGroupPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EConnectedButtonGroup(
+            items = listOf("All", "Critical (<75%)", "Safe (>80%)"),
+            selectedItem = "All",
+            onItemSelected = {}
+        )
     }
 }

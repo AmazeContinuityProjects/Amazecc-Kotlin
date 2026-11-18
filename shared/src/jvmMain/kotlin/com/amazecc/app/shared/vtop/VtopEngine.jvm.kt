@@ -30,6 +30,8 @@ actual class VtopEngine {
 
     actual suspend fun clearCookies(): Unit = throw UnsupportedOperationException(NO_ENGINE)
 
+    actual suspend fun persistCookies(): Unit = throw UnsupportedOperationException(NO_ENGINE)
+
     actual suspend fun cookieHeader(): String = throw UnsupportedOperationException(NO_ENGINE)
 
     actual fun destroy() = Unit

@@ -41,6 +41,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.domain.CourseStatus
+import com.amazecc.app.shared.domain.Projections
+import com.amazecc.app.shared.domain.completedCourseCodes
+import com.amazecc.app.shared.domain.courseStatus
+import com.amazecc.app.shared.domain.earnedCreditsFromGrades
+import com.amazecc.app.shared.domain.ongoingCourseCodes
+import com.amazecc.app.shared.domain.ongoingCreditsByCategory
+import com.amazecc.app.shared.domain.totalOngoingCredits
+import com.amazecc.app.shared.domain.curriculumTotals
+import com.amazecc.app.shared.domain.buildCategoryRows
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeColors
@@ -120,7 +130,8 @@ private data class CurriculumItemUi(
     val name: String,
     val credits: Int,
     val type: String?,
-    val isCompleted: Boolean
+    /** Tri-state, as Node's `CourseStatus`. Was a `isCompleted` boolean, which dropped in-progress. */
+    val status: CourseStatus
 )
 
 private data class CurriculumBasketUi(
@@ -140,94 +151,61 @@ private data class CurriculumCategoryUi(
 @Composable
 fun CurriculumScreen() {
     val colors = AmazeTheme.colors
-    val curriculumData by AppState.curriculum.collectAsState()
-    val academic by AppState.academic.collectAsState()
+    val domain by AppState.domain.collectAsState()
     val selectedSem by AppState.selectedSemester.collectAsState()
 
-    val categories = curriculumData?.categories ?: emptyList()
-    val details = curriculumData?.details ?: emptyList()
-    val gradedCredits = academic.semesters.values.flatMap { it.courses.values }
-        .filter { it.grade != null && it.grade?.grade !in listOf("F", "N", "") }
-        .mapNotNull { it.credits?.trim()?.toFloatOrNull() }
-        .sum()
-    val totalEarned = if (gradedCredits > 0f) gradedCredits else (curriculumData?.totalCredits ?: 0).toFloat()
-    val totalRequired = 160
+    // The curriculum payload rides in the snapshot, so this screen reads no `*Res` of its own.
+    val curriculumData = domain.academics.curriculum
 
-    val ongoingCredits = academic.semesters[selectedSem]?.courses?.values.orEmpty()
-        .filter { it.attendance != null }
-        .mapNotNull { it.credits?.trim()?.toFloatOrNull() }
-        .sum()
-
-    val remainingCredits = (totalRequired.toFloat() - totalEarned - ongoingCredits).coerceAtLeast(0f).toInt()
-    val earnedPct = if (totalRequired > 0) (totalEarned / totalRequired).coerceAtMost(1f) else 0f
-    val ongoingPct = if (totalRequired > 0) (ongoingCredits / totalRequired).coerceAtMost(1f - earnedPct) else 0f
-    val expectedGrad = if (remainingCredits <= 0) "Ready" else "${((remainingCredits + 23) / 24).coerceAtLeast(1)} sem"
-
-    val completedCourseCodes = remember(academic) {
-        val codes = mutableSetOf<String>()
-        academic.semesters.values.forEach { semester ->
-            semester.courses.values.forEach { course ->
-                val grade = course.grade?.grade
-                if (!grade.isNullOrBlank() && grade !in listOf("F", "N")) {
-                    codes.add(course.courseCode)
-                }
-            }
-        }
-        codes
+    // One attendance list serves both halves of Node's ongoing arithmetic: `CurriculumPage` hands
+    // the same `attendance` array to the per-category credit roll-up and to the in-progress course
+    // set. Scoped to the selected term, which is what VTOP's attendance module returns.
+    val semesterAttendance = remember(domain, selectedSem) {
+        Projections.semesterAttendance(domain, selectedSem)
     }
 
-    val categoryEarnedCredits = remember(details, completedCourseCodes) {
-        val earned = mutableMapOf<String, Int>()
-        for (catDetail in details) {
-            var total = 0
-            for (basket in catDetail.baskets) {
-                for (item in basket.items) {
-                    if (item.code in completedCourseCodes) {
-                        total += item.credits
-                    }
-                }
-            }
-            earned[catDetail.code] = total
-        }
-        earned
+    val totals = remember(domain, curriculumData, semesterAttendance) {
+        curriculumTotals(
+            curriculum = curriculumData,
+            earnedCredits = earnedCreditsFromGrades(domain),
+            ongoingCredits = totalOngoingCredits(semesterAttendance),
+        )
     }
 
-    val categoryTree = remember(details, categories, categoryEarnedCredits, completedCourseCodes) {
-        if (details.isNotEmpty()) {
-            details.map { d ->
-                CurriculumCategoryUi(
-                    code = d.code,
-                    name = d.name,
-                    required = categories.find { it.code == d.code }?.maxCredits
-                        ?: d.baskets.sumOf { it.credits },
-                    earned = categoryEarnedCredits[d.code] ?: 0,
-                    baskets = d.baskets.map { b ->
-                        CurriculumBasketUi(
-                            title = b.title,
-                            credits = b.credits,
-                            items = b.items.map { item ->
-                                CurriculumItemUi(
-                                    code = item.code,
-                                    name = item.name,
-                                    credits = item.credits,
-                                    type = item.type,
-                                    isCompleted = item.code in completedCourseCodes
-                                )
-                            }
-                        )
-                    }
-                )
-            }
-        } else {
-            categories.map { c ->
-                CurriculumCategoryUi(
-                    code = c.code,
-                    name = c.name,
-                    required = c.maxCredits.coerceAtLeast(1),
-                    earned = categoryEarnedCredits[c.code] ?: 0,
-                    baskets = emptyList()
-                )
-            }
+    val completedCodes = remember(domain) { completedCourseCodes(domain) }
+    val ongoingCodes = remember(semesterAttendance) { ongoingCourseCodes(semesterAttendance) }
+    val ongoingByCategory = remember(semesterAttendance) { ongoingCreditsByCategory(semesterAttendance) }
+
+    val categoryTree = remember(domain, curriculumData, ongoingByCategory, completedCodes, ongoingCodes) {
+        // `curriculum` is the flat all-grades list, which this app never parses - see
+        // `Curriculum.kt`'s file note - so the categories fallback is the only live source.
+        buildCategoryRows(
+            curriculum = emptyList(),
+            categories = curriculumData?.categories.orEmpty(),
+            details = curriculumData?.details.orEmpty(),
+            ongoingByCategory = ongoingByCategory,
+        ).map { row ->
+            CurriculumCategoryUi(
+                code = row.code.orEmpty(),
+                name = row.title,
+                required = row.required.toInt(),
+                earned = row.earned.toInt(),
+                baskets = row.baskets.map { basket ->
+                    CurriculumBasketUi(
+                        title = basket.title,
+                        credits = basket.credits,
+                        items = basket.items.map { item ->
+                            CurriculumItemUi(
+                                code = item.code,
+                                name = item.name,
+                                credits = item.credits,
+                                type = item.type,
+                                status = courseStatus(item.code, completedCodes, ongoingCodes),
+                            )
+                        },
+                    )
+                },
+            )
         }
     }
 
@@ -293,13 +271,13 @@ fun CurriculumScreen() {
             } else {
                 // ── Degree Progress hero ──
                 CurriculumHeroCard(
-                    earnedPct = earnedPct,
-                    ongoingPct = ongoingPct,
-                    totalEarned = totalEarned,
-                    ongoingCredits = ongoingCredits,
-                    remainingCredits = remainingCredits,
-                    totalRequired = totalRequired,
-                    expectedGrad = expectedGrad,
+                    earnedPct = totals.earnedPct,
+                    ongoingPct = totals.ongoingPct,
+                    totalEarned = totals.earned,
+                    ongoingCredits = totals.ongoing,
+                    remainingCredits = totals.remaining.toInt(),
+                    totalRequired = totals.required.toInt(),
+                    expectedGrad = totals.expectedLabel,
                     colors = colors
                 )
 
@@ -551,7 +529,7 @@ private fun CurriculumCategoryCard(
     val pct = (cat.earned.toFloat() / required).coerceAtMost(1f)
     val isComplete = cat.earned >= required
     val totalCourses = cat.baskets.sumOf { it.items.size }
-    val completedCourses = cat.baskets.sumOf { b -> b.items.count { it.isCompleted } }
+    val completedCourses = cat.baskets.sumOf { b -> b.items.count { it.status == CourseStatus.COMPLETED } }
     val tint = categoryTint(index, colors)
 
     AmazeCard(modifier = Modifier.fillMaxWidth(), onClick = onToggleCategory, contentPadding = PaddingValues(0.dp)) {
@@ -681,7 +659,8 @@ private fun CurriculumItemRow(
     onDownload: (String) -> Unit,
     colors: AmazeColors
 ) {
-    val isCompleted = item.isCompleted
+    val isCompleted = item.status == CourseStatus.COMPLETED
+    val isOngoing = item.status == CourseStatus.IN_PROGRESS
     val tColor = typeColor(item.type, colors)
 
     Box(
@@ -689,10 +668,20 @@ private fun CurriculumItemRow(
             .fillMaxWidth()
             .padding(start = 40.dp, end = 12.dp, top = 3.dp, bottom = 3.dp)
             .clip(RoundedCornerShape(AmazeTheme.radius.small))
-            .background(if (isCompleted) colors.success.copy(alpha = 0.06f) else colors.surface)
+            .background(
+                when {
+                    isCompleted -> colors.success.copy(alpha = 0.06f)
+                    isOngoing -> tColor.copy(alpha = 0.05f)
+                    else -> colors.surface
+                }
+            )
             .border(
                 1.dp,
-                if (isCompleted) colors.success.copy(alpha = 0.35f) else colors.border.copy(alpha = 0.6f),
+                when {
+                    isCompleted -> colors.success.copy(alpha = 0.35f)
+                    isOngoing -> tColor.copy(alpha = 0.35f)
+                    else -> colors.border.copy(alpha = 0.6f)
+                },
                 RoundedCornerShape(AmazeTheme.radius.small)
             )
             .clickable { onOpenCourse(item.code) }
@@ -704,13 +693,21 @@ private fun CurriculumItemRow(
                     .size(40.dp)
                     .clip(RoundedCornerShape(AmazeTheme.radius.small))
                     .background(
-                        if (isCompleted) colors.success.copy(alpha = 0.15f)
-                        else tColor.copy(alpha = 0.12f)
+                        when {
+                            isCompleted -> colors.success.copy(alpha = 0.15f)
+                            else -> tColor.copy(alpha = 0.12f)
+                        },
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    if (isCompleted) Icons.Rounded.CheckCircle else typeIcon(item.type),
+                    when {
+                        isCompleted -> Icons.Rounded.CheckCircle
+                        // A course the student already has attendance for reads as started, not
+                        // untouched - Node's `in_progress` state, which the old boolean threw away.
+                        isOngoing -> Icons.Rounded.PlayCircle
+                        else -> typeIcon(item.type)
+                    },
                     null,
                     tint = if (isCompleted) colors.success else tColor,
                     modifier = Modifier.size(20.dp)

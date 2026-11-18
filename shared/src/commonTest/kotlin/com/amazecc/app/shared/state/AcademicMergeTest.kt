@@ -231,7 +231,9 @@ class AcademicMergeTest {
             )
         )
         val out = AcademicMerge.upsertTimetable(AcademicData(), "SEM1", res)
-        val course = out.semesters.getValue("SEM1").courses.getValue("BACSE102")
+        // A Lab Only course is a lab half with no theory counterpart, so it lands on the lab key -
+        // `BACSE102` has no `(L)` marker in VTOP's own output, only an L-slot and a Lab Only type.
+        val course = out.semesters.getValue("SEM1").courses.getValue("BACSE102(L)")
         assertEquals("2.0", course.credits, "5th whitespace token of a space-separated LTPJC")
         assertEquals(listOf("L31", "L32", "L37", "L38"), course.slots)
         assertEquals("AB1-607B", course.venue)

@@ -10,6 +10,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EDestination
 import com.amazecc.app.shared.ui.m3e.components.M3EFloatingToolbar
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Global Scaffold for AmazeCC's Material 3 Expressive interface.
@@ -37,6 +38,19 @@ fun M3EAppScaffold(
                 onDestinationSelected = onDestinationSelected,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun M3EAppScaffoldPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EAppScaffold(
+            currentDestination = M3EDestination.HOME,
+            onDestinationSelected = {}
+        ) {
+            Box(Modifier.fillMaxSize())
         }
     }
 }

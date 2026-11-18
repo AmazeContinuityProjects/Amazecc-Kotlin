@@ -86,7 +86,7 @@ sealed interface M3EHomeAction {
 // 2. ATTENDANCE SCREEN IMMUTABLE STATE
 // ==========================================
 
-enum class M3ECardTone { GOOD, WARNING, CRITICAL }
+enum class M3ECardTone { GOOD, WARNING, CRITICAL, NEUTRAL }
 
 data class M3ECourseAttendanceCardState(
     val courseCode: String,
@@ -146,3 +146,113 @@ data class M3ENavigationState(
     val currentDestination: M3EDestination,
     val unreadNotificationsCount: Int = 0
 )
+
+// ==========================================
+// 4. TIMETABLE IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class TimetableViewMode(val label: String) {
+    SCHEDULE("Day Schedule"),
+    GRID("Slot Matrix")
+}
+
+data class M3ETimetableSlot(
+    val id: String,
+    val slot: String,
+    val courseCode: String,
+    val courseTitle: String,
+    val venue: String,
+    val faculty: String,
+    val startTime: String,
+    val endTime: String,
+    val isHappeningNow: Boolean = false,
+    val attendanceTone: M3ECardTone = M3ECardTone.NEUTRAL,
+    val attendancePercentage: Double? = null,
+    val isLab: Boolean = false
+)
+
+data class M3ETimetableDay(
+    val dayName: String,
+    val shortName: String,
+    val dayNumber: Int,
+    val isToday: Boolean,
+    val isSelected: Boolean,
+    val slots: List<M3ETimetableSlot> = emptyList(),
+    val freeHoursCount: Int = 0
+)
+
+data class M3ETimetableState(
+    val semesterName: String,
+    val selectedDayIndex: Int = 0,
+    val days: List<M3ETimetableDay>,
+    val viewMode: TimetableViewMode = TimetableViewMode.SCHEDULE,
+    val totalCredits: Int = 0,
+    val totalCourses: Int = 0,
+    val isLoading: Boolean = false
+)
+
+sealed interface M3ETimetableAction {
+    data class SelectDay(val dayIndex: Int) : M3ETimetableAction
+    data class SetViewMode(val mode: TimetableViewMode) : M3ETimetableAction
+    data class SlotClicked(val slot: M3ETimetableSlot) : M3ETimetableAction
+    data object Refresh : M3ETimetableAction
+}
+
+// ==========================================
+// 5. ACADEMICS & MARKS IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class AcademicCourseFilter(val label: String) {
+    ALL("All"),
+    THEORY("Theory"),
+    LAB("Lab"),
+    EMBEDDED("Embedded")
+}
+
+data class M3EAssessmentItem(
+    val title: String,
+    val maxMarks: Double,
+    val scoredMarks: Double,
+    val weightagePercent: Double,
+    val weightageMarks: Double,
+    val status: String = ""
+)
+
+data class M3EAcademicCourse(
+    val courseCode: String,
+    val courseTitle: String,
+    val credits: Int,
+    val courseType: String,
+    val faculty: String,
+    val grade: String? = null,
+    val internalScored: Double = 0.0,
+    val internalMax: Double = 60.0,
+    val assessments: List<M3EAssessmentItem> = emptyList(),
+    val attendancePct: Double? = null
+)
+
+data class M3EAcademicSummary(
+    val cgpa: Double,
+    val creditsEarned: Int,
+    val creditsRegistered: Int,
+    val rankOrStanding: String? = null
+)
+
+data class M3EAcademicsState(
+    val semesterName: String,
+    val availableSemesters: List<String> = emptyList(),
+    val summary: M3EAcademicSummary,
+    val courses: List<M3EAcademicCourse>,
+    val selectedFilter: AcademicCourseFilter = AcademicCourseFilter.ALL,
+    val searchQuery: String = "",
+    val expandedCourseCode: String? = null,
+    val isLoading: Boolean = false
+)
+
+sealed interface M3EAcademicsAction {
+    data class SelectSemester(val semester: String) : M3EAcademicsAction
+    data class SetFilter(val filter: AcademicCourseFilter) : M3EAcademicsAction
+    data class UpdateSearch(val query: String) : M3EAcademicsAction
+    data class ToggleExpandCourse(val courseCode: String) : M3EAcademicsAction
+    data object Refresh : M3EAcademicsAction
+}

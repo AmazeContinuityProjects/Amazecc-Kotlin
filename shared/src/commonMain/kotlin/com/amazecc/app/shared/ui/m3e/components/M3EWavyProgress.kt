@@ -14,7 +14,9 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.PI
 import kotlin.math.sin
 
@@ -102,5 +104,13 @@ fun M3EWavyLinearProgress(
                 center = Offset(stopDotX, centerY)
             )
         }
+    }
+}
+
+@Preview
+@Composable
+private fun M3EWavyLinearProgressPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EWavyLinearProgress(progress = 0.75f)
     }
 }

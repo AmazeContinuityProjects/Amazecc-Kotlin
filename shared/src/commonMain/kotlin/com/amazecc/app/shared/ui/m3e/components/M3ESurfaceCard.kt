@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -19,7 +20,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 enum class SurfaceContainerLevel {
     LOWEST, LOW, STANDARD, HIGH, HIGHEST
@@ -76,4 +79,14 @@ fun M3ESurfaceCard(
             .padding(16.dp),
         content = content
     )
+}
+
+@Preview
+@Composable
+private fun M3ESurfaceCardPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3ESurfaceCard {
+            Text("M3E Expressive Surface Card")
+        }
+    }
 }

@@ -151,6 +151,14 @@ actual class VtopEngine actual constructor() {
         }
     }
 
+    actual suspend fun persistCookies() {
+        withContext(Dispatchers.Main) {
+            // The platform only writes the store out on its own schedule, so a login followed by a
+            // process kill loses the session that `restoreSessionIfPossible` is meant to find.
+            CookieManager.getInstance().flush()
+        }
+    }
+
     actual suspend fun cookieHeader(): String = withContext(Dispatchers.Main) {
         CookieManager.getInstance().getCookie(VtopSession.BASE_URL) ?: ""
     }

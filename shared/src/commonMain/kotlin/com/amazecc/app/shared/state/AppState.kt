@@ -1045,6 +1045,44 @@ private val _commandPaletteOpen = MutableStateFlow(false)
 
     private var sweepJob: Job? = null
 
+    /**
+     * Gives a sweep a VTOP session to work with, before any module runs.
+     *
+     * [com.amazecc.app.shared.vtop.VtopSession] is memory-only on purpose — the real `JSESSIONID`
+     * never leaves the WebView's cookie store — so it is empty after a cold start and after the
+     * cookie's ten-minute life expires. Every fetcher in `VtopDataSource` bails out with
+     * `"No VTOP session"` when it is, which is why *every* per-module refresh button was dead:
+     * only `loadAllData` re-hydrated, and nothing else called it first.
+     *
+     * Doing it here rather than in `syncModule` keeps it to one round trip per sweep instead of one
+     * per module, and skips it entirely for the two sweeps that need no VTOP session at all.
+     *
+     * Never throws: with no Activity to attach a WebView to — a background sync, say — the modules
+     * are left to report their own failure, which is more informative than an exception here.
+     */
+    private suspend fun ensureVtopSessionForSweep(modules: Set<SyncModule>): Boolean {
+        // Moodle has its own login and its own cookie, so a Moodle-only sweep must not pay for a
+        // VTOP round trip it cannot use.
+        val needsVtop = modules.any { it != SyncModule.LMS && it != SyncModule.MOODLE }
+        if (!needsVtop) return true
+        if (com.amazecc.app.shared.vtop.VtopSession.hasSession) return true
+
+        // `ensureSession` can only re-hydrate from a `JSESSIONID` the WebView still holds. It
+        // deliberately never performs a credential login - that needs a captcha dialog, and a
+        // sweep is unattended - so when the cookie has gone there is nothing left to try and the
+        // reason has to be said out loud, not swallowed.
+        val outcome = runCatching { AmazeClient.ensureSession() }
+            .getOrElse { false }
+        if (outcome) return true
+
+        val message = "Your VTOP session has expired. Sign in again to sync."
+        _error.value = message
+        _syncMessage.value = message
+        _syncStatus.value = message
+        modules.forEach { SyncEngine.markModuleError(it, message) }
+        return false
+    }
+
     private fun launchSweep(modules: Set<SyncModule>, stageProfile: String? = null, block: suspend () -> Unit) {
         if (sweepJob?.isActive == true) return
         sweepJob = scope.launch {
@@ -1052,6 +1090,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             _isSyncing.value = true
             SyncEngine.beginSweep(modules)
             try {
+                // No session means every module below would report the same "No VTOP session"
+                // against itself. Stopping here turns fifteen identical lines into one sentence
+                // that says what to do about it.
+                if (!ensureVtopSessionForSweep(modules)) return@launch
                 if (stageProfile != null) {
                     SyncEngine.withStageProfile(stageProfile) { block() }
                 } else {
@@ -1808,8 +1850,11 @@ val results = supervisorScope {
             val result = syncModule(
                 name = "Grade history",
                 fetch = { AmazeClient.getAllGrades() },
-                isSuccess = { it.error == null },
-                errorMessage = { it.error },
+                // `error` alone was not enough: a failure reported through `message` (which is how
+                // every "Empty response" / "menu unavailable" comes back) left `error` null, so the
+                // module was marked green while syncing nothing.
+                isSuccess = { it.error == null && it.success && !it.grades.isNullOrEmpty() },
+                errorMessage = { it.error ?: it.message ?: "No grade history returned" },
                 update = {
                     applyAllGrades(it)
                 }

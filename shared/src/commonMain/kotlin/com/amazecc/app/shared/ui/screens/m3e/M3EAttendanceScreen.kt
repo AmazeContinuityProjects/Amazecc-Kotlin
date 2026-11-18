@@ -38,7 +38,9 @@ import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Material 3 Expressive Attendance Hub.
@@ -206,6 +208,7 @@ private fun M3ECourseAttendanceCard(
         M3ECardTone.GOOD -> colors.success
         M3ECardTone.WARNING -> colors.warning
         M3ECardTone.CRITICAL -> colors.error
+        M3ECardTone.NEUTRAL -> colors.onSurfaceVariant
     }
 
     M3ESurfaceCard(
@@ -286,5 +289,59 @@ private fun M3ECourseAttendanceCard(
                 )
             }
         }
+    }
+}
+
+private fun createMockAttendanceState() = M3EAttendanceState(
+    semesterName = "Winter Semester 2025-26",
+    overallPercentage = 84.6,
+    bunkSummary = com.amazecc.app.shared.domain.overhaul.M3EBunkSummary(
+        totalBunkableClasses = 5,
+        criticalCoursesCount = 1,
+        warningCoursesCount = 0
+    ),
+    courses = listOf(
+        M3ECourseAttendanceCardState(
+            courseCode = "CSE3002",
+            courseTitle = "Internet and Web Programming",
+            badge = "EMB",
+            attendedClasses = 28,
+            totalClasses = 30,
+            percentage = 93.3,
+            tone = M3ECardTone.GOOD,
+            faculty = "Prof. Sundar",
+            slot = "B1+TB1",
+            bunkSummary = "Can bunk 6 more classes safely",
+            isEmbedded = true
+        ),
+        M3ECourseAttendanceCardState(
+            courseCode = "MAT2001",
+            courseTitle = "Complex Variables & Linear Algebra",
+            badge = "TH",
+            attendedClasses = 22,
+            totalClasses = 30,
+            percentage = 73.3,
+            tone = M3ECardTone.CRITICAL,
+            faculty = "Dr. Anita",
+            slot = "D1+TD1",
+            bunkSummary = "Need to attend next 2 classes to hit 75%"
+        )
+    ),
+    activeFilter = AttendanceFilter.ALL
+)
+
+@Preview
+@Composable
+private fun M3EAttendanceScreenPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EAttendanceScreen(state = createMockAttendanceState(), onAction = {})
+    }
+}
+
+@Preview
+@Composable
+private fun M3EAttendanceScreenDarkPreview() {
+    AmazeM3ETheme(isDark = true) {
+        M3EAttendanceScreen(state = createMockAttendanceState(), onAction = {})
     }
 }

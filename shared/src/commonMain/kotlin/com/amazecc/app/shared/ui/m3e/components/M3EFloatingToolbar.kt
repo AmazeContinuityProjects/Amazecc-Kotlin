@@ -35,7 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EDestination
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Material 3 Expressive Horizontal Floating Toolbar (Navigation Bar).
@@ -153,5 +155,27 @@ private fun M3EToolbarItem(
                 )
             }
         }
+    }
+}
+
+@Preview
+@Composable
+private fun M3EFloatingToolbarPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EFloatingToolbar(
+            currentDestination = M3EDestination.HOME,
+            onDestinationSelected = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun M3EFloatingToolbarDarkPreview() {
+    AmazeM3ETheme(isDark = true) {
+        M3EFloatingToolbar(
+            currentDestination = M3EDestination.ATTENDANCE,
+            onDestinationSelected = {}
+        )
     }
 }

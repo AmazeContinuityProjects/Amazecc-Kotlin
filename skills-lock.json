@@ -1,0 +1,166 @@
+{
+  "version": 2,
+  "skills": {
+    "android-benchmark-comparison": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/android-benchmark-comparison/SKILL.md",
+      "computedHash": "6b9fd4c90515c09b59bedf1fafd30c7cd369ad5779c3ae1af8bb9aae9a91a34a"
+    },
+    "changelog": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/changelog/SKILL.md",
+      "computedHash": "1fd891513112bc40f678d55f9f48119c80703172d937d959b38d9698877502d5"
+    },
+    "compose-animations": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/compose-animations/SKILL.md",
+      "computedHash": "972fa5daa71934a7b56f18b7d660bd37dad7172e9c9e0006c79c2eee8de64a5e"
+    },
+    "compose-component-design": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/compose-component-design/SKILL.md",
+      "computedHash": "ff79c49f234afd775f6563779e501173ae3ca934b70572689b437a2043c0faaf"
+    },
+    "compose-focus-navigation": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/compose-focus-navigation/SKILL.md",
+      "computedHash": "305fea74ed058b9493de27f5aa80777e6914ffbd15424295c606d3e18deff661"
+    },
+    "compose-performance": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/compose-performance/SKILL.md",
+      "computedHash": "34e30f050c8ce6fe6eecbfd22d78ddf2ed0ac9d1d0ed5b97abf20a953e1f8d3e"
+    },
+    "compose-state-and-effects": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/compose-state-and-effects/SKILL.md",
+      "computedHash": "991ca95dd2d9d03f9133b150dcb28ddf1275b021e10cc03e4c5a106049f4078f"
+    },
+    "compose-ui-testing-patterns": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/compose-ui-testing-patterns/SKILL.md",
+      "computedHash": "4ea1c64e91e69df47d1ee17510d3b7105878477dc1fbaa213b37d8e9332d131c"
+    },
+    "deliver-issue": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/deliver-issue/SKILL.md",
+      "computedHash": "1459b888e162eaa5b26d52ca09e26d7a2e54125c69e58b0e022097df3a5094de"
+    },
+    "gradle-run": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/gradle-run/SKILL.md",
+      "computedHash": "ceeb198c7906b2a7391a1fe781f34277ca4a02186843b6ddaff1da3bf8a64cfe"
+    },
+    "grounded-writing": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/grounded-writing/SKILL.md",
+      "computedHash": "42461c8334761cf9121d502d1e58cb163f2a98337daa8e7463c65da5c0e65fab"
+    },
+    "implement-with-subagents": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/implement-with-subagents/SKILL.md",
+      "computedHash": "f0cc95dd10b7e897caab5413bb58b7e1be781cd6aec59b00c1076c39bc3d28d4"
+    },
+    "kotlin-api-design": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-api-design/SKILL.md",
+      "computedHash": "06b6e79a06851f2e7c20ac2a35b67cbc31759e3b1816fc4d477f8276feeef3bb"
+    },
+    "kotlin-concurrency-and-flow": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-concurrency-and-flow/SKILL.md",
+      "computedHash": "89333706d5f8eb5a5021a58916e13b48cac9c93146aa3b21608553928d340266"
+    },
+    "kotlin-control-flow": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-control-flow/SKILL.md",
+      "computedHash": "c6d3156fd4cc73504d99108ba19c6d211cde8fbb4ebf6ccefa914e10157d0042"
+    },
+    "m3-expressive": {
+      "source": "mindcrafter129/m3e-skills",
+      "commit": "2d9511bd9afc2ec36a8187f4ed56c7e2d80fcdd4",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "d537c0f2d9744ea8917666965bb9ca3dc8889273dfd05978623fb5a7b99e25e6"
+    },
+    "material-3-expressive": {
+      "source": "JusDots-Devs/m3e-skill",
+      "commit": "07bd88c28ea717d7522e57d4906c333610223d90",
+      "sourceType": "github",
+      "skillPath": "skills/material-3-expressive/SKILL.md",
+      "computedHash": "29d7a85df6aca1e1518f518b24ac963899105ca6568bbffa1cabcc6ae1d1b9dc"
+    },
+    "release-kotlin-library": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/release-kotlin-library/SKILL.md",
+      "computedHash": "1140cd4561af0472bc353a9742de65de79d6cf89b568f1d12595237cbc6695e5"
+    },
+    "run-project": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/run-project/SKILL.md",
+      "computedHash": "de3e95f9f5da6f698be7542d8b2a58fd9bfbcd5cee23e9d32007b6fdc0fd308f"
+    },
+    "shepherd": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/shepherd/SKILL.md",
+      "computedHash": "bc918df1500c511a276fe3464a511eb63024f6a22b6a6ab0c8d3da436b92a24c"
+    },
+    "subagent-delegation": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/subagent-delegation/SKILL.md",
+      "computedHash": "690f426c39fb7d218dd6ff176ce15ad4a3e55bb5cec4faa14d8295004676c221"
+    },
+    "to-plan": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/to-plan/SKILL.md",
+      "computedHash": "7a3a3cfd68dfe289b25e20d9cc9e1506c37dc7d9239aec858450e4be091f441a"
+    },
+    "using-chrisbanes-skills": {
+      "source": "chrisbanes/skills",
+      "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
+      "sourceType": "github",
+      "skillPath": "skills/using-chrisbanes-skills/SKILL.md",
+      "computedHash": "bf89d07124e96aaf03eace3ae1c4d29807a5fd75a9ea7132f1aa5750d7880a20"
+    }
+  }
+}

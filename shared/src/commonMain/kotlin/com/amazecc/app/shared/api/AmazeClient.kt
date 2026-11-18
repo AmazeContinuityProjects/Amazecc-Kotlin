@@ -308,6 +308,41 @@ if (useMockData) return DemoData.get("marks", MarksRes.serializer()) ?: MarksRes
 
     suspend fun getAllGrades(): AllGradesRes {
 if (useMockData) return DemoData.get("allGrades", AllGradesRes.serializer()) ?: AllGradesRes()
+        // LOCAL has to come before `postAuthorized`, which refuses outright in LOCAL mode - so
+        // without this branch the grade-history module asked the server for a page VTOP itself
+        // answers with "This menu is not available at present", got nothing, and reported success.
+        // `StudentGradeHistory` is the endpoint that does serve data on-device; `all-grades` is the
+        // one VTOP has switched off, so the per-semester effective grades are mapped in here.
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                val fetched = com.amazecc.app.shared.vtop.VtopDataSource.fetchGrades()
+                    ?: return AllGradesRes(success = false, message = "VTOP grade history unavailable")
+                val semesterId = com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value ?: ""
+                val rows = fetched.effectiveGrades.orEmpty().mapNotNull { row ->
+                    val title = row.basketTitle?.trim().orEmpty()
+                    val grade = row.grade?.trim().orEmpty()
+                    if (title.isEmpty() && grade.isEmpty()) return@mapNotNull null
+                    com.amazecc.app.shared.model.GradeItem(
+                        courseTitle = title,
+                        courseType = row.courseType.orEmpty(),
+                        grade = grade,
+                        // The effective-grade table publishes a letter and the credits earned, not
+                        // the numeric total, so there is no grandTotal to carry across.
+                        grandTotal = ""
+                    )
+                }
+                if (rows.isEmpty()) {
+                    AllGradesRes(success = false, message = "VTOP grade history returned no rows")
+                } else {
+                    AllGradesRes(
+                        success = true,
+                        grades = mapOf(semesterId to com.amazecc.app.shared.model.SemesterGradeResult(grades = rows))
+                    )
+                }
+            } catch (e: Exception) {
+                AllGradesRes(success = false, message = e.message, error = e.toString())
+            }
+        }
         return try {
             postAuthorized<AllGradesRes>("all-grades") ?: AllGradesRes(success = false, message = "Empty response")
         } catch (e: Exception) {
