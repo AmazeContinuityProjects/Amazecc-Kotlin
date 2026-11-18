@@ -762,3 +762,157 @@ sealed interface M3EFreeClassroomsAction {
     data class SearchQueryChanged(val query: String) : M3EFreeClassroomsAction
     data object Refresh : M3EFreeClassroomsAction
 }
+
+// ==========================================
+// 17. EVENT HUB IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class M3EEventCategory(val label: String) {
+    ALL("All Events"),
+    TECHNICAL("Technical"),
+    CULTURAL("Cultural"),
+    WORKSHOPS("Workshops"),
+    HACKATHONS("Hackathons"),
+    SPORTS("Sports"),
+    MY_REGISTRATIONS("Registered")
+}
+
+data class M3EEventItem(
+    val id: String,
+    val title: String,
+    val festName: String,
+    val category: M3EEventCategory,
+    val date: String,
+    val time: String,
+    val venue: String,
+    val price: String,
+    val isFree: Boolean = true,
+    val isRegistered: Boolean = false,
+    val certificateEligible: Boolean = true,
+    val orderId: String? = null
+)
+
+data class M3EEventHubState(
+    val events: List<M3EEventItem> = emptyList(),
+    val filteredEvents: List<M3EEventItem> = emptyList(),
+    val selectedCategory: M3EEventCategory = M3EEventCategory.ALL,
+    val searchQuery: String = "",
+    val registeredCount: Int = 0,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3EEventHubAction {
+    data class SelectCategory(val category: M3EEventCategory) : M3EEventHubAction
+    data class SearchQueryChanged(val query: String) : M3EEventHubAction
+    data class RegisterEvent(val eventId: String) : M3EEventHubAction
+    data class EventClicked(val eventId: String) : M3EEventHubAction
+    data object Refresh : M3EEventHubAction
+}
+
+// ==========================================
+// 18. CLUB HUB IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class M3EClubCategory(val label: String) {
+    ALL("All Clubs"),
+    TECHNICAL("Tech Chapters"),
+    CULTURAL("Cultural & Arts"),
+    SOCIAL("Social & Service"),
+    SPORTS("Sports Teams"),
+    RECRUITING("Recruiting Now")
+}
+
+data class M3EClubItem(
+    val id: String,
+    val name: String,
+    val category: M3EClubCategory,
+    val type: String, // "CHAPTER" | "CLUB"
+    val studentLead: String,
+    val facultyCoordinator: String,
+    val memberCount: Int,
+    val isRecruiting: Boolean = false,
+    val recruitmentDeadline: String? = null,
+    val instagramHandle: String? = null,
+    val description: String = ""
+)
+
+data class M3EClubHubState(
+    val clubs: List<M3EClubItem> = emptyList(),
+    val filteredClubs: List<M3EClubItem> = emptyList(),
+    val selectedCategory: M3EClubCategory = M3EClubCategory.ALL,
+    val searchQuery: String = "",
+    val expandedClubId: String? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3EClubHubAction {
+    data class SelectCategory(val category: M3EClubCategory) : M3EClubHubAction
+    data class SearchQueryChanged(val query: String) : M3EClubHubAction
+    data class ToggleExpandClub(val clubId: String) : M3EClubHubAction
+    data class ApplyClub(val clubId: String) : M3EClubHubAction
+    data object Refresh : M3EClubHubAction
+}
+
+// ==========================================
+// 19. TASKS & ASSIGNMENTS IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class M3ETaskKind(val label: String) {
+    DIGITAL_ASSIGNMENT("Digital Assignment"),
+    HOMEWORK("Homework"),
+    STUDY("Study Session"),
+    TEST("Quiz / CAT Prep"),
+    REMINDER("Reminder")
+}
+
+enum class M3ETaskStatus(val label: String) {
+    PENDING("To Do"),
+    IN_PROGRESS("In Progress"),
+    DONE("Completed")
+}
+
+enum class M3ETasksFilter(val label: String) {
+    ALL("All Tasks"),
+    PENDING("To Do"),
+    IN_PROGRESS("In Progress"),
+    ASSIGNMENTS("Assignments"),
+    DONE("Completed")
+}
+
+data class M3ETaskItem(
+    val id: String,
+    val title: String,
+    val kind: M3ETaskKind,
+    val status: M3ETaskStatus,
+    val courseCode: String,
+    val courseTitle: String,
+    val dueDate: String? = null,
+    val slotName: String? = null,
+    val isOverdue: Boolean = false,
+    val moodleUrl: String? = null,
+    val notes: String? = null
+)
+
+data class M3ETasksState(
+    val tasks: List<M3ETaskItem> = emptyList(),
+    val filteredTasks: List<M3ETaskItem> = emptyList(),
+    val activeFilter: M3ETasksFilter = M3ETasksFilter.ALL,
+    val searchQuery: String = "",
+    val pendingCount: Int = 0,
+    val completedCount: Int = 0,
+    val isCreateDialogOpen: Boolean = false,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3ETasksAction {
+    data class SelectFilter(val filter: M3ETasksFilter) : M3ETasksAction
+    data class SearchQueryChanged(val query: String) : M3ETasksAction
+    data class ToggleTaskStatus(val taskId: String) : M3ETasksAction
+    data class DeleteTask(val taskId: String) : M3ETasksAction
+    data object OpenCreateDialog : M3ETasksAction
+    data object CloseCreateDialog : M3ETasksAction
+    data object Refresh : M3ETasksAction
+}

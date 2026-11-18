@@ -184,4 +184,79 @@ object M3EComputations {
             matchesBuilding && matchesAvailability && matchesQuery
         }
     }
+
+    /**
+     * Filter fest & campus events on Dispatchers.Default.
+     */
+    suspend fun filterEvents(
+        events: List<M3EEventItem>,
+        category: M3EEventCategory,
+        query: String
+    ): List<M3EEventItem> = withContext(Dispatchers.Default) {
+        events.filter { event ->
+            val matchesCategory = when (category) {
+                M3EEventCategory.ALL -> true
+                M3EEventCategory.MY_REGISTRATIONS -> event.isRegistered
+                else -> event.category == category
+            }
+
+            val matchesQuery = query.isBlank() ||
+                event.title.contains(query, ignoreCase = true) ||
+                event.venue.contains(query, ignoreCase = true) ||
+                event.festName.contains(query, ignoreCase = true)
+
+            matchesCategory && matchesQuery
+        }
+    }
+
+    /**
+     * Filter clubs & chapters on Dispatchers.Default.
+     */
+    suspend fun filterClubs(
+        clubs: List<M3EClubItem>,
+        category: M3EClubCategory,
+        query: String
+    ): List<M3EClubItem> = withContext(Dispatchers.Default) {
+        clubs.filter { club ->
+            val matchesCategory = when (category) {
+                M3EClubCategory.ALL -> true
+                M3EClubCategory.RECRUITING -> club.isRecruiting
+                else -> club.category == category
+            }
+
+            val matchesQuery = query.isBlank() ||
+                club.name.contains(query, ignoreCase = true) ||
+                club.studentLead.contains(query, ignoreCase = true) ||
+                club.facultyCoordinator.contains(query, ignoreCase = true) ||
+                club.description.contains(query, ignoreCase = true)
+
+            matchesCategory && matchesQuery
+        }
+    }
+
+    /**
+     * Filter unified tasks on Dispatchers.Default.
+     */
+    suspend fun filterTasks(
+        tasks: List<M3ETaskItem>,
+        filter: M3ETasksFilter,
+        query: String
+    ): List<M3ETaskItem> = withContext(Dispatchers.Default) {
+        tasks.filter { task ->
+            val matchesFilter = when (filter) {
+                M3ETasksFilter.ALL -> true
+                M3ETasksFilter.PENDING -> task.status == M3ETaskStatus.PENDING
+                M3ETasksFilter.IN_PROGRESS -> task.status == M3ETaskStatus.IN_PROGRESS
+                M3ETasksFilter.DONE -> task.status == M3ETaskStatus.DONE
+                M3ETasksFilter.ASSIGNMENTS -> task.kind == M3ETaskKind.DIGITAL_ASSIGNMENT
+            }
+
+            val matchesQuery = query.isBlank() ||
+                task.title.contains(query, ignoreCase = true) ||
+                task.courseCode.contains(query, ignoreCase = true) ||
+                task.courseTitle.contains(query, ignoreCase = true)
+
+            matchesFilter && matchesQuery
+        }
+    }
 }
