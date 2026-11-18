@@ -235,7 +235,7 @@ fun M3ECabShareScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(vertical = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -265,6 +265,11 @@ fun M3ECabShareScreen(
                     }
                 )
             }
+        }
+
+        // Bottom Spacing for floating navigation bar clearance (140dp)
+        item(key = "bottom_spacer") {
+            Spacer(Modifier.height(140.dp))
         }
     }
 }
@@ -323,9 +328,7 @@ private fun CabShareRideCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             // Destination Hub & Seats Open
             Row(

@@ -166,7 +166,7 @@ fun M3EHostelScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(28.dp),
+                                    .padding(vertical = 16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Icon(
@@ -236,7 +236,7 @@ fun M3EHostelScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(28.dp),
+                                    .padding(vertical = 16.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Icon(
@@ -270,6 +270,11 @@ fun M3EHostelScreen(
                 }
             }
         }
+
+        // Bottom Spacing for floating navigation bar clearance (140dp)
+        item(key = "bottom_spacer") {
+            Spacer(Modifier.height(140.dp))
+        }
     }
 }
 
@@ -287,9 +292,7 @@ private fun HostelHeroCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -398,9 +401,7 @@ private fun MessMealCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -494,9 +495,7 @@ private fun LeaveCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -573,9 +572,7 @@ private fun RoomDetailsCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(

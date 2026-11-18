@@ -177,9 +177,9 @@ fun M3ECourseDetailScreen(
                 }
             }
 
-            // Bottom Spacing
+            // Bottom Spacing for floating navigation bar clearance (140dp)
             item(key = "bottom_spacer") {
-                Spacer(Modifier.height(40.dp))
+                Spacer(Modifier.height(140.dp))
             }
         }
     }

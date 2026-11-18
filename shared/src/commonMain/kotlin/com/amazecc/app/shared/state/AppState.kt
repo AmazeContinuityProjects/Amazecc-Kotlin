@@ -1072,25 +1072,23 @@ private val _commandPaletteOpen = MutableStateFlow(false)
      */
     private suspend fun ensureVtopSessionForSweep(modules: Set<SyncModule>): Boolean {
         if (AmazeClient.vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return true
-        // Moodle has its own login and its own cookie, so a Moodle-only sweep must not pay for a
-        // VTOP round trip it cannot use.
         val needsVtop = modules.any { it != SyncModule.LMS && it != SyncModule.MOODLE }
         if (!needsVtop) return true
-        if (com.amazecc.app.shared.vtop.VtopSession.hasSession) return true
 
-        // `ensureSession` can only re-hydrate from a `JSESSIONID` the WebView still holds. It
-        // deliberately never performs a credential login - that needs a captcha dialog, and a
-        // sweep is unattended - so when the cookie has gone there is nothing left to try and the
-        // reason has to be said out loud, not swallowed.
-        val outcome = runCatching { AmazeClient.ensureSession() }
-            .getOrElse { false }
-        if (outcome) return true
+        val authenticated = runCatching {
+            SyncEngine.ensureAuthenticatedSession(modules)
+        }.getOrElse { false }
+
+        if (authenticated) return true
 
         val message = "Your VTOP session has expired. Sign in again to sync."
         _error.value = message
         _syncMessage.value = message
         _syncStatus.value = message
-        modules.forEach { SyncEngine.markModuleError(it, message) }
+        modules.forEach {
+            SyncEngine.markModuleError(it, message)
+            SyncEngine.addLog(it, message, SyncStatus.ERROR)
+        }
         return false
     }
 
@@ -1148,40 +1146,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             _syncStatus.value = "Running ${mode.label}..."
             notificationService.showLoadingNotification("AmazeCC Sync", "Running ${mode.label}...")
             try {
-                if (AmazeClient.vtopSource != com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
-                    if (AmazeClient.ensureSession()) {
-                        val csrfNow = SessionManager.csrf.value
-                        val idNow = SessionManager.authorizedID.value
-                        val cookiesNow = SessionManager.cookies.value
-                        if (csrfNow != null && idNow != null && cookiesNow != null) {
-                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, cookiesNow)
-                            SettingsManager.setString(SettingsManager.SESSION_CSRF, csrfNow)
-                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, idNow)
-                            UserStore.merge(IdentityExtractor.fromSession(idNow), IdentitySource.SESSION)
-                        }
-                    } else {
-                        val creds = SettingsManager.getCredentials()
-                        if (creds != null) {
-                            try {
-                                val loginRes = AmazeClient.login(creds.first, creds.second)
-                                if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
-                                    SessionManager.saveSession(
-                                        cookies = loginRes.cookies,
-                                        csrf = loginRes.csrf,
-                                        authorizedID = loginRes.authorizedID,
-                                        clubToken = loginRes.clubToken
-                                    )
-                                    SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
-                                    SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
-                                    SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
-                                    loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                                    UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
-                                }
-                            } catch (e: Exception) { println("AmazeCC: AppState loadMode sessionRefresh — ${e.message}") }
-                        }
-                    }
-                }
-
                 val sem = _selectedSemester.value
                 val results = supervisorScope {
                     val jobs = mutableListOf<kotlinx.coroutines.Deferred<SyncModuleResult>>()
@@ -1378,42 +1342,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             _syncStatus.value = "Refreshing VTOP session..."
             notificationService.showLoadingNotification("AmazeCC Sync", "Refreshing VTOP session...")
             try {
-                // ── Refresh VTOP session before syncing (cookies expire every 10 min) ──
-                // On LOCAL this re-hydrates from the WebView's JSESSIONID rather than doing a
-                // credential login, which would need a captcha nobody is there to answer.
-                if (AmazeClient.ensureSession()) {
-                    val csrfNow = SessionManager.csrf.value
-                    val idNow = SessionManager.authorizedID.value
-                    val cookiesNow = SessionManager.cookies.value
-                    if (csrfNow != null && idNow != null && cookiesNow != null) {
-                        SettingsManager.setString(SettingsManager.SESSION_COOKIES, cookiesNow)
-                        SettingsManager.setString(SettingsManager.SESSION_CSRF, csrfNow)
-                        SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, idNow)
-                        UserStore.merge(IdentityExtractor.fromSession(idNow), IdentitySource.SESSION)
-                    }
-                } else {
-                    // Fall back to a full credential login, which only works on REMOTE.
-                    val creds = SettingsManager.getCredentials()
-                    if (creds != null) {
-                        try {
-                            val loginRes = AmazeClient.login(creds.first, creds.second)
-                            if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
-                            SessionManager.saveSession(
-                                cookies = loginRes.cookies,
-                                csrf = loginRes.csrf,
-                                authorizedID = loginRes.authorizedID,
-                                clubToken = loginRes.clubToken
-                            )
-                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
-                            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
-                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
-                            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
-                            }
-                        } catch (e: Exception) { println("AmazeCC: AppState loadAllData sessionRefresh — ${e.message}") }
-                    }
-                }
-
                 _syncMessage.value = "Syncing academic and campus data..."
                 _syncStatus.value = "Syncing academic and campus data..."
                 val sem = _selectedSemester.value
@@ -2221,28 +2149,7 @@ val results = supervisorScope {
         if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
         launchSweep(setOf(SyncModule.EXAM_SCHEDULE)) {
             _syncStatus.value = "Logging into VTOP & syncing exam schedule..."
-            // Ensure fresh VTOP login session before fetching exam schedule
-                val creds = SettingsManager.getCredentials()
-                if (creds != null) {
-                    try {
-                        val loginRes = AmazeClient.login(creds.first, creds.second)
-                        if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
-                            SessionManager.saveSession(
-                                cookies = loginRes.cookies,
-                                csrf = loginRes.csrf,
-                                authorizedID = loginRes.authorizedID,
-                                clubToken = loginRes.clubToken
-                            )
-                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
-                            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
-                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
-                            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
-                        }
-                    } catch (e: Exception) { println("AmazeCC: refreshExamSchedule session refresh error — ${e.message}") }
-                }
-
-                val semId = _selectedExamSemester.value
+            val semId = _selectedExamSemester.value
                 val result = syncModule(
                     name = "Exam schedule",
                     fetch = { AmazeClient.getExamSchedule(semesterId = semId) },
@@ -2738,24 +2645,12 @@ fun updateMoodleData(data: MoodleRes?) {
 
             // Session refresh
             updateOnboardingStep("Session", "syncing")
-            try {
-                val creds = SettingsManager.getCredentials()
-                if (creds != null) {
-                    val loginRes = AmazeClient.login(creds.first, creds.second)
-                    if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
-                        SessionManager.saveSession(
-                            cookies = loginRes.cookies, csrf = loginRes.csrf,
-                            authorizedID = loginRes.authorizedID, clubToken = loginRes.clubToken
-                        )
-                        SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
-                        SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
-                        SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
-                        loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
-                    }
-                }
-                updateOnboardingStep("Session", "done")
-            } catch (_: Exception) { updateOnboardingStep("Session", "failed") }
+            val ok = SyncEngine.ensureAuthenticatedSession()
+            if (!ok) {
+                updateOnboardingStep("Session", "failed")
+                return@withStageProfile
+            }
+            updateOnboardingStep("Session", "done")
 
             val sem = _selectedSemester.value
 
@@ -2817,24 +2712,6 @@ fun updateMoodleData(data: MoodleRes?) {
             _syncStatus.value = "Running scheduled refresh..."
             notificationService.showLoadingNotification("AmazeCC Sync", "Running scheduled refresh...")
             try {
-                val creds = SettingsManager.getCredentials()
-                if (creds != null) {
-                    try {
-                        val loginRes = AmazeClient.login(creds.first, creds.second)
-                        if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
-                            SessionManager.saveSession(
-                                cookies = loginRes.cookies, csrf = loginRes.csrf,
-                                authorizedID = loginRes.authorizedID, clubToken = loginRes.clubToken
-                            )
-                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
-                            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
-                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
-                            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                            UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
-                        }
-                    } catch (e: Exception) { println("AmazeCC: runLightReload sessionRefresh — ${e.message}") }
-                }
-
                 val sem = _selectedSemester.value
                 val results = supervisorScope {
                     val syncResults = listOf(

@@ -112,7 +112,13 @@ object AmazeClient {
         }
     }
 
-    suspend fun login(username: String, password: String, captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler? = null): LoginResponse {
+    suspend fun login(
+        username: String,
+        password: String,
+        captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler = com.amazecc.app.shared.vtop.CaptchaHandler { challenge ->
+            com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha(challenge)
+        }
+    ): LoginResponse {
         if (useMockData) return DemoData.get("login", LoginResponse.serializer()) ?: LoginResponse(success = true, message = "Demo login successful")
 
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
@@ -153,10 +159,12 @@ object AmazeClient {
      * shape the remote path does, so callers are unchanged. The cookie field carries
      * [SessionManager.LOCAL_SESSION_MARKER] because the real `JSESSIONID` stays in the WebView.
      */
-    private suspend fun loginLocal(
+    internal suspend fun loginLocal(
         username: String,
         password: String,
-        captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler?
+        captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler = com.amazecc.app.shared.vtop.CaptchaHandler { challenge ->
+            com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha(challenge)
+        }
     ): LoginResponse {
         if (!com.amazecc.app.shared.vtop.Vtop.isSupported) {
             return LoginResponse(
@@ -1962,41 +1970,118 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
     }
 
     /**
-     * Makes sure [com.amazecc.app.shared.vtop.VtopSession] holds usable tokens before a sync sweep.
+     * Guarantees that [com.amazecc.app.shared.vtop.VtopSession] and [SessionManager] hold valid,
+     * fresh authentication tokens before any sync or scraping operation begins.
      *
-     * On `LOCAL` this deliberately does **not** perform a credential login: [loginLocal] needs a
-     * captcha handler, and a sweep runs unattended with nobody to answer one. Passing null there
-     * makes the refresh fail with `missing_captcha_handler` *before* any module runs, which is
-     * what leaves every module reporting "No VTOP session".
+     * In [com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE], always returns true.
      *
-     * Instead the WebView still holds a valid `JSESSIONID`, so the tokens are re-hydrated from
-     * it. Only `REMOTE` needs the real login round-trip.
+     * In [com.amazecc.app.shared.vtop.VtopSource.LOCAL]:
+     * 1. Checks cached session freshness (![com.amazecc.app.shared.vtop.VtopSession.isExpired]).
+     * 2. If expired or [forceFresh] is true, attempts silent restoration via
+     *    [com.amazecc.app.shared.vtop.Vtop.restoreSessionIfPossible()].
+     * 3. If silent restoration fails or session remains expired, retrieves saved credentials from
+     *    [SettingsManager.getCredentials] and attempts [loginLocal] with [captchaHandler].
+     * 4. Upon successful authentication, validates tokens, marks [com.amazecc.app.shared.vtop.VtopSession]
+     *    active, persists to [SessionManager.saveSession], and merges identity into [UserStore].
      *
-     * Returns whether a session is usable afterwards.
+     * In [com.amazecc.app.shared.vtop.VtopSource.REMOTE]:
+     * Verifies [SessionManager.isLoggedIn] and not stale, otherwise calls [refreshSession].
+     *
+     * @param forceFresh If true, bypasses in-memory session freshness and forces a session refresh or re-login.
+     * @param captchaHandler Handler to resolve captcha challenges. Defaults to [com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha].
+     * @return true if an authenticated, unexpired session is ready; false otherwise.
      */
-    suspend fun ensureSession(): Boolean {
+    suspend fun ensureSession(
+        forceFresh: Boolean = false,
+        captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler = com.amazecc.app.shared.vtop.CaptchaHandler { challenge ->
+            com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha(challenge)
+        }
+    ): Boolean {
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return true
-        if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.LOCAL) return refreshSession()
-        if (com.amazecc.app.shared.vtop.VtopSession.hasSession) return true
 
-        if (!com.amazecc.app.shared.vtop.Vtop.restoreSessionIfPossible()) return false
-        val csrf = com.amazecc.app.shared.vtop.VtopSession.csrf.value ?: return false
-        val id = com.amazecc.app.shared.vtop.VtopSession.authorizedID.value ?: return false
-        SessionManager.saveSession(
-            cookies = SessionManager.LOCAL_SESSION_MARKER,
-            csrf = csrf,
-            authorizedID = id,
-            clubToken = null
-        )
-        return true
+        // 1. If not forcing fresh and session is still fresh and valid, return true immediately
+        if (!forceFresh) {
+            if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+                if (com.amazecc.app.shared.vtop.VtopSession.hasSession && !com.amazecc.app.shared.vtop.VtopSession.isExpired) {
+                    return true
+                }
+            } else {
+                if (SessionManager.isLoggedIn && !SessionManager.isSessionStale(com.amazecc.app.shared.vtop.VtopSession.SESSION_REFRESH_THRESHOLD_MS)) {
+                    return true
+                }
+            }
+        }
+
+        // 2. Local mode session re-establishment
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            // Step A: Attempt silent re-hydration from WebView cookies
+            if (!forceFresh && com.amazecc.app.shared.vtop.Vtop.restoreSessionIfPossible() && !com.amazecc.app.shared.vtop.VtopSession.isExpired) {
+                com.amazecc.app.shared.vtop.VtopSession.markActive()
+                val csrf = com.amazecc.app.shared.vtop.VtopSession.csrf.value
+                val id = com.amazecc.app.shared.vtop.VtopSession.authorizedID.value
+                if (!csrf.isNullOrBlank() && !id.isNullOrBlank()) {
+                    SessionManager.saveSession(
+                        cookies = SessionManager.LOCAL_SESSION_MARKER,
+                        csrf = csrf,
+                        authorizedID = id,
+                        clubToken = null
+                    )
+                    SettingsManager.setString(SettingsManager.SESSION_COOKIES, SessionManager.LOCAL_SESSION_MARKER)
+                    SettingsManager.setString(SettingsManager.SESSION_CSRF, csrf)
+                    SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, id)
+                    com.amazecc.app.shared.state.UserStore.merge(
+                        com.amazecc.app.shared.state.IdentityExtractor.fromSession(id),
+                        com.amazecc.app.shared.state.IdentitySource.SESSION
+                    )
+                    return true
+                }
+            }
+
+            // Step B: Auto-login with stored credentials
+            val creds = SettingsManager.getCredentials() ?: return false
+            if (creds.first.isBlank() || creds.second.isBlank()) return false
+
+            val loginRes = loginLocal(creds.first, creds.second, captchaHandler)
+            if (loginRes.success && !loginRes.csrf.isNullOrBlank() && !loginRes.authorizedID.isNullOrBlank()) {
+                com.amazecc.app.shared.vtop.VtopSession.markActive()
+                SessionManager.saveSession(
+                    cookies = SessionManager.LOCAL_SESSION_MARKER,
+                    csrf = loginRes.csrf,
+                    authorizedID = loginRes.authorizedID,
+                    clubToken = loginRes.clubToken
+                )
+                SettingsManager.setString(SettingsManager.SESSION_COOKIES, SessionManager.LOCAL_SESSION_MARKER)
+                SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
+                SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
+                loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                com.amazecc.app.shared.state.UserStore.merge(
+                    com.amazecc.app.shared.state.IdentityExtractor.fromSession(loginRes.authorizedID),
+                    com.amazecc.app.shared.state.IdentitySource.SESSION
+                )
+                return true
+            }
+            return false
+        }
+
+        // 3. Remote mode: perform full login refresh via Hono backend
+        return refreshSession()
     }
 
     /** Re-logs-in to VTOP with the stored credentials and refreshes the session. */
     private suspend fun refreshSession(): Boolean {
         val credentials = SettingsManager.getCredentials() ?: return false
+        if (credentials.first.isBlank() || credentials.second.isBlank()) return false
         val response = login(credentials.first, credentials.second)
         if (response.success && response.cookies != null && response.csrf != null && response.authorizedID != null) {
             SessionManager.saveSession(response.cookies, response.csrf, response.authorizedID, response.clubToken)
+            SettingsManager.setString(SettingsManager.SESSION_COOKIES, response.cookies)
+            SettingsManager.setString(SettingsManager.SESSION_CSRF, response.csrf)
+            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
+            response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+            com.amazecc.app.shared.state.UserStore.merge(
+                com.amazecc.app.shared.state.IdentityExtractor.fromSession(response.authorizedID),
+                com.amazecc.app.shared.state.IdentitySource.SESSION
+            )
             return true
         }
         return false

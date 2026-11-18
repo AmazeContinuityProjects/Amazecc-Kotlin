@@ -192,7 +192,7 @@ fun M3ETransportScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(vertical = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -225,6 +225,11 @@ fun M3ETransportScreen(
                 )
             }
         }
+
+        // Bottom Spacing for floating navigation bar clearance (140dp)
+        item(key = "bottom_spacer") {
+            Spacer(Modifier.height(140.dp))
+        }
     }
 }
 
@@ -247,9 +252,7 @@ private fun BusRouteCard(
             .clickable(onClick = onToggleExpand)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             // Header Row: Route Number & Type Badge
             Row(

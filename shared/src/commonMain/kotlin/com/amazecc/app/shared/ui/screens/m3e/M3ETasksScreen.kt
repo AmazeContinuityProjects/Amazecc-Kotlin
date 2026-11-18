@@ -218,7 +218,7 @@ fun M3ETasksScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(vertical = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -245,6 +245,11 @@ fun M3ETasksScreen(
                 )
             }
         }
+
+        // Bottom Spacing for floating navigation bar clearance (140dp)
+        item(key = "bottom_spacer") {
+            Spacer(Modifier.height(140.dp))
+        }
     }
 }
 
@@ -264,9 +269,7 @@ private fun TaskItemCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {

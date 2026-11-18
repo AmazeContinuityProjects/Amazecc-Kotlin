@@ -189,7 +189,7 @@ fun M3EEventHubScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(vertical = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -216,6 +216,11 @@ fun M3EEventHubScreen(
                 )
             }
         }
+
+        // Bottom Spacing for floating navigation bar clearance (140dp)
+        item(key = "bottom_spacer") {
+            Spacer(Modifier.height(140.dp))
+        }
     }
 }
 
@@ -236,9 +241,7 @@ private fun EventCard(
             .clickable(onClick = onClick)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             // Fest & Category Tags Row
             Row(

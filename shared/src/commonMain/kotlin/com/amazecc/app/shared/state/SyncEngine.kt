@@ -515,6 +515,37 @@ object SyncEngine {
 
     fun isModuleEnabled(module: SyncModule): Boolean = module in activeProfile.enabledModules
 
+    /**
+     * Authoritative pre-flight session check for all sync sweeps and operations.
+     *
+     * Guarantees that VTOP credentials / session cookies are verified, fresh,
+     * and authenticated before any route scraping or API fetching begins.
+     *
+     * Bypassed automatically when:
+     * - [com.amazecc.app.shared.api.AmazeClient.vtopSource] is [com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE].
+     * - The sweep contains only modules that do not use VTOP (e.g. LMS, MOODLE).
+     */
+    suspend fun ensureAuthenticatedSession(
+        modules: Set<SyncModule> = emptySet(),
+        forceFresh: Boolean = false,
+        captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler? = null
+    ): Boolean {
+        if (com.amazecc.app.shared.api.AmazeClient.vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return true
+        }
+        val needsVtop = modules.isEmpty() || modules.any { it != SyncModule.LMS && it != SyncModule.MOODLE }
+        if (!needsVtop) return true
+
+        val handler = captchaHandler ?: com.amazecc.app.shared.vtop.CaptchaHandler { challenge ->
+            com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha(challenge)
+        }
+
+        return com.amazecc.app.shared.api.AmazeClient.ensureSession(
+            forceFresh = forceFresh,
+            captchaHandler = handler
+        )
+    }
+
     // ── Sweep lifecycle ──
     fun beginSweep(modules: Set<SyncModule>) {
         sweepActive = true

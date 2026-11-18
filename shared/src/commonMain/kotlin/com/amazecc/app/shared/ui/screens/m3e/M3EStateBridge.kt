@@ -1464,18 +1464,97 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
     val isLoading by AppState.isLoading.collectAsState()
 
     var isFlipped by remember { mutableStateOf(false) }
+    var isEditingFriendlyName by remember { mutableStateOf(false) }
+    var showVtopPassword by remember { mutableStateOf(false) }
+
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
 
     val proctor = identityState.proctor
     val hostel = hostelRes?.hostelInfo
     val currentSem = domain.academics.semesters[selectedSemId]
-    val cgpa = currentSem?.gpa?.trim()?.toDoubleOrNull() ?: 9.24
+    val cgpa = domain.academics.cgpa ?: currentSem?.gpa?.trim()?.toDoubleOrNull() ?: if (identityState.hasIdentity) 0.0 else 9.24
+    val attendancePct = domain.academics.overallAttendancePct ?: if (identityState.hasIdentity) 0.0 else 88.5
+
+    val mentors = remember(identityState) {
+        val list = mutableListOf<com.amazecc.app.shared.domain.overhaul.M3EMentorItem>()
+        proctor?.let {
+            list.add(
+                com.amazecc.app.shared.domain.overhaul.M3EMentorItem(
+                    role = "Proctor",
+                    name = it.name ?: "Proctor",
+                    designation = it.designation,
+                    department = it.department ?: it.school,
+                    email = it.email,
+                    phone = it.phone,
+                    cabin = it.cabin,
+                    photoBase64 = it.photoBase64
+                )
+            )
+        }
+        identityState.hodDean.forEach { official ->
+            list.add(
+                com.amazecc.app.shared.domain.overhaul.M3EMentorItem(
+                    role = official.role ?: "Leadership",
+                    name = official.name ?: "",
+                    designation = official.designation,
+                    department = official.department ?: official.school,
+                    email = official.email,
+                    phone = official.phone,
+                    cabin = official.cabin,
+                    photoBase64 = official.photoBase64
+                )
+            )
+        }
+        list
+    }
+
+    val addresses = remember(identityState) {
+        val list = mutableListOf<com.amazecc.app.shared.domain.overhaul.M3EAddressItem>()
+        if (identityState.currentAddress.isNotEmpty()) {
+            list.add(
+                com.amazecc.app.shared.domain.overhaul.M3EAddressItem(
+                    title = "Current Address",
+                    lines = identityState.currentAddress.map { "${it.label}: ${it.value}" }
+                )
+            )
+        }
+        if (identityState.permanentAddress.isNotEmpty()) {
+            list.add(
+                com.amazecc.app.shared.domain.overhaul.M3EAddressItem(
+                    title = "Permanent Address",
+                    lines = identityState.permanentAddress.map { "${it.label}: ${it.value}" }
+                )
+            )
+        }
+        list
+    }
+
+    val personalRecords = remember(identityState) {
+        listOfNotNull(
+            identityState.nationality?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Nationality", it) },
+            identityState.nativeLanguage?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Native Language", it) },
+            identityState.nativeState?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Native State", it) },
+            identityState.community?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Community", it) },
+            identityState.religion?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Religion", it) },
+            identityState.caste?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Caste", it) },
+            identityState.physicallyChallenged?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Physically Challenged", it) },
+            identityState.aadharNumber?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Aadhar Number", it) },
+            identityState.friendMobile?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Friend Mobile", it) },
+            identityState.bloodGroup?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Blood Group", it) }
+        )
+    }
+
+    val vtopCred = identityState.credentials.firstOrNull { it.accountType.contains("VTOP", ignoreCase = true) }
+    val vtopUser = vtopCred?.username ?: identityState.regNo ?: ""
+    val vtopPass = vtopCred?.password ?: ""
 
     val state = M3EProfileState(
-        studentName = identityState.name ?: "Student Name",
+        studentName = identityState.displayName,
         registrationNumber = identityState.regNo ?: "21BCE0000",
-        applicationNumber = "1202200000",
+        applicationNumber = identityState.applicationNumber ?: identityState.regNo ?: "1202200000",
         programme = identityState.program ?: "B.Tech Computer Science & Engineering",
-        school = identityState.proctor?.school ?: "SCOPE",
+        school = identityState.school ?: identityState.proctor?.school ?: "SCOPE",
         campus = identityState.campus ?: "Vellore Campus",
         dob = identityState.dob ?: "01 Jan 2004",
         bloodGroup = identityState.bloodGroup ?: "O +ve",
@@ -1487,9 +1566,28 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
         hostelBlock = hostel?.blockName ?: "Q Block",
         hostelRoom = hostel?.roomNo ?: "514",
         cgpa = cgpa,
-        attendancePercentage = 88.5,
+        attendancePercentage = attendancePct,
         isIdCardFlipped = isFlipped,
-        isLoading = isLoading
+        isLoading = isLoading,
+        photoBase64 = identityState.photoBase64,
+        friendlyName = identityState.friendlyName,
+        isEditingFriendlyName = isEditingFriendlyName,
+        proctorPhotoBase64 = proctor?.photoBase64,
+        proctorPhone = proctor?.phone,
+        proctorDepartment = proctor?.department ?: proctor?.school,
+        proctorDesignation = proctor?.designation,
+        bankInfo = identityState.bank?.let { b -> if (b.name != null) "${b.name} (${b.accountNumber ?: "Active"})" else "Verified & On File" },
+        apaarId = identityState.apaar?.apaarId ?: if (identityState.apaar?.hasApaar == true) "Linked to Portal" else null,
+        dayboarderInfo = identityState.dayboarder?.let { if (it.isDayboarder) "Day Boarder (${it.campus ?: "Verified"})" else "Hosteller" },
+        eptStatus = if (identityState.eptTables.isNotEmpty()) "${identityState.eptTables.size} Scheduled Exams" else "No Active Exams",
+        rankAir = identityState.ranks.firstOrNull()?.rank?.let { "AIR $it" },
+        registrationSchedule = identityState.registrationTables.firstOrNull()?.caption ?: identityState.registrationFields.firstOrNull()?.value,
+        vtopUsername = vtopUser,
+        vtopPassword = vtopPass,
+        showVtopPassword = showVtopPassword,
+        mentors = mentors,
+        addresses = addresses,
+        personalRecords = personalRecords
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -1498,10 +1596,34 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
             onAction = { action ->
                 when (action) {
                     is M3EProfileAction.FlipIdCard -> isFlipped = !isFlipped
-                    is M3EProfileAction.CopyRegNo -> {}
-                    is M3EProfileAction.ContactProctor -> {}
+                    is M3EProfileAction.CopyRegNo -> {
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(state.registrationNumber))
+                    }
+                    is M3EProfileAction.ContactProctor -> {
+                        if (state.proctorEmail.isNotBlank()) {
+                            try { uriHandler.openUri("mailto:${state.proctorEmail}") } catch (_: Exception) {}
+                        }
+                    }
                     is M3EProfileAction.SignOut -> AppState.logout()
-                    is M3EProfileAction.Refresh -> AppState.loadAllData()
+                    is M3EProfileAction.Refresh -> AppState.refreshProfile()
+                    is M3EProfileAction.SaveFriendlyName -> {
+                        com.amazecc.app.shared.repository.SettingsManager.setString("friendly_name", action.name)
+                        com.amazecc.app.shared.state.UserStore.merge(
+                            com.amazecc.app.shared.model.StudentIdentity(friendlyName = action.name),
+                            com.amazecc.app.shared.state.IdentitySource.SESSION
+                        )
+                        isEditingFriendlyName = false
+                    }
+                    is M3EProfileAction.ToggleVtopPasswordVisibility -> showVtopPassword = !showVtopPassword
+                    is M3EProfileAction.CopyText -> {
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(action.text))
+                    }
+                    is M3EProfileAction.OpenEmail -> {
+                        try { uriHandler.openUri("mailto:${action.email}") } catch (_: Exception) {}
+                    }
+                    is M3EProfileAction.OpenPhone -> {
+                        try { uriHandler.openUri("tel:${action.phone}") } catch (_: Exception) {}
+                    }
                 }
             },
             modifier = modifier

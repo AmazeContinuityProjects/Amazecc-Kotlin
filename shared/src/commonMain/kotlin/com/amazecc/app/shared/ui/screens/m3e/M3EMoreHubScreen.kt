@@ -121,13 +121,13 @@ fun M3EMoreHubScreen(
         eyebrow = "VIT CHENNAI",
         title = "Campus Features",
         subtitle = "Explore all services & campus utilities",
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 140.dp),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 0.dp),
         modifier = modifier
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 24.dp)
+            contentPadding = PaddingValues(bottom = 140.dp)
         ) {
             // 1. Search Bar Pill
             item {
@@ -287,14 +287,6 @@ private fun FeatureTileCard(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.98f else 1.0f,
-        animationSpec = M3ETheme.motion.spatialFast(),
-        label = "TileScale"
-    )
 
     val icon: ImageVector = when (screen) {
         M3ESubScreen.ATTENDANCE -> Icons.Rounded.EventAvailable
@@ -332,22 +324,11 @@ private fun FeatureTileCard(
     M3ESurfaceCard(
         containerLevel = SurfaceContainerLevel.LOW,
         cornerRadius = 20.dp,
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clickable(
-                interactionSource = interactionSource,
-                indication = null,
-                onClick = onClick
-            )
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {

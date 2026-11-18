@@ -332,7 +332,7 @@ object Vtop {
      * Returns true when a session was restored. Never prompts, so it is safe to call on startup.
      */
     suspend fun restoreSessionIfPossible(): Boolean {
-        if (VtopSession.hasSession) return true
+        if (VtopSession.hasSession && !VtopSession.isExpired) return true
         if (!isSupported) return false
 
         val e = engine()

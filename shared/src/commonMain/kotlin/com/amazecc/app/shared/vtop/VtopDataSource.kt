@@ -236,30 +236,14 @@ object VtopDataSource {
 
     /**
      * Guarantees a valid, unexpired VTOP session before performing any headless scraping.
-     * VTOP sessions expire after 10 minutes (600,000 ms). If the session is older than 9.5m
-     * or expired, this performs a silent cookie restoration or auto-login with stored credentials.
+     * Delegates to [com.amazecc.app.shared.api.AmazeClient.ensureSession] to ensure
+     * consistent token persistence, session lifetime management, and UserStore synchronization.
      */
-    suspend fun ensureSession(): Boolean {
-        if (VtopSession.hasSession && !VtopSession.isExpired) {
-            return true
-        }
-
-        // 1. Try to restore session from existing WebView cookies if not expired
-        if (Vtop.restoreSessionIfPossible() && !VtopSession.isExpired) {
-            VtopSession.markActive()
-            return true
-        }
-
-        // 2. If session expired or invalid, auto-login using stored credentials
-        val creds = SettingsManager.getCredentials()
-        if (creds != null && creds.first.isNotBlank() && creds.second.isNotBlank()) {
-            val result = Vtop.login(creds.first, creds.second, captchaHandler = { challenge -> Vtop.awaitUiCaptcha(challenge) })
-            if (result is LoginResult.Success) {
-                VtopSession.markActive()
-                return true
-            }
-        }
-        return VtopSession.hasSession && !VtopSession.isExpired
+    suspend fun ensureSession(
+        forceFresh: Boolean = false,
+        captchaHandler: CaptchaHandler = CaptchaHandler { challenge -> Vtop.awaitUiCaptcha(challenge) }
+    ): Boolean {
+        return com.amazecc.app.shared.api.AmazeClient.ensureSession(forceFresh, captchaHandler)
     }
 
     private suspend fun rows(

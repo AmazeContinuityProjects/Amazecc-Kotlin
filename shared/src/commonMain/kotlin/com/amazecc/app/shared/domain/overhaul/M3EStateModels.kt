@@ -935,6 +935,27 @@ sealed interface M3ETasksAction {
 // 20. PROFILE & DIGITAL ID IMMUTABLE STATE & ACTIONS
 // ==========================================
 
+data class M3EMentorItem(
+    val role: String,
+    val name: String,
+    val designation: String? = null,
+    val department: String? = null,
+    val email: String? = null,
+    val phone: String? = null,
+    val cabin: String? = null,
+    val photoBase64: String? = null
+)
+
+data class M3EAddressItem(
+    val title: String,
+    val lines: List<String> = emptyList()
+)
+
+data class M3EFieldItem(
+    val label: String,
+    val value: String
+)
+
 data class M3EProfileState(
     val studentName: String,
     val registrationNumber: String,
@@ -954,7 +975,27 @@ data class M3EProfileState(
     val cgpa: Double,
     val attendancePercentage: Double,
     val isIdCardFlipped: Boolean = false,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    // Enhanced Parity Fields
+    val photoBase64: String? = null,
+    val friendlyName: String? = null,
+    val isEditingFriendlyName: Boolean = false,
+    val proctorPhotoBase64: String? = null,
+    val proctorPhone: String? = null,
+    val proctorDepartment: String? = null,
+    val proctorDesignation: String? = null,
+    val bankInfo: String? = null,
+    val apaarId: String? = null,
+    val dayboarderInfo: String? = null,
+    val eptStatus: String? = null,
+    val rankAir: String? = null,
+    val registrationSchedule: String? = null,
+    val vtopUsername: String? = null,
+    val vtopPassword: String? = null,
+    val showVtopPassword: Boolean = false,
+    val mentors: List<M3EMentorItem> = emptyList(),
+    val addresses: List<M3EAddressItem> = emptyList(),
+    val personalRecords: List<M3EFieldItem> = emptyList()
 )
 
 sealed interface M3EProfileAction {
@@ -963,6 +1004,11 @@ sealed interface M3EProfileAction {
     data object ContactProctor : M3EProfileAction
     data object SignOut : M3EProfileAction
     data object Refresh : M3EProfileAction
+    data class SaveFriendlyName(val name: String) : M3EProfileAction
+    data object ToggleVtopPasswordVisibility : M3EProfileAction
+    data class CopyText(val text: String, val label: String) : M3EProfileAction
+    data class OpenEmail(val email: String) : M3EProfileAction
+    data class OpenPhone(val phone: String) : M3EProfileAction
 }
 
 // ==========================================

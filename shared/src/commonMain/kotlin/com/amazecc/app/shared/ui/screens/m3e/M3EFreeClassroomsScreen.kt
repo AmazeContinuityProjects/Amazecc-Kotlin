@@ -209,7 +209,7 @@ fun M3EFreeClassroomsScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(vertical = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -232,6 +232,11 @@ fun M3EFreeClassroomsScreen(
                 ClassroomSlotCard(room = room)
             }
         }
+
+        // Bottom Spacing for floating navigation bar clearance (140dp)
+        item(key = "bottom_spacer") {
+            Spacer(Modifier.height(140.dp))
+        }
     }
 }
 
@@ -248,9 +253,7 @@ private fun ClassroomSlotCard(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             // Room Number & Availability Status Badge
             Row(

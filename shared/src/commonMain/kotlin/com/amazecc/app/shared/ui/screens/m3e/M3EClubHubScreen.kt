@@ -191,7 +191,7 @@ fun M3EClubHubScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(vertical = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Icon(
@@ -219,6 +219,11 @@ fun M3EClubHubScreen(
                 )
             }
         }
+
+        // Bottom Spacing for floating navigation bar clearance (140dp)
+        item(key = "bottom_spacer") {
+            Spacer(Modifier.height(140.dp))
+        }
     }
 }
 
@@ -240,9 +245,7 @@ private fun ClubCard(
             .clickable(onClick = onToggleExpand)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(18.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             // Header Row: Type and Recruiting Status
             Row(

@@ -104,8 +104,11 @@ data class StudentIdentity(
     val bloodGroup: String? = null,
     val photoBase64: String? = null,
     val isHosteller: Boolean = false,
+    val friendlyName: String? = null,
+    val applicationNumber: String? = null,
     // Academic
     val program: String? = null,
+    val school: String? = null,
     val campus: String? = null,
     val batch: String? = null,
     val section: String? = null,
@@ -119,6 +122,7 @@ data class StudentIdentity(
     val caste: String? = null,
     val physicallyChallenged: String? = null,
     val aadharNumber: String? = null,
+    val friendMobile: String? = null,
     // Family & residence
     val currentAddress: List<KeyValueRow> = emptyList(),
     val permanentAddress: List<KeyValueRow> = emptyList(),
@@ -142,7 +146,7 @@ data class StudentIdentity(
     val apaar: ApaarInfo? = null,
     val bank: BankInfo? = null
 ) {
-    val displayName: String get() = name?.takeIf { it.isNotBlank() } ?: regNo ?: "Student"
+    val displayName: String get() = friendlyName?.takeIf { it.isNotBlank() } ?: name?.takeIf { it.isNotBlank() } ?: regNo ?: "Student"
 
     val displayRegNo: String get() = regNo ?: ""
 

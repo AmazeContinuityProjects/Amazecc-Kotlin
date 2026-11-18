@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,39 +21,59 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Email
+import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.FlipCameraAndroid
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.HowToReg
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.SupervisorAccount
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.overhaul.M3EAddressItem
+import com.amazecc.app.shared.domain.overhaul.M3EFieldItem
+import com.amazecc.app.shared.domain.overhaul.M3EMentorItem
 import com.amazecc.app.shared.domain.overhaul.M3EProfileAction
 import com.amazecc.app.shared.domain.overhaul.M3EProfileState
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toImageBitmap
+import io.ktor.util.decodeBase64Bytes
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Material 3 Expressive Digital Student ID & Profile Screen.
  * 100% Stateless: accepts [M3EProfileState] and emits [M3EProfileAction].
- * Features double-sided Digital ID card with library barcode, proctor contacts, and academic stats.
+ * Features double-sided Digital ID card with photo decoding, status cards, proctor/mentor cards,
+ * personal records, addresses, and VTOP credentials.
  */
 @Composable
 fun M3EProfileScreen(
@@ -98,12 +119,12 @@ fun M3EProfileScreen(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(colors.surfaceContainerHigh)
+                            .background(colors.surfaceContainerLow)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.Refresh,
                             contentDescription = "Refresh",
-                            tint = colors.primary,
+                            tint = colors.onSurface,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -159,17 +180,76 @@ fun M3EProfileScreen(
             }
         }
 
-        // 4. Proctor Card
+        // 4. Status Cards Grid
+        val statusCards = remember(state) {
+            listOfNotNull(
+                state.bankInfo?.let { Triple("Bank Details", it, Icons.Rounded.AccountBalance) },
+                state.apaarId?.let { Triple("APAAR / ABC ID", it, Icons.Rounded.Badge) },
+                state.dayboarderInfo?.let { Triple("Campus Residence", it, Icons.Rounded.Home) },
+                state.eptStatus?.let { Triple("EPT Schedule", it, Icons.Rounded.School) },
+                state.registrationSchedule?.let { Triple("Registration", it, Icons.Rounded.HowToReg) },
+                state.rankAir?.let { Triple("Entrance Rank", it, Icons.Rounded.EmojiEvents) }
+            )
+        }
+        if (statusCards.isNotEmpty()) {
+            item {
+                StatusCardsSection(statusCards = statusCards)
+            }
+        }
+
+        // 5. Proctor Contact Card
         item {
             ProctorContactCard(
                 state = state,
-                onContact = { onAction(M3EProfileAction.ContactProctor) }
+                onContact = { onAction(M3EProfileAction.ContactProctor) },
+                onPhone = { state.proctorPhone?.let { onAction(M3EProfileAction.OpenPhone(it)) } }
             )
         }
 
-        // 5. Personal Information Card
+        // 6. Faculty Mentors & Leadership Cards (if any HoD/Dean mentors exist)
+        val leadershipMentors = remember(state.mentors) {
+            state.mentors.filter { it.role != "Proctor" }
+        }
+        if (leadershipMentors.isNotEmpty()) {
+            item {
+                MentorsSection(
+                    mentors = leadershipMentors,
+                    onEmail = { onAction(M3EProfileAction.OpenEmail(it)) },
+                    onPhone = { onAction(M3EProfileAction.OpenPhone(it)) }
+                )
+            }
+        }
+
+        // 7. Personal Information Card
         item {
             PersonalDetailsCard(state = state)
+        }
+
+        // 8. Detailed Personal Records Grid (if available)
+        if (state.personalRecords.isNotEmpty()) {
+            item {
+                PersonalRecordsSection(records = state.personalRecords)
+            }
+        }
+
+        // 9. Address Records (Current & Permanent)
+        if (state.addresses.isNotEmpty()) {
+            item {
+                AddressRecordsSection(addresses = state.addresses)
+            }
+        }
+
+        // 10. VTOP Credentials Card
+        if (!state.vtopUsername.isNullOrBlank()) {
+            item {
+                CredentialsCard(
+                    username = state.vtopUsername,
+                    password = state.vtopPassword ?: "",
+                    showPassword = state.showVtopPassword,
+                    onToggleVisibility = { onAction(M3EProfileAction.ToggleVtopPasswordVisibility) },
+                    onCopy = { text, label -> onAction(M3EProfileAction.CopyText(text, label)) }
+                )
+            }
         }
     }
 }
@@ -183,6 +263,17 @@ private fun DigitalIdCard(
 ) {
     val colors = M3ETheme.colors
 
+    val photoBitmap = remember(state.photoBase64) {
+        state.photoBase64?.let { b64 ->
+            try {
+                val clean = if (b64.contains(",")) b64.substringAfter(",") else b64
+                clean.trim().decodeBase64Bytes().toImageBitmap()
+            } catch (_: Throwable) {
+                null
+            }
+        }
+    }
+
     M3ESurfaceCard(
         containerLevel = SurfaceContainerLevel.HIGH,
         cornerRadius = 24.dp,
@@ -191,30 +282,40 @@ private fun DigitalIdCard(
             .clickable(onClick = onFlip)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
-            // University Header Banner
+            // Card Top Banner
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(colors.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.School,
+                            contentDescription = null,
+                            tint = colors.onPrimaryContainer,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+
                     Text(
                         text = "VELLORE INSTITUTE OF TECHNOLOGY",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 10.sp,
                             letterSpacing = 1.sp
                         ),
                         color = colors.primary
-                    )
-                    Text(
-                        text = "STUDENT IDENTITY CARD",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                        color = colors.onSurfaceVariant
                     )
                 }
 
@@ -242,12 +343,21 @@ private fun DigitalIdCard(
                             .background(colors.primaryContainer),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Person,
-                            contentDescription = null,
-                            tint = colors.onPrimaryContainer,
-                            modifier = Modifier.size(40.dp)
-                        )
+                        if (photoBitmap != null) {
+                            Image(
+                                bitmap = photoBitmap,
+                                contentDescription = "Student Photo",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Rounded.Person,
+                                contentDescription = null,
+                                tint = colors.onPrimaryContainer,
+                                modifier = Modifier.size(40.dp)
+                            )
+                        }
                     }
 
                     Column(modifier = Modifier.weight(1f)) {
@@ -300,32 +410,34 @@ private fun DigitalIdCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(colors.surfaceContainerHighest)
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .background(colors.surfaceContainerLowest)
+                        .padding(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Simulated barcode stripes
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(28.dp),
+                            .height(36.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Simulated Barcode Pattern
                         repeat(32) { index ->
+                            val barWidth = if (index % 3 == 0) 3.dp else 1.5.dp
+                            val barHeight = if (index % 5 == 0) 34.dp else 28.dp
                             Box(
                                 modifier = Modifier
-                                    .width(if (index % 3 == 0) 3.dp else 1.5.dp)
-                                    .height(28.dp)
+                                    .width(barWidth)
+                                    .height(barHeight)
                                     .background(colors.onSurface)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "* ${state.registrationNumber} *",
+                        text = "*${state.registrationNumber}*",
                         style = MaterialTheme.typography.labelSmall.copy(
                             fontFamily = FontFamily.Monospace,
                             letterSpacing = 2.sp
@@ -334,30 +446,130 @@ private fun DigitalIdCard(
                     )
                 }
             } else {
-                // Back Side: Blood Group, Emergency, Hostel Room, Advisor
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // Back Side: Residence, Emergency, Blood Group, QR
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text(
-                        text = "Card Reverse Details",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                        color = colors.onSurface
+                        text = "EMERGENCY & RESIDENCE INFO",
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.8.sp
+                        ),
+                        color = colors.primary
                     )
 
-                    ProfileDataRow(label = "Blood Group", value = state.bloodGroup)
-                    ProfileDataRow(label = "Date of Birth", value = state.dob)
-                    ProfileDataRow(label = "Application Number", value = state.applicationNumber)
-                    ProfileDataRow(label = "Hostel & Room", value = "${state.hostelBlock ?: "Dayscholar"} • ${state.hostelRoom ?: "-"}")
-                    ProfileDataRow(label = "Faculty Proctor", value = state.proctorName)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Blood Group",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                            Text(
+                                text = state.bloodGroup,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.onSurface
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = "Date of Birth",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                            Text(
+                                text = state.dob,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.onSurface
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = "App No",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                            Text(
+                                text = state.applicationNumber,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.onSurface
+                            )
+                        }
+                    }
+
+                    if (state.hostelBlock != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Hostel Residence",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "${state.hostelBlock} - Room ${state.hostelRoom ?: "N/A"}",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.surfaceContainerLowest)
+                            .padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.QrCode2,
+                                contentDescription = null,
+                                tint = colors.primary,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = "Digital ID Signature",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.onSurface
+                                )
+                                Text(
+                                    text = "Verified VIT Smart Card",
+                                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Text(
+                            text = "TAP TO FLIP",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            ),
+                            color = colors.primary
+                        )
+                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = if (state.isIdCardFlipped) "Tap card to flip to front" else "Tap card to view details",
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = colors.onSurfaceVariant.copy(alpha = 0.7f),
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
         }
     }
 }
@@ -372,13 +584,11 @@ private fun MetricTile(
 
     M3ESurfaceCard(
         containerLevel = SurfaceContainerLevel.LOW,
-        cornerRadius = 18.dp,
+        cornerRadius = 16.dp,
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -400,9 +610,78 @@ private fun MetricTile(
 }
 
 @Composable
+private fun StatusCardsSection(
+    statusCards: List<Triple<String, String, ImageVector>>,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Academic & Campus Status",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = colors.onSurface
+        )
+
+        val pairs = statusCards.chunked(2)
+        pairs.forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                rowItems.forEach { (title, subtitle, icon) ->
+                    M3ESurfaceCard(
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        cornerRadius = 16.dp,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.primaryContainer),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = colors.onPrimaryContainer,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                    color = colors.onSurfaceVariant
+                                )
+                                Text(
+                                    text = subtitle,
+                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.onSurface
+                                )
+                            }
+                        }
+                    }
+                }
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun ProctorContactCard(
     state: M3EProfileState,
     onContact: () -> Unit,
+    onPhone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
@@ -429,7 +708,7 @@ private fun ProctorContactCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = state.proctorName,
                         style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
@@ -447,26 +726,155 @@ private fun ProctorContactCard(
                             color = colors.primary
                         )
                     }
+                    if (!state.proctorDepartment.isNullOrBlank()) {
+                        Text(
+                            text = "Dept: ${state.proctorDepartment}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
                 }
 
-                ElevatedButton(
-                    onClick = onContact,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.elevatedButtonColors(
-                        containerColor = colors.primaryContainer,
-                        contentColor = colors.onPrimaryContainer
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!state.proctorPhone.isNullOrBlank()) {
+                        IconButton(
+                            onClick = onPhone,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(colors.surfaceContainerHigh)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Phone,
+                                contentDescription = "Call Proctor",
+                                tint = colors.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+
+                    ElevatedButton(
+                        onClick = onContact,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = colors.primaryContainer,
+                            contentColor = colors.onPrimaryContainer
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Email,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Email",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MentorsSection(
+    mentors: List<M3EMentorItem>,
+    onEmail: (String) -> Unit,
+    onPhone: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 20.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.SupervisorAccount,
+                    contentDescription = null,
+                    tint = colors.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = "Academic Leadership & Mentors",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = colors.onSurface
+                )
+            }
+
+            mentors.forEach { mentor ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Email,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Email",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = mentor.role,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colors.primary
+                        )
+                        Text(
+                            text = mentor.name,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = colors.onSurface
+                        )
+                        if (!mentor.department.isNullOrBlank()) {
+                            Text(
+                                text = mentor.department,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (!mentor.phone.isNullOrBlank()) {
+                            IconButton(
+                                onClick = { onPhone(mentor.phone) },
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.surfaceContainerHigh)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Phone,
+                                    contentDescription = "Call",
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        if (!mentor.email.isNullOrBlank()) {
+                            IconButton(
+                                onClick = { onEmail(mentor.email) },
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.primaryContainer)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Email,
+                                    contentDescription = "Email",
+                                    tint = colors.onPrimaryContainer,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -501,6 +909,207 @@ private fun PersonalDetailsCard(
             ProfileDataRow(label = "Phone Number", value = state.phone)
             ProfileDataRow(label = "School", value = state.school)
             ProfileDataRow(label = "Campus Location", value = state.campus)
+        }
+    }
+}
+
+@Composable
+private fun PersonalRecordsSection(
+    records: List<M3EFieldItem>,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 20.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Personal Records",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+
+            records.forEach { record ->
+                ProfileDataRow(label = record.label, value = record.value)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AddressRecordsSection(
+    addresses: List<M3EAddressItem>,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 20.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = "Address Records",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+
+            addresses.forEach { addr ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = addr.title,
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colors.primary
+                    )
+                    addr.lines.forEach { line ->
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CredentialsCard(
+    username: String,
+    password: String,
+    showPassword: Boolean,
+    onToggleVisibility: () -> Unit,
+    onCopy: (String, String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 20.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Lock,
+                    contentDescription = null,
+                    tint = colors.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = "VTOP Credentials Vault",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = colors.onSurface
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Username",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant
+                    )
+                    Text(
+                        text = username,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        ),
+                        color = colors.onSurface
+                    )
+                }
+
+                IconButton(
+                    onClick = { onCopy(username, "Username") },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ContentCopy,
+                        contentDescription = "Copy Username",
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            if (password.isNotBlank()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Password",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (showPassword) password else "••••••••••••",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            ),
+                            color = colors.onSurface
+                        )
+                    }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        IconButton(
+                            onClick = onToggleVisibility,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                contentDescription = "Toggle Password Visibility",
+                                tint = colors.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { onCopy(password, "Password") },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.ContentCopy,
+                                contentDescription = "Copy Password",
+                                tint = colors.onSurfaceVariant,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

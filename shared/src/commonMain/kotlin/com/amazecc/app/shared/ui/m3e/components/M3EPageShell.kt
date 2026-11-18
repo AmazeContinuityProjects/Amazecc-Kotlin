@@ -57,7 +57,7 @@ fun M3EPageShell(
     onBack: (() -> Unit)? = null,
     actions: @Composable (RowScope.() -> Unit)? = null,
     stats: List<M3EStatItem> = emptyList(),
-    contentPadding: PaddingValues = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 140.dp),
+    contentPadding: PaddingValues = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 0.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
     val colors = M3ETheme.colors

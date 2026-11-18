@@ -213,8 +213,8 @@ fun M3EFacultyScreen(
                 }
             }
 
-            // Bottom spacing for FAB / nav bar clearance
-            item(key = "bottom_spacer") { Spacer(Modifier.height(80.dp)) }
+            // Bottom spacing for FAB / nav bar clearance (140dp)
+            item(key = "bottom_spacer") { Spacer(Modifier.height(140.dp)) }
         }
     }
 }

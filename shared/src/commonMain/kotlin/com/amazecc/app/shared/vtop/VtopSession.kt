@@ -66,6 +66,9 @@ object VtopSession {
     val isExpired: Boolean
         get() = !hasSession || (sessionAgeMs >= SESSION_REFRESH_THRESHOLD_MS)
 
+    val isValid: Boolean
+        get() = hasSession && !isExpired
+
     fun markActive(nowMs: Long = Clock.System.now().toEpochMilliseconds()) {
         _sessionTimestamp.value = nowMs
     }
