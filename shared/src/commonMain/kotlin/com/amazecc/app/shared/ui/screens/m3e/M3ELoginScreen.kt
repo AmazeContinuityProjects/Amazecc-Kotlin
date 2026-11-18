@@ -102,8 +102,9 @@ import org.jetbrains.compose.resources.painterResource
 fun M3ELoginScreen(
     modifier: Modifier = Modifier
 ) {
-    val colors = M3ETheme.colors
-    val scope = rememberCoroutineScope()
+    AmazeM3ETheme {
+        val colors = M3ETheme.colors
+        val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
 
     var username by remember { mutableStateOf("") }
@@ -307,10 +308,16 @@ fun M3ELoginScreen(
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = colors.onSurface,
+                                unfocusedTextColor = colors.onSurface,
                                 focusedBorderColor = colors.primary,
                                 unfocusedBorderColor = colors.outlineVariant,
                                 focusedContainerColor = colors.surfaceContainerHigh,
-                                unfocusedContainerColor = colors.surfaceContainerLow
+                                unfocusedContainerColor = colors.surfaceContainerLow,
+                                focusedLabelColor = colors.primary,
+                                unfocusedLabelColor = colors.onSurfaceVariant,
+                                focusedPlaceholderColor = colors.onSurfaceVariant.copy(alpha = 0.7f),
+                                unfocusedPlaceholderColor = colors.onSurfaceVariant.copy(alpha = 0.7f)
                             ),
                             keyboardOptions = KeyboardOptions(
                                 capitalization = KeyboardCapitalization.Characters,
@@ -353,10 +360,16 @@ fun M3ELoginScreen(
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = colors.onSurface,
+                                unfocusedTextColor = colors.onSurface,
                                 focusedBorderColor = colors.primary,
                                 unfocusedBorderColor = colors.outlineVariant,
                                 focusedContainerColor = colors.surfaceContainerHigh,
-                                unfocusedContainerColor = colors.surfaceContainerLow
+                                unfocusedContainerColor = colors.surfaceContainerLow,
+                                focusedLabelColor = colors.primary,
+                                unfocusedLabelColor = colors.onSurfaceVariant,
+                                focusedPlaceholderColor = colors.onSurfaceVariant.copy(alpha = 0.7f),
+                                unfocusedPlaceholderColor = colors.onSurfaceVariant.copy(alpha = 0.7f)
                             ),
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Password,
@@ -469,10 +482,16 @@ fun M3ELoginScreen(
                                     singleLine = true,
                                     shape = RoundedCornerShape(16.dp),
                                     colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = colors.onSurface,
+                                        unfocusedTextColor = colors.onSurface,
                                         focusedBorderColor = colors.primary,
                                         unfocusedBorderColor = colors.outlineVariant,
                                         focusedContainerColor = colors.surfaceContainerHigh,
-                                        unfocusedContainerColor = colors.surfaceContainerLow
+                                        unfocusedContainerColor = colors.surfaceContainerLow,
+                                        focusedLabelColor = colors.primary,
+                                        unfocusedLabelColor = colors.onSurfaceVariant,
+                                        focusedPlaceholderColor = colors.onSurfaceVariant.copy(alpha = 0.7f),
+                                        unfocusedPlaceholderColor = colors.onSurfaceVariant.copy(alpha = 0.7f)
                                     ),
                                     keyboardOptions = KeyboardOptions(
                                         capitalization = KeyboardCapitalization.Characters,
@@ -629,5 +648,6 @@ fun M3ELoginScreen(
 
     if (isLocalVtop && captchaRequest != null) {
         VtopCaptchaPrompt(challenge = captchaRequest!!)
+    }
     }
 }

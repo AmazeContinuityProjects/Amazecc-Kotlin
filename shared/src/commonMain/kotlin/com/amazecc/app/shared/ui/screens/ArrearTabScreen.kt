@@ -14,67 +14,79 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.AmazeBadge
 import com.amazecc.app.shared.ui.components.BadgeVariant
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 
 @Composable
 fun ArrearTabScreen() {
-    val colors = AmazeTheme.colors
-    var activeSubTab by remember { mutableStateOf("Schedule") }
-    val tabs = listOf("Schedule", "Details", "Grades")
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
+        var activeSubTab by remember { mutableStateOf("Schedule") }
+        val tabs = listOf("Schedule", "Details", "Grades")
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
+        AppBackHandler {
+            if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS)
+        }
 
-        Column(modifier = Modifier.fillMaxSize()) {
-            com.amazecc.app.shared.ui.components.HeaderSpacer()
-            
-            // Tabs
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                tabs.forEach { tab ->
-                    val isSelected = activeSubTab == tab
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                            .background(if (isSelected) colors.accent else colors.surface)
-                            .clickable { activeSubTab = tab }
-                            .padding(horizontal = 16.dp, vertical = 10.dp)
-                    ) {
-                        Text(
-                            text = tab,
-                            style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold).copy(
-                                color = if (isSelected) colors.background else colors.textSecondary
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(colors.background)
+        ) {
+
+            Column(modifier = Modifier.fillMaxSize()) {
+                com.amazecc.app.shared.ui.components.HeaderSpacer()
+                
+                // Tabs
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    tabs.forEach { tab ->
+                        val isSelected = activeSubTab == tab
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                                .background(if (isSelected) colors.accent else colors.surface)
+                                .clickable { activeSubTab = tab }
+                                .padding(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Text(
+                                text = tab,
+                                style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold).copy(
+                                    color = if (isSelected) colors.onAccent else colors.textSecondary
+                                )
                             )
-                        )
+                        }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
+                Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp)
-                    .verticalScroll(rememberScrollState())
-                    .padding(bottom = BOTTOM_NAV_PADDING)
-            ) {
-                when (activeSubTab) {
-                    "Schedule" -> ArrearScheduleTab()
-                    "Details" -> ArrearDetailsTab()
-                    "Grades" -> ArrearGradesTab()
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = BOTTOM_NAV_PADDING)
+                ) {
+                    when (activeSubTab) {
+                        "Schedule" -> ArrearScheduleTab()
+                        "Details" -> ArrearDetailsTab()
+                        "Grades" -> ArrearGradesTab()
+                    }
                 }
             }
         }

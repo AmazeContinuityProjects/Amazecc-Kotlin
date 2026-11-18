@@ -49,6 +49,7 @@ import com.amazecc.app.shared.ui.components.MainTabPager
 import com.amazecc.app.shared.ui.screens.moodle.MoodleScreen
 import com.amazecc.app.shared.ui.screens.onboarding.OnboardingScreen
 import com.amazecc.app.shared.ui.screens.payments.PaymentsScreen
+import com.amazecc.app.shared.ui.m3e.components.M3ENavigationBar
 
 @Composable
 fun App() {
@@ -168,7 +169,7 @@ fun App() {
                                 Screen.SOCIAL -> SocialScreen()
                                 Screen.FFCS_PLANNER -> FfcsPlannerScreen()
                                 Screen.FREE_CLASSROOMS -> M3EFreeClassroomsScreen()
-                                Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateBackTo(Screen.ACADEMICS) })
+                                Screen.CALENDAR -> CalendarScreen(onBack = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) })
                                 Screen.GRADES -> M3EGradesHistoryScreen()
                                 Screen.GPA_PREDICTOR -> M3EMarksPredictorScreen()
                                 Screen.COURSE_DETAIL -> M3ECourseDetailScreen()
@@ -176,7 +177,7 @@ fun App() {
                                 Screen.CIRCULARS -> CircularsScreen()
                                 Screen.CURRICULUM -> M3ECurriculumScreen()
                                 Screen.OD_TRACKER -> ODTrackerScreen()
-                                Screen.COURSE_DASHBOARD -> CourseDashboardScreen { AppState.navigateBackTo(Screen.ACADEMICS) }
+                                Screen.COURSE_DASHBOARD -> CourseDashboardScreen { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
                                 Screen.FACULTY_INFO -> M3EFacultyScreen()
                                 Screen.COURSE_MANAGEMENT -> CourseManagementScreen()
                                 Screen.FEEDBACK_STATUS -> FeedbackStatusScreen()
@@ -203,70 +204,8 @@ fun App() {
                     }
                     }
 
-                    // Floating top header overlay — single source of truth from currentScreen
-                    val isAppLibraryOpen by AppState.isAppLibraryOpen.collectAsState()
-                    val headerOverride by AppState.headerOverride.collectAsState()
-                    val libraryRes by AppState.library.collectAsState()
-                    val libraryLoginRequired by AppState.libraryLoginRequired.collectAsState()
-                    val cabShareUser by AppState.cabShareUser.collectAsState()
-                    val transportData by AppState.transportData.collectAsState()
-                    val busesRes by AppState.buses.collectAsState()
-
-                    val headerConfig = remember(
-                        currentScreen, headerOverride, isAppLibraryOpen,
-                        libraryRes, libraryLoginRequired, cabShareUser, transportData, busesRes
-                    ) {
-                        val base = com.amazecc.app.shared.ui.components.headerConfigFor(currentScreen)
-                            ?: return@remember null
-                        val dynamic = when (currentScreen) {
-                            Screen.LIBRARIES -> {
-                                val issued = libraryRes?.booksIssued ?: emptyList()
-                                val desc = when {
-                                    issued.isNotEmpty() ->
-                                        "${issued.size} book${if (issued.size != 1) "s" else ""} issued"
-                                    libraryLoginRequired -> "Sign in for issued books"
-                                    else -> base.description
-                                }
-                                base.copy(description = desc)
-                            }
-                            Screen.CABSHARE -> if (cabShareUser == null) {
-                                base.copy(description = "Verify VTOP + phone to get started", showSyncButton = false)
-                            } else {
-                                base.copy(
-                                    description = "Find or offer rides",
-                                    showSyncButton = true,
-                                    onRefresh = { AppState.cabRefreshMyTripsNew() }
-                                )
-                            }
-                            Screen.TRANSPORT -> {
-                                val routes = busesRes?.buses ?: emptyList()
-                                val desc = when {
-transportData?.hasRegistration == true ->
-                        "${transportData?.busRouteId ?: ""} - Pass Active"
-                                    routes.isNotEmpty() -> "${routes.size} routes available"
-                                    else -> "Search and explore bus routes"
-                                }
-                                base.copy(description = desc)
-                            }
-                            else -> base
-                        }
-                        val configured = headerOverride ?: dynamic
-                        if (currentScreen in AppState.localSearchScreens) {
-                            configured.copy(searchAction = { AppState.requestLocalSearch() })
-                        } else {
-                            configured
-                        }
-                    }
-
-                    if (headerConfig != null && !isAppLibraryOpen) {
-                        com.amazecc.app.shared.ui.components.FloatingScreenHeader(
-                            config = headerConfig,
-                            modifier = Modifier.align(Alignment.TopCenter)
-                        )
-                    }
-
-                    // Floating nav bar overlay
-                    if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) {
+                    // Floating M3E nav bar overlay
+                    if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH && currentScreen != Screen.ONBOARDING) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -274,12 +213,8 @@ transportData?.hasRegistration == true ->
                                 .navigationBarsPadding()
                                 .padding(bottom = 8.dp)
                         ) {
-                            com.amazecc.app.shared.ui.components.BottomNavigationBar()
+                            M3ENavigationBar()
                         }
-                    }
-
-                    if (isAppLibraryOpen) {
-                        M3EMoreHubScreen()
                     }
 
                     // One-time alert for newly added exam venue/seat entries from credentials

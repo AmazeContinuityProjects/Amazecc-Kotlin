@@ -181,10 +181,14 @@ fun M3ECabShareScreen(
                 singleLine = true,
                 shape = CircleShape,
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = colors.onSurface,
+                    unfocusedTextColor = colors.onSurface,
                     focusedContainerColor = colors.surfaceContainerHigh,
                     unfocusedContainerColor = colors.surfaceContainerLow,
                     focusedBorderColor = colors.primary,
-                    unfocusedBorderColor = colors.outlineVariant
+                    unfocusedBorderColor = colors.outlineVariant,
+                    focusedPlaceholderColor = colors.onSurfaceVariant,
+                    unfocusedPlaceholderColor = colors.onSurfaceVariant
                 )
             )
         }

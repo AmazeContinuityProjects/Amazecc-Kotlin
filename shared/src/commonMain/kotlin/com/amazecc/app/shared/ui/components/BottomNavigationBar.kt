@@ -80,13 +80,11 @@ fun BottomNavigationBar() {
             )
         }
 
-        val isAppLibraryOpen by AppState.isAppLibraryOpen.collectAsState()
-
         BottomNavItem(
             icon = Icons.Rounded.Apps,
             contentDesc = "More",
-            isSelected = isAppLibraryOpen,
-            onClick = { AppState.openAppLibrary() }
+            isSelected = currentScreen == Screen.MORE,
+            onClick = { AppState.navigateTo(Screen.MORE) }
         )
     }
 }

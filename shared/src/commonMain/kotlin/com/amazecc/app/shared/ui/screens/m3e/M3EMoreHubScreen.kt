@@ -21,7 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.AccountBox
-import androidx.compose.material.icons.rounded.Assessment
 import androidx.compose.material.icons.rounded.Assignment
 import androidx.compose.material.icons.rounded.Badge
 import androidx.compose.material.icons.rounded.Calculate
@@ -131,10 +130,14 @@ fun M3EMoreHubScreen(
                 singleLine = true,
                 shape = CircleShape,
                 colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = colors.onSurface,
+                    unfocusedTextColor = colors.onSurface,
                     focusedContainerColor = colors.surfaceContainerHigh,
                     unfocusedContainerColor = colors.surfaceContainerLow,
                     focusedBorderColor = colors.primary,
-                    unfocusedBorderColor = colors.outlineVariant
+                    unfocusedBorderColor = colors.outlineVariant,
+                    focusedPlaceholderColor = colors.onSurfaceVariant,
+                    unfocusedPlaceholderColor = colors.onSurfaceVariant
                 )
             )
         }
@@ -174,7 +177,6 @@ private fun FeatureTileCard(
     val icon: ImageVector = when (screen) {
         M3ESubScreen.EXAM_SCHEDULE -> Icons.Rounded.CalendarMonth
         M3ESubScreen.GRADES_HISTORY -> Icons.Rounded.TrendingUp
-        M3ESubScreen.STUDENT_REPORT -> Icons.Rounded.Assessment
         M3ESubScreen.COURSE_DETAIL -> Icons.Rounded.School
         M3ESubScreen.FACULTY -> Icons.Rounded.AccountBox
         M3ESubScreen.CURRICULUM -> Icons.Rounded.Badge

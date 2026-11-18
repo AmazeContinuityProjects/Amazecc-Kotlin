@@ -45,8 +45,11 @@ import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.ExamEventCard
 import com.amazecc.app.shared.ui.components.MoodleLoginModal
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -279,18 +282,20 @@ private fun getConsolidatedEventsForDisplay(
 
 @Composable
 fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Boolean = true) {
-    val colors = AmazeTheme.colors
-    val radius = AmazeTheme.radius
-    val spacing = AmazeTheme.spacing
-    val moodleData by AppState.moodleData.collectAsState()
-    val domain by AppState.domain.collectAsState()
-    val selectedSemester by AppState.selectedSemester.collectAsState()
-    val registeredEvents by AppState.registeredEvents.collectAsState()
-    val tasks by AppState.tasks.collectAsState()
-    val isAppLoading by AppState.isLoading.collectAsState()
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
+        val radius = AmazeTheme.radius
+        val spacing = AmazeTheme.spacing
+        val moodleData by AppState.moodleData.collectAsState()
+        val domain by AppState.domain.collectAsState()
+        val selectedSemester by AppState.selectedSemester.collectAsState()
+        val registeredEvents by AppState.registeredEvents.collectAsState()
+        val tasks by AppState.tasks.collectAsState()
+        val isAppLoading by AppState.isLoading.collectAsState()
 
-    var showMoodleModal by remember { mutableStateOf(false) }
-    var selectedCalIdx by remember { mutableStateOf(0) }
+        var showMoodleModal by remember { mutableStateOf(false) }
+        var selectedCalIdx by remember { mutableStateOf(0) }
 
     // The picker lives on the snapshot, not beside it: `Schedule.calendarsList` is every course
     // calendar the user can choose between, kept verbatim as received.
@@ -410,6 +415,14 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
 
     var selectedDay by remember { mutableStateOf<Int?>(null) }
     val listState = rememberLazyListState()
+
+    AppBackHandler {
+        if (selectedDay != null) {
+            selectedDay = null
+        } else {
+            onBack()
+        }
+    }
 
     val eventsToShow = remember(activeMonthEvents, selectedDay, activeMonth) {
         getConsolidatedEventsForDisplay(
@@ -847,6 +860,7 @@ fun CalendarScreen(onBack: () -> Unit, showHeader: Boolean = true, autoFetch: Bo
             }
         }
     }
+}
 }
 
 @Composable

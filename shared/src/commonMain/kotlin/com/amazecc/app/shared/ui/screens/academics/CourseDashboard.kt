@@ -36,17 +36,24 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 
 @Composable
 fun CourseDashboardScreen(onBack: () -> Unit) {
-    val colors = AmazeTheme.colors
-    val semesterMap by AppState.semesterMap.collectAsState()
-    val domain by AppState.domain.collectAsState()
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
+        val semesterMap by AppState.semesterMap.collectAsState()
+        val domain by AppState.domain.collectAsState()
 
-    var selectedSemester by remember { mutableStateOf("All") }
+        AppBackHandler { onBack() }
+
+        var selectedSemester by remember { mutableStateOf("All") }
 
     val semesterGroups = remember(domain, semesterMap, selectedSemester) {
         buildCourseGroups(domain, semesterMap, selectedSemester)
@@ -129,7 +136,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
                         ) {
                             Text(
                                 label,
-                                color = if (isSelected) Color.White else colors.textPrimary,
+                                color = if (isSelected) colors.onAccent else colors.textPrimary,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = AmazeTheme.fontSize.sm,
                                 maxLines = 1
@@ -212,6 +219,7 @@ fun CourseDashboardScreen(onBack: () -> Unit) {
             }
         }
     }
+}
 }
 
 data class CleanedTitle(

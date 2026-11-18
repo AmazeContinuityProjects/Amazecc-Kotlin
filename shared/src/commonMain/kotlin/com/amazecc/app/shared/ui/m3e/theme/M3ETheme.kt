@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.m3e.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -22,7 +23,7 @@ object M3ETheme {
 
 @Composable
 fun AmazeM3ETheme(
-    isDark: Boolean = isSystemInDarkTheme(),
+    isDark: Boolean = com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge.isDarkThemeActive(),
     content: @Composable () -> Unit
 ) {
     val palette = if (isDark) M3EDarkPalette else M3ELightPalette
@@ -37,6 +38,10 @@ fun AmazeM3ETheme(
             onSecondary = palette.onSecondary,
             secondaryContainer = palette.secondaryContainer,
             onSecondaryContainer = palette.onSecondaryContainer,
+            tertiary = palette.tertiary,
+            onTertiary = palette.onTertiary,
+            tertiaryContainer = palette.tertiaryContainer,
+            onTertiaryContainer = palette.onTertiaryContainer,
             surface = palette.surface,
             onSurface = palette.onSurface,
             surfaceVariant = palette.surfaceContainerHigh,
@@ -44,7 +49,9 @@ fun AmazeM3ETheme(
             background = palette.background,
             onBackground = palette.onBackground,
             error = palette.error,
-            onError = palette.onError
+            onError = palette.onError,
+            outline = palette.outline,
+            outlineVariant = palette.outlineVariant
         )
     } else {
         lightColorScheme(
@@ -56,6 +63,10 @@ fun AmazeM3ETheme(
             onSecondary = palette.onSecondary,
             secondaryContainer = palette.secondaryContainer,
             onSecondaryContainer = palette.onSecondaryContainer,
+            tertiary = palette.tertiary,
+            onTertiary = palette.onTertiary,
+            tertiaryContainer = palette.tertiaryContainer,
+            onTertiaryContainer = palette.onTertiaryContainer,
             surface = palette.surface,
             onSurface = palette.onSurface,
             surfaceVariant = palette.surfaceContainerHigh,
@@ -63,12 +74,15 @@ fun AmazeM3ETheme(
             background = palette.background,
             onBackground = palette.onBackground,
             error = palette.error,
-            onError = palette.onError
+            onError = palette.onError,
+            outline = palette.outline,
+            outlineVariant = palette.outlineVariant
         )
     }
 
     CompositionLocalProvider(
-        LocalM3EColors provides palette
+        LocalM3EColors provides palette,
+        LocalContentColor provides palette.onBackground
     ) {
         MaterialTheme(
             colorScheme = m3Colors,

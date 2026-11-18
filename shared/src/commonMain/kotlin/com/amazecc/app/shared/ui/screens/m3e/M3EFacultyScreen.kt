@@ -115,10 +115,14 @@ fun M3EFacultyScreen(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
                     colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = colors.onSurface,
+                        unfocusedTextColor = colors.onSurface,
                         focusedBorderColor = colors.primary,
                         unfocusedBorderColor = colors.outlineVariant.copy(alpha = 0.5f),
                         focusedContainerColor = colors.surfaceContainerLow,
-                        unfocusedContainerColor = colors.surfaceContainerLow
+                        unfocusedContainerColor = colors.surfaceContainerLow,
+                        focusedPlaceholderColor = colors.onSurfaceVariant,
+                        unfocusedPlaceholderColor = colors.onSurfaceVariant
                     ),
                     singleLine = true
                 )

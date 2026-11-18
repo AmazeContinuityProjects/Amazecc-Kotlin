@@ -62,7 +62,11 @@ private data class AttendanceSyncResponse(
 )
 
 object AmazeClient {
-    val baseUrl = "https://api.amazecc.com"
+    var baseUrl: String
+        get() = SettingsManager.getString(SettingsManager.KEY_HONO_API_URL, "https://hono.amazecc.com").ifBlank { "https://hono.amazecc.com" }
+        set(value) {
+            SettingsManager.setString(SettingsManager.KEY_HONO_API_URL, value)
+        }
     private var useMockData = false // Toggle for offline testing
 
     /**
@@ -94,6 +98,17 @@ object AmazeClient {
             requestTimeoutMillis = 30_000
             connectTimeoutMillis = 15_000
             socketTimeoutMillis = 30_000
+        }
+    }
+
+    suspend fun pingHealth(): Pair<Boolean, Long> {
+        return try {
+            val start = Clock.System.now().toEpochMilliseconds()
+            val response: HttpResponse = httpClient.get("$baseUrl/health")
+            val elapsed = Clock.System.now().toEpochMilliseconds() - start
+            Pair(response.status.value in 200..299, elapsed)
+        } catch (_: Exception) {
+            Pair(false, -1L)
         }
     }
 

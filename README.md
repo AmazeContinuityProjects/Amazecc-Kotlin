@@ -1,13 +1,13 @@
 # AmazeCC — Kotlin Android App
 
 > The native Android port of [AmazeCC](../AmazeCC), the unified student operating system for VIT University.
-> Built with **Kotlin Multiplatform + Jetpack Compose**, communicating with `api.amazecc.com`.
+> Built with **Kotlin Multiplatform + Jetpack Compose**, communicating with `hono.amazecc.com`.
 
 ---
 
 ## Overview
 
-AmazeCC Kotlin is a native Android app that brings the full AmazeCC web experience to your phone. It connects to the same backend API (`api.amazecc.com`), syncing your academic data directly from VTOP — attendance, grades, timetable, hostel details, payments, library, transport, and more — all in one place with a beautiful pitch-black Midnight theme.
+AmazeCC Kotlin is a native Android app that brings the full AmazeCC web experience to your phone. It connects to the same backend API (`hono.amazecc.com`), syncing your academic data directly from VTOP — attendance, grades, timetable, hostel details, payments, library, transport, and more — all in one place with a beautiful pitch-black Midnight theme.
 
 ---
 
@@ -21,7 +21,7 @@ AmazeCC Kotlin is a native Android app that brings the full AmazeCC web experien
 | Serialization | Kotlinx Serialization |
 | State Management | Kotlin StateFlow / Coroutines |
 | Architecture | KMP (Kotlin Multiplatform) — `shared` module + `androidApp` |
-| API | `https://api.amazecc.com` |
+| API | `https://hono.amazecc.com` |
 
 ---
 
@@ -65,7 +65,7 @@ AmazeCC Kotlin is a native Android app that brings the full AmazeCC web experien
 | Design System (Colors, Typography, Shapes) matching web app | ✅ Done |
 | Light / Dark / **Midnight** (OLED pitch-black) themes | ✅ Done |
 | 4 Accent palettes: Ocean, Forest, Lavender, Sunset | ✅ Done |
-| Ktor API client wired to `api.amazecc.com` | ✅ Done |
+| Ktor API client wired to `hono.amazecc.com` | ✅ Done |
 | Session / Cookie management (`SessionManager`) | ✅ Done |
 | Login screen with VTOP credentials (captcha auto-solved) | ✅ Done |
 | Bottom Navigation Bar (floating pill, pitch-black) | ✅ Done |
@@ -141,7 +141,7 @@ Amazecc-Kotlin/
 │
 └── shared/                       # KMP shared module (all UI + logic)
     └── src/commonMain/kotlin/com/amazecc/app/shared/
-        ├── api/                  # AmazeClient.kt (Ktor, api.amazecc.com)
+        ├── api/                  # AmazeClient.kt (Ktor, hono.amazecc.com)
         ├── model/                # Kotlin data classes (Models.kt)
         ├── repository/           # SessionManager.kt
         ├── state/                # AppState.kt (global StateFlow store)
@@ -172,7 +172,7 @@ Accent colors (user-selectable): **Ocean** `#0EA5E9` · **Forest** `#10B981` · 
 All data is fetched via the shared `AmazeClient` using Ktor from:
 
 ```
-https://api.amazecc.com
+https://hono.amazecc.com
 ```
 
 The API is the same backend used by the AmazeCC web app. Authentication uses VTOP session cookies managed by `SessionManager`.

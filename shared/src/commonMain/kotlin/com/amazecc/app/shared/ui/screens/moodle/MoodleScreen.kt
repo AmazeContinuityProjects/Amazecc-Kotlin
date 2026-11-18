@@ -25,66 +25,87 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeButton
 import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.ScreenHeader
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import kotlinx.coroutines.launch
 
 @Composable
 fun MoodleScreen() {
-    val colors = AmazeTheme.colors
-    val moodleData by AppState.moodleData.collectAsState()
-    
-    var showLogin by remember { mutableStateOf(moodleData == null) }
-    
-    // Automatically show login if data is cleared
-    LaunchedEffect(moodleData) {
-        if (moodleData == null) {
-            showLogin = true
-        }
-    }
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
+        val moodleData by AppState.moodleData.collectAsState()
+        
+        var showLogin by remember { mutableStateOf(moodleData == null) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
-        ScreenHeader(
-            title = "Moodle LMS",
-            description = "Track your assignments and coursework",
-            showBackButton = true,
-            showSyncButton = !showLogin,
-            onRefresh = { showLogin = true },
-            enabledScreens = setOf(Screen.MOODLE)
-        )
-
-        if (showLogin) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                com.amazecc.app.shared.ui.components.HeaderSpacer()
-                MoodleLoginView(
-                    onLoginSuccess = { showLogin = false }
-                )
+        AppBackHandler {
+            if (showLogin && moodleData != null) {
+                showLogin = false
+            } else {
+                if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE)
             }
-        } else {
-            val assignments = moodleData?.data ?: emptyList()
-            if (assignments.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText, modifier = Modifier.size(64.dp))
-                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-                        Text("No pending assignments", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Text("You're all caught up!", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
+        }
+        
+        // Automatically show login if data is cleared
+        LaunchedEffect(moodleData) {
+            if (moodleData == null) {
+                showLogin = true
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(colors.background)
+        ) {
+            ScreenHeader(
+                title = "Moodle LMS",
+                description = "Track your assignments and coursework",
+                showBackButton = true,
+                showSyncButton = !showLogin,
+                onRefresh = { showLogin = true },
+                onBackOverride = {
+                    if (showLogin && moodleData != null) {
+                        showLogin = false
+                    } else if (!AppState.navigateBack()) {
+                        AppState.navigateTo(Screen.MORE)
                     }
+                },
+                enabledScreens = setOf(Screen.MOODLE)
+            )
+
+            if (showLogin) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    com.amazecc.app.shared.ui.components.HeaderSpacer()
+                    MoodleLoginView(
+                        onLoginSuccess = { showLogin = false }
+                    )
                 }
             } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = AmazeTheme.spacing.pageHorizontal),
-                    verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm),
-                    contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
-                ) {
-                    item {
-                        com.amazecc.app.shared.ui.components.HeaderSpacer()
+                val assignments = moodleData?.data ?: emptyList()
+                if (assignments.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Rounded.CheckCircle, null, tint = colors.successText, modifier = Modifier.size(64.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+                            Text("No pending assignments", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            Text("You're all caught up!", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
+                        }
                     }
-                    itemsIndexed(assignments, key = { index, assignment -> "${assignment.name}_$index" }) { _, assignment ->
-                        MoodleAssignmentCard(assignment)
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = AmazeTheme.spacing.pageHorizontal),
+                        verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm),
+                        contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
+                    ) {
+                        item {
+                            com.amazecc.app.shared.ui.components.HeaderSpacer()
+                        }
+                        itemsIndexed(assignments, key = { index, assignment -> "${assignment.name}_$index" }) { _, assignment ->
+                            MoodleAssignmentCard(assignment)
+                        }
                     }
                 }
             }

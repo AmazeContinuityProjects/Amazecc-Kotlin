@@ -23,7 +23,7 @@ class M3ESettingsScreenUiTest {
     private fun sampleSettingsState() = M3ESettingsState(
         selectedThemeMode = M3EThemeMode.DARK_OLED,
         selectedPalettePreset = M3EPalettePreset.OCEAN_MIDNIGHT,
-        honoApiBaseUrl = "https://amazecc-api-hono.sugeerth.workers.dev",
+        honoApiBaseUrl = "https://hono.amazecc.com",
         cacheSizeText = "14.2 MB",
         isDiagnosticsRunning = false,
         diagnosticStatus = "All systems operational (Ping: 42ms)"

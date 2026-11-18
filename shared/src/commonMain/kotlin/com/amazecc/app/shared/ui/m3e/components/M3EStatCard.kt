@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.Icon
@@ -48,8 +50,8 @@ data class M3EStatItem(
 
 /**
  * Material 3 Expressive Stat Card with strong geometric character and shape variety.
+ * Optimized to fit comfortably in half-screen multi-card rows without text wrapping or clipping.
  * Each tone receives an asymmetric organic shape inspired by M3E shape tokens.
- * Badge is explicitly omitted to maintain clean, focused hero metrics.
  */
 @Composable
 fun M3EStatCard(
@@ -60,12 +62,12 @@ fun M3EStatCard(
 
     // Asymmetric shapes with character based on the semantic tone
     val cardShape = when (stat.tone) {
-        M3EStatTone.PRIMARY -> RoundedCornerShape(topStart = 28.dp, topEnd = 10.dp, bottomEnd = 28.dp, bottomStart = 10.dp)
-        M3EStatTone.SECONDARY -> RoundedCornerShape(topStart = 12.dp, topEnd = 28.dp, bottomEnd = 12.dp, bottomStart = 28.dp)
-        M3EStatTone.TERTIARY -> RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomEnd = 10.dp, bottomStart = 28.dp)
-        M3EStatTone.GOOD -> RoundedCornerShape(topStart = 14.dp, topEnd = 28.dp, bottomEnd = 28.dp, bottomStart = 14.dp)
-        M3EStatTone.WARNING -> RoundedCornerShape(topStart = 28.dp, topEnd = 12.dp, bottomEnd = 24.dp, bottomStart = 24.dp)
-        M3EStatTone.CRITICAL -> RoundedCornerShape(topStart = 10.dp, topEnd = 28.dp, bottomEnd = 10.dp, bottomStart = 28.dp)
+        M3EStatTone.PRIMARY -> RoundedCornerShape(topStart = 26.dp, topEnd = 10.dp, bottomEnd = 26.dp, bottomStart = 10.dp)
+        M3EStatTone.SECONDARY -> RoundedCornerShape(topStart = 10.dp, topEnd = 26.dp, bottomEnd = 10.dp, bottomStart = 26.dp)
+        M3EStatTone.TERTIARY -> RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp, bottomEnd = 10.dp, bottomStart = 26.dp)
+        M3EStatTone.GOOD -> RoundedCornerShape(topStart = 26.dp, topEnd = 10.dp, bottomEnd = 26.dp, bottomStart = 10.dp)
+        M3EStatTone.WARNING -> RoundedCornerShape(topStart = 24.dp, topEnd = 12.dp, bottomEnd = 20.dp, bottomStart = 20.dp)
+        M3EStatTone.CRITICAL -> RoundedCornerShape(topStart = 10.dp, topEnd = 26.dp, bottomEnd = 10.dp, bottomStart = 26.dp)
         M3EStatTone.NEUTRAL -> RoundedCornerShape(20.dp)
     }
 
@@ -91,9 +93,12 @@ fun M3EStatCard(
             .clip(cardShape)
             .background(bgContainer)
             .then(clickableModifier)
-            .padding(horizontal = 20.dp, vertical = 18.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
             // Label row with optional expressive icon container
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -105,13 +110,16 @@ fun M3EStatCard(
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = colors.onSurfaceVariant,
-                    letterSpacing = 1.2.sp
+                    letterSpacing = 1.sp,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f, fill = false)
                 )
 
                 if (stat.icon != null) {
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
+                            .size(26.dp)
                             .clip(CircleShape)
                             .background(iconBg),
                         contentAlignment = Alignment.Center
@@ -120,31 +128,35 @@ fun M3EStatCard(
                             imageVector = stat.icon,
                             contentDescription = null,
                             tint = accentColor,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(15.dp)
                         )
                     }
                 }
             }
 
-            // Big Bold Hero Metric Value
-            Text(
-                text = stat.value,
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Black,
-                color = accentColor,
-                fontSize = 32.sp,
-                letterSpacing = (-0.5).sp
-            )
-
-            // Subline Description
-            if (!stat.sub.isNullOrBlank()) {
+            // Big Bold Hero Metric Value & Subtitle
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = stat.sub,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = colors.onSurfaceVariant,
-                    maxLines = 2
+                    text = stat.value,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Black,
+                    color = accentColor,
+                    fontSize = 24.sp,
+                    letterSpacing = (-0.5).sp,
+                    maxLines = 1
                 )
+
+                if (!stat.sub.isNullOrBlank()) {
+                    Text(
+                        text = stat.sub,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.onSurfaceVariant,
+                        fontSize = 11.sp,
+                        lineHeight = 13.sp,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
@@ -154,29 +166,35 @@ fun M3EStatCard(
 @Composable
 private fun M3EStatCardPreview() {
     AmazeM3ETheme(isDark = false) {
-        Column(
+        Row(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             M3EStatCard(
                 stat = M3EStatItem(
                     id = "stat_1",
-                    label = "Cumulative GPA",
-                    value = "9.18",
-                    sub = "Top 5% in School of Computer Science",
-                    tone = M3EStatTone.PRIMARY,
-                    icon = Icons.Rounded.School
-                )
+                    label = "Attendance",
+                    value = "94.2%",
+                    sub = "Safe attendance standing",
+                    tone = M3EStatTone.GOOD,
+                    icon = Icons.Rounded.CheckCircle
+                ),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(136.dp)
             )
             M3EStatCard(
                 stat = M3EStatItem(
                     id = "stat_2",
-                    label = "Overall Attendance",
-                    value = "94.2%",
-                    sub = "Safe margin: can miss 14 more lectures",
-                    tone = M3EStatTone.GOOD,
-                    icon = Icons.Rounded.Insights
-                )
+                    label = "CGPA",
+                    value = "9.18",
+                    sub = "Top 5% in department",
+                    tone = M3EStatTone.PRIMARY,
+                    icon = Icons.Rounded.School
+                ),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(136.dp)
             )
         }
     }

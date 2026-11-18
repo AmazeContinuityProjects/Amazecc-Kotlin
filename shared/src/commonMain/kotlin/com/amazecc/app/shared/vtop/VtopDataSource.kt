@@ -98,7 +98,7 @@ data class VtopCourse(
 /**
  * On-device VTOP data access.
  *
- * Replaces the `api.amazecc.com` proxy for endpoints that scrape VTOP. Extraction happens in
+ * Replaces the `hono.amazecc.com` proxy for endpoints that scrape VTOP. Extraction happens in
  * the WebView because `commonMain` has no HTML parser; shaping into the app's existing DTOs
  * happens here.
  *

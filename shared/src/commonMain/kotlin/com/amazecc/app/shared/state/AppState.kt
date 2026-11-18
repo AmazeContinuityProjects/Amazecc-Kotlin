@@ -128,10 +128,14 @@ object AppState {
 
     fun openAppLibrary() {
         _isAppLibraryOpen.value = true
+        navigateTo(Screen.MORE)
     }
 
     fun closeAppLibrary() {
         _isAppLibraryOpen.value = false
+        if (_currentScreen.value == Screen.MORE) {
+            navigateBack()
+        }
     }
 
     val tabScreens: List<Screen>

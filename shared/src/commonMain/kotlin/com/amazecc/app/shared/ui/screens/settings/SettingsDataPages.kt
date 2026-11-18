@@ -323,7 +323,7 @@ fun DataSyncPage(
 
                 Text(
                     text = when (vtopSource) {
-                        VtopSource.REMOTE -> "Tier 1: Cloud-accelerated remote proxy via api.amazecc.com."
+                        VtopSource.REMOTE -> "Tier 1: Cloud-accelerated remote proxy via hono.amazecc.com."
                         VtopSource.LOCAL -> "Tier 2: On-device headless scraper directly querying VTOP."
                         VtopSource.OFFLINE_CACHE -> "Tier 3: Pure offline mode using local database & cache; never contacts network or scraper."
                     },

@@ -43,6 +43,8 @@ import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.components.bouncySpring
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -57,207 +59,212 @@ private data class SemesterFeedbackState(
 
 @Composable
 fun FeedbackStatusScreen() {
-    val colors = AmazeTheme.colors
-    val scope = rememberCoroutineScope()
-    var semestersData by remember { mutableStateOf<List<SemesterFeedbackState>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var selectedSemValue by remember { mutableStateOf<String?>(null) }
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
+        val scope = rememberCoroutineScope()
+        var semestersData by remember { mutableStateOf<List<SemesterFeedbackState>>(emptyList()) }
+        var loading by remember { mutableStateOf(true) }
+        var error by remember { mutableStateOf<String?>(null) }
+        var selectedSemValue by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) {
-        refreshSession()
-        loadFeedback { data, err ->
-            semestersData = data
-            error = err
-            loading = false
-            if (data.isNotEmpty()) {
-                selectedSemValue = data.firstOrNull { it.semester.selected }?.semester?.value ?: data.firstOrNull()?.semester?.value
-            }
-        }
-    }
-
-    Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
-        ScreenHeader(
-            title = "Feedback Status",
-            description = "Course feedback status & history",
-            showBackButton = true,
-            showSyncButton = true,
-            enabledScreens = setOf(Screen.FEEDBACK_STATUS),
-            onRefresh = {
-                scope.launch {
-                    loading = true
-                    error = null
-                    refreshSession()
-                    loadFeedback { data, err ->
-                        semestersData = data
-                        error = err
-                        loading = false
-                    }
-                }
-            }
-        )
-
-        if (loading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(36.dp))
-                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-                    Text(
-                        "Fetching feedback status...",
-                        style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium)
-                    )
-                }
-            }
-            return
+        AppBackHandler {
+            if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS)
         }
 
-        if (error != null) {
-            Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-                AmazeCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth().padding(20.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(colors.danger.copy(alpha = 0.12f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Rounded.ErrorOutline, null, tint = colors.danger, modifier = Modifier.size(24.dp))
+        LaunchedEffect(Unit) {
+            refreshSession()
+            loadFeedback { data, err ->
+                semestersData = data
+                error = err
+                loading = false
+                if (data.isNotEmpty()) {
+                    selectedSemValue = data.firstOrNull { it.semester.selected }?.semester?.value ?: data.firstOrNull()?.semester?.value
+                }
+            }
+        }
+
+        Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
+            ScreenHeader(
+                title = "Feedback Status",
+                description = "Course feedback status & history",
+                showBackButton = true,
+                showSyncButton = true,
+                enabledScreens = setOf(Screen.FEEDBACK_STATUS),
+                onRefresh = {
+                    scope.launch {
+                        loading = true
+                        error = null
+                        refreshSession()
+                        loadFeedback { data, err ->
+                            semestersData = data
+                            error = err
+                            loading = false
                         }
-                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-                        Text(
-                            "Unable to Load Feedback",
-                            style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            error ?: "Unknown error occurred while fetching feedback data.",
-                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                            modifier = Modifier.padding(horizontal = 8.dp)
-                        )
                     }
                 }
-            }
-            return
-        }
+            )
 
-        if (semestersData.isEmpty() || semestersData.all { it.rows.isEmpty() }) {
-            Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(colors.accent.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Rounded.AssignmentTurnedIn, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
+            HeaderSpacer()
+
+            when {
+                loading -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(36.dp))
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+                            Text(
+                                "Fetching feedback status...",
+                                style = AmazeTheme.typography.body.copy(color = colors.textSecondary, fontWeight = FontWeight.Medium)
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-                    Text(
-                        "No Feedback Data Available",
-                        style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Feedback forms for the active semester may not be open yet.",
-                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                    )
                 }
-            }
-            return
-        }
-
-        val displayList = remember(semestersData, selectedSemValue) {
-            if (selectedSemValue == null || semestersData.size <= 1) semestersData
-            else semestersData.filter { it.semester.value == selectedSemValue }
-        }
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = BOTTOM_NAV_PADDING),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item { HeaderSpacer() }
-
-            // Semester Selector Filter Row (Exam Schedule Style)
-            if (semestersData.size > 1) {
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 6.dp)
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        semestersData.forEach { semState ->
-                            val isActive = semState.semester.value == selectedSemValue
-                            val isComplete = semState.rows.isNotEmpty() && semState.rows.all { row ->
-                                (row.midSemester?.lowercase()?.contains("given") == true) &&
-                                (row.teeSemester?.lowercase()?.contains("given") == true)
+                error != null -> {
+                    Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                        AmazeCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth().padding(20.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(colors.danger.copy(alpha = 0.12f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Rounded.ErrorOutline, null, tint = colors.danger, modifier = Modifier.size(24.dp))
+                                }
+                                Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+                                Text(
+                                    "Unable to Load Feedback",
+                                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    error ?: "Unknown error occurred while fetching feedback data.",
+                                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                                    modifier = Modifier.padding(horizontal = 8.dp)
+                                )
                             }
-
+                        }
+                    }
+                }
+                semestersData.isEmpty() || semestersData.all { it.rows.isEmpty() } -> {
+                    Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(AmazeTheme.radius.small))
-                                    .background(if (isActive) colors.accent else colors.surface)
-                                    .border(if (isActive) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small))
-                                    .clickable {
-                                        selectedSemValue = semState.semester.value
-                                        semestersData = semestersData.map {
-                                            if (it.semester.value == semState.semester.value) it.copy(isExpanded = true) else it
-                                        }
-                                    }
-                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                                    .size(56.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.accent.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        semState.semester.text,
-                                        style = AmazeTheme.typography.smallLabel.copy(
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = if (isActive) Color.White else colors.textSecondary
-                                        )
-                                    )
-                                    if (isComplete) {
-                                        Spacer(Modifier.width(6.dp))
-                                        Icon(
-                                            Icons.Rounded.CheckCircle,
-                                            null,
-                                            tint = if (isActive) Color.White else colors.success,
-                                            modifier = Modifier.size(14.dp)
-                                        )
+                                Icon(Icons.Rounded.AssignmentTurnedIn, contentDescription = null, tint = colors.accent, modifier = Modifier.size(28.dp))
+                            }
+                            Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+                            Text(
+                                "No Feedback Data Available",
+                                style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                "Feedback forms for the active semester may not be open yet.",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    val displayList = remember(semestersData, selectedSemValue) {
+                        if (selectedSemValue == null || semestersData.size <= 1) semestersData
+                        else semestersData.filter { it.semester.value == selectedSemValue }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = BOTTOM_NAV_PADDING),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // Semester Selector Filter Row (Exam Schedule Style)
+                        if (semestersData.size > 1) {
+                            item {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    semestersData.forEach { semState ->
+                                        val isActive = semState.semester.value == selectedSemValue
+                                        val isComplete = semState.rows.isNotEmpty() && semState.rows.all { row ->
+                                            (row.midSemester?.lowercase()?.contains("given") == true) &&
+                                            (row.teeSemester?.lowercase()?.contains("given") == true)
+                                        }
+
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(AmazeTheme.radius.small))
+                                                .background(if (isActive) colors.accent else colors.surface)
+                                                .border(if (isActive) 0.dp else 1.dp, colors.border, RoundedCornerShape(AmazeTheme.radius.small))
+                                                .clickable {
+                                                    selectedSemValue = semState.semester.value
+                                                    semestersData = semestersData.map {
+                                                        if (it.semester.value == semState.semester.value) it.copy(isExpanded = true) else it
+                                                    }
+                                                }
+                                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    semState.semester.text,
+                                                    style = AmazeTheme.typography.smallLabel.copy(
+                                                        fontWeight = FontWeight.SemiBold,
+                                                        color = if (isActive) colors.onAccent else colors.textSecondary
+                                                    )
+                                                )
+                                                if (isComplete) {
+                                                    Spacer(Modifier.width(6.dp))
+                                                    Icon(
+                                                        Icons.Rounded.CheckCircle,
+                                                        null,
+                                                        tint = if (isActive) colors.onAccent else colors.success,
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
+
+                        // Hero Card (Exam Schedule Style)
+                        item {
+                            FeedbackHeroCard(semestersData = semestersData, colors = colors)
+                        }
+
+                        items(displayList, key = { it.semester.value }) { semData ->
+                            FeedbackSemesterGroupCard(
+                                state = semData,
+                                onToggleExpand = {
+                                    semestersData = semestersData.map {
+                                        if (it.semester.value == semData.semester.value) it.copy(isExpanded = !it.isExpanded) else it
+                                    }
+                                },
+                                colors = colors
+                            )
+                        }
+
+                        item { Spacer(modifier = Modifier.height(24.dp)) }
                     }
                 }
             }
-
-            // Hero Card (Exam Schedule Style)
-            item {
-                FeedbackHeroCard(semestersData = semestersData, colors = colors)
-            }
-
-            items(displayList, key = { it.semester.value }) { semData ->
-                FeedbackSemesterGroupCard(
-                    state = semData,
-                    onToggleExpand = {
-                        semestersData = semestersData.map {
-                            if (it.semester.value == semData.semester.value) it.copy(isExpanded = !it.isExpanded) else it
-                        }
-                    },
-                    colors = colors
-                )
-            }
-
-            item { Spacer(modifier = Modifier.height(24.dp)) }
         }
     }
 }

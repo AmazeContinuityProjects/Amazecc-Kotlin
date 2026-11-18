@@ -247,10 +247,14 @@ fun M3ESettingsScreen(
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = colors.onSurface,
+                            unfocusedTextColor = colors.onSurface,
                             focusedContainerColor = colors.surfaceContainerHigh,
                             unfocusedContainerColor = colors.surfaceContainerLow,
                             focusedBorderColor = colors.primary,
-                            unfocusedBorderColor = colors.outlineVariant
+                            unfocusedBorderColor = colors.outlineVariant,
+                            focusedLabelColor = colors.primary,
+                            unfocusedLabelColor = colors.onSurfaceVariant
                         )
                     )
                 }
@@ -661,7 +665,7 @@ fun M3ESettingsScreenDarkPreview() {
 private fun createMockSettingsState() = M3ESettingsState(
     selectedThemeMode = M3EThemeMode.DARK_OLED,
     selectedPalettePreset = M3EPalettePreset.OCEAN_MIDNIGHT,
-    honoApiBaseUrl = "https://amazecc-api-hono.sugeerth.workers.dev",
+    honoApiBaseUrl = "https://hono.amazecc.com",
     cacheSizeText = "14.2 MB",
     isDiagnosticsRunning = false,
     diagnosticStatus = "All systems operational (Ping: 42ms)"

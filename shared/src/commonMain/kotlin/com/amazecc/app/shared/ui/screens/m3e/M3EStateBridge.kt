@@ -470,7 +470,7 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
 
 @Composable
 fun M3ECourseDetailScreen(
-    onBack: () -> Unit = { AppState.navigateBackTo(Screen.ACADEMICS) },
+    onBack: () -> Unit = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) },
     modifier: Modifier = Modifier
 ) {
     val isDark = M3EStateBridge.isDarkThemeActive()
@@ -1126,7 +1126,7 @@ fun M3ECabShareScreen(modifier: Modifier = Modifier) {
 
 @Composable
 fun M3EFreeClassroomsScreen(
-    onBack: () -> Unit = { AppState.navigateBackTo(Screen.ACADEMICS) },
+    onBack: () -> Unit = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) },
     modifier: Modifier = Modifier
 ) {
     val isDark = M3EStateBridge.isDarkThemeActive()
@@ -1454,14 +1454,29 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
 fun M3ESettingsScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val currentTheme by AppState.theme.collectAsState()
+    val currentAccent by AppState.accent.collectAsState()
     val scope = rememberCoroutineScope()
 
     var classAlerts by remember { mutableStateOf(SettingsManager.isNotifClassRemindersEnabled()) }
     var attendanceAlerts by remember { mutableStateOf(SettingsManager.isNotifAssignmentRemindersEnabled()) }
     var examReminders by remember { mutableStateOf(SettingsManager.isNotifExamRemindersEnabled()) }
     var diagnosticMsg by remember { mutableStateOf<String?>("All systems operational (Ping: 42ms)") }
+    var isDiagnosticsRunning by remember { mutableStateOf(false) }
     var vtopSource by remember { mutableStateOf(AmazeClient.vtopSource) }
-    var selectedSyncMode by remember { mutableStateOf("balanced") }
+    var selectedSyncMode by remember { mutableStateOf(SettingsManager.getString("selected_sync_mode", "balanced").ifBlank { "balanced" }) }
+    var honoApiUrl by remember { mutableStateOf(AmazeClient.baseUrl) }
+    var cacheSize by remember { mutableStateOf(SettingsManager.getFormattedCacheSize()) }
+
+    var selectedPalettePreset by remember(currentAccent) {
+        val initial = when (currentAccent) {
+            com.amazecc.app.shared.theme.AccentTheme.OCEAN -> M3EPalettePreset.OCEAN_MIDNIGHT
+            com.amazecc.app.shared.theme.AccentTheme.FOREST, com.amazecc.app.shared.theme.AccentTheme.VERDANT -> M3EPalettePreset.EMERALD_MINT
+            com.amazecc.app.shared.theme.AccentTheme.LAVENDER -> M3EPalettePreset.PURPLE_DUSK
+            com.amazecc.app.shared.theme.AccentTheme.SUNSET -> M3EPalettePreset.AMBER_SUNSET
+            com.amazecc.app.shared.theme.AccentTheme.CUSTOM -> M3EPalettePreset.CRIMSON_VELVET
+        }
+        mutableStateOf(initial)
+    }
 
     val selectedThemeMode = when (currentTheme) {
         AppTheme.AMOLED, AppTheme.DARK -> M3EThemeMode.DARK_OLED
@@ -1471,10 +1486,10 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
 
     val state = M3ESettingsState(
         selectedThemeMode = selectedThemeMode,
-        selectedPalettePreset = M3EPalettePreset.OCEAN_MIDNIGHT,
-        honoApiBaseUrl = "https://amazecc-api-hono.sugeerth.workers.dev",
-        cacheSizeText = "14.2 MB",
-        isDiagnosticsRunning = false,
+        selectedPalettePreset = selectedPalettePreset,
+        honoApiBaseUrl = honoApiUrl,
+        cacheSizeText = cacheSize,
+        isDiagnosticsRunning = isDiagnosticsRunning,
         diagnosticStatus = diagnosticMsg,
         classAlertsEnabled = classAlerts,
         attendanceAlertsEnabled = attendanceAlerts,
@@ -1496,14 +1511,49 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
                         }
                         AppState.changeTheme(newTheme)
                     }
-                    is M3ESettingsAction.SelectPalettePreset -> {}
-                    is M3ESettingsAction.UpdateHonoApiUrl -> {}
+                    is M3ESettingsAction.SelectPalettePreset -> {
+                        selectedPalettePreset = action.preset
+                        val accent = when (action.preset) {
+                            M3EPalettePreset.OCEAN_MIDNIGHT -> com.amazecc.app.shared.theme.AccentTheme.OCEAN
+                            M3EPalettePreset.CRIMSON_VELVET -> {
+                                AppState.setCustomAccent(androidx.compose.ui.graphics.Color(0xFFBA1A1A))
+                                com.amazecc.app.shared.theme.AccentTheme.CUSTOM
+                            }
+                            M3EPalettePreset.EMERALD_MINT -> com.amazecc.app.shared.theme.AccentTheme.FOREST
+                            M3EPalettePreset.AMBER_SUNSET -> com.amazecc.app.shared.theme.AccentTheme.SUNSET
+                            M3EPalettePreset.PURPLE_DUSK -> com.amazecc.app.shared.theme.AccentTheme.LAVENDER
+                        }
+                        if (accent != com.amazecc.app.shared.theme.AccentTheme.CUSTOM) {
+                            AppState.changeAccent(accent)
+                        }
+                    }
+                    is M3ESettingsAction.UpdateHonoApiUrl -> {
+                        honoApiUrl = action.url
+                        AmazeClient.baseUrl = action.url
+                        diagnosticMsg = "API URL updated to ${action.url}"
+                    }
                     is M3ESettingsAction.ClearCache -> {
-                        SettingsManager.clearAll()
-                        UserStore.clear()
+                        SettingsManager.clearLocalCache()
+                        cacheSize = SettingsManager.getFormattedCacheSize()
+                        diagnosticMsg = "Cache purged successfully ($cacheSize)"
                     }
                     is M3ESettingsAction.RunDiagnostics -> {
-                        diagnosticMsg = "Diagnostics passed • All services operational"
+                        isDiagnosticsRunning = true
+                        diagnosticMsg = "Running health check on $honoApiUrl..."
+                        scope.launch {
+                            val (healthy, pingMs) = AmazeClient.pingHealth()
+                            isDiagnosticsRunning = false
+                            diagnosticMsg = if (healthy) {
+                                "Health check passed • Backend operational (${pingMs}ms)"
+                            } else {
+                                val hasCache = com.amazecc.app.shared.state.AppDataStore.academic.value.semesters.isNotEmpty()
+                                if (hasCache) {
+                                    "Hono API unreachable • Offline cache active ($cacheSize)"
+                                } else {
+                                    "Hono API unreachable • No local cache available"
+                                }
+                            }
+                        }
                     }
                     is M3ESettingsAction.OpenGithubRepo -> {}
                     is M3ESettingsAction.ToggleClassAlerts -> {
@@ -1522,6 +1572,7 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
                         AppState.rescheduleNotifications()
                     }
                     is M3ESettingsAction.SendTestNotification -> {
+                        diagnosticMsg = "Dispatching test notification..."
                         scope.launch {
                             val result = AppState.sendTestNotification()
                             diagnosticMsg = result
@@ -1530,11 +1581,14 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
                     is M3ESettingsAction.SetVtopSource -> {
                         AmazeClient.setVtopSource(action.source)
                         vtopSource = action.source
+                        diagnosticMsg = "VTOP source set to ${action.source.displayName}"
                     }
                     is M3ESettingsAction.SelectSyncMode -> {
                         selectedSyncMode = action.mode
+                        SettingsManager.setString("selected_sync_mode", action.mode)
                     }
                     is M3ESettingsAction.TriggerManualSync -> {
+                        diagnosticMsg = "Sync triggered for ${action.mode.replaceFirstChar { it.uppercase() }} mode..."
                         AppState.loadMode(action.mode, force = true)
                     }
                 }
@@ -1561,7 +1615,6 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                 when (action) {
                     is M3EMoreHubAction.SearchQueryChanged -> searchQuery = action.query
                     is M3EMoreHubAction.OpenSubScreen -> {
-                        AppState.closeAppLibrary()
                         when (action.screen) {
                             M3ESubScreen.COURSE_DETAIL -> AppState.navigateTo(Screen.COURSE_DETAIL)
                             M3ESubScreen.FACULTY -> AppState.navigateTo(Screen.FACULTY_INFO)
@@ -1569,7 +1622,6 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                             M3ESubScreen.MARKS_PREDICTOR -> AppState.navigateTo(Screen.GPA_PREDICTOR)
                             M3ESubScreen.EXAM_SCHEDULE -> AppState.navigateTo(Screen.EXAM_SCHEDULE)
                             M3ESubScreen.GRADES_HISTORY -> AppState.navigateTo(Screen.GRADES)
-                            M3ESubScreen.STUDENT_REPORT -> AppState.navigateTo(Screen.ACADEMICS)
                             M3ESubScreen.HOSTEL -> AppState.navigateTo(Screen.HOSTEL)
                             M3ESubScreen.TRANSPORT -> AppState.navigateTo(Screen.TRANSPORT)
                             M3ESubScreen.CAB_SHARE -> AppState.navigateTo(Screen.CABSHARE)
@@ -1581,7 +1633,13 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                             M3ESubScreen.SETTINGS -> AppState.navigateTo(Screen.SETTINGS)
                         }
                     }
-                    is M3EMoreHubAction.BackToHub -> AppState.closeAppLibrary()
+                    is M3EMoreHubAction.BackToHub -> {
+                        if (AppState.canNavigateBack()) {
+                            AppState.navigateBack()
+                        } else {
+                            AppState.navigateTo(Screen.MORE)
+                        }
+                    }
                 }
             },
             modifier = modifier

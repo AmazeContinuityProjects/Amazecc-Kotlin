@@ -750,7 +750,7 @@ private fun AccentSwatch(name: String, accent: AccentTheme, current: AccentTheme
  * Where VTOP data is fetched from.
  *
  * `LOCAL` talks to VTOP from the device. That is the only working option today: VTOP accepts
- * connections exclusively from Indian IP space, and api.amazecc.com is served from Singapore
+ * connections exclusively from Indian IP space, and hono.amazecc.com is served from Singapore
  * where every VTOP connection is dropped. `REMOTE` remains for the endpoints backed by our own
  * Postgres (qbank, clubs, cabshare, transport, wishlist), which are unaffected.
  *
@@ -769,7 +769,7 @@ fun VtopSourcePage() {
             SettingsRow(
                 icon = Icons.Rounded.CloudSync,
                 title = "Tier 1: Remote API",
-                subtitle = "Cloud proxy via api.amazecc.com. Fast remote backend.",
+                subtitle = "Cloud proxy via hono.amazecc.com. Fast remote backend.",
                 value = if (source == VtopSource.REMOTE) "Active" else null,
                 tint = if (source == VtopSource.REMOTE) colors.success else colors.textMuted,
                 onClick = {

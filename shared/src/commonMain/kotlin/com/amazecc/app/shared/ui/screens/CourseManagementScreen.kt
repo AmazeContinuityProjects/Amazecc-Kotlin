@@ -3,6 +3,8 @@
 import androidx.compose.runtime.Composable
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.ArrearResponse
+import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 
 @Composable
 fun CourseManagementScreen() {
@@ -11,7 +13,8 @@ fun CourseManagementScreen() {
         description = "Option changes, EXC, minors",
         loadingText = "Loading course data...",
         tabLabels = listOf("Course Option", "EXC Registration", "Minor/Honour", "Completion"),
-        endpointKeys = listOf("course-option-change", "exc-registration", "minor-honour", "course-completion")
+        endpointKeys = listOf("course-option-change", "exc-registration", "minor-honour", "course-completion"),
+        onBack = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
     ) { ep ->
         when (ep) {
             "course-option-change" -> AmazeClient.getCourseOptionChange()

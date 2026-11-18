@@ -986,8 +986,8 @@ enum class M3EPalettePreset(val label: String) {
 data class M3ESettingsState(
     val selectedThemeMode: M3EThemeMode = M3EThemeMode.DARK_OLED,
     val selectedPalettePreset: M3EPalettePreset = M3EPalettePreset.OCEAN_MIDNIGHT,
-    val honoApiBaseUrl: String = "https://amazecc-api-hono.sugeerth.workers.dev",
-    val cacheSizeText: String = "14.2 MB",
+    val honoApiBaseUrl: String = "https://hono.amazecc.com",
+    val cacheSizeText: String = "0 B",
     val isDiagnosticsRunning: Boolean = false,
     val diagnosticStatus: String? = null,
     val appVersion: String = "2.4.0 (M3E Overhaul)",
@@ -1025,7 +1025,6 @@ enum class M3ESubScreen(val label: String, val category: String) {
     MARKS_PREDICTOR("FAT Marks Predictor", "Academics"),
     EXAM_SCHEDULE("Exam Schedules & Seating", "Academics"),
     GRADES_HISTORY("Grades History", "Academics"),
-    STUDENT_REPORT("Student Academic Report", "Academics"),
 
     HOSTEL("Hostel & Mess", "Campus Life"),
     TRANSPORT("Bus Routes & Transit", "Campus Life"),

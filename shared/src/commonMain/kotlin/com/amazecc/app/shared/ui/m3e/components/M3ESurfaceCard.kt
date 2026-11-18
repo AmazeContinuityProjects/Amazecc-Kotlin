@@ -10,8 +10,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -76,9 +78,12 @@ fun M3ESurfaceCard(
                     )
                 } else Modifier
             )
-            .padding(16.dp),
-        content = content
-    )
+            .padding(16.dp)
+    ) {
+        CompositionLocalProvider(LocalContentColor provides colors.onSurface) {
+            content()
+        }
+    }
 }
 
 @Preview

@@ -25,75 +25,83 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.AmazeCard
 import com.amazecc.app.shared.ui.components.HeaderSpacer
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.coroutines.launch
 
 @Composable
 fun CircularsScreen() {
-    val colors = AmazeTheme.colors
-    val circularsRes by AppState.circulars.collectAsState()
-    val isSyncing by AppState.isSyncing.collectAsState()
-    val loading = isSyncing && circularsRes == null
-    val circulars = circularsRes?.circulars ?: emptyList()
-    val error = circularsRes?.let { if (!it.success) it.message ?: it.error else null }
-    var expandedFolders by remember { mutableStateOf(setOf<String>()) }
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    AmazeM3ETheme(isDark = isDark) {
+        val colors = AmazeTheme.colors
+        val circularsRes by AppState.circulars.collectAsState()
+        val isSyncing by AppState.isSyncing.collectAsState()
+        val loading = isSyncing && circularsRes == null
+        val circulars = circularsRes?.circulars ?: emptyList()
+        val error = circularsRes?.let { if (!it.success) it.message ?: it.error else null }
+        var expandedFolders by remember { mutableStateOf(setOf<String>()) }
 
-    LaunchedEffect(Unit) {
-        if (circularsRes == null) {
-            AppState.refreshCirculars()
+        AppBackHandler {
+            if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS)
         }
-    }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(colors.background)
-    ) {
-
-        if (loading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(32.dp))
-                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                    Text("Loading circulars...", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
-                }
+        LaunchedEffect(Unit) {
+            if (circularsRes == null) {
+                AppState.refreshCirculars()
             }
-        } else if (error != null) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Rounded.ErrorOutline, null, tint = colors.danger, modifier = Modifier.size(48.dp))
-                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                    Text(error ?: "Unknown error", color = colors.danger, style = AmazeTheme.typography.body.copy(textAlign = TextAlign.Center))
-                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
-                    TextButton(onClick = { AppState.refreshCirculars() }) {
+        }
 
-                        Text(Strings.retry, color = colors.accent)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(colors.background)
+        ) {
+            HeaderSpacer()
+
+            if (loading) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(32.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
+                        Text("Loading circulars...", style = AmazeTheme.typography.body.copy(color = colors.textSecondary))
                     }
                 }
-            }
-        } else if (circulars.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Rounded.FolderOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
-                    Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
-                    Text("No circulars available", color = colors.textSecondary, style = AmazeTheme.typography.body)
+            } else if (error != null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.ErrorOutline, null, tint = colors.danger, modifier = Modifier.size(48.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
+                        Text(error ?: "Unknown error", color = colors.danger, style = AmazeTheme.typography.body.copy(textAlign = TextAlign.Center))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.md))
+                        TextButton(onClick = { AppState.refreshCirculars() }) {
+                            Text(Strings.retry, color = colors.accent)
+                        }
+                    }
                 }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
-            ) {
-                item { HeaderSpacer() }
-
-                itemsIndexed(circulars, key = { idx, folder -> "${folder.title ?: "unknown"}-$idx" }) { idx, folder ->
+            } else if (circulars.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Rounded.FolderOff, null, tint = colors.textMuted, modifier = Modifier.size(48.dp))
+                        Spacer(modifier = Modifier.height(AmazeTheme.spacing.sm))
+                        Text("No circulars available", color = colors.textSecondary, style = AmazeTheme.typography.body)
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = BOTTOM_NAV_PADDING)
+                ) {
+                    itemsIndexed(circulars, key = { idx, folder -> "${folder.title ?: "unknown"}-$idx" }) { idx, folder ->
                     val folderName = folder.title ?: "Untitled"
                     val isExpanded = folderName in expandedFolders
                     val items = folder.children ?: emptyList()
@@ -220,4 +228,5 @@ fun CircularsScreen() {
             }
         }
     }
+}
 }
