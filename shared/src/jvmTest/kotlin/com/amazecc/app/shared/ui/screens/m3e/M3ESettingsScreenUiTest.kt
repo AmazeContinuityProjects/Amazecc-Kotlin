@@ -1,9 +1,12 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.amazecc.app.shared.domain.overhaul.M3EPalettePreset
 import com.amazecc.app.shared.domain.overhaul.M3ESettingsAction
@@ -41,8 +44,10 @@ class M3ESettingsScreenUiTest {
         onNodeWithText("Theme & Display Mode").assertExists()
         onNodeWithText("M3 Expressive Color Palette").assertExists()
         onNodeWithText("Hono Backend API").assertExists()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Storage & Cache (14.2 MB)"))
         onNodeWithText("Storage & Cache (14.2 MB)").assertExists()
         onNodeWithText("All systems operational (Ping: 42ms)").assertExists()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("AmazeCC Open Source"))
         onNodeWithText("AmazeCC Open Source").assertExists()
     }
 
@@ -78,6 +83,7 @@ class M3ESettingsScreenUiTest {
             }
         }
 
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Clear Cache"))
         onNodeWithText("Clear Cache").performClick()
         assertEquals(1, capturedActions.size)
         assertTrue(capturedActions[0] is M3ESettingsAction.ClearCache)

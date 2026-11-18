@@ -990,7 +990,12 @@ data class M3ESettingsState(
     val cacheSizeText: String = "14.2 MB",
     val isDiagnosticsRunning: Boolean = false,
     val diagnosticStatus: String? = null,
-    val appVersion: String = "2.4.0 (M3E Overhaul)"
+    val appVersion: String = "2.4.0 (M3E Overhaul)",
+    val classAlertsEnabled: Boolean = true,
+    val attendanceAlertsEnabled: Boolean = true,
+    val examRemindersEnabled: Boolean = true,
+    val vtopSource: com.amazecc.app.shared.vtop.VtopSource = com.amazecc.app.shared.vtop.VtopSource.REMOTE,
+    val selectedSyncMode: String = "balanced"
 )
 
 sealed interface M3ESettingsAction {
@@ -1000,6 +1005,13 @@ sealed interface M3ESettingsAction {
     data object ClearCache : M3ESettingsAction
     data object RunDiagnostics : M3ESettingsAction
     data object OpenGithubRepo : M3ESettingsAction
+    data class ToggleClassAlerts(val enabled: Boolean) : M3ESettingsAction
+    data class ToggleAttendanceAlerts(val enabled: Boolean) : M3ESettingsAction
+    data class ToggleExamReminders(val enabled: Boolean) : M3ESettingsAction
+    data object SendTestNotification : M3ESettingsAction
+    data class SetVtopSource(val source: com.amazecc.app.shared.vtop.VtopSource) : M3ESettingsAction
+    data class SelectSyncMode(val mode: String) : M3ESettingsAction
+    data class TriggerManualSync(val mode: String) : M3ESettingsAction
 }
 
 // ==========================================

@@ -517,13 +517,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             IdentitySource.VTOP_PHOTO
         )
         reconcileExamSeatAlerts()
-        // Auto-sync Moodle & Library in background if credentials are saved
-        if (AppDataStore.moodleData.value == null && SettingsManager.getMoodleCredentials() != null) {
-            syncMoodle()
-        }
-        if ((AppDataStore.library.value == null || _libraryLoginRequired.value) && SettingsManager.getLibraryCredentials() != null) {
-            syncLibrary()
-        }
     }
 
     /**
@@ -1078,6 +1071,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
      * are left to report their own failure, which is more informative than an exception here.
      */
     private suspend fun ensureVtopSessionForSweep(modules: Set<SyncModule>): Boolean {
+        if (AmazeClient.vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return true
         // Moodle has its own login and its own cookie, so a Moodle-only sweep must not pay for a
         // VTOP round trip it cannot use.
         val needsVtop = modules.any { it != SyncModule.LMS && it != SyncModule.MOODLE }
@@ -1136,6 +1130,230 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         _syncMessage.value = null
         _syncStatus.value = "Sync cancelled"
         SyncEngine.setShowSyncDialog(false)
+    }
+
+    fun loadMode(modeId: String, force: Boolean = false) {
+        if (_isLoading.value) return
+        val mode = SyncEngine.resolveMode(modeId) ?: SyncEngine.resolveMode("quick") ?: return
+        val stepsToRun = if (force) mode.steps else mode.steps.filter { !SyncEngine.isFresh(it, force = false) }
+        val sweepModules = stepsToRun.map { it.module }.toSet()
+        if (sweepModules.isEmpty()) {
+            _syncStatus.value = "All modules in ${mode.label} are up-to-date"
+            return
+        }
+        val stageProfile = mode.id
+        launchSweep(sweepModules, stageProfile = stageProfile) {
+            _error.value = null
+            _syncMessage.value = "Running ${mode.label}..."
+            _syncStatus.value = "Running ${mode.label}..."
+            notificationService.showLoadingNotification("AmazeCC Sync", "Running ${mode.label}...")
+            try {
+                if (AmazeClient.vtopSource != com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+                    if (AmazeClient.ensureSession()) {
+                        val csrfNow = SessionManager.csrf.value
+                        val idNow = SessionManager.authorizedID.value
+                        val cookiesNow = SessionManager.cookies.value
+                        if (csrfNow != null && idNow != null && cookiesNow != null) {
+                            SettingsManager.setString(SettingsManager.SESSION_COOKIES, cookiesNow)
+                            SettingsManager.setString(SettingsManager.SESSION_CSRF, csrfNow)
+                            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, idNow)
+                            UserStore.merge(IdentityExtractor.fromSession(idNow), IdentitySource.SESSION)
+                        }
+                    } else {
+                        val creds = SettingsManager.getCredentials()
+                        if (creds != null) {
+                            try {
+                                val loginRes = AmazeClient.login(creds.first, creds.second)
+                                if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
+                                    SessionManager.saveSession(
+                                        cookies = loginRes.cookies,
+                                        csrf = loginRes.csrf,
+                                        authorizedID = loginRes.authorizedID,
+                                        clubToken = loginRes.clubToken
+                                    )
+                                    SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
+                                    SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
+                                    SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
+                                    loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                                    UserStore.merge(IdentityExtractor.fromSession(loginRes.authorizedID), IdentitySource.SESSION)
+                                }
+                            } catch (e: Exception) { println("AmazeCC: AppState loadMode sessionRefresh — ${e.message}") }
+                        }
+                    }
+                }
+
+                val sem = _selectedSemester.value
+                val results = supervisorScope {
+                    val jobs = mutableListOf<kotlinx.coroutines.Deferred<SyncModuleResult>>()
+                    if (SyncModule.ATTENDANCE in sweepModules) {
+                        jobs += async {
+                            syncModule("Attendance", { AmazeClient.getAcademicData(sem) }, { it.attendance.error == null }, { it.attendance.error }) {
+                                AppDataStore.upsertAttendance(sem, it.attendance)
+                                if (it.marks?.error == null && it.marks != null) {
+                                    AppDataStore.upsertMarks(sem, it.marks)
+                                }
+                            }
+                        }
+                    }
+                    if (SyncModule.TIMETABLE in sweepModules) {
+                        jobs += async {
+                            syncModule("Timetable", { AmazeClient.getTimetable(sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.upsertTimetable(sem, it)
+                            }
+                        }
+                    }
+                    if (SyncModule.MARKS in sweepModules && SyncModule.ATTENDANCE !in sweepModules) {
+                        jobs += async {
+                            syncModule("Marks", { AmazeClient.getMarks(sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.upsertMarks(sem, it)
+                            }
+                        }
+                    }
+                    if (SyncModule.GRADES in sweepModules) {
+                        jobs += async {
+                            syncModule("Grade history", { AmazeClient.getAllGrades() }, { it.error == null }, { it.error }) {
+                                applyAllGrades(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.EXAM_SCHEDULE in sweepModules) {
+                        jobs += async {
+                            syncModule("Exam schedule", { AmazeClient.getExamSchedule(semesterId = sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.upsertExams(sem, it)
+                            }
+                        }
+                    }
+                    if (SyncModule.HOSTEL_DETAILS in sweepModules) {
+                        jobs += async {
+                            syncModule("Hostel details", { AmazeClient.getHostelDetails() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setHostelDetails(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.CURRICULUM in sweepModules) {
+                        jobs += async {
+                            syncModule("Curriculum", { AmazeClient.getCurriculum(semesterId = sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.setCurriculum(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.CALENDAR in sweepModules) {
+                        jobs += async {
+                            syncModule("Academic calendar", { AmazeClient.getCalendar(semesterId = sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.setCalendar(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.CALENDARS_LIST in sweepModules) {
+                        jobs += async {
+                            syncModule("Calendars list", { AmazeClient.getCalendars(semesterId = sem) }, { it.error == null }, { it.error }) {
+                                AppDataStore.setCalendarsList(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.PAYMENTS in sweepModules) {
+                        jobs += async {
+                            syncModule("Payments", { AmazeClient.getPayments() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setPayments(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.LIBRARY in sweepModules) {
+                        jobs += async {
+                            val creds = SettingsManager.getLibraryCredentials()
+                            if (creds == null) {
+                                SyncEngine.markModuleError(SyncModule.LIBRARY, "NO_LIB_CREDS")
+                                SyncModuleResult("Library", false, "NO_LIB_CREDS")
+                            } else {
+                                syncModule("Library", { AmazeClient.getLibrary(creds.first, creds.second) }, { it.error == null }, { it.error }) {
+                                    AppDataStore.setLibrary(it)
+                                }
+                            }
+                        }
+                    }
+                    if (SyncModule.TRANSPORT in sweepModules) {
+                        jobs += async {
+                            syncModule("Transport Data", { AmazeClient.getTransportData() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setTransportData(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.BUSES in sweepModules) {
+                        jobs += async {
+                            syncModule("Buses", { AmazeClient.getBuses() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setBuses(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.LMS in sweepModules) {
+                        jobs += async {
+                            syncModule("LMS", { AmazeClient.getLMSAssignments() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setLms(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.EVENTS in sweepModules) {
+                        jobs += async {
+                            syncModule("Registered Events", { AmazeClient.getEvents() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setEvents(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.CLUBS in sweepModules) {
+                        jobs += async {
+                            syncModule("Clubs", { AmazeClient.getClubs() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setClubs(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.QCM_VIEW in sweepModules) {
+                        jobs += async {
+                            syncModule("QCM View", { AmazeClient.getQcmView() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setQcmView(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.CIRCULARS in sweepModules) {
+                        jobs += async {
+                            syncModule("Circulars", { AmazeClient.getCirculars() }, { it.error == null }, { it.error }) {
+                                AppDataStore.setCirculars(it)
+                            }
+                        }
+                    }
+                    if (SyncModule.MOODLE in sweepModules) {
+                        jobs += async {
+                            val creds = SettingsManager.getMoodleCredentials()
+                            if (creds == null) {
+                                SyncEngine.markModuleError(SyncModule.MOODLE, "NO_MOODLE_CREDS")
+                                SyncModuleResult("Moodle Assignments", false, "NO_MOODLE_CREDS")
+                            } else {
+                                syncModule("Moodle Assignments", { AmazeClient.fetchMoodleData(creds.first, creds.second) }, { it.error == null }, { it.error }) {
+                                    AppDataStore.setMoodle(it)
+                                }
+                            }
+                        }
+                    }
+                    val idModules = sweepModules.intersect(setOf(
+                        SyncModule.STUDENT_PROFILE, SyncModule.PROFILE_IMAGES, SyncModule.CREDENTIALS,
+                        SyncModule.BANK_INFO, SyncModule.APAAR_ID, SyncModule.DAYBOARDER,
+                        SyncModule.EPT_SCHEDULE, SyncModule.REGISTRATION_SCHEDULE, SyncModule.UNIVERSITY_DAY
+                    ))
+                    if (idModules.isNotEmpty()) {
+                        jobs += async {
+                            syncIdentityModules()
+                            SyncModuleResult("Identity", true)
+                        }
+                    }
+                    jobs.awaitAll()
+                }
+                updateSyncSummary(results)
+            } catch (e: Exception) {
+                _error.value = "Sync failed: ${e.message}"
+            } finally {
+                _isLoading.value = false
+                _isSyncing.value = false
+            }
+        }
     }
 
     fun loadAllData(scheduledFor: String? = null) {

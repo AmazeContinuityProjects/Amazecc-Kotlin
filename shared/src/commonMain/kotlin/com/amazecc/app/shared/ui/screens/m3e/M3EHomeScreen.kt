@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
@@ -28,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,8 +41,11 @@ import com.amazecc.app.shared.domain.overhaul.M3EClassTimelineItem
 import com.amazecc.app.shared.domain.overhaul.M3EHomeAction
 import com.amazecc.app.shared.domain.overhaul.M3EHomeState
 import com.amazecc.app.shared.domain.overhaul.M3EQuickStatsState
+import com.amazecc.app.shared.domain.overhaul.M3EStatTone
 import com.amazecc.app.shared.domain.overhaul.M3EUserIdentityState
 import com.amazecc.app.shared.domain.overhaul.M3EWeekDay
+import com.amazecc.app.shared.ui.m3e.components.M3EStatCardsCarousel
+import com.amazecc.app.shared.ui.m3e.components.M3EStatItem
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWeekStrip
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -82,20 +87,58 @@ fun M3EHomeScreen(
                 )
             }
 
-            // 2. Week Strip
+            // 2. Stat Cards Carousel in Expressive Shapes (FIRST, before the dates/week strip)
+            item(key = "stat_cards_carousel") {
+                val statItems = remember(state.quickStats) {
+                    listOf(
+                        M3EStatItem(
+                            id = "stat_attendance",
+                            label = "Attendance",
+                            value = "${state.quickStats.attendancePercentage}%",
+                            sub = state.quickStats.attendanceStatusText.ifBlank { "Overall attendance status" },
+                            tone = if (state.quickStats.attendancePercentage >= 75.0) M3EStatTone.GOOD else M3EStatTone.CRITICAL,
+                            icon = Icons.Rounded.CheckCircle,
+                            onClick = { onAction(M3EHomeAction.OpenAttendanceHub) }
+                        ),
+                        M3EStatItem(
+                            id = "stat_cgpa",
+                            label = "Cumulative GPA",
+                            value = "${state.quickStats.cgpa}",
+                            sub = "Academic performance standing",
+                            tone = M3EStatTone.PRIMARY,
+                            icon = Icons.Rounded.School,
+                            onClick = { onAction(M3EHomeAction.OpenAcademicsHub) }
+                        ),
+                        M3EStatItem(
+                            id = "stat_safe_bunks",
+                            label = "Safe Bunks",
+                            value = "${state.quickStats.safeBunksAvailable}",
+                            sub = if (state.quickStats.safeBunksAvailable > 0) "${state.quickStats.safeBunksAvailable} safe bunks available" else "No bunks available safely",
+                            tone = if (state.quickStats.safeBunksAvailable > 0) M3EStatTone.TERTIARY else M3EStatTone.WARNING,
+                            icon = Icons.Rounded.Schedule,
+                            onClick = { onAction(M3EHomeAction.OpenAttendanceHub) }
+                        ),
+                        M3EStatItem(
+                            id = "stat_credits",
+                            label = "Credits Earned",
+                            value = "${state.quickStats.creditsEarned}",
+                            sub = "${state.quickStats.creditsEarned} Credits Earned",
+                            tone = M3EStatTone.SECONDARY,
+                            icon = Icons.Rounded.Insights,
+                            onClick = { onAction(M3EHomeAction.OpenAcademicsHub) }
+                        )
+                    )
+                }
+                M3EStatCardsCarousel(
+                    stats = statItems
+                )
+            }
+
+            // 3. Week Strip
             item(key = "week_strip") {
                 M3EWeekStrip(
                     days = state.weekDays,
                     onDaySelected = { date -> onAction(M3EHomeAction.SelectDay(date)) }
-                )
-            }
-
-            // 3. Quick Stats Row
-            item(key = "quick_stats") {
-                M3EQuickStatsRow(
-                    stats = state.quickStats,
-                    onAttendanceClick = { onAction(M3EHomeAction.OpenAttendanceHub) },
-                    onAcademicsClick = { onAction(M3EHomeAction.OpenAcademicsHub) }
                 )
             }
 

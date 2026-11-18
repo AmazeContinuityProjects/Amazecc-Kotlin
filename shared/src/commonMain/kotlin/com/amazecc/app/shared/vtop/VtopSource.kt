@@ -1,19 +1,18 @@
 package com.amazecc.app.shared.vtop
 
 /**
- * Where VTOP data comes from.
+ * Where VTOP and academic data comes from.
  *
- * [LOCAL] talks to VTOP directly from the device via [VtopEngine]. This is required for a
- * working login: VTOP only accepts connections from Indian IP space, and the app's server
- * (api.amazecc.com) runs in Singapore where every VTOP connection is dropped.
- *
- * [REMOTE] keeps the legacy behaviour of proxying through api.amazecc.com. That path is
- * currently non-functional for VTOP routes; it remains available for the endpoints backed by
- * our own Postgres (qbank, clubs, cabshare, transport, wishlist) and as an escape hatch.
+ * [REMOTE] Tier 1: Proxies through api.amazecc.com (Hono/Cloudflare/backend remote API).
+ * [LOCAL] Tier 2: Talks to VTOP directly from the device via embedded headless scraper ([VtopEngine]).
+ * [OFFLINE_CACHE] Tier 3: Pure offline mode using cached snapshots from [AppDataStore] and [UserStore].
  */
-enum class VtopSource {
-    LOCAL,
-    REMOTE;
+enum class VtopSource(val displayName: String, val tier: Int, val description: String) {
+    REMOTE("Tier 1: Remote API", 1, "Via api.amazecc.com (Remote Backend)"),
+    LOCAL("Tier 2: Local Headless Scraper", 2, "On-device embedded scraper via WebView"),
+    OFFLINE_CACHE("Pure Offline Cache", 3, "Offline mode using only local persisted storage");
+
+    val rank: Int get() = tier
 
     companion object {
         fun fromName(value: String?): VtopSource =

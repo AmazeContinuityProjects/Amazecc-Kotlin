@@ -40,6 +40,13 @@ import com.amazecc.app.shared.model.TimetableRes
 import com.amazecc.app.shared.model.UniversityDayRes
 import com.amazecc.app.shared.state.AcademicMerge
 import com.amazecc.app.shared.state.TimetableCourseInfo
+import com.amazecc.app.shared.state.AppDataStore
+import com.amazecc.app.shared.state.UserStore
+import com.amazecc.app.shared.state.IdentitySource
+import com.amazecc.app.shared.state.IdentityExtractor
+import com.amazecc.app.shared.model.AllGradesRes
+import com.amazecc.app.shared.model.GradeItem
+import com.amazecc.app.shared.model.SemesterGradeResult
 import com.amazecc.app.shared.model.EffectiveGradeCourse
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -278,12 +285,16 @@ object VtopDataSource {
             return TimetableRes(success = false, error = "No VTOP session")
         }
         val courses = fetchCourses(semesterId)
-        return TimetableRes(
+        val res = TimetableRes(
             success = courses.isNotEmpty(),
             semesterId = semesterId,
             courseInfo = courses.map { it.toCourseInfo() },
             message = if (courses.isEmpty()) "No courses returned by VTOP" else null
         )
+        if (res.success && res.courseInfo?.isNotEmpty() == true) {
+            AppDataStore.upsertTimetable(semesterId, res)
+        }
+        return res
     }
 
     // ── Attendance ──────────────────────────────────────────────────────────
@@ -439,12 +450,16 @@ object VtopDataSource {
             item.copy(logs = logs)
         }
 
-        return AttendanceRes(
+        val res = AttendanceRes(
             success = merged.isNotEmpty(),
             semesterId = semesterId,
             attendance = detailed,
             message = if (merged.isEmpty()) "No attendance rows returned by VTOP" else null
         )
+        if (res.success && res.attendance?.isNotEmpty() == true) {
+            AppDataStore.upsertAttendance(semesterId, res)
+        }
+        return res
     }
 
     // ── Marks ──────────────────────────────────────────────────────────────
@@ -529,7 +544,7 @@ object VtopDataSource {
             evaluate(VtopScripts.fetchCgpaSummary(PATH_CGPA, sessionBody() ?: return null))
         )
 
-        return MarksRes(
+        val res = MarksRes(
             success = courses.isNotEmpty(),
             courses = courses,
             cgpa = summary?.let {
@@ -537,6 +552,10 @@ object VtopDataSource {
             },
             message = if (courses.isEmpty()) "No marks returned by VTOP" else null
         )
+        if (res.success && res.courses?.isNotEmpty() == true) {
+            AppDataStore.upsertMarks(semesterId, res)
+        }
+        return res
     }
 
     // ── Grades ─────────────────────────────────────────────────────────────
@@ -570,11 +589,29 @@ object VtopDataSource {
             )
         }
 
-        return SemesterGradesRes(
+        val res = SemesterGradesRes(
             success = grades.isNotEmpty(),
             effectiveGrades = grades,
             error = if (grades.isEmpty()) "No grades returned by VTOP" else null
         )
+        if (res.success && grades.isNotEmpty()) {
+            val semesterId = VtopSession.semesterSubId.value ?: ""
+            val rows = grades.mapNotNull { row ->
+                val title = row.basketTitle?.trim().orEmpty()
+                val grade = row.grade?.trim().orEmpty()
+                if (title.isEmpty() && grade.isEmpty()) return@mapNotNull null
+                GradeItem(
+                    courseTitle = title,
+                    courseType = row.courseType.orEmpty(),
+                    grade = grade,
+                    grandTotal = ""
+                )
+            }
+            if (rows.isNotEmpty()) {
+                AppDataStore.upsertGrades(AllGradesRes(success = true, grades = mapOf(semesterId to SemesterGradeResult(grades = rows))))
+            }
+        }
+        return res
     }
 
     // ── Hostel ─────────────────────────────────────────────────────────────
@@ -666,7 +703,7 @@ object VtopDataSource {
             )
         }
 
-        return HostelDetails(
+        val res = HostelDetails(
             success = true,
             hostelInfo = if (gender == null && blockName == null && roomNo == null) {
                 null
@@ -681,6 +718,8 @@ object VtopDataSource {
             },
             leaveHistory = leaves.values.toList()
         )
+        AppDataStore.setHostelDetails(res)
+        return res
     }
 
     // ── Payments ───────────────────────────────────────────────────────────
@@ -757,11 +796,13 @@ object VtopDataSource {
             ?.let { wallet.cell(0, 5) }
             ?.takeIf { it.isNotBlank() }
 
-        return PaymentsRes(
+        val res = PaymentsRes(
             success = true,
             payments = payments,
             walletBalance = balance
         )
+        AppDataStore.setPayments(res)
+        return res
     }
 
     // ── Group A — generic page parse ───────────────────────────────────────
@@ -795,13 +836,15 @@ object VtopDataSource {
 
     suspend fun fetchApaarId(): ApaarIdRes? {
         val page = parsePage(PATH_APAAR) ?: return null
-        return ApaarIdRes(
+        val res = ApaarIdRes(
             success = true,
             hasApaar = page.hasApaar,
             formFields = page.formFields.toJsonObject(),
             keyValuePairs = page.keyValuePairs.toJsonObject(),
             tables = page.tables.toJsonArray()
         )
+        UserStore.merge(IdentityExtractor.fromApaarId(res), IdentitySource.APAAR)
+        return res
     }
 
     suspend fun fetchEptSchedule(): EptScheduleRes? {
@@ -876,7 +919,12 @@ object VtopDataSource {
         val res = evaluate(VtopScripts.fetchStudentProfile(PATH_STUDENT_PROFILE, body))
         val page = VtopPage.parse(res)
         if (!page.ok) return null
-        return StudentProfileRes(success = true, data = res.decodeAt("profile", StudentProfile.serializer()))
+        val profile = res.decodeAt("profile", StudentProfile.serializer())
+        val output = StudentProfileRes(success = true, data = profile)
+        if (output.success && output.data != null) {
+            UserStore.merge(IdentityExtractor.fromStudentProfile(output), IdentitySource.STUDENT)
+        }
+        return output
     }
 
     suspend fun fetchBankInfo(): BankInfoRes? {
@@ -887,11 +935,13 @@ object VtopDataSource {
         // Fields carry nested option arrays, so read the raw object rather than VtopPage's
         // string-only formFields map.
         val fields = (res.rawObject()["fields"] as? JsonObject)?.toMap()
-        return BankInfoRes(
+        val output = BankInfoRes(
             success = true,
             bankDetails = res.rawObject()["bankDetails"] ?: JsonNull,
             fields = fields
         )
+        UserStore.merge(IdentityExtractor.fromBankInfo(output), IdentitySource.BANK)
+        return output
     }
 
     suspend fun fetchProfileImages(): ProfileImagesRes? {
@@ -899,12 +949,14 @@ object VtopDataSource {
         val res = evaluate(VtopScripts.fetchProfileImages(PATH_PROCTOR, body))
         val page = VtopPage.parse(res)
         if (!page.ok) return null
-        return ProfileImagesRes(
+        val output = ProfileImagesRes(
             success = true,
             proctor = res.decodeAt("proctor", ProfileImagesProctor.serializer()),
             hodDean = res.decodeAt("hodDean", ProfileImagesHodDean.serializer()),
             credentials = res.decodeAt("credentials", ProfileImagesCredentials.serializer())
         )
+        UserStore.merge(IdentityExtractor.fromProfileImages(output), IdentitySource.PROFILE_IMAGES)
+        return output
     }
 
     /** The parsed JSON object, or an empty one if the payload is not a JSON object. */
@@ -927,7 +979,9 @@ object VtopDataSource {
                 try { json.decodeFromJsonElement(ExamItem.serializer(), row) } catch (_: Exception) { null }
             } ?: emptyList()
         } ?: emptyMap()
-        return ExamScheduleRes(success = true, rawScheduleUpper = schedule)
+        val output = ExamScheduleRes(success = true, rawScheduleUpper = schedule)
+        AppDataStore.upsertExams(semesterId, output)
+        return output
     }
 
     suspend fun fetchCirculars(): CircularsRes? {
@@ -936,7 +990,9 @@ object VtopDataSource {
         val page = VtopPage.parse(res)
         if (!page.ok) return null
         val root = res.rawObject()
-        return CircularsRes(success = true, circulars = root.decodeList("circulars", circularItems) ?: emptyList())
+        val output = CircularsRes(success = true, circulars = root.decodeList("circulars", circularItems) ?: emptyList())
+        AppDataStore.setCirculars(output)
+        return output
     }
 
     suspend fun fetchCredentials(): CredentialsRes? {        val body = sessionBody() ?: return null
@@ -944,12 +1000,14 @@ object VtopDataSource {
         val page = VtopPage.parse(res)
         if (!page.ok) return null
         val root = res.rawObject()
-        return CredentialsRes(
+        val output = CredentialsRes(
             success = true,
             title = (root["title"] as? JsonPrimitive)?.content.orEmpty(),
             credentials = root.decodeList("credentials", credentialItems) ?: emptyList(),
             ranks = root.decodeList("ranks", rankItems) ?: emptyList()
         )
+        UserStore.merge(IdentityExtractor.fromCredentials(output), IdentitySource.CREDENTIALS)
+        return output
     }
 
     private inline fun <reified T> JsonObject.decodeList(
@@ -1011,11 +1069,13 @@ object VtopDataSource {
             }
         }
 
-        return QcmViewRes(
+        val qcmOutput = QcmViewRes(
             success = true,
             data = JsonArray(tables),
             semesters = semesterIds,
         )
+        AppDataStore.setQcmView(qcmOutput)
+        return qcmOutput
     }
 
     // ── Group D — curriculum ────────────────────────────────────────────────
@@ -1050,13 +1110,15 @@ object VtopDataSource {
             }
         }
 
-        return CurriculumRes(
+        val curriculumOutput = CurriculumRes(
             success = true,
             title = (root1["title"] as? JsonPrimitive)?.content.orEmpty(),
             totalCredits = (root1["totalCredits"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0,
             categories = categories,
             details = details
         )
+        AppDataStore.setCurriculum(curriculumOutput)
+        return curriculumOutput
     }
 
     private val curriculumCategories = ListSerializer(CurriculumCategory.serializer())

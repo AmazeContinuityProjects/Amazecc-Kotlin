@@ -86,8 +86,8 @@ class M3EHomeScreenUiTest {
         onNodeWithText("Aravind Kumar").assertExists()
         onNodeWithText("21BCE1042 · Vellore Campus").assertExists()
         onNodeWithText("88.5%").assertExists()
-        onNodeWithText("9.12").assertExists()
-        onNodeWithText("120 Credits Earned").assertExists()
+        onNodeWithText("ATTENDANCE").assertExists()
+        onNodeWithText("Safe margin across all courses").assertExists()
     }
 
     @Test

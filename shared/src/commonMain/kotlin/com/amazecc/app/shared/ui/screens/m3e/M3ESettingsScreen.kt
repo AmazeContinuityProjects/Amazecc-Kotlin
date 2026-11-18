@@ -24,9 +24,13 @@ import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.HealthAndSafety
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Storage
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
@@ -34,6 +38,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -47,6 +53,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EPalettePreset
 import com.amazecc.app.shared.domain.overhaul.M3ESettingsAction
 import com.amazecc.app.shared.domain.overhaul.M3ESettingsState
 import com.amazecc.app.shared.domain.overhaul.M3EThemeMode
+import com.amazecc.app.shared.vtop.VtopSource
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -346,7 +353,234 @@ fun M3ESettingsScreen(
             }
         }
 
-        // 5. Open Source Credits Card
+        // 4b. VTOP Sync Engine & Data Source Card
+        item {
+            M3ESurfaceCard(
+                containerLevel = SurfaceContainerLevel.LOW,
+                cornerRadius = 22.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.CloudSync,
+                            contentDescription = null,
+                            tint = colors.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "VTOP Engine & Data Source",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = colors.onSurface
+                        )
+                    }
+
+                    Text(
+                        text = "Data Source Tier",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colors.onSurfaceVariant
+                    )
+
+                    M3EConnectedButtonGroup(
+                        items = listOf(VtopSource.REMOTE, VtopSource.LOCAL, VtopSource.OFFLINE_CACHE),
+                        selectedItem = state.vtopSource,
+                        onItemSelected = { onAction(M3ESettingsAction.SetVtopSource(it)) },
+                        labelProvider = {
+                            when (it) {
+                                VtopSource.REMOTE -> "Tier 1: Remote"
+                                VtopSource.LOCAL -> "Tier 2: Scraper"
+                                VtopSource.OFFLINE_CACHE -> "Offline Cache"
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Text(
+                        text = "Sync Mode Cadence",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colors.onSurfaceVariant
+                    )
+
+                    val syncModes = listOf("quick", "balanced", "full", "academics", "campus")
+                    M3EConnectedButtonGroup(
+                        items = syncModes,
+                        selectedItem = state.selectedSyncMode,
+                        onItemSelected = { onAction(M3ESettingsAction.SelectSyncMode(it)) },
+                        labelProvider = { it.replaceFirstChar { c -> c.uppercase() } },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    ElevatedButton(
+                        onClick = { onAction(M3ESettingsAction.TriggerManualSync(state.selectedSyncMode)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = colors.primary,
+                            contentColor = colors.onPrimary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Sync,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Invoke Sync (${state.selectedSyncMode.replaceFirstChar { it.uppercase() }})",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 5. Notifications & Reminders Card
+        item {
+            M3ESurfaceCard(
+                containerLevel = SurfaceContainerLevel.LOW,
+                cornerRadius = 22.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Notifications,
+                            contentDescription = null,
+                            tint = colors.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Notifications & Reminders",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = colors.onSurface
+                        )
+                    }
+
+                    // Class Alerts Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Class Schedule Alerts",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.onSurface
+                            )
+                            Text(
+                                text = "Remind 10 mins before upcoming lecture",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = state.classAlertsEnabled,
+                            onCheckedChange = { onAction(M3ESettingsAction.ToggleClassAlerts(it)) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = colors.primary,
+                                checkedTrackColor = colors.primaryContainer
+                            )
+                        )
+                    }
+
+                    // Attendance Alerts Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Low Attendance Warnings",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.onSurface
+                            )
+                            Text(
+                                text = "Alert when any course drops below 75%",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = state.attendanceAlertsEnabled,
+                            onCheckedChange = { onAction(M3ESettingsAction.ToggleAttendanceAlerts(it)) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = colors.primary,
+                                checkedTrackColor = colors.primaryContainer
+                            )
+                        )
+                    }
+
+                    // Exam Reminders Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Exam & Seating Notifications",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.onSurface
+                            )
+                            Text(
+                                text = "Remind CAT / FAT schedule 24h prior",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = state.examRemindersEnabled,
+                            onCheckedChange = { onAction(M3ESettingsAction.ToggleExamReminders(it)) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = colors.primary,
+                                checkedTrackColor = colors.primaryContainer
+                            )
+                        )
+                    }
+
+                    ElevatedButton(
+                        onClick = { onAction(M3ESettingsAction.SendTestNotification) },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = colors.surfaceContainerHigh,
+                            contentColor = colors.onSurface
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.NotificationsActive,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Send Test Notification",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            }
+        }
+
+        // 6. Open Source Credits Card
         item {
             M3ESurfaceCard(
                 containerLevel = SurfaceContainerLevel.LOW,

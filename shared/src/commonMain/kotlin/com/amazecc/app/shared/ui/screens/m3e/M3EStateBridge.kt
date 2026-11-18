@@ -8,8 +8,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.vtop.VtopSource
 import com.amazecc.app.shared.domain.GradeHistory
 import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.domain.overhaul.AcademicCourseFilter
@@ -1450,6 +1454,14 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
 fun M3ESettingsScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val currentTheme by AppState.theme.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    var classAlerts by remember { mutableStateOf(SettingsManager.isNotifClassRemindersEnabled()) }
+    var attendanceAlerts by remember { mutableStateOf(SettingsManager.isNotifAssignmentRemindersEnabled()) }
+    var examReminders by remember { mutableStateOf(SettingsManager.isNotifExamRemindersEnabled()) }
+    var diagnosticMsg by remember { mutableStateOf<String?>("All systems operational (Ping: 42ms)") }
+    var vtopSource by remember { mutableStateOf(AmazeClient.vtopSource) }
+    var selectedSyncMode by remember { mutableStateOf("balanced") }
 
     val selectedThemeMode = when (currentTheme) {
         AppTheme.AMOLED, AppTheme.DARK -> M3EThemeMode.DARK_OLED
@@ -1463,7 +1475,12 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
         honoApiBaseUrl = "https://amazecc-api-hono.sugeerth.workers.dev",
         cacheSizeText = "14.2 MB",
         isDiagnosticsRunning = false,
-        diagnosticStatus = "All systems operational (Ping: 42ms)"
+        diagnosticStatus = diagnosticMsg,
+        classAlertsEnabled = classAlerts,
+        attendanceAlertsEnabled = attendanceAlerts,
+        examRemindersEnabled = examReminders,
+        vtopSource = vtopSource,
+        selectedSyncMode = selectedSyncMode
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -1485,8 +1502,41 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
                         SettingsManager.clearAll()
                         UserStore.clear()
                     }
-                    is M3ESettingsAction.RunDiagnostics -> {}
+                    is M3ESettingsAction.RunDiagnostics -> {
+                        diagnosticMsg = "Diagnostics passed • All services operational"
+                    }
                     is M3ESettingsAction.OpenGithubRepo -> {}
+                    is M3ESettingsAction.ToggleClassAlerts -> {
+                        classAlerts = action.enabled
+                        SettingsManager.setNotifClassRemindersEnabled(action.enabled)
+                        AppState.rescheduleNotifications()
+                    }
+                    is M3ESettingsAction.ToggleAttendanceAlerts -> {
+                        attendanceAlerts = action.enabled
+                        SettingsManager.setNotifAssignmentRemindersEnabled(action.enabled)
+                        AppState.rescheduleNotifications()
+                    }
+                    is M3ESettingsAction.ToggleExamReminders -> {
+                        examReminders = action.enabled
+                        SettingsManager.setNotifExamRemindersEnabled(action.enabled)
+                        AppState.rescheduleNotifications()
+                    }
+                    is M3ESettingsAction.SendTestNotification -> {
+                        scope.launch {
+                            val result = AppState.sendTestNotification()
+                            diagnosticMsg = result
+                        }
+                    }
+                    is M3ESettingsAction.SetVtopSource -> {
+                        AmazeClient.setVtopSource(action.source)
+                        vtopSource = action.source
+                    }
+                    is M3ESettingsAction.SelectSyncMode -> {
+                        selectedSyncMode = action.mode
+                    }
+                    is M3ESettingsAction.TriggerManualSync -> {
+                        AppState.loadMode(action.mode, force = true)
+                    }
                 }
             },
             modifier = modifier

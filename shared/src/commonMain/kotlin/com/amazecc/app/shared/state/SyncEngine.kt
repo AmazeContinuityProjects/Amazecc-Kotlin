@@ -96,6 +96,225 @@ data class SyncProgress(
 }
 
 @Serializable
+data class SyncModeStep(
+    val module: SyncModule,
+    val background: Boolean = false,
+    val everyDays: Int? = null
+)
+
+@Serializable
+data class SyncMode(
+    val id: String,
+    val label: String,
+    val description: String,
+    val isBuiltIn: Boolean = true,
+    val steps: List<SyncModeStep> = emptyList()
+) {
+    val foregroundSteps: List<SyncModeStep> get() = steps.filter { !it.background }
+    val backgroundSteps: List<SyncModeStep> get() = steps.filter { it.background }
+    val enabledModules: Set<SyncModule> get() = steps.map { it.module }.toSet()
+}
+
+data class CadenceTierMeta(
+    val id: String,
+    val label: String,
+    val cadence: String,
+    val description: String,
+    val defaultStalenessDays: Int
+)
+
+val BUILT_IN_TIERS: List<CadenceTierMeta> = listOf(
+    CadenceTierMeta(
+        id = "daily",
+        label = "Daily Sync",
+        cadence = "Every day",
+        description = "Attendance, timetable and marks — the per-class check, hostellers' hostel folded in.",
+        defaultStalenessDays = 1
+    ),
+    CadenceTierMeta(
+        id = "weekly",
+        label = "Weekly Sync",
+        cadence = "Once a week",
+        description = "Daily + exam schedule, LMS, and Moodle details.",
+        defaultStalenessDays = 7
+    ),
+    CadenceTierMeta(
+        id = "monthly",
+        label = "Monthly Sync",
+        cadence = "Once a month",
+        description = "Weekly + curriculum, calendar, finance, transport, grades and the rest.",
+        defaultStalenessDays = 30
+    ),
+    CadenceTierMeta(
+        id = "quarterly",
+        label = "Quarterly Sync",
+        cadence = "Every 3 months",
+        description = "Monthly + identity & profile (whoami). Everything the app can pull.",
+        defaultStalenessDays = 90
+    )
+)
+
+private fun step(module: SyncModule, background: Boolean = false, everyDays: Int? = null) =
+    SyncModeStep(module = module, background = background, everyDays = everyDays)
+
+val DAILY_STEPS: List<SyncModeStep> = listOf(
+    step(SyncModule.ATTENDANCE, everyDays = 1),
+    step(SyncModule.TIMETABLE, everyDays = 1),
+    step(SyncModule.MARKS, everyDays = 1),
+    step(SyncModule.HOSTEL_DETAILS, background = true, everyDays = 1),
+)
+
+val WEEKLY_STEPS: List<SyncModeStep> = DAILY_STEPS + listOf(
+    step(SyncModule.EXAM_SCHEDULE, background = true, everyDays = 7),
+    step(SyncModule.LMS, background = true, everyDays = 7),
+    step(SyncModule.MOODLE, background = true, everyDays = 7),
+)
+
+val MONTHLY_STEPS: List<SyncModeStep> = listOf(
+    step(SyncModule.ATTENDANCE),
+    step(SyncModule.TIMETABLE),
+    step(SyncModule.MARKS),
+    step(SyncModule.HOSTEL_DETAILS, background = true),
+    step(SyncModule.EXAM_SCHEDULE, background = true, everyDays = 7),
+    step(SyncModule.LMS, background = true, everyDays = 7),
+    step(SyncModule.MOODLE, background = true, everyDays = 7),
+    step(SyncModule.GRADES, everyDays = 30),
+    step(SyncModule.ALL_SEMESTER_ATTENDANCE, everyDays = 30),
+    step(SyncModule.CALENDAR, everyDays = 30),
+    step(SyncModule.CALENDARS_LIST, everyDays = 30),
+    step(SyncModule.CURRICULUM, background = true, everyDays = 30),
+    step(SyncModule.PAYMENTS, background = true, everyDays = 30),
+    step(SyncModule.LIBRARY, background = true, everyDays = 30),
+    step(SyncModule.TRANSPORT, background = true, everyDays = 30),
+    step(SyncModule.BUSES, background = true, everyDays = 30),
+    step(SyncModule.EVENTS, background = true, everyDays = 30),
+    step(SyncModule.CLUBS, background = true, everyDays = 30),
+    step(SyncModule.CIRCULARS, background = true, everyDays = 30),
+    step(SyncModule.QCM_VIEW, background = true, everyDays = 30),
+)
+
+val QUARTERLY_STEPS: List<SyncModeStep> = MONTHLY_STEPS + listOf(
+    step(SyncModule.STUDENT_PROFILE, everyDays = 90),
+    step(SyncModule.PROFILE_IMAGES, background = true, everyDays = 90),
+    step(SyncModule.CREDENTIALS, background = true, everyDays = 90),
+    step(SyncModule.BANK_INFO, background = true, everyDays = 90),
+    step(SyncModule.DAYBOARDER, background = true, everyDays = 90),
+    step(SyncModule.EPT_SCHEDULE, background = true, everyDays = 90),
+    step(SyncModule.REGISTRATION_SCHEDULE, background = true, everyDays = 90),
+    step(SyncModule.UNIVERSITY_DAY, background = true, everyDays = 90),
+    step(SyncModule.APAAR_ID, background = true, everyDays = 90),
+)
+
+val BUILT_IN_MODES: List<SyncMode> = listOf(
+    SyncMode(
+        id = "quick",
+        label = "Quick Sync",
+        description = "Attendance, timetable and marks — the per-class check.",
+        isBuiltIn = true,
+        steps = listOf(
+            step(SyncModule.ATTENDANCE),
+            step(SyncModule.TIMETABLE),
+            step(SyncModule.MARKS)
+        )
+    ),
+    SyncMode(
+        id = "balanced",
+        label = "Balanced Sync",
+        description = "Attendance, marks, student profile + background campus & services.",
+        isBuiltIn = true,
+        steps = listOf(
+            step(SyncModule.ATTENDANCE),
+            step(SyncModule.TIMETABLE),
+            step(SyncModule.MARKS),
+            step(SyncModule.GRADES),
+            step(SyncModule.STUDENT_PROFILE),
+            step(SyncModule.HOSTEL_DETAILS, background = true),
+            step(SyncModule.TRANSPORT, background = true),
+            step(SyncModule.BUSES, background = true),
+            step(SyncModule.EVENTS, background = true),
+            step(SyncModule.CLUBS, background = true),
+            step(SyncModule.CURRICULUM, background = true),
+            step(SyncModule.QCM_VIEW, background = true),
+            step(SyncModule.LMS, background = true),
+            step(SyncModule.CIRCULARS, background = true),
+            step(SyncModule.LIBRARY, background = true),
+            step(SyncModule.PAYMENTS, background = true)
+        )
+    ),
+    SyncMode(
+        id = "full",
+        label = "Full Sync",
+        description = "All 28 modules refreshed with background tasks awaited.",
+        isBuiltIn = true,
+        steps = SyncModule.entries.map { step(it, background = false) }
+    ),
+    SyncMode(
+        id = "academics",
+        label = "Academics Only",
+        description = "Attendance, marks, grades, exam schedule, calendar, curriculum, QCM and LMS.",
+        isBuiltIn = true,
+        steps = listOf(
+            step(SyncModule.ATTENDANCE),
+            step(SyncModule.TIMETABLE),
+            step(SyncModule.MARKS),
+            step(SyncModule.GRADES),
+            step(SyncModule.EXAM_SCHEDULE),
+            step(SyncModule.CALENDAR),
+            step(SyncModule.CALENDARS_LIST),
+            step(SyncModule.ALL_SEMESTER_ATTENDANCE),
+            step(SyncModule.CURRICULUM, background = true),
+            step(SyncModule.QCM_VIEW, background = true),
+            step(SyncModule.LMS, background = true),
+            step(SyncModule.CIRCULARS, background = true)
+        )
+    ),
+    SyncMode(
+        id = "campus",
+        label = "Campus Life",
+        description = "Events, clubs, buses, transport, hostel details, dayboarder and services.",
+        isBuiltIn = true,
+        steps = listOf(
+            step(SyncModule.EVENTS),
+            step(SyncModule.CLUBS),
+            step(SyncModule.BUSES),
+            step(SyncModule.TRANSPORT),
+            step(SyncModule.HOSTEL_DETAILS),
+            step(SyncModule.DAYBOARDER),
+            step(SyncModule.PAYMENTS, background = true),
+            step(SyncModule.LIBRARY, background = true)
+        )
+    ),
+    SyncMode(
+        id = "daily",
+        label = "Daily Sync",
+        description = "Attendance, timetable and marks (1 day staleness window).",
+        isBuiltIn = true,
+        steps = DAILY_STEPS
+    ),
+    SyncMode(
+        id = "weekly",
+        label = "Weekly Sync",
+        description = "Daily + exam schedule, LMS, and Moodle (7 day staleness window).",
+        isBuiltIn = true,
+        steps = WEEKLY_STEPS
+    ),
+    SyncMode(
+        id = "monthly",
+        label = "Monthly Sync",
+        description = "Weekly + curriculum, calendar, finance, transport, grades (30 day staleness window).",
+        isBuiltIn = true,
+        steps = MONTHLY_STEPS
+    ),
+    SyncMode(
+        id = "quarterly",
+        label = "Quarterly Sync",
+        description = "Monthly + identity & profile (90 day staleness window).",
+        isBuiltIn = true,
+        steps = QUARTERLY_STEPS
+    )
+)
+
+@Serializable
 data class SyncConfigProfile(
     val id: String,
     val name: String,
@@ -112,32 +331,68 @@ val DEFAULT_SYNC_PROFILES = listOf(
     ),
     SyncConfigProfile(
         id = "quick_sync",
-        name = "Quick Sync (7 Modules)",
+        name = "Quick Sync (3 Modules)",
+        enabledModules = setOf(
+            SyncModule.ATTENDANCE,
+            SyncModule.TIMETABLE,
+            SyncModule.MARKS
+        ),
+        isBuiltIn = true
+    ),
+    SyncConfigProfile(
+        id = "balanced_sync",
+        name = "Balanced Sync (16 Modules)",
         enabledModules = setOf(
             SyncModule.ATTENDANCE,
             SyncModule.TIMETABLE,
             SyncModule.MARKS,
             SyncModule.GRADES,
+            SyncModule.STUDENT_PROFILE,
             SyncModule.HOSTEL_DETAILS,
-            SyncModule.PAYMENTS,
-            SyncModule.TRANSPORT
+            SyncModule.TRANSPORT,
+            SyncModule.BUSES,
+            SyncModule.EVENTS,
+            SyncModule.CLUBS,
+            SyncModule.CURRICULUM,
+            SyncModule.QCM_VIEW,
+            SyncModule.LMS,
+            SyncModule.CIRCULARS,
+            SyncModule.LIBRARY,
+            SyncModule.PAYMENTS
         ),
         isBuiltIn = true
     ),
-SyncConfigProfile(
+    SyncConfigProfile(
         id = "academics_only",
-        name = "Academics Only (10 Modules)",
+        name = "Academics Only (12 Modules)",
         enabledModules = setOf(
             SyncModule.ATTENDANCE,
             SyncModule.ALL_SEMESTER_ATTENDANCE,
             SyncModule.TIMETABLE,
+            SyncModule.MARKS,
             SyncModule.GRADES,
             SyncModule.CURRICULUM,
             SyncModule.EXAM_SCHEDULE,
             SyncModule.CALENDAR,
+            SyncModule.CALENDARS_LIST,
             SyncModule.CIRCULARS,
             SyncModule.QCM_VIEW,
             SyncModule.LMS
+        ),
+        isBuiltIn = true
+    ),
+    SyncConfigProfile(
+        id = "campus_life",
+        name = "Campus Life (8 Modules)",
+        enabledModules = setOf(
+            SyncModule.EVENTS,
+            SyncModule.CLUBS,
+            SyncModule.BUSES,
+            SyncModule.TRANSPORT,
+            SyncModule.HOSTEL_DETAILS,
+            SyncModule.DAYBOARDER,
+            SyncModule.PAYMENTS,
+            SyncModule.LIBRARY
         ),
         isBuiltIn = true
     ),
@@ -420,9 +675,13 @@ object SyncEngine {
 
     fun markModuleLoading(module: SyncModule) = updateModuleState(module, ModuleState(status = SyncStatus.LOADING))
 
-    fun markModuleSuccess(module: SyncModule) = updateModuleState(
-        module, ModuleState(status = SyncStatus.SUCCESS, lastSynced = Clock.System.now())
-    )
+    fun markModuleSuccess(module: SyncModule) {
+        val now = Clock.System.now()
+        updateModuleState(
+            module, ModuleState(status = SyncStatus.SUCCESS, lastSynced = now)
+        )
+        recordSyncTime(module, now)
+    }
 
     fun markModuleError(module: SyncModule, error: String?) = updateModuleState(
         module, ModuleState(status = SyncStatus.ERROR, error = error)
@@ -479,5 +738,93 @@ object SyncEngine {
             SyncProgress(completedModules = completed, activeModules = active, successCount = successCount, errorCount = errorCount)
         }
         _syncProgress.value = flatProgress
+    }
+
+    // ── Sync Modes & Cadence Tiers ──
+
+    val BUILT_IN_MODES: Map<String, SyncMode> get() = com.amazecc.app.shared.state.BUILT_IN_MODES.associateBy { it.id }
+
+    fun listModes(): List<SyncMode> = com.amazecc.app.shared.state.BUILT_IN_MODES
+
+    fun resolveMode(id: String): SyncMode {
+        val normalized = when (id) {
+            "quick_sync" -> "quick"
+            "balanced_sync" -> "balanced"
+            "full_sync" -> "full"
+            "academics_only" -> "academics"
+            "campus_life" -> "campus"
+            "daily_reload" -> "daily"
+            else -> id
+        }
+        return com.amazecc.app.shared.state.BUILT_IN_MODES.firstOrNull { it.id.equals(normalized, ignoreCase = true) }
+            ?: com.amazecc.app.shared.state.BUILT_IN_MODES.first { it.id == "balanced" }
+    }
+
+    fun resolveReloadModeId(switchedSemester: Boolean, modeId: String? = null, defaultSyncMode: String? = null): String {
+        if (switchedSemester) return "quarterly"
+        return modeId ?: defaultSyncMode ?: "quick"
+    }
+
+    fun recordSyncTime(module: SyncModule, at: Instant = Clock.System.now()) {
+        try {
+            SettingsManager.setString("sync_time_${module.name}", at.toString())
+        } catch (_: Exception) {}
+    }
+
+    fun getLastSyncedAt(module: SyncModule): Instant? {
+        val inMemory = _moduleStates.value[module]?.lastSynced
+        if (inMemory != null) return inMemory
+        val stored = SettingsManager.getString("sync_time_${module.name}")
+        if (stored.isNotBlank()) {
+            return runCatching { Instant.parse(stored) }.getOrNull()
+        }
+        return null
+    }
+
+    fun isFresh(module: SyncModule, maxAgeMs: Long, nowMs: Long = Clock.System.now().toEpochMilliseconds()): Boolean {
+        val last = getLastSyncedAt(module) ?: return false
+        val elapsed = nowMs - last.toEpochMilliseconds()
+        return elapsed < maxAgeMs
+    }
+
+    fun isFresh(module: SyncModule, windowDays: Int, force: Boolean = false): Boolean {
+        if (force || windowDays <= 0) return false
+        val last = getLastSyncedAt(module) ?: return false
+        val elapsed = Clock.System.now().toEpochMilliseconds() - last.toEpochMilliseconds()
+        return elapsed < windowDays * 86_400_000L
+    }
+
+    fun isFresh(step: SyncModeStep, force: Boolean = false): Boolean {
+        if (force) return false
+        val days = step.everyDays ?: return false
+        return isFresh(step.module, days, force)
+    }
+
+    fun formatSyncAge(module: SyncModule, nowMs: Long): String {
+        val last = getLastSyncedAt(module) ?: return "Never"
+        val s = maxOf(0L, (nowMs - last.toEpochMilliseconds()) / 1000L)
+        if (s < 60) return "Just now"
+        val m = s / 60
+        if (m < 60) return "${m}m ago"
+        val h = m / 60
+        if (h < 24) return "${h}h ago"
+        val d = h / 24
+        return "${d}d ago"
+    }
+
+    fun formatSyncAge(module: SyncModule, now: Instant = Clock.System.now()): String {
+        val last = getLastSyncedAt(module) ?: return "Never"
+        val s = maxOf(0L, (now.toEpochMilliseconds() - last.toEpochMilliseconds()) / 1000L)
+        if (s < 60) return "just now"
+        val m = s / 60
+        if (m < 60) return "$m min ago"
+        val h = m / 60
+        if (h < 24) return "$h h ago"
+        val d = h / 24
+        return if (d == 1L) "yesterday" else "$d days ago"
+    }
+
+    fun estimateModeCost(mode: SyncMode): Int {
+        return mode.steps.size + mode.foregroundSteps.size
     }
 }

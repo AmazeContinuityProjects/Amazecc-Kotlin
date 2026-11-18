@@ -44,15 +44,9 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.screens.*
 import com.amazecc.app.shared.ui.screens.m3e.*
 import com.amazecc.app.shared.ui.screens.libraries.LibrariesScreen
-import com.amazecc.app.shared.ui.screens.transport.TransportScreen
-import com.amazecc.app.shared.ui.screens.academics.FreeClassroomsScreen
 import com.amazecc.app.shared.ui.screens.academics.*
-import com.amazecc.app.shared.ui.screens.cabshare.CabShareScreen
 import com.amazecc.app.shared.ui.components.MainTabPager
-import com.amazecc.app.shared.ui.screens.events.EventHubScreen
-import com.amazecc.app.shared.ui.screens.hostel.HostelScreen
 import com.amazecc.app.shared.ui.screens.moodle.MoodleScreen
-import com.amazecc.app.shared.ui.screens.more.MoreScreen
 import com.amazecc.app.shared.ui.screens.onboarding.OnboardingScreen
 import com.amazecc.app.shared.ui.screens.payments.PaymentsScreen
 
@@ -81,14 +75,11 @@ fun App() {
     }
     // Load cached data outside of AppState.init — many referenced flows are declared after the init block.
     // Runs on a background dispatcher: ~24 cache JSON decodes (some multi-MB) must not pin the main thread.
+    // Pure local-first start: app boots purely from local storage cache; manual sync is the trigger.
     LaunchedEffect(Unit) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
             AppState.loadFromCache()
         }
-    }
-    // Foreground catch-up for scheduled syncs (iOS: main entry; Android: also onResume)
-    LaunchedEffect(Unit) {
-        AppState.checkDueSync()
     }
 
     AmazeTheme(
@@ -165,7 +156,7 @@ fun App() {
                         } else {
                             when (targetScreen) {
                                 Screen.SPLASH -> SplashScreen()
-                                Screen.LOGIN -> LoginScreen()
+                                Screen.LOGIN -> M3ELoginScreen()
                                 Screen.ONBOARDING -> OnboardingScreen()
                                 Screen.PAYMENTS -> PaymentsScreen()
                                 Screen.HOSTEL -> M3EHostelScreen()
@@ -201,7 +192,7 @@ fun App() {
                                 Screen.HALL_OF_FAME -> HallOfFameScreen()
                                 Screen.ARREAR -> ArrearTabScreen()
                                 Screen.HOME -> M3EHomeScreen()
-                                Screen.HOME_LEGACY -> LegacyHomeScreen()
+                                Screen.HOME_LEGACY -> M3EHomeScreen()
                                 Screen.ATTENDANCE -> M3EAttendanceScreen()
                                 Screen.ACADEMICS -> M3EAcademicsScreen()
                                 Screen.LIBRARIES -> LibrariesScreen()

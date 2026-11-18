@@ -16,20 +16,11 @@ import com.amazecc.app.shared.state.HomeViewMode
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.ui.screens.m3e.*
 import com.amazecc.app.shared.ui.screens.FfcsPlannerScreen
-import com.amazecc.app.shared.ui.screens.ProfileScreen
 import com.amazecc.app.shared.ui.screens.QBankScreen
 import com.amazecc.app.shared.ui.screens.SocialScreen
-import com.amazecc.app.shared.ui.screens.academics.AcademicsScreen
-import com.amazecc.app.shared.ui.screens.academics.AttendanceScreen
 import com.amazecc.app.shared.ui.screens.academics.CalendarScreen
-import com.amazecc.app.shared.ui.screens.academics.FreeClassroomsScreen
-import com.amazecc.app.shared.ui.screens.cabshare.CabShareScreen
-import com.amazecc.app.shared.ui.screens.events.EventHubScreen
-import com.amazecc.app.shared.ui.screens.hostel.HostelScreen
 import com.amazecc.app.shared.ui.screens.libraries.LibrariesScreen
-import com.amazecc.app.shared.ui.screens.more.MoreScreen
 import com.amazecc.app.shared.ui.screens.payments.PaymentsScreen
-import com.amazecc.app.shared.ui.screens.transport.TransportScreen
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable

@@ -23,11 +23,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.SyncCategory
 import com.amazecc.app.shared.state.SyncConfigProfile
 import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.vtop.VtopSource
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -100,6 +103,50 @@ fun SyncSettingsDialog(
                 }
 
                 Spacer(Modifier.height(14.dp))
+
+                // Data Source Tier Selection
+                Text(
+                    text = "DATA SOURCE TIER",
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textMuted,
+                        letterSpacing = 1.sp
+                    ),
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                var currentVtopSource by remember { mutableStateOf(AmazeClient.vtopSource) }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    FilterChip(
+                        selected = currentVtopSource == VtopSource.REMOTE,
+                        onClick = {
+                            AmazeClient.setVtopSource(VtopSource.REMOTE)
+                            currentVtopSource = VtopSource.REMOTE
+                        },
+                        label = { Text("Tier 1: Remote", fontSize = AmazeTheme.fontSize.xs, fontWeight = if (currentVtopSource == VtopSource.REMOTE) FontWeight.Bold else FontWeight.Normal) }
+                    )
+                    FilterChip(
+                        selected = currentVtopSource == VtopSource.LOCAL,
+                        onClick = {
+                            AmazeClient.setVtopSource(VtopSource.LOCAL)
+                            currentVtopSource = VtopSource.LOCAL
+                        },
+                        label = { Text("Tier 2: Scraper", fontSize = AmazeTheme.fontSize.xs, fontWeight = if (currentVtopSource == VtopSource.LOCAL) FontWeight.Bold else FontWeight.Normal) }
+                    )
+                    FilterChip(
+                        selected = currentVtopSource == VtopSource.OFFLINE_CACHE,
+                        onClick = {
+                            AmazeClient.setVtopSource(VtopSource.OFFLINE_CACHE)
+                            currentVtopSource = VtopSource.OFFLINE_CACHE
+                        },
+                        label = { Text("Offline Cache", fontSize = AmazeTheme.fontSize.xs, fontWeight = if (currentVtopSource == VtopSource.OFFLINE_CACHE) FontWeight.Bold else FontWeight.Normal) }
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
 
                 // Profile Selector Chips
                 Text(
@@ -321,6 +368,36 @@ fun SyncSettingsDialog(
                 }
 
                 Spacer(Modifier.height(14.dp))
+
+                // Manual Sync Action Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    AmazeButton(
+                        text = "Sync Active Profile",
+                        onClick = {
+                            onDismiss()
+                            SyncEngine.setShowSyncDialog(true, minimized = true)
+                            SyncEngine.resetAllStates()
+                            AppState.loadAllData()
+                        },
+                        modifier = Modifier.weight(1f),
+                        variant = ButtonVariant.PRIMARY
+                    )
+                    AmazeButton(
+                        text = "Quick Sync",
+                        onClick = {
+                            onDismiss()
+                            SyncEngine.setShowSyncDialog(true, minimized = true)
+                            AppState.loadMode("quick", force = true)
+                        },
+                        modifier = Modifier.weight(1f),
+                        variant = ButtonVariant.SECONDARY
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
 
                 // Done Button
                 AmazeButton(

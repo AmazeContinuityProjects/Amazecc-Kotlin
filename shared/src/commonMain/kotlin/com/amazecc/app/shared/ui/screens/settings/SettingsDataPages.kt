@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.*
@@ -26,6 +27,7 @@ import com.amazecc.app.shared.ui.components.SemesterPickerSheet
 import com.amazecc.app.shared.utils.ExportImportManager
 import com.amazecc.app.shared.utils.rememberFileImporter
 import com.amazecc.app.shared.utils.rememberFileSaver
+import com.amazecc.app.shared.vtop.VtopSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -283,10 +285,58 @@ fun DataSyncPage(
             }
         }
 
+        SettingsGroupLabel("VTOP Tier & Data Source")
+        SettingsGroupCard {
+            var vtopSource by remember { mutableStateOf(AmazeClient.vtopSource) }
+            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Choose how Amaze synchronizes data with VTOP. You can switch between Remote API (Tier 1), Direct Headless Scraper (Tier 2), and Pure Offline Cache.",
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                )
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = vtopSource == VtopSource.REMOTE,
+                        onClick = {
+                            AmazeClient.setVtopSource(VtopSource.REMOTE)
+                            vtopSource = VtopSource.REMOTE
+                        },
+                        label = { Text("Tier 1: Remote API", fontSize = AmazeTheme.fontSize.xs, fontWeight = if (vtopSource == VtopSource.REMOTE) FontWeight.Bold else FontWeight.Normal) }
+                    )
+                    FilterChip(
+                        selected = vtopSource == VtopSource.LOCAL,
+                        onClick = {
+                            AmazeClient.setVtopSource(VtopSource.LOCAL)
+                            vtopSource = VtopSource.LOCAL
+                        },
+                        label = { Text("Tier 2: Scraper", fontSize = AmazeTheme.fontSize.xs, fontWeight = if (vtopSource == VtopSource.LOCAL) FontWeight.Bold else FontWeight.Normal) }
+                    )
+                    FilterChip(
+                        selected = vtopSource == VtopSource.OFFLINE_CACHE,
+                        onClick = {
+                            AmazeClient.setVtopSource(VtopSource.OFFLINE_CACHE)
+                            vtopSource = VtopSource.OFFLINE_CACHE
+                        },
+                        label = { Text("Offline Cache", fontSize = AmazeTheme.fontSize.xs, fontWeight = if (vtopSource == VtopSource.OFFLINE_CACHE) FontWeight.Bold else FontWeight.Normal) }
+                    )
+                }
+
+                Text(
+                    text = when (vtopSource) {
+                        VtopSource.REMOTE -> "Tier 1: Cloud-accelerated remote proxy via api.amazecc.com."
+                        VtopSource.LOCAL -> "Tier 2: On-device headless scraper directly querying VTOP."
+                        VtopSource.OFFLINE_CACHE -> "Tier 3: Pure offline mode using local database & cache; never contacts network or scraper."
+                    },
+                    style = AmazeTheme.typography.caption.copy(color = colors.accent)
+                )
+            }
+        }
+
         SettingsGroupLabel("Sync Engine & Storage")
         SettingsGroupCard {
             val moduleStates by SyncEngine.moduleStates.collectAsState()
             val syncProgress by SyncEngine.syncProgress.collectAsState()
+            var selectedModeId by remember { mutableStateOf("balanced") }
 
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
                 Row(
@@ -306,11 +356,36 @@ fun DataSyncPage(
 
                 Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
+                Text(
+                    text = "SYNC MODES",
+                    style = AmazeTheme.typography.smallLabel.copy(
+                        fontWeight = FontWeight.Bold,
+                        color = colors.textMuted,
+                        letterSpacing = 1.sp
+                    ),
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val modes = listOf("quick" to "Quick", "balanced" to "Balanced", "full" to "Full", "academics" to "Academics", "campus" to "Campus")
+                    modes.forEach { (modeId, label) ->
+                        FilterChip(
+                            selected = selectedModeId == modeId,
+                            onClick = { selectedModeId = modeId },
+                            label = { Text(label, fontSize = AmazeTheme.fontSize.xs) }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(AmazeTheme.spacing.sm))
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    AmazeButton("Sync All Data", onClick = {
+                    AmazeButton("Sync (${selectedModeId.replaceFirstChar { it.uppercase() }})", onClick = {
                         SyncEngine.setShowSyncDialog(true, minimized = true)
-                        SyncEngine.resetAllStates()
-                        AppState.loadAllData()
+                        AppState.loadMode(selectedModeId, force = true)
                     }, modifier = Modifier.weight(1f), variant = ButtonVariant.PRIMARY)
                     AmazeButton("Configure", onClick = {
                         SyncEngine.setShowSyncDialog(true, minimized = false)
