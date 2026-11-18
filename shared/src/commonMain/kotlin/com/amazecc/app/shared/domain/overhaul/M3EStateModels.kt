@@ -433,3 +433,118 @@ sealed interface M3EMarksPredictorAction {
     data object ResetAll : M3EMarksPredictorAction
     data object Refresh : M3EMarksPredictorAction
 }
+
+// ==========================================
+// 10. EXAM SCHEDULE IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+enum class ExamSeries(val label: String) {
+    ALL("All Exams"),
+    CAT1("CAT-1"),
+    CAT2("CAT-2"),
+    FAT("FAT / Final")
+}
+
+data class M3EExamEntry(
+    val id: String,
+    val courseCode: String,
+    val courseTitle: String,
+    val examSeries: ExamSeries,
+    val date: String,
+    val day: String,
+    val session: String,
+    val slot: String,
+    val reportingTime: String,
+    val examTime: String,
+    val venue: String,
+    val seatNumber: String,
+    val daysRemaining: Int = 0,
+    val isHappeningSoon: Boolean = false
+)
+
+data class M3EExamScheduleState(
+    val semesterName: String,
+    val selectedSeries: ExamSeries = ExamSeries.ALL,
+    val nextUpcomingExam: M3EExamEntry? = null,
+    val exams: List<M3EExamEntry>,
+    val filteredExams: List<M3EExamEntry>,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3EExamScheduleAction {
+    data class SelectSeries(val series: ExamSeries) : M3EExamScheduleAction
+    data class ExamClicked(val exam: M3EExamEntry) : M3EExamScheduleAction
+    data object ExportCalendar : M3EExamScheduleAction
+    data object Refresh : M3EExamScheduleAction
+}
+
+// ==========================================
+// 11. GRADES HISTORY IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+data class M3ESemesterGradeCourse(
+    val courseCode: String,
+    val courseTitle: String,
+    val credits: Int,
+    val grade: String,
+    val gradePoints: Int,
+    val courseType: String
+)
+
+data class M3ESemesterGradeRecord(
+    val semesterId: String,
+    val semesterName: String,
+    val sgpa: Double,
+    val cgpaAtEnd: Double,
+    val creditsEarned: Int,
+    val courses: List<M3ESemesterGradeCourse>
+)
+
+data class M3EGradesHistoryState(
+    val cumulativeGpa: Double,
+    val totalCreditsEarned: Int,
+    val totalCreditsAttempted: Int,
+    val sGradesCount: Int = 0,
+    val aGradesCount: Int = 0,
+    val bGradesCount: Int = 0,
+    val semesters: List<M3ESemesterGradeRecord>,
+    val expandedSemesterId: String? = null,
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
+)
+
+sealed interface M3EGradesHistoryAction {
+    data class ToggleExpandSemester(val semesterId: String) : M3EGradesHistoryAction
+    data object Refresh : M3EGradesHistoryAction
+}
+
+// ==========================================
+// 12. STUDENT REPORT IMMUTABLE STATE & ACTIONS
+// ==========================================
+
+data class M3EStudentReportState(
+    val studentName: String,
+    val registrationNumber: String,
+    val programme: String,
+    val school: String,
+    val campus: String,
+    val proctorName: String? = null,
+    val proctorEmail: String? = null,
+    val cgpa: Double,
+    val overallAttendancePct: Double,
+    val completedCredits: Int,
+    val totalRequiredCredits: Int,
+    val hasArrears: Boolean = false,
+    val arrearsCount: Int = 0,
+    val isExportingPdf: Boolean = false,
+    val exportSuccessMessage: String? = null,
+    val isLoading: Boolean = false
+)
+
+sealed interface M3EStudentReportAction {
+    data object ExportPdfReport : M3EStudentReportAction
+    data object ExportJsonData : M3EStudentReportAction
+    data object ShareReport : M3EStudentReportAction
+    data object Refresh : M3EStudentReportAction
+}
