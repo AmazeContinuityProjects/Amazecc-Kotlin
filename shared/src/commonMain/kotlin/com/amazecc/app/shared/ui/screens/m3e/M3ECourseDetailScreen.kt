@@ -217,6 +217,7 @@ private fun CourseOverviewSection(state: M3ECourseDetailState) {
                             M3ECardTone.WARNING -> colors.warning
                             M3ECardTone.CRITICAL -> colors.error
                             M3ECardTone.NEUTRAL -> colors.primary
+                            else -> colors.primary
                         }
                     )
                 }
@@ -228,6 +229,7 @@ private fun CourseOverviewSection(state: M3ECourseDetailState) {
                         M3ECardTone.WARNING -> colors.warning
                         M3ECardTone.CRITICAL -> colors.error
                         M3ECardTone.NEUTRAL -> colors.primary
+                        else -> colors.primary
                     }
                 )
 

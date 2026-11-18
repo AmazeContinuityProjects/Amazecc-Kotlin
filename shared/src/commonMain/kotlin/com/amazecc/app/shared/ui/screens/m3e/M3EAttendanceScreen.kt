@@ -209,6 +209,7 @@ private fun M3ECourseAttendanceCard(
         M3ECardTone.WARNING -> colors.warning
         M3ECardTone.CRITICAL -> colors.error
         M3ECardTone.NEUTRAL -> colors.onSurfaceVariant
+        else -> colors.onSurfaceVariant
     }
 
     M3ESurfaceCard(

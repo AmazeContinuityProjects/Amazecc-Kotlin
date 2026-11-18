@@ -1,8 +1,5 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -31,6 +27,7 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,13 +35,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
+import com.amazecc.app.shared.domain.overhaul.M3EStatTone
 import com.amazecc.app.shared.domain.overhaul.M3ETimetableAction
 import com.amazecc.app.shared.domain.overhaul.M3ETimetableDay
 import com.amazecc.app.shared.domain.overhaul.M3ETimetableSlot
 import com.amazecc.app.shared.domain.overhaul.M3ETimetableState
 import com.amazecc.app.shared.domain.overhaul.TimetableViewMode
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3EHorizontalTimetableGrid
+import com.amazecc.app.shared.ui.m3e.components.M3EPageShell
+import com.amazecc.app.shared.ui.m3e.components.M3EStatItem
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
+import com.amazecc.app.shared.ui.m3e.components.M3EVerticalTimetableGrid
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -53,7 +55,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 /**
  * Material 3 Expressive Timetable Screen.
  * 100% Stateless: accepts [M3ETimetableState] and emits [M3ETimetableAction].
- * Features day-switching carousel, time-slot chips, status indicators, and full preview support.
+ * Supports 3 view modes: Day Schedule, Vertical Grid, and Horizontal Grid.
  */
 @Composable
 fun M3ETimetableScreen(
@@ -64,34 +66,38 @@ fun M3ETimetableScreen(
     val colors = M3ETheme.colors
     val selectedDay = state.days.getOrNull(state.selectedDayIndex)
 
-    Box(
+    val stats = remember(state.totalCredits, state.totalCourses) {
+        listOf(
+            M3EStatItem(
+                id = "credits",
+                label = "Credits",
+                value = "${state.totalCredits}",
+                sub = "Registered",
+                tone = M3EStatTone.PRIMARY
+            ),
+            M3EStatItem(
+                id = "courses",
+                label = "Courses",
+                value = "${state.totalCourses}",
+                sub = "Active",
+                tone = M3EStatTone.NEUTRAL
+            )
+        )
+    }
+
+    M3EPageShell(
+        title = "Timetable",
+        eyebrow = "Schedule",
+        subtitle = "${state.semesterName} • ${state.totalCredits} Credits Registered",
+        stats = stats,
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
         modifier = modifier
-            .fillMaxSize()
-            .background(colors.surface)
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header Bar
-            item(key = "timetable_header") {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "Timetable",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onSurface
-                    )
-                    Text(
-                        text = "${state.semesterName} • ${state.totalCredits} Credits Registered",
-                        fontSize = 13.sp,
-                        color = colors.onSurfaceVariant
-                    )
-                }
-            }
-
-            // View Mode Switcher (Schedule vs Slot Grid)
+            // View Mode Switcher (Schedule vs Vertical Grid vs Horizontal Grid)
             item(key = "view_mode_switcher") {
                 M3EConnectedButtonGroup(
                     items = TimetableViewMode.entries,
@@ -101,89 +107,113 @@ fun M3ETimetableScreen(
                 )
             }
 
-            // Day Selector Carousel (Mon - Sat)
-            item(key = "day_selector") {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    itemsIndexed(state.days) { index, day ->
-                        val isSelected = index == state.selectedDayIndex
-                        val dayBg = if (isSelected) colors.primary else colors.surfaceContainerLow
-                        val dayContent = if (isSelected) colors.onPrimary else colors.onSurface
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(dayBg)
-                                .clickable { onAction(M3ETimetableAction.SelectDay(index)) }
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            contentAlignment = Alignment.Center
+            when (state.viewMode) {
+                TimetableViewMode.SCHEDULE -> {
+                    // Day Selector Carousel (Mon - Sat)
+                    item(key = "day_selector") {
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(2.dp)
-                            ) {
-                                Text(
-                                    text = day.shortName,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = dayContent.copy(alpha = 0.8f)
-                                )
-                                Text(
-                                    text = "${day.slots.size} classes",
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = dayContent
-                                )
+                            itemsIndexed(state.days) { index, day ->
+                                val isSelected = index == state.selectedDayIndex
+                                val dayBg = if (isSelected) colors.primary else colors.surfaceContainerLow
+                                val dayContent = if (isSelected) colors.onPrimary else colors.onSurface
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(dayBg)
+                                        .clickable { onAction(M3ETimetableAction.SelectDay(index)) }
+                                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                                    ) {
+                                        Text(
+                                            text = day.shortName,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = dayContent.copy(alpha = 0.8f)
+                                        )
+                                        Text(
+                                            text = "${day.slots.size} classes",
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = dayContent
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
-                }
-            }
 
-            // Empty Day State or Slot List
-            if (selectedDay == null || selectedDay.slots.isEmpty()) {
-                item(key = "empty_day") {
-                    M3ESurfaceCard(
-                        containerLevel = SurfaceContainerLevel.LOW,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.CalendarMonth,
-                                contentDescription = null,
-                                tint = colors.onSurfaceVariant,
-                                modifier = Modifier.size(40.dp)
-                            )
-                            Text(
-                                text = "No classes scheduled for ${selectedDay?.dayName ?: "this day"}",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colors.onSurface
-                            )
-                            Text(
-                                text = "Enjoy your free day or catch up on coursework!",
-                                fontSize = 12.sp,
-                                color = colors.onSurfaceVariant
+                    // Empty Day State or Slot List
+                    if (selectedDay == null || selectedDay.slots.isEmpty()) {
+                        item(key = "empty_day") {
+                            M3ESurfaceCard(
+                                containerLevel = SurfaceContainerLevel.LOW,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 32.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.CalendarMonth,
+                                        contentDescription = null,
+                                        tint = colors.onSurfaceVariant,
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                    Text(
+                                        text = "No classes scheduled for ${selectedDay?.dayName ?: "this day"}",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = colors.onSurface
+                                    )
+                                    Text(
+                                        text = "Enjoy your free day or catch up on coursework!",
+                                        fontSize = 12.sp,
+                                        color = colors.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(
+                            items = selectedDay.slots,
+                            key = { it.id }
+                        ) { slot ->
+                            M3ETimetableSlotCard(
+                                slot = slot,
+                                onClick = { onAction(M3ETimetableAction.SlotClicked(slot)) }
                             )
                         }
                     }
                 }
-            } else {
-                items(
-                    items = selectedDay.slots,
-                    key = { it.id }
-                ) { slot ->
-                    M3ETimetableSlotCard(
-                        slot = slot,
-                        onClick = { onAction(M3ETimetableAction.SlotClicked(slot)) }
-                    )
+
+                TimetableViewMode.VERTICAL -> {
+                    item(key = "vertical_grid") {
+                        M3EVerticalTimetableGrid(
+                            days = state.days,
+                            selectedDayIndex = state.selectedDayIndex,
+                            onSelectDay = { onAction(M3ETimetableAction.SelectDay(it)) },
+                            onSlotClick = { onAction(M3ETimetableAction.SlotClicked(it)) }
+                        )
+                    }
+                }
+
+                TimetableViewMode.HORIZONTAL -> {
+                    item(key = "horizontal_grid") {
+                        M3EHorizontalTimetableGrid(
+                            days = state.days,
+                            onSlotClick = { onAction(M3ETimetableAction.SlotClicked(it)) }
+                        )
+                    }
                 }
             }
 
@@ -202,13 +232,6 @@ private fun M3ETimetableSlotCard(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
-
-    val statusColor = when (slot.attendanceTone) {
-        M3ECardTone.GOOD -> colors.success
-        M3ECardTone.WARNING -> colors.warning
-        M3ECardTone.CRITICAL -> colors.error
-        M3ECardTone.NEUTRAL -> colors.onSurfaceVariant
-    }
 
     val cardBorder = if (slot.isHappeningNow) colors.success else null
 

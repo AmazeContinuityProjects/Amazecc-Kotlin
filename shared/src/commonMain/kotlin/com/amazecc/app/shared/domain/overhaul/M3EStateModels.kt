@@ -88,6 +88,8 @@ sealed interface M3EHomeAction {
 
 enum class M3ECardTone { GOOD, WARNING, CRITICAL, NEUTRAL }
 
+enum class M3EStatTone { PRIMARY, SECONDARY, TERTIARY, GOOD, WARNING, CRITICAL, NEUTRAL }
+
 data class M3ECourseAttendanceCardState(
     val courseCode: String,
     val courseTitle: String,

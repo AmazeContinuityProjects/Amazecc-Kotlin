@@ -184,6 +184,7 @@ private fun M3EPredictionCourseCard(
         M3ECardTone.WARNING -> colors.warning
         M3ECardTone.CRITICAL -> colors.error
         M3ECardTone.NEUTRAL -> colors.primary
+        else -> colors.primary
     }
 
     M3ESurfaceCard(
