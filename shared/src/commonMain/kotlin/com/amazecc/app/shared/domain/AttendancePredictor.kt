@@ -238,17 +238,17 @@ object AttendancePredictor {
         return map
     }
 
-    fun isLabCourse(courseCode: String?, courseType: String?): Boolean {
-        if (Regex("""\blab\b""", RegexOption.IGNORE_CASE).containsMatchIn(courseType.orEmpty())) return true
-        return courseCode.orEmpty().endsWith("(L)")
-    }
+    fun isLabCourse(courseCode: String?, courseType: String?): Boolean =
+        // Canonical rule: a `(L)` API code and a `Lab Only` / `Embedded Lab` scraper type
+        // describe the same half, so both must be recognised identically.
+        EmbeddedLinkCode.componentOf(courseCode, courseType).isLab
 
     fun isProjectableCourse(courseCode: String?, slotName: String?, totalClasses: Int): Boolean {
         return !courseCode.isNullOrBlank() && slotName != "NILL" && totalClasses >= 0
     }
 
     fun skipSetFor(skips: Map<String, Set<Long>>?, courseCode: String): Set<Long> =
-        skips?.get(courseCode).orEmpty()
+        skips?.get(EmbeddedLinkCode.baseCode(courseCode)).orEmpty()
 
     fun toggleCourseSkip(
         skips: Map<String, Set<Long>>,
@@ -256,18 +256,19 @@ object AttendancePredictor {
         timestamp: Long,
     ): Map<String, Set<Long>> {
         val result = skips.toMutableMap()
-        val currentSet = (result[courseCode] ?: emptySet()).toMutableSet()
+        val key = EmbeddedLinkCode.baseCode(courseCode)
+        val currentSet = (result[key] ?: emptySet()).toMutableSet()
         if (currentSet.contains(timestamp)) {
             currentSet.remove(timestamp)
         } else {
             currentSet.add(timestamp)
         }
-        result[courseCode] = currentSet
+        result[key] = currentSet
         return result
     }
 
     fun skipCountFor(skips: Map<String, Set<Long>>?, courseCode: String): Int =
-        skips?.get(courseCode)?.size ?: 0
+        skips?.get(EmbeddedLinkCode.baseCode(courseCode))?.size ?: 0
 
     fun courseMeetingDays(
         courseCode: String,
@@ -275,7 +276,11 @@ object AttendancePredictor {
     ): List<String> {
         if (courseCode.isBlank() || dayCardsMap == null) return emptyList()
         return dayCardsMap.keys
-            .filter { day -> (dayCardsMap[day] ?: emptyList()).any { it["courseCode"] == courseCode } }
+            .filter { day ->
+                (dayCardsMap[day] ?: emptyList()).any {
+                    EmbeddedLinkCode.sameCourse(it["courseCode"], courseCode)
+                }
+            }
             .map { normalizeDay(it) }
     }
 

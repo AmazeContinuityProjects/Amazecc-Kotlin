@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -57,6 +58,9 @@ import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import io.kamel.core.ExperimentalKamelApi
+import io.kamel.image.KamelImage
+import io.kamel.image.asyncPainterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -415,24 +419,14 @@ private fun EventPreviewDialog(
                     M3ESurfaceCard(
                         containerLevel = SurfaceContainerLevel.HIGH,
                         cornerRadius = 16.dp,
-                        onClick = { onOpenPoster(posterUrl) },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Image,
-                                contentDescription = null,
-                                tint = colors.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "View event poster",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colors.onSurface
-                            )
+                        EventPosterImage(
+                            url = posterUrl,
+                            modifier = Modifier.fillMaxWidth().height(180.dp)
+                        )
+                        TextButton(onClick = { onOpenPoster(posterUrl) }) {
+                            Text("Open poster full size", color = colors.primary)
                         }
                     }
                 }
@@ -474,6 +468,29 @@ private fun EventPreviewDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("Close", color = colors.primary) }
+        }
+    )
+}
+
+/** Inline event poster using the project's existing Kamel dependency (no new deps). */
+@OptIn(ExperimentalKamelApi::class)
+@Composable
+private fun EventPosterImage(url: String, modifier: Modifier = Modifier) {
+    val colors = M3ETheme.colors
+    KamelImage(
+        resource = asyncPainterResource(data = url),
+        contentDescription = "Event poster",
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surfaceContainerHigh),
+        contentScale = ContentScale.Crop,
+        onLoading = { CircularProgressIndicator() },
+        onFailure = {
+            Icon(
+                imageVector = Icons.Rounded.Image,
+                contentDescription = "Poster unavailable",
+                tint = colors.onSurfaceVariant
+            )
         }
     )
 }

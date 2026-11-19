@@ -390,7 +390,8 @@ fun computeCoursePrediction(
     val hasTheory = theoryAssessments.isNotEmpty()
     val hasLab = labAssessments.isNotEmpty()
     val hasProject = projectAssessments.isNotEmpty()
-    val isEmbedded = (hasTheory && hasLab) || courseType.lowercase().contains("embedded")
+    val isEmbedded = (hasTheory && hasLab) ||
+        EmbeddedLinkCode.componentOf(courseCode, courseType).isEmbedded
 
     val theoryStats = if (hasTheory) computeComponentStats(theoryAssessments, MarkComponent.THEORY, theoryCredits) else null
     val labStats = if (hasLab) computeComponentStats(labAssessments, MarkComponent.LAB, labCredits) else null

@@ -128,7 +128,7 @@ class M3EEventHubWiringUiTest {
         onNodeWithText("Three bands, one night.").assertExists()
         onNodeWithText("Eligibility").assertExists()
         onNodeWithText("All students").assertExists()
-        onNodeWithText("View event poster").performClick()
+        onNodeWithText("Open poster full size").performClick()
         onAllNodesWithText("Close")[0].performClick()
 
         assertEquals(2, actions.size)
