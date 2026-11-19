@@ -15,12 +15,6 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.HomeViewMode
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.ui.screens.m3e.*
-import com.amazecc.app.shared.ui.screens.FfcsPlannerScreen
-import com.amazecc.app.shared.ui.screens.QBankScreen
-import com.amazecc.app.shared.ui.screens.SocialScreen
-import com.amazecc.app.shared.ui.screens.academics.CalendarScreen
-import com.amazecc.app.shared.ui.screens.libraries.LibrariesScreen
-import com.amazecc.app.shared.ui.screens.payments.PaymentsScreen
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
@@ -70,19 +64,19 @@ fun MainTabPager(
             Screen.HOME -> M3EHomeScreen()
             Screen.ATTENDANCE -> M3EAttendanceScreen()
             Screen.ACADEMICS -> M3EAcademicsScreen()
-            Screen.LIBRARIES -> LibrariesScreen()
+            Screen.LIBRARIES -> M3ELibrariesScreenHost()
             Screen.PROFILE -> M3EProfileScreen()
             Screen.MORE -> M3EMoreHubScreen()
-            Screen.PAYMENTS -> PaymentsScreen()
+            Screen.PAYMENTS -> M3EPaymentsScreenHost()
             Screen.HOSTEL -> M3EHostelScreen()
             Screen.CABSHARE -> M3ECabShareScreen()
             Screen.TRANSPORT -> M3ETransportScreen()
             Screen.EVENTS -> M3EEventHubScreen()
-            Screen.QBANK -> QBankScreen()
-            Screen.SOCIAL -> SocialScreen()
-            Screen.FFCS_PLANNER -> FfcsPlannerScreen()
-            Screen.FREE_CLASSROOMS -> M3EFreeClassroomsScreen()
-            Screen.CALENDAR -> CalendarScreen(onBack = { AppState.navigateBackTo(Screen.ACADEMICS) })
+            Screen.QBANK -> M3EQBankWorkspaceHost()
+            Screen.SOCIAL -> M3ESocialScreenHost()
+            Screen.FFCS_PLANNER -> M3EFfcsPlannerScreenHost()
+            Screen.FREE_CLASSROOMS -> M3EFreeClassroomsHost()
+            Screen.CALENDAR -> M3ECalendarScreenHost()
             else -> {}
         }
     }

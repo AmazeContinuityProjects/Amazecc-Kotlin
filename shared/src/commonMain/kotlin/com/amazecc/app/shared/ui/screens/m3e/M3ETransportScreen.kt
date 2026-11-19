@@ -47,7 +47,10 @@ import com.amazecc.app.shared.domain.overhaul.M3EBusRoute
 import com.amazecc.app.shared.domain.overhaul.M3EBusStop
 import com.amazecc.app.shared.domain.overhaul.M3ETransportAction
 import com.amazecc.app.shared.domain.overhaul.M3ETransportFilter
+import com.amazecc.app.shared.domain.overhaul.M3ETransportRegistration
 import com.amazecc.app.shared.domain.overhaul.M3ETransportState
+import com.amazecc.app.shared.model.BusesRes
+import com.amazecc.app.shared.model.TransportDataRes
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -159,6 +162,50 @@ fun M3ETransportScreen(
                 labelProvider = { it.label },
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+
+        // 3b. The student's real bus-pass registration (VTOP /api/transport), when available.
+        state.registration?.let { registration ->
+            item(key = "bus_registration") {
+                M3ESurfaceCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    containerLevel = SurfaceContainerLevel.STANDARD
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.DirectionsBus,
+                            contentDescription = null,
+                            tint = if (registration.hasRegistration) colors.success else colors.warning,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Bus Registration",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.onSurface
+                            )
+                            val status = if (registration.hasRegistration) {
+                                listOfNotNull(
+                                    registration.routeSelected?.takeIf { it.isNotBlank() },
+                                    registration.busRouteId?.takeIf { it.isNotBlank() }?.let { "Route ID $it" },
+                                    registration.registerNumber?.takeIf { it.isNotBlank() }
+                                ).joinToString(" • ").ifBlank { "Bus pass active" }
+                            } else {
+                                "No active bus registration found"
+                            }
+                            Text(
+                                text = status,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         // 4. Routes Counter
@@ -509,6 +556,81 @@ fun M3ETransportScreenDarkPreview() {
         )
     }
 }
+
+/**
+ * The student's real bus-pass registration from `TransportDataRes` (`/api/transport`), mapped into
+ * the immutable screen state. Returns null when the API has not produced a payload yet.
+ */
+internal fun transportRegistrationFrom(data: TransportDataRes?): M3ETransportRegistration? =
+    data?.let {
+        M3ETransportRegistration(
+            hasRegistration = it.hasRegistration,
+            registerNumber = it.registerNumber,
+            name = it.name,
+            branch = it.branch,
+            routeSelected = it.routeSelected,
+            busRouteId = it.busRouteId,
+            qrCode = it.qrCode
+        )
+    }
+
+/** Map the real `BusesRes` into stateless route rows; no placeholder identifiers. */
+internal fun mapBusesToRoutes(res: BusesRes?): List<M3EBusRoute> =
+    res?.buses.orEmpty().mapIndexed { idx, b ->
+        M3EBusRoute(
+            id = b.id.toIntOrNull() ?: (idx + 1),
+            routeNumber = b.route,
+            routeName = b.route,
+            // "Non-AC" also contains "AC" — exclude it explicitly so the AC/NON_AC filters work.
+            isAc = !b.type.contains("non", ignoreCase = true) && b.type.contains("ac", ignoreCase = true),
+            driverName = b.driverName,
+            driverPhone = b.driverPhone,
+            whatsappGroup = b.whatsappGroup.takeIf { it.isNotBlank() },
+            busLocation = b.busLocation.takeIf { it.isNotBlank() },
+            stops = b.stops.map { s ->
+                M3EBusStop(stopOrder = s.stopOrder, stopName = s.stopName, pickupTime = s.pickupTime ?: "")
+            },
+            placements = b.placements.map { p -> M3EBusPlacement(p.dispersalTime, p.zone) }
+        )
+    }
+
+/** Parse a clock like `"05:15 PM"`, `"5PM"`, `"17:30"` into a 0-23 hour. */
+internal fun parseClockHour(raw: String): Int? {
+    val value = raw.trim()
+    if (value.isEmpty()) return null
+    val isPm = value.contains("PM", ignoreCase = true)
+    val isAm = value.contains("AM", ignoreCase = true)
+    val hour = Regex("(\\d{1,2})(?::\\d{2})?").find(value)?.groupValues?.get(1)?.toIntOrNull()
+        ?: return null
+    if (hour !in 0..23) return null
+    return when {
+        isPm -> if (hour == 12) 12 else hour + 12
+        isAm -> if (hour == 12) 0 else hour
+        else -> hour
+    }
+}
+
+/**
+ * Which evening dispersal batch a real route belongs to, derived from the route's own data:
+ * an M3E placement when present, otherwise the evening `pickupTime` of one of its real stops.
+ * Returns null for a route with no evening service - it must not appear in either evening filter.
+ */
+internal fun eveningBatchFor(route: M3EBusRoute): M3ETransportFilter? {
+    val hours = route.placements.mapNotNull { parseClockHour(it.dispersalTime) } +
+        route.stops.mapNotNull { parseClockHour(it.pickupTime) }
+    val eveningHour = hours.firstOrNull { it >= 17 } ?: return null
+    return if (eveningHour == 17) M3ETransportFilter.EVENING_5PM else M3ETransportFilter.EVENING_6PM
+}
+
+/** Apply a filter to a route using only real route data. */
+internal fun matchesTransportFilter(route: M3EBusRoute, filter: M3ETransportFilter): Boolean =
+    when (filter) {
+        M3ETransportFilter.ALL -> true
+        M3ETransportFilter.AC -> route.isAc
+        M3ETransportFilter.NON_AC -> !route.isAc
+        M3ETransportFilter.EVENING_5PM,
+        M3ETransportFilter.EVENING_6PM -> eveningBatchFor(route) == filter
+    }
 
 private fun createMockTransportState(): M3ETransportState {
     val sampleRoutes = listOf(

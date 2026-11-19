@@ -37,10 +37,18 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.ExamSeries as DomainExamSeries
 import com.amazecc.app.shared.domain.overhaul.ExamSeries
 import com.amazecc.app.shared.domain.overhaul.M3EExamEntry
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleAction
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleState
+import com.amazecc.app.shared.model.ExamScheduleRes
+import com.amazecc.app.shared.utils.ExamUtils
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -206,6 +214,22 @@ fun M3EExamScheduleScreen(
                 )
             }
 
+            if (state.errorMessage != null) {
+                item(key = "exam_error") {
+                    M3ESurfaceCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        borderColor = colors.error
+                    ) {
+                        Text(
+                            text = state.errorMessage ?: "",
+                            fontSize = 12.sp,
+                            color = colors.error
+                        )
+                    }
+                }
+            }
+
             // Exams List
             if (state.filteredExams.isEmpty()) {
                 item(key = "empty_exams") {
@@ -368,6 +392,73 @@ private fun M3EExamCard(
             }
         }
     }
+}
+
+/**
+ * Map one raw VTOP exam-series key (the key of `ExamScheduleRes.schedule`, e.g. `"CAT II"`,
+ * `"CAT2"`, `"FAT"`, `"End Semester"`) onto the M3E filter enum. Uses the app's shared
+ * canonicaliser so the many spellings VTOP emits all land on the same bucket.
+ *
+ * Unknown spellings deliberately map to [ExamSeries.ALL] rather than guessing FAT: a paper whose
+ * series we could not read must not silently appear under a specific filter it may not belong to.
+ */
+internal fun examSeriesFor(rawType: String): ExamSeries {
+    val canonical = DomainExamSeries.canonicalSeriesName(rawType)
+    return when {
+        canonical.contains("cat2") -> ExamSeries.CAT2
+        canonical.contains("cat1") -> ExamSeries.CAT1
+        canonical.contains("fat") || canonical.contains("final") || canonical.contains("end") -> ExamSeries.FAT
+        canonical.contains("cat") -> ExamSeries.CAT1
+        else -> ExamSeries.ALL
+    }
+}
+
+/**
+ * Pure, headless-testable mapping of the real `ExamScheduleRes` payload into stateless screen rows.
+ *
+ * The series comes from the `schedule` map key (which the domain snapshot discards), and every
+ * display field comes straight from [com.amazecc.app.shared.model.ExamItem] - no hardcoded FAT,
+ * empty day/slot, or duplicated reporting/exam times.
+ */
+internal fun mapExamScheduleResToEntries(
+    res: ExamScheduleRes,
+    now: Instant = Clock.System.now()
+): List<M3EExamEntry> {
+    val today = now.toLocalDateTime(TimeZone.currentSystemDefault()).date
+    return res.schedule.entries
+        .flatMap { (seriesKey, items) ->
+            val series = examSeriesFor(seriesKey)
+            items.mapIndexed { idx, item ->
+                val parsed = ExamUtils.parseExamDateToLocalDate(item.examDate)
+                val dayName = parsed?.dayOfWeek?.name
+                    ?.lowercase()
+                    ?.replaceFirstChar { it.uppercase() }
+                    .orEmpty()
+                val daysRemaining = parsed?.let {
+                    maxOf(0, it.toEpochDays() - today.toEpochDays())
+                } ?: 0
+                val seat = listOf(item.seatNo, item.seatLocation)
+                    .filter { it.isNotBlank() }
+                    .joinToString(" / ")
+                M3EExamEntry(
+                    id = "$seriesKey-${item.courseCode}-${item.examDate}-$idx",
+                    courseCode = item.courseCode,
+                    courseTitle = item.courseTitle,
+                    examSeries = series,
+                    date = item.examDate,
+                    day = dayName,
+                    session = item.examSession,
+                    slot = item.slot,
+                    reportingTime = item.reportingTime,
+                    examTime = item.examTime,
+                    venue = item.venue,
+                    seatNumber = seat,
+                    daysRemaining = daysRemaining,
+                    isHappeningSoon = daysRemaining <= 3
+                )
+            }
+        }
+        .sortedBy { ExamUtils.parseExamDateToLocalDate(it.date) ?: LocalDate(9999, 12, 31) }
 }
 
 private fun createMockExamState() = M3EExamScheduleState(

@@ -158,7 +158,7 @@ fun App() {
                                 Screen.QBANK -> M3EQBankWorkspaceHost()
                                 Screen.SOCIAL -> M3ESocialScreenHost()
                                 Screen.FFCS_PLANNER -> M3EFfcsPlannerScreenHost()
-                                Screen.FREE_CLASSROOMS -> M3EFreeClassroomsScreen()
+                                Screen.FREE_CLASSROOMS -> M3EFreeClassroomsHost()
                                 Screen.CALENDAR -> M3ECalendarScreenHost()
                                 Screen.GRADES -> M3EGradesHistoryScreen()
                                 Screen.GPA_PREDICTOR -> M3EMarksPredictorScreen()

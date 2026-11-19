@@ -38,10 +38,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.DomainSnapshot
+import com.amazecc.app.shared.domain.GradeHistory
 import com.amazecc.app.shared.domain.overhaul.M3EGradesHistoryAction
 import com.amazecc.app.shared.domain.overhaul.M3EGradesHistoryState
 import com.amazecc.app.shared.domain.overhaul.M3ESemesterGradeCourse
 import com.amazecc.app.shared.domain.overhaul.M3ESemesterGradeRecord
+import kotlin.math.round
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -355,6 +358,81 @@ private fun M3ESemesterGradeCard(
             }
         }
     }
+}
+
+/**
+ * Pure, headless-testable derivation of the grades-history state from the real cached grade data.
+ *
+ * The domain snapshot is the ingestor's view of `AmazeClient.getAllGrades()` (`AppDataStore` grades
+ * cache), so SGPA, grade letters and course identity are all real. Credits are the one fact the
+ * `CourseGrade` projection drops: they are read from the snapshot's own `Course.credits` (which is
+ * curriculum-authoritative), joined by course code. Nothing here invents a "3 credits per course"
+ * or a 14/8/2 grade distribution.
+ */
+internal fun buildGradesHistoryState(
+    snapshot: DomainSnapshot,
+    expandedSemesterId: String? = null,
+    isLoading: Boolean = false
+): M3EGradesHistoryState {
+    val rows = GradeHistory.semesterRows(snapshot)
+    val allCourses = rows.flatMap { it.courses }
+    val distribution = GradeHistory.gradeDistribution(allCourses).associate { it.grade to it.count }
+
+    fun creditsOf(semesterId: String, courseCode: String): Int =
+        snapshot.academics.semesters[semesterId]?.courses?.get(courseCode)?.credits
+            ?.trim()?.toDoubleOrNull()?.toInt() ?: 0
+
+    fun round2(value: Double): Double = round(value * 100.0) / 100.0
+
+    var gpaSum = 0.0
+    var gpaTerms = 0
+    var attemptedTotal = 0
+    val semesterRecords = rows.map { row ->
+        val courses = row.courses.map { c ->
+            M3ESemesterGradeCourse(
+                courseCode = c.courseCode,
+                courseTitle = c.courseTitle,
+                credits = creditsOf(row.id, c.courseCode),
+                grade = c.grade,
+                gradePoints = GradeHistory.gradePoints(c.grade) ?: 0,
+                courseType = c.courseType
+            )
+        }
+        // Attempted = every registered course this term; earned = only the ones with a passing
+        // graded letter. Keeping the two sums distinct is what makes the  Earned / Attempted
+        // counter on the screen meaningful instead of printing the same number twice.
+        val attempted = snapshot.academics.semesters[row.id]?.courses?.values
+            ?.sumOf { it.credits?.trim()?.toDoubleOrNull()?.toInt() ?: 0 } ?: 0
+        val earned = courses.filter { (GradeHistory.gradePoints(it.grade) ?: 0) > 0 }
+            .sumOf { it.credits }
+
+        if (row.gpa > 0) {
+            gpaSum += row.gpa
+            gpaTerms += 1
+        }
+        val cgpaAtEnd = if (gpaTerms == 0) 0.0 else round2(gpaSum / gpaTerms)
+
+        M3ESemesterGradeRecord(
+            semesterId = row.id,
+            semesterName = row.label,
+            sgpa = row.gpa,
+            cgpaAtEnd = cgpaAtEnd,
+            creditsEarned = earned,
+            courses = courses
+        ).also { attemptedTotal += attempted }
+    }
+
+    return M3EGradesHistoryState(
+        cumulativeGpa = GradeHistory.cumulativeGpa(rows).value,
+        totalCreditsEarned = semesterRecords.sumOf { it.creditsEarned },
+        totalCreditsAttempted = attemptedTotal,
+        sGradesCount = distribution["S"] ?: 0,
+        aGradesCount = distribution["A"] ?: 0,
+        bGradesCount = distribution["B"] ?: 0,
+        semesters = semesterRecords,
+        expandedSemesterId = expandedSemesterId,
+        isLoading = isLoading
+    )
 }
 
 private fun createMockGradesHistoryState() = M3EGradesHistoryState(

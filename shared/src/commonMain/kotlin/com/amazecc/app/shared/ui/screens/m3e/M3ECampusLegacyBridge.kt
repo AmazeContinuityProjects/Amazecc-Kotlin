@@ -11,7 +11,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.BookItem
-import com.amazecc.app.shared.model.CalendarDay
 import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.model.KohaBook
 import com.amazecc.app.shared.model.PaymentItem
@@ -271,7 +270,7 @@ private fun KohaBook.toM3ELibraryBook() = M3ELibraryBook(
 @Composable
 fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
-    val domain by AppState.domain.collectAsState()
+    val calendarsListRes by AppState.calendarsList.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
     val error by AppState.error.collectAsState()
@@ -280,8 +279,9 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
     val today = remember {
         Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
     }
-    val calendars = remember(domain) {
-        domain.schedule.calendarsList?.calendars.orEmpty()
+    // calendarsList holds every calendar type, including "ALL" → "General Semester" at index 0.
+    val calendars = remember(calendarsListRes) {
+        calendarsListRes?.calendars.orEmpty()
     }
 
     var selectedCalendarIndex by remember { mutableStateOf(0) }
@@ -289,6 +289,7 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
     var selectedDay by remember { mutableStateOf<Int?>(null) }
     var eventFilter by remember { mutableStateOf(M3ECalendarFilter.ALL) }
 
+    // Always (re)fetch when there is nothing to show — including a null/empty first load.
     LaunchedEffect(calendars, selectedSemester) {
         if (calendars.isEmpty()) AppState.refreshCalendarsList()
     }
@@ -314,13 +315,13 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
 
     val state = M3ECalendarState(
         calendarNames = calendars.map { it.name },
-        selectedCalendarIndex = selectedCalendarIndex,
+        selectedCalendarIndex = selectedCalendarIndex.coerceIn(0, (calendars.size - 1).coerceAtLeast(0)),
         months = months,
         selectedMonthIndex = selectedMonthIndex.coerceIn(0, (months.size - 1).coerceAtLeast(0)),
         selectedDay = selectedDay,
         eventFilter = eventFilter,
         isLoading = isLoading && months.isEmpty(),
-        errorMessage = error ?: domain.schedule.calendarsList?.message
+        errorMessage = error ?: calendarsListRes?.takeIf { !it.success }?.let { it.error ?: it.message }
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -565,55 +566,43 @@ fun M3EMoodleScreenHost(modifier: Modifier = Modifier) {
 // DOCUMENTS
 // ==========================================
 
-/** Stateful host for [M3EDocumentsScreen]. */
+/**
+ * Stateful host for [M3EDocumentsScreen].
+ *
+ * There is no documents endpoint or scraper: `AppState.documents` is the data
+ * worker's flattened view of the existing `/api/circulars` folder tree. The host
+ * only collects that flow, refreshes when empty, maps each `DocumentItem` into
+ * an immutable [M3EDocumentCard], and forwards user intents. No tabs.
+ *
+ * Only `id` and `title` are read from `DocumentItem` (owned by the data-layer
+ * worker) — the flattening may add any number of detail fields; the screen stays
+ * simple and does not depend on them.
+ */
 @Composable
 fun M3EDocumentsScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
+    val documents by AppState.documents.collectAsState()
+    val isLoading by AppState.isLoading.collectAsState()
+    val error by AppState.error.collectAsState()
 
-    var selectedTab by remember { mutableStateOf(M3EDocumentsTab.BONAFIDE) }
-    var refreshTick by remember { mutableStateOf(0) }
-    var rows by remember { mutableStateOf<List<M3EDocumentRow>>(emptyList()) }
-    var tables by remember { mutableStateOf<List<M3EDocumentTable>>(emptyList()) }
-    var messages by remember { mutableStateOf<List<String>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(selectedTab, refreshTick) {
-        isLoading = true
-        errorMessage = null
-        rows = emptyList()
-        tables = emptyList()
-        messages = emptyList()
-        try {
-            val res = withContext(Dispatchers.Default) {
-                when (selectedTab) {
-                    M3EDocumentsTab.BONAFIDE -> AmazeClient.getBonafide()
-                    M3EDocumentsTab.E_TRANSCRIPT -> AmazeClient.getETranscript()
-                    M3EDocumentsTab.ADDITIONAL_LEARNING -> AmazeClient.getAdditionalLearning()
-                }
-            }
-            rows = res.keyValuePairs.map { M3EDocumentRow(it.label, it.value) }
-            tables = res.tables.map {
-                M3EDocumentTable(title = it.title.orEmpty(), headers = it.headers, rows = it.rows)
-            }
-            messages = res.messages.map { it.message } +
-                listOfNotNull(res.message.takeIf { !res.success && !it.isNullOrBlank() })
-            if (!res.success) errorMessage = res.error ?: res.message
-        } catch (e: Exception) {
-            errorMessage = e.message ?: "Failed to load documents"
-        } finally {
-            isLoading = false
-        }
+    LaunchedEffect(documents) {
+        if (documents.isEmpty()) AppState.refreshDocuments()
     }
     AppBackHandler { navigateBackOrMore() }
 
+    val cards = remember(documents) {
+        documents.map { document ->
+            M3EDocumentCard(
+                id = document.id,
+                title = document.title
+            )
+        }
+    }
+
     val state = M3EDocumentsState(
-        selectedTab = selectedTab,
-        rows = rows,
-        tables = tables,
-        messages = messages,
-        isLoading = isLoading,
-        errorMessage = errorMessage
+        documents = cards,
+        isLoading = isLoading && documents.isEmpty(),
+        errorMessage = error
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -621,8 +610,11 @@ fun M3EDocumentsScreenHost(modifier: Modifier = Modifier) {
             state = state,
             onAction = { action ->
                 when (action) {
-                    is M3EDocumentsAction.SelectTab -> selectedTab = action.tab
-                    M3EDocumentsAction.Refresh -> refreshTick++
+                    M3EDocumentsAction.Refresh -> AppState.refreshDocuments()
+                    // The flattened item carries its source circular id, but commonMain has no
+                    // circular-download API (the reference /api/circulars/download needs a
+                    // credentialed POST). Id is carried for a future deep link, as with OpenCircular.
+                    is M3EDocumentsAction.OpenDocument -> Unit
                 }
             },
             modifier = modifier

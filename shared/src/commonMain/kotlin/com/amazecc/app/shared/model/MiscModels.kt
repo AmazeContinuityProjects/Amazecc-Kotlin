@@ -304,11 +304,19 @@ data class BusStop(
 )
 
 @Serializable
+data class BusPlacement(
+    val dispersalTime: String = "",
+    val zone: String = ""
+)
+
+@Serializable
 data class BusRoute(
     val id: String,
     val type: String,
     val route: String,
     val boardingPoints: List<String> = emptyList(),
+    /** Evening dispersal batches from the public /api/buses payload (e.g. 5PM / 6PM). */
+    val placements: List<BusPlacement> = emptyList(),
     val driverPhone: String,
     val driverName: String,
     val whatsappGroup: String,

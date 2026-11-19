@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
@@ -32,7 +33,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
-import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -47,42 +47,37 @@ data class M3EDocumentRow(
     val value: String
 )
 
-/** A tabular document section returned by the endpoint. */
+/** One document in the list (e.g. Bonafide Certificate, E-Transcript, Additional Learning). */
 @Immutable
-data class M3EDocumentTable(
+data class M3EDocumentCard(
+    val id: String,
     val title: String,
-    val headers: List<String> = emptyList(),
-    val rows: List<List<String>> = emptyList()
+    val subtitle: String = "",
+    val details: List<M3EDocumentRow> = emptyList(),
+    val messages: List<String> = emptyList(),
+    val error: String? = null
 )
 
 /** Immutable, screen-owned state for [M3EDocumentsScreen]. */
 @Immutable
 data class M3EDocumentsState(
-    val selectedTab: M3EDocumentsTab = M3EDocumentsTab.BONAFIDE,
-    val rows: List<M3EDocumentRow> = emptyList(),
-    val tables: List<M3EDocumentTable> = emptyList(),
-    val messages: List<String> = emptyList(),
+    val documents: List<M3EDocumentCard> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )
 
-/** The three document services exposed by the VTOP endpoints. */
-enum class M3EDocumentsTab(val label: String) {
-    BONAFIDE("Bonafide"),
-    E_TRANSCRIPT("E-Transcript"),
-    ADDITIONAL_LEARNING("Additional Learning")
-}
-
 /** User intents emitted by [M3EDocumentsScreen]. */
 sealed interface M3EDocumentsAction {
-    data class SelectTab(val tab: M3EDocumentsTab) : M3EDocumentsAction
     data object Refresh : M3EDocumentsAction
+    /** Open/download a document identified by its circular id (when one is available). */
+    data class OpenDocument(val id: String) : M3EDocumentsAction
 }
 
 /**
- * Material 3 Expressive Documents & Transcripts screen.
+ * Material 3 Expressive Documents screen — a simple, flat list of documents.
+ * No tabs and no per-endpoint scrapers: the host feeds [M3EDocumentCard]s from
+ * `AppState.documents`, which flattens the existing circulars folder tree.
  * 100% stateless: receives [M3EDocumentsState] and emits [M3EDocumentsAction].
- * The host fetches through AmazeClient (same online/offline tier as the legacy screen).
  */
 @Composable
 fun M3EDocumentsScreen(
@@ -137,16 +132,6 @@ fun M3EDocumentsScreen(
             }
         }
 
-        item(key = "tabs") {
-            M3EConnectedButtonGroup(
-                items = M3EDocumentsTab.entries,
-                selectedItem = state.selectedTab,
-                onItemSelected = { onAction(M3EDocumentsAction.SelectTab(it)) },
-                labelProvider = { it.label },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
         if (state.isLoading) {
             item(key = "progress") {
                 M3EWavyLinearProgress(progress = 0.5f)
@@ -177,94 +162,14 @@ fun M3EDocumentsScreen(
             }
         }
 
-        state.messages.forEachIndexed { index, message ->
-            item(key = "message_$index") {
-                M3ESurfaceCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    containerLevel = SurfaceContainerLevel.LOW
-                ) {
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurface
-                    )
-                }
-            }
+        items(state.documents, key = { it.id }) { document ->
+            DocumentCard(
+                document = document,
+                onOpenDocument = { id -> onAction(M3EDocumentsAction.OpenDocument(id)) }
+            )
         }
 
-        if (state.rows.isNotEmpty()) {
-            item(key = "details") {
-                M3ESurfaceCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    containerLevel = SurfaceContainerLevel.LOW
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "Details",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.onSurface
-                        )
-                        state.rows.forEach { row ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = row.label,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Text(
-                                    text = row.value,
-                                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
-                                    color = colors.onSurface,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        items(state.tables, key = { it.title + it.rows.size }) { table ->
-            M3ESurfaceCard(
-                modifier = Modifier.fillMaxWidth(),
-                containerLevel = SurfaceContainerLevel.LOW
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = table.title.ifBlank { "Record" },
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colors.onSurface
-                    )
-                    table.rows.forEach { cells ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            cells.forEach { cell ->
-                                Text(
-                                    text = cell,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if (!state.isLoading && state.rows.isEmpty() && state.tables.isEmpty() && state.messages.isEmpty() && state.errorMessage.isNullOrBlank()) {
+        if (!state.isLoading && state.documents.isEmpty() && state.errorMessage.isNullOrBlank()) {
             item(key = "empty") {
                 M3ESurfaceCard(
                     modifier = Modifier.fillMaxWidth(),
@@ -290,7 +195,7 @@ fun M3EDocumentsScreen(
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = "No records returned for ${state.selectedTab.label}",
+                            text = "No documents available",
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.onSurfaceVariant
                         )
@@ -305,18 +210,138 @@ fun M3EDocumentsScreen(
     }
 }
 
+@Composable
+private fun DocumentCard(
+    document: M3EDocumentCard,
+    onOpenDocument: (String) -> Unit
+) {
+    val colors = M3ETheme.colors
+
+    M3ESurfaceCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerLevel = SurfaceContainerLevel.LOW
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(colors.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Description,
+                        contentDescription = null,
+                        tint = colors.onPrimaryContainer,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = document.title,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colors.onSurface
+                    )
+                    if (document.subtitle.isNotBlank()) {
+                        Text(
+                            text = document.subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                }
+                // Optional affordance: only shown when the flattened circular carries an id.
+                if (document.id.isNotBlank()) {
+                    IconButton(onClick = { onOpenDocument(document.id) }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Download,
+                            contentDescription = "Open ${document.title}",
+                            tint = colors.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+
+            document.details.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = row.label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = row.value,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = colors.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            document.messages.forEach { message ->
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
+                )
+            }
+
+            if (!document.error.isNullOrBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = null,
+                        tint = colors.error,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = document.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.error
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ==========================================
 // PREVIEWS
 // ==========================================
 
 private fun previewDocumentsState() = M3EDocumentsState(
-    selectedTab = M3EDocumentsTab.BONAFIDE,
-    rows = listOf(
-        M3EDocumentRow("Student", "Aravind Kumar"),
-        M3EDocumentRow("Register No.", "21BCE1042"),
-        M3EDocumentRow("Purpose", "Internship")
-    ),
-    messages = emptyList()
+    documents = listOf(
+        M3EDocumentCard(
+            id = "bonafide",
+            title = "Bonafide Certificate",
+            subtitle = "Internship / passport purpose",
+            details = listOf(
+                M3EDocumentRow("Student", "Aravind Kumar"),
+                M3EDocumentRow("Register No.", "21BCE1042")
+            )
+        ),
+        M3EDocumentCard(
+            id = "etranscript",
+            title = "E-Transcript",
+            subtitle = "Semester-wise grade record"
+        ),
+        M3EDocumentCard(
+            id = "additional-learning",
+            title = "Additional Learning",
+            subtitle = "Certified electives"
+        )
+    )
 )
 
 @Preview

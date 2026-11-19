@@ -18,8 +18,7 @@ import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.domain.Course
 import com.amazecc.app.shared.domain.splitSlots
 import com.amazecc.app.shared.utils.AttendanceTimetable
-import com.amazecc.app.shared.domain.GradeHistory
-import com.amazecc.app.shared.domain.Projections
+import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.domain.overhaul.AcademicCourseFilter
 import com.amazecc.app.shared.domain.overhaul.AttendanceFilter
 import com.amazecc.app.shared.domain.overhaul.CourseCompletionStatus
@@ -36,7 +35,6 @@ import com.amazecc.app.shared.domain.overhaul.M3EAttendanceState
 import com.amazecc.app.shared.domain.overhaul.M3EBasketProgress
 import com.amazecc.app.shared.domain.overhaul.M3EBunkSummary
 import com.amazecc.app.shared.domain.overhaul.M3EBusRoute
-import com.amazecc.app.shared.domain.overhaul.M3EBusStop
 import com.amazecc.app.shared.domain.overhaul.M3ECabShareAction
 import com.amazecc.app.shared.domain.overhaul.M3ECabShareFilter
 import com.amazecc.app.shared.domain.overhaul.M3ECabShareHub
@@ -62,7 +60,6 @@ import com.amazecc.app.shared.domain.overhaul.M3EEventCategory
 import com.amazecc.app.shared.domain.overhaul.M3EEventHubAction
 import com.amazecc.app.shared.domain.overhaul.M3EEventHubState
 import com.amazecc.app.shared.domain.overhaul.M3EEventItem
-import com.amazecc.app.shared.domain.overhaul.M3EExamEntry
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleAction
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleState
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyAction
@@ -88,8 +85,6 @@ import com.amazecc.app.shared.domain.overhaul.M3EPalettePreset
 import com.amazecc.app.shared.domain.overhaul.M3EProfileAction
 import com.amazecc.app.shared.domain.overhaul.M3EProfileState
 import com.amazecc.app.shared.domain.overhaul.M3EQuickStatsState
-import com.amazecc.app.shared.domain.overhaul.M3ESemesterGradeCourse
-import com.amazecc.app.shared.domain.overhaul.M3ESemesterGradeRecord
 import com.amazecc.app.shared.domain.overhaul.M3ESettingsAction
 import com.amazecc.app.shared.domain.overhaul.M3ESettingsState
 import com.amazecc.app.shared.domain.overhaul.M3ESubScreen
@@ -824,34 +819,33 @@ fun M3EMarksPredictorScreen(modifier: Modifier = Modifier) {
 @Composable
 fun M3EExamScheduleScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
-    val domain by AppState.domain.collectAsState()
     val selectedSemId by AppState.selectedSemester.collectAsState()
     val semesterMap by AppState.semesterMap.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
 
     var selectedSeries by remember { mutableStateOf(ExamSeries.ALL) }
+    var scheduleRes by remember { mutableStateOf<ExamScheduleRes?>(null) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+    var isFetching by remember { mutableStateOf(false) }
+    var refreshTick by remember { mutableStateOf(0) }
 
-    val rawExams = remember(domain, selectedSemId) {
-        Projections.exams(domain, selectedSemId)
+    // The raw ExamScheduleRes is the only place the exam *series* survives (`schedule` map key) -
+    // the domain snapshot flattens it away, which is why this screen used to render every row as
+    // FAT. Fetch it directly and let AppState's sync path refresh the shared cache in parallel.
+    LaunchedEffect(selectedSemId, refreshTick) {
+        isFetching = true
+        loadError = null
+        try {
+            scheduleRes = AmazeClient.getExamSchedule(selectedSemId)
+        } catch (e: Exception) {
+            loadError = e.message ?: "Unable to load exam schedule"
+            scheduleRes = null
+        }
+        isFetching = false
     }
 
-    val examEntries = remember(rawExams) {
-        rawExams.mapIndexed { idx, ex ->
-            M3EExamEntry(
-                id = "$idx-${ex.courseCode}",
-                courseCode = ex.courseCode,
-                courseTitle = ex.courseTitle,
-                examSeries = ExamSeries.FAT,
-                date = ex.date,
-                day = "",
-                session = ex.session,
-                slot = "",
-                reportingTime = ex.time,
-                examTime = ex.time,
-                venue = ex.venue,
-                seatNumber = ex.seat
-            )
-        }
+    val examEntries = remember(scheduleRes) {
+        scheduleRes?.let { mapExamScheduleResToEntries(it) }.orEmpty()
     }
 
     val filtered = remember(examEntries, selectedSeries) {
@@ -865,7 +859,8 @@ fun M3EExamScheduleScreen(modifier: Modifier = Modifier) {
         nextUpcomingExam = filtered.firstOrNull(),
         exams = examEntries,
         filteredExams = filtered,
-        isLoading = isLoading
+        isLoading = isFetching || isLoading,
+        errorMessage = loadError?.takeIf { scheduleRes == null }
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -876,7 +871,10 @@ fun M3EExamScheduleScreen(modifier: Modifier = Modifier) {
                     is M3EExamScheduleAction.SelectSeries -> selectedSeries = action.series
                     is M3EExamScheduleAction.ExamClicked -> {}
                     is M3EExamScheduleAction.ExportCalendar -> {}
-                    is M3EExamScheduleAction.Refresh -> AppState.loadAllData()
+                    is M3EExamScheduleAction.Refresh -> {
+                        AppState.selectExamSemester(selectedSemId)
+                        refreshTick++
+                    }
                 }
             },
             modifier = modifier
@@ -892,40 +890,15 @@ fun M3EGradesHistoryScreen(modifier: Modifier = Modifier) {
 
     var expandedSemesterId by remember { mutableStateOf<String?>(null) }
 
-    val semesterRows = remember(domain) { GradeHistory.semesterRows(domain) }
-    val semesterRecords = remember(semesterRows) {
-        semesterRows.map { row ->
-            M3ESemesterGradeRecord(
-                semesterId = row.id,
-                semesterName = row.label,
-                sgpa = row.gpa,
-                cgpaAtEnd = row.gpa,
-                creditsEarned = row.courses.size * 3,
-                courses = row.courses.map { c ->
-                    M3ESemesterGradeCourse(
-                        courseCode = c.courseCode,
-                        courseTitle = c.courseTitle,
-                        credits = 3,
-                        grade = c.grade,
-                        gradePoints = GradeHistory.gradePoints(c.grade) ?: 10,
-                        courseType = c.courseType
-                    )
-                }
-            )
-        }
+    // buildGradesHistoryState derives credits, grade counts and the CGPA from the real cached
+    // getAllGrades data (the domain snapshot) - no hardcoded 3-credit courses or 14/8/2 counts.
+    val state = remember(domain, expandedSemesterId, isLoading) {
+        buildGradesHistoryState(
+            snapshot = domain,
+            expandedSemesterId = expandedSemesterId,
+            isLoading = isLoading
+        )
     }
-
-    val state = M3EGradesHistoryState(
-        cumulativeGpa = semesterRecords.lastOrNull()?.cgpaAtEnd ?: 9.15,
-        totalCreditsEarned = semesterRecords.sumOf { it.creditsEarned },
-        totalCreditsAttempted = semesterRecords.sumOf { it.creditsEarned },
-        sGradesCount = 14,
-        aGradesCount = 8,
-        bGradesCount = 2,
-        semesters = semesterRecords,
-        expandedSemesterId = expandedSemesterId,
-        isLoading = isLoading
-    )
 
     AmazeM3ETheme(isDark = isDark) {
         M3EGradesHistoryScreen(
@@ -935,7 +908,7 @@ fun M3EGradesHistoryScreen(modifier: Modifier = Modifier) {
                     is M3EGradesHistoryAction.ToggleExpandSemester -> {
                         expandedSemesterId = if (expandedSemesterId == action.semesterId) null else action.semesterId
                     }
-                    is M3EGradesHistoryAction.Refresh -> AppState.loadAllData()
+                    is M3EGradesHistoryAction.Refresh -> AppState.refreshGrades()
                 }
             },
             modifier = modifier
@@ -1006,44 +979,27 @@ fun M3EHostelScreen(modifier: Modifier = Modifier) {
 fun M3ETransportScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val busesRes by AppState.buses.collectAsState()
+    val transportData by AppState.transportData.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var activeFilter by remember { mutableStateOf(M3ETransportFilter.ALL) }
     var expandedRouteId by remember { mutableStateOf<Int?>(null) }
 
-    val rawRoutes = busesRes?.buses.orEmpty()
-    val routes = remember(rawRoutes) {
-        rawRoutes.mapIndexed { idx, b ->
-            M3EBusRoute(
-                id = b.id.toIntOrNull() ?: (idx + 1),
-                routeNumber = b.route,
-                routeName = b.route,
-                isAc = b.type.contains("AC", ignoreCase = true),
-                driverName = b.driverName,
-                driverPhone = b.driverPhone,
-                whatsappGroup = b.whatsappGroup,
-                busLocation = b.busLocation,
-                stops = b.stops.map { s ->
-                    M3EBusStop(stopOrder = s.stopOrder, stopName = s.stopName, pickupTime = s.pickupTime ?: "")
-                }
-            )
-        }
+    LaunchedEffect(Unit) {
+        if (transportData == null) AppState.refreshTransport()
     }
+
+    val routes = remember(busesRes) { mapBusesToRoutes(busesRes) }
 
     val filtered = remember(routes, searchQuery, activeFilter) {
         routes.filter { route ->
-            val matchFilter = when (activeFilter) {
-                M3ETransportFilter.ALL -> true
-                M3ETransportFilter.AC -> route.isAc
-                M3ETransportFilter.NON_AC -> !route.isAc
-                M3ETransportFilter.EVENING_5PM -> true
-                M3ETransportFilter.EVENING_6PM -> true
-            }
+            val matchFilter = matchesTransportFilter(route, activeFilter)
             val matchQuery = searchQuery.isBlank() ||
                 route.routeNumber.contains(searchQuery, ignoreCase = true) ||
                 route.routeName.contains(searchQuery, ignoreCase = true) ||
-                route.driverName.contains(searchQuery, ignoreCase = true)
+                route.driverName.contains(searchQuery, ignoreCase = true) ||
+                route.stops.any { it.stopName.contains(searchQuery, ignoreCase = true) }
             matchFilter && matchQuery
         }
     }
@@ -1054,6 +1010,7 @@ fun M3ETransportScreen(modifier: Modifier = Modifier) {
         searchQuery = searchQuery,
         activeFilter = activeFilter,
         expandedRouteId = expandedRouteId,
+        registration = transportRegistrationFrom(transportData),
         isLoading = isLoading
     )
 
@@ -1067,9 +1024,11 @@ fun M3ETransportScreen(modifier: Modifier = Modifier) {
                     is M3ETransportAction.ToggleExpandRoute -> {
                         expandedRouteId = if (expandedRouteId == action.routeId) null else action.routeId
                     }
+                    // The transit API exposes no dial-in / chat deep link beyond the raw numbers;
+                    // leave these as no-ops rather than fabricate a contact route.
                     is M3ETransportAction.CallDriver -> {}
                     is M3ETransportAction.OpenWhatsappGroup -> {}
-                    is M3ETransportAction.Refresh -> AppState.loadAllData()
+                    is M3ETransportAction.Refresh -> AppState.refreshTransport()
                 }
             },
             modifier = modifier

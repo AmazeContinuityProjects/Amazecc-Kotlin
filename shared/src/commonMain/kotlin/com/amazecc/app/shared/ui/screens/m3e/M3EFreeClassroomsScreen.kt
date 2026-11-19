@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AcUnit
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.People
 import androidx.compose.material.icons.rounded.Refresh
@@ -46,6 +47,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomsAction
 import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomsState
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
+import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -198,7 +200,39 @@ fun M3EFreeClassroomsScreen(
             }
         }
 
-        // 5. Classrooms Listing
+        // 5. Loading / error feedback (driven by the host's AppState flows)
+        if (state.isLoading) {
+            item(key = "progress") {
+                M3EWavyLinearProgress(progress = 0.5f)
+            }
+        }
+
+        if (!state.errorMessage.isNullOrBlank()) {
+            item(key = "error") {
+                M3ESurfaceCard(
+                    containerLevel = SurfaceContainerLevel.LOW,
+                    cornerRadius = 20.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Rounded.Info,
+                            contentDescription = null,
+                            tint = colors.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = state.errorMessage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.error
+                        )
+                    }
+                }
+            }
+        }
+
+        // 6. Classrooms Listing
         if (state.filteredClassrooms.isEmpty()) {
             item {
                 M3ESurfaceCard(
@@ -220,7 +254,11 @@ fun M3EFreeClassroomsScreen(
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "No classrooms match the selected filters",
+                            text = if (state.classrooms.isEmpty()) {
+                                "No classrooms available right now"
+                            } else {
+                                "No classrooms match the selected filters"
+                            },
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.onSurfaceVariant
                         )

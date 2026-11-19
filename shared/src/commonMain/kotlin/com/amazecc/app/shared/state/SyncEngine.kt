@@ -57,6 +57,12 @@ enum class SyncModule(
     UNIVERSITY_DAY("University Day", SettingsManager.CACHE_USER_IDENTITY, SyncCategory.PROFILE_MISC),
     APAAR_ID("APAAR ID", SettingsManager.CACHE_USER_IDENTITY, SyncCategory.PROFILE_MISC),
     MOODLE("Moodle Assignments", SettingsManager.CACHE_MOODLE, SyncCategory.FINANCE_SERVICES),
+    // Wired data paths for the M3E campus/academic screens. cacheKey is null: their
+    // in-memory caches live in AppDataStore beside AppDataSnapshot.
+    FREE_CLASSROOMS("Free Classrooms", null, SyncCategory.CAMPUS_HOSTEL),
+    DOCUMENTS("Documents", null, SyncCategory.CAMPUS_HOSTEL),
+    OD_DETAILS("OD Details", null, SyncCategory.ACADEMICS),
+    FEEDBACK_STATUS("Feedback Status", null, SyncCategory.ACADEMICS),
 }
 
 enum class SyncStatus { IDLE, LOADING, SUCCESS, ERROR }
@@ -194,6 +200,10 @@ val MONTHLY_STEPS: List<SyncModeStep> = listOf(
     step(SyncModule.CLUBS, background = true, everyDays = 30),
     step(SyncModule.CIRCULARS, background = true, everyDays = 30),
     step(SyncModule.QCM_VIEW, background = true, everyDays = 30),
+    step(SyncModule.DOCUMENTS, background = true, everyDays = 30),
+    step(SyncModule.FREE_CLASSROOMS, background = true, everyDays = 30),
+    step(SyncModule.OD_DETAILS, background = true, everyDays = 30),
+    step(SyncModule.FEEDBACK_STATUS, background = true, everyDays = 30),
 )
 
 val QUARTERLY_STEPS: List<SyncModeStep> = MONTHLY_STEPS + listOf(
@@ -241,7 +251,10 @@ val BUILT_IN_MODES: List<SyncMode> = listOf(
             step(SyncModule.LMS, background = true),
             step(SyncModule.CIRCULARS, background = true),
             step(SyncModule.LIBRARY, background = true),
-            step(SyncModule.PAYMENTS, background = true)
+            step(SyncModule.PAYMENTS, background = true),
+            step(SyncModule.DOCUMENTS, background = true),
+            step(SyncModule.OD_DETAILS, background = true),
+            step(SyncModule.FEEDBACK_STATUS, background = true)
         )
     ),
     SyncMode(
@@ -268,7 +281,10 @@ val BUILT_IN_MODES: List<SyncMode> = listOf(
             step(SyncModule.CURRICULUM, background = true),
             step(SyncModule.QCM_VIEW, background = true),
             step(SyncModule.LMS, background = true),
-            step(SyncModule.CIRCULARS, background = true)
+            step(SyncModule.CIRCULARS, background = true),
+            step(SyncModule.OD_DETAILS, background = true),
+            step(SyncModule.FEEDBACK_STATUS, background = true),
+            step(SyncModule.DOCUMENTS, background = true)
         )
     ),
     SyncMode(
@@ -284,7 +300,9 @@ val BUILT_IN_MODES: List<SyncMode> = listOf(
             step(SyncModule.HOSTEL_DETAILS),
             step(SyncModule.DAYBOARDER),
             step(SyncModule.PAYMENTS, background = true),
-            step(SyncModule.LIBRARY, background = true)
+            step(SyncModule.LIBRARY, background = true),
+            step(SyncModule.FREE_CLASSROOMS, background = true),
+            step(SyncModule.DOCUMENTS, background = true)
         )
     ),
     SyncMode(
@@ -361,7 +379,10 @@ val DEFAULT_SYNC_PROFILES = listOf(
             SyncModule.LMS,
             SyncModule.CIRCULARS,
             SyncModule.LIBRARY,
-            SyncModule.PAYMENTS
+            SyncModule.PAYMENTS,
+            SyncModule.DOCUMENTS,
+            SyncModule.OD_DETAILS,
+            SyncModule.FEEDBACK_STATUS
         ),
         isBuiltIn = true
     ),
@@ -380,7 +401,10 @@ val DEFAULT_SYNC_PROFILES = listOf(
             SyncModule.CALENDARS_LIST,
             SyncModule.CIRCULARS,
             SyncModule.QCM_VIEW,
-            SyncModule.LMS
+            SyncModule.LMS,
+            SyncModule.OD_DETAILS,
+            SyncModule.FEEDBACK_STATUS,
+            SyncModule.DOCUMENTS
         ),
         isBuiltIn = true
     ),
@@ -510,6 +534,10 @@ object SyncEngine {
         "Registration Schedule" to SyncModule.REGISTRATION_SCHEDULE,
         "APAAR ID" to SyncModule.APAAR_ID,
         "Circulars" to SyncModule.CIRCULARS,
+        "Free Classrooms" to SyncModule.FREE_CLASSROOMS,
+        "Documents" to SyncModule.DOCUMENTS,
+        "OD Details" to SyncModule.OD_DETAILS,
+        "Feedback Status" to SyncModule.FEEDBACK_STATUS,
         "Moodle Assignments" to SyncModule.MOODLE,
         "Moodle" to SyncModule.MOODLE,
     )

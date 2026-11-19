@@ -708,6 +708,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     val transportData: StateFlow<TransportDataRes?> = AppDataStore.transportData
     val buses: StateFlow<BusesRes?> = AppDataStore.buses
     val lms: StateFlow<LMSRes?> = AppDataStore.lms
+
+    // Wired M3E data paths (the caches live in AppDataStore; these are the screen-facing aliases).
+    val freeClassrooms: StateFlow<FreeClassroomsRes?> = AppDataStore.freeClassrooms
+    val documents: StateFlow<List<DocumentItem>> = AppDataStore.documents
+    val odDetails: StateFlow<OdDetailsRes?> = AppDataStore.odDetails
+    val feedbackStatus: StateFlow<FeedbackStatusRes?> = AppDataStore.feedbackStatus
     val events: StateFlow<EventHubRes?> = AppDataStore.events
     val registeredEvents: StateFlow<EventHubRegisteredEventsRes?> = AppDataStore.registeredEvents
     val clubs: StateFlow<ClubsRes?> = AppDataStore.clubs
@@ -2121,6 +2127,69 @@ val results = supervisorScope {
                     ).awaitAll()
                 }
                 updateSyncSummary(results)
+        }
+    }
+
+    /** Offline derivation from the domain snapshot; see AmazeClient.getFreeClassrooms. */
+    fun refreshFreeClassrooms() {
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.FREE_CLASSROOMS)) {
+            val result = syncModule(
+                name = "Free Classrooms",
+                fetch = { AmazeClient.getFreeClassrooms() },
+                isSuccess = { it.success },
+                errorMessage = { it.error ?: it.message },
+                update = { AppDataStore.setFreeClassrooms(it) }
+            )
+            _error.value = if (result.success) null else result.message
+            updateSyncSummary(listOf(result))
+        }
+    }
+
+    /** Flattened circulars tree plus the static official-document entries. */
+    fun refreshDocuments() {
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.DOCUMENTS)) {
+            val result = syncModule(
+                name = "Documents",
+                fetch = { AmazeClient.getDocuments() },
+                isSuccess = { it.isNotEmpty() },
+                errorMessage = { "No documents available" },
+                update = { AppDataStore.setDocuments(it) }
+            )
+            _error.value = if (result.success) null else result.message
+            updateSyncSummary(listOf(result))
+        }
+    }
+
+    fun refreshOdDetails(semesterId: String) {
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.OD_DETAILS)) {
+            val result = syncModule(
+                name = "OD Details",
+                fetch = { AmazeClient.getOdDetails(semesterId) },
+                isSuccess = { it.success && it.error == null },
+                errorMessage = { it.error ?: "OD details unavailable" },
+                update = { AppDataStore.setOdDetails(it) }
+            )
+            _error.value = if (result.success) null else result.message
+            updateSyncSummary(listOf(result))
+        }
+    }
+
+    fun refreshFeedbackStatus(semesterId: String? = null) {
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        val sem = semesterId ?: _selectedSemester.value.takeIf { it.isNotBlank() }
+        launchSweep(setOf(SyncModule.FEEDBACK_STATUS)) {
+            val result = syncModule(
+                name = "Feedback Status",
+                fetch = { AmazeClient.getFeedbackStatus(sem) },
+                isSuccess = { it.success && it.error == null },
+                errorMessage = { it.error ?: "Feedback status unavailable" },
+                update = { AppDataStore.setFeedbackStatus(it) }
+            )
+            _error.value = if (result.success) null else result.message
+            updateSyncSummary(listOf(result))
         }
     }
 

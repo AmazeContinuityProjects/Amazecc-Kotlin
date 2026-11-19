@@ -229,10 +229,14 @@ fun M3ECourseDashboardScreenHost(modifier: Modifier = Modifier) {
 @Composable
 fun M3EODTrackerScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
-    val domain by AppState.domain.collectAsState()
+    // Real OD data now flows from the VTOP OD details endpoint through AppState instead of being
+    // inferred from attendance-log statuses with a lab/theory hour heuristic.
+    val odDetails by AppState.odDetails.collectAsState()
+    val selectedSemester by AppState.selectedSemester.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
 
     var activeTab by remember { mutableStateOf(M3EODTab.OVERVIEW) }
+    var refreshTick by remember { mutableStateOf(0) }
     // Wasted/recovered annotations persist across restarts (legacy did this through
     // SettingsManager.getODTrackerState). They are keyed by "date|courseCode".
     val tracker = remember {
@@ -244,28 +248,13 @@ fun M3EODTrackerScreenHost(modifier: Modifier = Modifier) {
         }
     }
 
-    val days = remember(domain, tracker) {
-        val raw = mutableListOf<Pair<String, M3EODEntry>>()
-        Projections.currentSemesterAttendance(domain).forEach { course ->
-            course.logs.forEach { log ->
-                val normalized = log.status.trim().lowercase()
-                if (normalized == "on duty" || normalized == "od" || normalized == "onduty") {
-                    val isLab = course.slotName.startsWith("L")
-                    val key = "${log.date}|${course.courseCode}"
-                    raw += log.date to M3EODEntry(
-                        courseCode = course.courseCode,
-                        title = course.courseTitle,
-                        type = if (isLab) "LAB" else "TH",
-                        hours = if (isLab) 2 else 1,
-                        status = tracker[key] ?: M3EODStatus.NONE
-                    )
-                }
-            }
+    LaunchedEffect(selectedSemester, refreshTick) {
+        if (selectedSemester.isNotBlank()) {
+            AppState.refreshOdDetails(selectedSemester)
         }
-        raw.groupBy({ it.first }, { it.second })
-            .map { (date, entries) -> M3EODDay(date, entries) }
-            .sortedByDescending { it.date }
     }
+
+    val days = remember(odDetails, tracker) { mapOdRecordsToDays(odDetails, tracker) }
 
     val state = M3EODTrackerState(activeTab = activeTab, days = days, isLoading = isLoading)
 
@@ -287,7 +276,7 @@ fun M3EODTrackerScreenHost(modifier: Modifier = Modifier) {
                             m3eOdTrackerJson.encodeToString(tracker.toMap())
                         )
                     }
-                    is M3EODTrackerAction.Refresh -> AppState.loadAllData()
+                    is M3EODTrackerAction.Refresh -> refreshTick++
                     is M3EODTrackerAction.Back -> backTo(Screen.ACADEMICS)
                 }
             },
@@ -622,46 +611,54 @@ fun M3EClubDetailScreenHost(modifier: Modifier = Modifier) {
 @Composable
 fun M3EFeedbackStatusScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
-    var semesters by remember { mutableStateOf<List<M3EFeedbackSemester>>(emptyList()) }
-    var selectedSemester by remember { mutableStateOf<String?>(null) }
-    var rows by remember { mutableStateOf<List<M3EFeedbackRow>>(emptyList()) }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var isLoading by remember { mutableStateOf(true) }
-    var refreshTick by remember { mutableStateOf(0) }
+    // Participate in the app's state/sync path: the feedback payload now arrives via AppState,
+    // sourced from POST /api/ffcs with {semesterId, section: "feedback"} (legacy alias
+    // /api/feedback-status is only a fallback in the data layer).
+    val feedbackRes by AppState.feedbackStatus.collectAsState()
+    val semesterMap by AppState.semesterMap.collectAsState()
+    val selectedAppSemester by AppState.selectedSemester.collectAsState()
+    val isLoading by AppState.isLoading.collectAsState()
 
-    LaunchedEffect(refreshTick) {
-        isLoading = true
-        errorMessage = null
-        try {
-            val res = AmazeClient.getFeedbackStatus()
-            val loaded = res.semesters.orEmpty().map {
-                M3EFeedbackSemester(it.value, it.text)
-            }
-            semesters = loaded.ifEmpty {
-                AppDataStore.academic.value.semesters.keys.map { id ->
-                    M3EFeedbackSemester(id, AppState.semesterMap.value[id] ?: AppState.deriveSemesterName(id))
-                }
-            }
-            if (selectedSemester == null) {
-                selectedSemester = semesters.firstOrNull { it.value == AppState.selectedSemester.value }?.value
-                    ?: semesters.firstOrNull()?.value
-            }
-        } catch (e: Exception) {
-            errorMessage = e.message ?: "Unable to load feedback status"
+    val initialSemesters = remember(semesterMap) {
+        AppDataStore.academic.value.semesters.keys.map { id ->
+            M3EFeedbackSemester(id, semesterMap[id] ?: AppState.deriveSemesterName(id))
         }
-        isLoading = false
+    }
+    var semesters by remember { mutableStateOf(initialSemesters) }
+    var selectedSemester by remember {
+        mutableStateOf(
+            initialSemesters.firstOrNull { it.value == selectedAppSemester }?.value
+                ?: initialSemesters.firstOrNull()?.value
+        )
     }
 
+    LaunchedEffect(feedbackRes) {
+        val fromApi = feedbackRes?.semesters.orEmpty().map { M3EFeedbackSemester(it.value, it.text) }
+        if (fromApi.isNotEmpty() && fromApi.map { it.value } != semesters.map { it.value }) {
+            semesters = fromApi
+        }
+        if (selectedSemester == null) {
+            selectedSemester = fromApi.firstOrNull { it.value == selectedAppSemester }?.value
+                ?: fromApi.firstOrNull()?.value
+                ?: selectedAppSemester.takeIf { it.isNotBlank() }
+        }
+    }
+
+    // Always pass a real semesterId - the FFCS-section call requires one. A selection is seeded
+    // above from cache; when the cache is cold, fall back to the app's selected semester id.
+    LaunchedEffect(Unit) {
+        if (selectedSemester == null && selectedAppSemester.isNotBlank()) {
+            AppState.refreshFeedbackStatus(selectedAppSemester)
+        }
+    }
     LaunchedEffect(selectedSemester) {
         val sem = selectedSemester ?: return@LaunchedEffect
-        try {
-            val res = AmazeClient.getFeedbackStatus(sem)
-            rows = res.feedbackTable.orEmpty().map {
-                M3EFeedbackRow(it.feedbackType.orEmpty(), it.midSemester.orEmpty(), it.teeSemester.orEmpty())
-            }
-            errorMessage = null
-        } catch (e: Exception) {
-            errorMessage = e.message ?: "Unable to load feedback rows"
+        AppState.refreshFeedbackStatus(sem)
+    }
+
+    val rows = remember(feedbackRes) {
+        feedbackRes?.feedbackTable.orEmpty().map {
+            M3EFeedbackRow(it.feedbackType.orEmpty(), it.midSemester.orEmpty(), it.teeSemester.orEmpty())
         }
     }
 
@@ -671,13 +668,15 @@ fun M3EFeedbackStatusScreenHost(modifier: Modifier = Modifier) {
                 semesters = semesters,
                 selectedSemesterValue = selectedSemester,
                 rows = rows,
-                errorMessage = errorMessage,
-                isLoading = isLoading
+                errorMessage = feedbackRes?.error,
+                isLoading = isLoading || feedbackRes == null
             ),
             onAction = { action ->
                 when (action) {
                     is M3EFeedbackStatusAction.SelectSemester -> selectedSemester = action.value
-                    is M3EFeedbackStatusAction.Refresh -> refreshTick++
+                    is M3EFeedbackStatusAction.Refresh -> {
+                        selectedSemester?.let { AppState.refreshFeedbackStatus(it) }
+                    }
                     is M3EFeedbackStatusAction.Back -> backTo(Screen.ACADEMICS)
                 }
             },

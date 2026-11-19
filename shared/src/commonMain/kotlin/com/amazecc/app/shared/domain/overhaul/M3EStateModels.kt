@@ -654,12 +654,28 @@ enum class M3ETransportFilter(val label: String) {
     EVENING_6PM("6:00 PM Dispersal")
 }
 
+/**
+ * The student's real VTOP bus-pass registration (`TransportDataRes` from `/api/transport`),
+ * surfaced on the transit hub so the screen reflects the account's actual registration
+ * instead of a static placeholder.
+ */
+data class M3ETransportRegistration(
+    val hasRegistration: Boolean = false,
+    val registerNumber: String? = null,
+    val name: String? = null,
+    val branch: String? = null,
+    val routeSelected: String? = null,
+    val busRouteId: String? = null,
+    val qrCode: String? = null
+)
+
 data class M3ETransportState(
     val routes: List<M3EBusRoute> = emptyList(),
     val filteredRoutes: List<M3EBusRoute> = emptyList(),
     val searchQuery: String = "",
     val activeFilter: M3ETransportFilter = M3ETransportFilter.ALL,
     val expandedRouteId: Int? = null,
+    val registration: M3ETransportRegistration? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )

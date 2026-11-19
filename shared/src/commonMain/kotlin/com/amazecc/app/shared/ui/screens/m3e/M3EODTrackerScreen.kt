@@ -34,6 +34,8 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EStatTone
+import com.amazecc.app.shared.model.OdDetailsRes
+import com.amazecc.app.shared.utils.ExamUtils
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EStatCard
@@ -198,13 +200,13 @@ fun M3EODTrackerScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                                 M3EStatCard(
-                                    stat = M3EStatItem("lab_hours", "Lab Hours", "${metrics.labHours}h", "2h per lab session", M3EStatTone.SECONDARY),
+                                    stat = M3EStatItem("lab_hours", "Lab Hours", "${metrics.labHours}h", "From OD details", M3EStatTone.SECONDARY),
                                     modifier = Modifier.weight(1f)
                                 )
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 M3EStatCard(
-                                    stat = M3EStatItem("theory_hours", "Theory Hours", "${metrics.theoryHours}h", "1h per theory class", M3EStatTone.TERTIARY),
+                                    stat = M3EStatItem("theory_hours", "Theory Hours", "${metrics.theoryHours}h", "From OD details", M3EStatTone.TERTIARY),
                                     modifier = Modifier.weight(1f)
                                 )
                                 M3EStatCard(
@@ -326,6 +328,83 @@ private fun SummaryRow(label: String, value: String, isHighlight: Boolean) {
         Text(label, fontSize = 13.sp, fontWeight = if (isHighlight) FontWeight.Bold else FontWeight.Normal, color = colors.onSurfaceVariant)
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (isHighlight) colors.primary else colors.onSurface)
     }
+}
+
+/**
+ * Parse the hours a real OD record covers from VTOP's `time` cell. Accepts both an explicit
+ * `"2 hours"` and a clock range (`"09:00 AM - 11:00 AM"` / `"09:00-11:00"`). An unparseable cell
+ * yields 0 - never the old lab=2h / theory=1h guess.
+ */
+internal fun odHoursFrom(raw: String): Int {
+    val value = raw.trim()
+    if (value.isEmpty()) return 0
+    Regex("(\\d+(?:\\.\\d+)?)\\s*h(?:ou)?rs?", RegexOption.IGNORE_CASE)
+        .find(value)?.groupValues?.get(1)?.toDoubleOrNull()
+        ?.let { return maxOf(0, it.toInt()) }
+
+    val clocks = Regex("(\\d{1,2}):(\\d{2})\\s*(AM|PM)?", RegexOption.IGNORE_CASE)
+        .findAll(value).toList()
+    if (clocks.size >= 2) {
+        fun minutes(match: MatchResult): Int? {
+            val hour = match.groupValues[1].toIntOrNull() ?: return null
+            val minute = match.groupValues[2].toIntOrNull() ?: return null
+            val adjusted = when (match.groupValues[3].uppercase()) {
+                "PM" -> if (hour == 12) 12 else hour + 12
+                "AM" -> if (hour == 12) 0 else hour
+                else -> hour
+            }
+            return adjusted * 60 + minute
+        }
+        val start = minutes(clocks[0])
+        val end = minutes(clocks[1])
+        if (start != null && end != null) {
+            val rawDiff = end - start
+            val diff = if (rawDiff < 0) rawDiff + 12 * 60 else rawDiff
+            return maxOf(0, (diff + 30) / 60)
+        }
+    }
+    return 0
+}
+
+/** Lab/theory classification based on the record's real `type`/`basis` text. */
+internal fun odTypeFor(type: String, basis: String): String {
+    val combined = "$type $basis"
+    return if (combined.contains("lab", ignoreCase = true) ||
+        combined.contains("practical", ignoreCase = true)
+    ) "LAB" else "TH"
+}
+
+/** Sort key for a VTOP OD date; unparseable dates sink to the bottom. */
+internal fun odDateEpochDay(raw: String): Long? =
+    ExamUtils.parseExamDateToLocalDate(raw)?.toEpochDays()?.toLong()
+
+/**
+ * Map the real `OdDetailsRes.records` into the stateless day/entry list, preserving the persisted
+ * wasted/recovered annotations keyed by `date|code`. On an error or empty payload this returns an
+ * empty list - the screen's existing empty state - instead of fabricating OD rows.
+ */
+internal fun mapOdRecordsToDays(
+    res: OdDetailsRes?,
+    tracker: Map<String, M3EODStatus>
+): List<M3EODDay> {
+    if (res == null || !res.success || res.error != null) return emptyList()
+    return res.records.map { record ->
+        // The scraper has no explicit course-code column; `reason` (then slNo) is the stable, real
+        // identity the annotation persistence keys off of.
+        val code = record.reason.ifBlank { record.slNo }.ifBlank { record.type }
+        val title = record.reason.ifBlank { record.type }
+        val entry = M3EODEntry(
+            courseCode = code,
+            title = title,
+            type = odTypeFor(record.type, record.basis),
+            hours = odHoursFrom(record.time),
+            status = tracker["${record.date}|$code"] ?: M3EODStatus.NONE
+        )
+        record.date to entry
+    }
+        .groupBy({ it.first }, { it.second })
+        .map { (date, entries) -> M3EODDay(date, entries) }
+        .sortedByDescending { odDateEpochDay(it.date) ?: Long.MIN_VALUE }
 }
 
 private fun mockODTrackerState() = M3EODTrackerState(

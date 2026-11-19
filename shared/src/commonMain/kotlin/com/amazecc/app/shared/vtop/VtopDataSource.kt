@@ -1278,12 +1278,14 @@ object VtopDataSource {
                 remarks = row.getOrElse(6) { "" }.trim()
             )
         }
-        return OdDetailsRes(
+        val output = OdDetailsRes(
             success = true,
             semesterId = semesterId,
             totalCount = records.size,
             records = records
         )
+        AppDataStore.setOdDetails(output)
+        return output
     }
 
     suspend fun fetchFeedbackStatus(semesterId: String): FeedbackStatusRes? {
@@ -1299,11 +1301,13 @@ object VtopDataSource {
                 teeSemester = r.getOrNull(2)?.trim()
             )
         }
-        return FeedbackStatusRes(
+        val output = FeedbackStatusRes(
             success = true,
             semesters = listOf(FeedbackSemester(text = semesterId, value = semesterId, selected = true)),
             feedbackTable = tableRows
         )
+        AppDataStore.setFeedbackStatus(output)
+        return output
     }
 
     suspend fun fetchCoursePage(): VtopPage? {

@@ -12,10 +12,14 @@ import com.amazecc.app.shared.model.CircularsRes
 import com.amazecc.app.shared.model.ClubsRes
 import com.amazecc.app.shared.model.CurriculumRes
 import com.amazecc.app.shared.model.EventHubRegisteredEventsRes
+import com.amazecc.app.shared.model.DocumentItem
 import com.amazecc.app.shared.model.EventHubRes
 import com.amazecc.app.shared.model.ExamScheduleRes
+import com.amazecc.app.shared.model.FeedbackStatusRes
 import com.amazecc.app.shared.model.FfcsRegistrationInfo
+import com.amazecc.app.shared.model.FreeClassroomsRes
 import com.amazecc.app.shared.model.HomeworkTask
+import com.amazecc.app.shared.model.OdDetailsRes
 import com.amazecc.app.shared.model.HostelDetails
 import com.amazecc.app.shared.model.LMSRes
 import com.amazecc.app.shared.model.LaundryRes
@@ -89,6 +93,28 @@ object AppDataStore {
     val cabHubs: StateFlow<List<CabShareHub>> = derived { it.cabHubs }
     val ffcsRegistration: StateFlow<FfcsRegistrationInfo?> = derived { it.ffcsRegistration }
     val tasks: StateFlow<List<HomeworkTask>> = derived { it.tasks }
+
+    // ── Wired feature caches ─────────────────────────────────────────────────
+    // These are populated by the sync sweep (and by each on-demand refresh) and
+    // served back by AmazeClient in VtopSource.OFFLINE_CACHE. They live beside
+    // AppDataSnapshot because they are derived/flat views (offline free rooms,
+    // flattened circular tree) rather than raw transport payloads.
+
+    private val _freeClassrooms = MutableStateFlow<FreeClassroomsRes?>(null)
+    val freeClassrooms: StateFlow<FreeClassroomsRes?> = _freeClassrooms.asStateFlow()
+    fun setFreeClassrooms(res: FreeClassroomsRes?) { _freeClassrooms.value = res }
+
+    private val _documents = MutableStateFlow<List<DocumentItem>>(emptyList())
+    val documents: StateFlow<List<DocumentItem>> = _documents.asStateFlow()
+    fun setDocuments(items: List<DocumentItem>) { _documents.value = items }
+
+    private val _odDetails = MutableStateFlow<OdDetailsRes?>(null)
+    val odDetails: StateFlow<OdDetailsRes?> = _odDetails.asStateFlow()
+    fun setOdDetails(res: OdDetailsRes?) { _odDetails.value = res }
+
+    private val _feedbackStatus = MutableStateFlow<FeedbackStatusRes?>(null)
+    val feedbackStatus: StateFlow<FeedbackStatusRes?> = _feedbackStatus.asStateFlow()
+    fun setFeedbackStatus(res: FeedbackStatusRes?) { _feedbackStatus.value = res }
 
     private fun <T> derived(select: (AppDataSnapshot) -> T): StateFlow<T> =
         _data.map(select)

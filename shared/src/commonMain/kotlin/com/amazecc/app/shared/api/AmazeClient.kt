@@ -37,6 +37,12 @@ import com.amazecc.app.shared.utils.AnalyzeCalendar
 import com.amazecc.app.shared.utils.FacultyUtils
 import com.amazecc.app.shared.utils.UpdateConfig
 import com.amazecc.app.shared.utils.DemoData
+import com.amazecc.app.shared.domain.Projections
+import com.amazecc.app.shared.state.AppDataStore
+import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.config.SlotMap
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 @Serializable
 data class LoginRequest(val username: String, val password: String)
@@ -59,6 +65,14 @@ private data class AttendanceSyncResponse(
     val attendance: List<AttendanceItem> = emptyList(),
     val error: String? = null,
     val message: String? = null
+)
+
+/** Slice of `POST /api/ffcs` used by the feedback-status wire path. */
+@Serializable
+private data class FfcsFeedbackResponse(
+    val success: Boolean = true,
+    val feedbackStatus: FeedbackStatusRes? = null,
+    val error: String? = null
 )
 
 object AmazeClient {
@@ -262,6 +276,210 @@ object AmazeClient {
         }
     }
 
+
+    // ── Wired M3E data paths ─────────────────────────────────────────────────
+
+    /**
+     * Free classrooms — an OFFLINE DERIVATION, not a network fetch.
+     *
+     * Neither AmazeCC-API nor amazecc-api-hono exposes a room-availability route
+     * (the web reference computes this from the FFCS report in `freeClassrooms.ts`),
+     * so there is deliberately no `/api/free-classrooms` and no VTOP scraper.
+     * REMOTE and LOCAL both converge on the domain snapshot, which the existing
+     * sync populates from whichever VTOP source is active; OFFLINE_CACHE reuses
+     * the last derived result.
+     *
+     * Three documented data quirks are handled here:
+     *  - `"8:00 AM"` and `"08:00 AM"` are the same period (keyed by minutes),
+     *  - venues carry trailing whitespace (trimmed before grouping),
+     *  - law courses book `A+TA+TAA` where everyone else books `A1+TA1+TAA1`
+     *    (slot ids are canonicalised across both spellings).
+     */
+    suspend fun getFreeClassrooms(): FreeClassroomsRes {
+        if (useMockData) return DemoData.get("freeClassrooms", FreeClassroomsRes.serializer())
+            ?: DemoData.freeClassroomsDemo()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            AppState.markServedFromCache("Free Classrooms")
+            return AppDataStore.freeClassrooms.value ?: FreeClassroomsRes(
+                success = true, message = "Served from local cache"
+            )
+        }
+
+        val courses = Projections.currentSemesterAttendance(AppState.domain.value)
+        if (courses.isEmpty()) {
+            return AppDataStore.freeClassrooms.value ?: FreeClassroomsRes(
+                success = true, rooms = emptyList(), message = "No timetable data to derive free classrooms"
+            )
+        }
+
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val day = now.dayOfWeek.name.take(3).uppercase().let { if (it in SlotMap.days) it else "MON" }
+        val minutesNow = now.hour * 60 + now.minute
+        val slotsByDay = SlotMap.map[day].orEmpty()
+
+        // Periods are grouped by the *normalised* time range, so a theory slot and
+        // the lab slot that overlaps it share one period and one slot set.
+        val periods = slotsByDay.entries
+            .groupBy { entry -> periodKeyOf(entry.value) }
+            .map { (key, entries) ->
+                val parts = key.split("-")
+                PeriodInfo(
+                    key = key,
+                    start = parts.getOrElse(0) { "0" }.toIntOrNull() ?: 0,
+                    end = parts.getOrElse(1) { "0" }.toIntOrNull() ?: 0,
+                    slots = entries.map { canonicalSlot(it.key) }.toSet()
+                )
+            }
+            .sortedBy { it.start }
+
+        val current = periods.firstOrNull { minutesNow >= it.start && minutesNow < it.end }
+
+        val rooms = LinkedHashMap<String, RoomDerivationState>()
+        for (course in courses) {
+            val rawVenue = course.slotVenue.orEmpty()
+            val code = rawVenue.trim().uppercase()
+            if (code.isEmpty() || code in NOT_A_ROOM || code.contains("ONLINE")) continue
+            val block = code.substringBefore("-", "").trim().ifEmpty { "Other" }
+            val state = rooms.getOrPut(code) {
+                RoomDerivationState(
+                    info = FreeClassroomRoom(
+                        roomNumber = code,
+                        buildingCode = block,
+                        floor = code.substringAfter("-", "").firstOrNull { it.isDigit() }?.toString()?.toIntOrNull() ?: 0,
+                        availabilityStatus = "unknown"
+                    ),
+                    occupied = mutableSetOf()
+                )
+            }
+            val courseSlots = course.slotName.split("+").map { canonicalSlot(it) }.toSet()
+            for (period in periods) {
+                if (courseSlots.any { it in period.slots }) state.occupied.add(period.key)
+            }
+        }
+
+        val resultRooms = rooms.values.map { state ->
+            val available = current?.let { it.key !in state.occupied } ?: true
+            val next = periods.firstOrNull { p ->
+                (current == null || p.start >= current.end) && p.key in state.occupied
+            }
+            state.info.copy(
+                availabilityStatus = when {
+                    current == null -> "unknown"
+                    available -> "free"
+                    else -> "occupied"
+                },
+                isCurrentlyAvailable = available,
+                nextOccupiedTime = next?.let { formatClock(it.start) }
+            )
+        }.sortedBy { it.roomNumber }
+
+        val result = FreeClassroomsRes(
+            success = true,
+            rooms = resultRooms,
+            day = day,
+            period = current?.let { "${formatClock(it.start)} - ${formatClock(it.end)}" } ?: "Outside class hours"
+        )
+        AppDataStore.setFreeClassrooms(result)
+        return result
+    }
+
+    private val NOT_A_ROOM = setOf("NIL", "N/A", "UNK-UNK", "-", "")
+
+    /** The law timetable's alternate spellings of two `S` slots. */
+    private val LAW_S_SLOTS = mapOf("S11" to "TEE", "S15" to "TFF")
+
+    /** `"08:00 AM"`, `"8:00 AM"` and SlotMap's `"8:00"` all parse to the same minute. */
+    private fun minutesOf(time: String): Int? {
+        val match = Regex("^(\\d{1,2}):(\\d{2})\\s*(AM|PM)?$", RegexOption.IGNORE_CASE)
+            .matchEntire(time.trim()) ?: return null
+        var hour = match.groupValues[1].toIntOrNull() ?: return null
+        val minute = match.groupValues[2].toIntOrNull() ?: return null
+        when (match.groupValues[3].uppercase()) {
+            "PM" -> if (hour != 12) hour += 12
+            "AM" -> if (hour == 12) hour = 0
+            "" -> Unit // SlotMap's 24-hour form
+            else -> return null
+        }
+        return hour * 60 + minute
+    }
+
+    private fun periodKeyOf(range: String): String {
+        val parts = range.split("-", limit = 2)
+        val start = minutesOf(parts[0]) ?: return range.trim().lowercase()
+        val end = minutesOf(parts.getOrElse(1) { "" }) ?: return range.trim().lowercase()
+        return "$start-$end"
+    }
+
+    /** Collapse `A1`/`A`, `TC1`/`TC`, `S11`/`TEE`, `S15`/`TFF` onto one id. */
+    private fun canonicalSlot(raw: String): String {
+        var id = raw.trim().uppercase()
+        LAW_S_SLOTS[id]?.let { id = it }
+        when (id) {
+            "TEE" -> id = "S11"
+            "TFF" -> id = "S15"
+        }
+        val stripped = Regex("^([A-Z]+)1$").matchEntire(id)
+        if (stripped != null && stripped.groupValues[1] !in setOf("S", "L")) {
+            return stripped.groupValues[1]
+        }
+        return id
+    }
+
+    private fun formatClock(minutes: Int): String {
+        val hour24 = (minutes / 60) % 24
+        val suffix = if (hour24 < 12) "AM" else "PM"
+        val hour12 = if (hour24 % 12 == 0) 12 else hour24 % 12
+        return "$hour12:${(minutes % 60).toString().padStart(2, '0')} $suffix"
+    }
+
+    private data class PeriodInfo(val key: String, val start: Int, val end: Int, val slots: Set<String>)
+
+    private data class RoomDerivationState(val info: FreeClassroomRoom, val occupied: MutableSet<String>)
+
+    /**
+     * Documents — the flattened `/api/circulars` folder tree plus the static
+     * official-document entries. There is no `/api/documents` endpoint.
+     */
+    suspend fun getDocuments(): List<DocumentItem> {
+        if (useMockData) return DemoData.get("documents", ListSerializer(DocumentItem.serializer()))
+            ?: DemoData.documentsDemo()
+        val circulars = getCirculars()
+        val items = mutableListOf<DocumentItem>()
+        flattenCirculars(circulars.circulars, items)
+        items += staticDocuments()
+        AppDataStore.setDocuments(items)
+        return items
+    }
+
+    /** `CircularItem` is a folder tree: `name`/`children` or a leaf `id`/`title`. */
+    private fun flattenCirculars(nodes: List<CircularItem>, out: MutableList<DocumentItem>) {
+        for (node in nodes) {
+            if (!node.children.isNullOrEmpty()) {
+                flattenCirculars(node.children, out)
+                continue
+            }
+            val title = node.title ?: node.name ?: continue
+            out.add(DocumentItem(id = node.id ?: node.name.orEmpty(), title = title))
+        }
+    }
+
+    private fun staticDocuments(): List<DocumentItem> = listOf(
+        DocumentItem(
+            id = "bonafide",
+            title = "Bonafide Certificate",
+            description = "Certificate of enrolment — request through VTOP Other Services."
+        ),
+        DocumentItem(
+            id = "e-transcript",
+            title = "E-Transcript",
+            description = "Official electronic transcript — request through VTOP Examinations."
+        ),
+        DocumentItem(
+            id = "additional-learning",
+            title = "Additional Learning",
+            description = "Additional learning / course-completion records from VTOP."
+        )
+    )
 
     // ── Offline-First Local Cache Fallbacks ──────────────────────────────────
 
@@ -764,10 +982,22 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
         }
 
         try {
-            val params = mutableMapOf<String, String>()
-            if (semesterId != null) params["semesterId"] = semesterId
-            val res = postAuthorized<ExamScheduleRes>("schedule", params)
-            if (res != null && res.success && res.schedule.isNotEmpty()) return res
+            if (semesterId != null) {
+                // Canonical route (AmazeCC-API / AmazeCC): /api/ffcs with section=schedule.
+                val ffcs = postAuthorized<JsonObject>(
+                    "ffcs",
+                    mapOf("semesterId" to semesterId, "section" to "schedule")
+                )
+                val scheduleElement = runCatching { ffcs?.get("schedule")?.jsonObject?.get("Schedule") }.getOrNull()
+                    ?: runCatching { ffcs?.get("Schedule") }.getOrNull()
+                if (scheduleElement != null) {
+                    val parsed = Json.decodeFromJsonElement<Map<String, List<com.amazecc.app.shared.model.ExamItem>>>(scheduleElement)
+                    if (parsed.isNotEmpty()) return ExamScheduleRes(success = true, rawScheduleUpper = parsed)
+                }
+            }
+            // Legacy alias still served by older API deployments.
+            val legacy = postAuthorized<ExamScheduleRes>("schedule", if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap())
+            if (legacy != null && legacy.success && legacy.schedule.isNotEmpty()) return legacy
         } catch (_: Exception) {}
 
         if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semester != null) {
@@ -897,9 +1127,12 @@ if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: Pa
             }
         }
         return try {
-            val duesResp = postAuthorized<JsonObject>("payments")
-            val receiptsResp = postAuthorized<JsonObject>("payment-receipts")
-            val walletResp = postAuthorized<JsonObject>("wallet")
+            // Canonical route is POST /api/finance with section=all; the three separate
+            // /api/payments, /api/payment-receipts and /api/wallet aliases are legacy-only.
+            val finance = postAuthorized<JsonObject>("finance", mapOf("section" to "all"))
+            val duesResp = runCatching { finance?.get("dues")?.jsonObject }.getOrNull()
+            val receiptsResp = runCatching { finance?.get("receipts")?.jsonObject }.getOrNull()
+            val walletResp = runCatching { finance?.get("wallet")?.jsonObject }.getOrNull()
 
             val paymentsList = mutableListOf<PaymentItem>()
 
@@ -934,9 +1167,9 @@ if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: Pa
             }
 
             val walletLedger = walletResp?.get("ledgerINR")?.let { try { it.jsonArray } catch(_: Exception) { null } }
-            val balance = if (walletLedger != null && walletLedger.size > 0) {
-                try { walletLedger[0].jsonObject["bookBalanceAmount"]?.jsonPrimitive?.content } catch(_: Exception) { null }
-            } else null
+            val balance = walletLedger?.lastOrNull()?.let { entry ->
+                try { entry.jsonObject["bookBalanceAmount"]?.jsonPrimitive?.content } catch (_: Exception) { null }
+            }
 
             PaymentsRes(
                 success = true,
@@ -1015,6 +1248,11 @@ if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: B
     }
     suspend fun getTransportData(): TransportDataRes {
         if (useMockData) return DemoData.get("transport", TransportDataRes.serializer()) ?: TransportDataRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            AppState.markServedFromCache("Transport Data")
+            return AppDataStore.transportData.value
+                ?: TransportDataRes(success = true, message = "Served from local cache")
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchTransport()
@@ -1025,7 +1263,9 @@ if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: B
         }
         return try {
             val res = postAuthorized<TransportDataRes>("transport")
-            if (res != null && res.success) res
+            // /api/transport can return HTTP 200 with hasRegistration=false and an
+            // `error` field; that is a failure, not usable data.
+            if (res != null && res.success && res.error.isNullOrBlank()) res
             else {
                 if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession) {
                     try {
@@ -1047,9 +1287,19 @@ if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: B
     }
 
     suspend fun getOdDetails(semesterId: String): com.amazecc.app.shared.model.OdDetailsRes {
+        if (useMockData) return DemoData.get("od", com.amazecc.app.shared.model.OdDetailsRes.serializer())
+            ?: DemoData.odDetailsDemo(semesterId)
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            AppState.markServedFromCache("OD Details")
+            return AppDataStore.odDetails.value
+                ?: com.amazecc.app.shared.model.OdDetailsRes(
+                    success = true, semesterId = semesterId, note = "Served from local cache"
+                )
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchOdDetails(semesterId)
+                    ?.also { AppDataStore.setOdDetails(it) }
                     ?: com.amazecc.app.shared.model.OdDetailsRes(success = false, error = "VTOP OD details unavailable")
             } catch (e: Exception) {
                 com.amazecc.app.shared.model.OdDetailsRes(success = false, error = e.message ?: e.toString())
@@ -1057,8 +1307,10 @@ if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: B
         }
         return try {
             val res = postAuthorized<com.amazecc.app.shared.model.OdDetailsRes>("od", mapOf("semesterId" to semesterId))
-            if (res != null && res.success) res
-            else {
+            if (res != null && res.success) {
+                AppDataStore.setOdDetails(res)
+                res
+            } else {
                 if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession) {
                     try {
                         val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchOdDetails(semesterId)
@@ -1080,15 +1332,24 @@ if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: B
 
     suspend fun getBuses(): BusesRes {
 if (useMockData) return DemoData.get("buses", BusesRes.serializer()) ?: BusesRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            AppState.markServedFromCache("Buses")
+            return AppDataStore.buses.value
+                ?: BusesRes(success = true, message = "Served from local cache")
+        }
         return try {
             val response: HttpResponse = httpClient.get("$baseUrl/api/buses")
             if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString(response.bodyAsText())
+                val parsed: BusesRes = jsonConfig.decodeFromString(response.bodyAsText())
+                if (parsed.success) AppDataStore.setBuses(parsed)
+                parsed
             } else {
-                BusesRes(success = false, message = "Server returned status ${response.status}", error = "HTTP ${response.status}")
+                AppDataStore.buses.value
+                    ?: BusesRes(success = false, message = "Server returned status ${response.status}", error = "HTTP ${response.status}")
             }
         } catch (e: Exception) {
-            BusesRes(success = false, message = "Network error: ${e.message}", error = e.toString())
+            AppDataStore.buses.value
+                ?: BusesRes(success = false, message = "Network error: ${e.message}", error = e.toString())
         }
     }
 
@@ -1817,19 +2078,39 @@ if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?:
 
     suspend fun getFeedbackStatus(semesterId: String? = null): FeedbackStatusRes {
         if (useMockData) return DemoData.get("feedback", FeedbackStatusRes.serializer()) ?: FeedbackStatusRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            AppState.markServedFromCache("Feedback Status")
+            return AppDataStore.feedbackStatus.value
+                ?: FeedbackStatusRes(success = true)
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && semesterId != null) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchFeedbackStatus(semesterId)
+                    ?.also { AppDataStore.setFeedbackStatus(it) }
                     ?: FeedbackStatusRes(success = false, error = "VTOP feedback status unavailable")
             } catch (e: Exception) {
                 FeedbackStatusRes(success = false, error = e.message ?: e.toString())
             }
         }
         return try {
+            // Canonical route: POST /api/ffcs with section=feedback. The dedicated
+            // /api/feedback-status endpoint below is kept as a legacy alias.
+            if (semesterId != null) {
+                val ffcs = postAuthorized<FfcsFeedbackResponse>(
+                    "ffcs", mapOf("semesterId" to semesterId, "section" to "feedback")
+                )
+                val detailed = ffcs?.feedbackStatus
+                if (ffcs?.success == true && detailed != null && detailed.success) {
+                    AppDataStore.setFeedbackStatus(detailed)
+                    return detailed
+                }
+            }
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
             val res = postAuthorized<FeedbackStatusRes>("feedback-status", params)
-            if (res != null && res.success) res
-            else {
+            if (res != null && res.success) {
+                AppDataStore.setFeedbackStatus(res)
+                res
+            } else {
                 if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semesterId != null) {
                     try {
                         val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchFeedbackStatus(semesterId)

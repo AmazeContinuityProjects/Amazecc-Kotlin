@@ -126,6 +126,25 @@ caller padding; all M3E screens now leave card content unpadded (see `BUGS.md`).
 
 Verification: `:shared:jvmTest` and `:androidApp:assembleDebug` both green.
 
+### Phase 8: Data Wiring for Campus & Academic Features (2026-11)
+The following features now have BOTH a headless-VTOP (LOCAL/OFFLINE_CACHE) path and a remote-API
+(REMOTE) path, plus real AppState flows, sync modules and M3E hosts (no fabricated data):
+
+| Feature | Remote route | Offline path |
+| :--- | :--- | :--- |
+| Academic Calendar (General Semester `ALL`) | `/api/calendar` | `VtopDataSource.fetchCalendarRaw` |
+| Exam Schedule | `/api/ffcs` `section=schedule` | `fetchExamSchedule` (legacy `/api/schedule` alias kept) |
+| Grade History | `/api/grades` | `fetchGrades` |
+| Free Classrooms | offline derivation from timetable/domain | `getFreeClassrooms()` (no server endpoint exists) |
+| Transport | `/api/transport` + `/api/buses` | `fetchTransport` |
+| Fees & Payments | `/api/finance` `section=all` | `fetchPayments` (legacy aliases kept) |
+| Documents (simple flat list) | `/api/circulars` (tree flattened) | `fetchCirculars` |
+| OD Tracker | `/api/od` | `fetchOdDetails` |
+| Feedback Status | `/api/ffcs` `section=feedback` | `fetchFeedbackStatus` |
+
+New `SyncModule`s: FREE_CLASSROOMS, DOCUMENTS, OD_DETAILS, FEEDBACK_STATUS. Tab routing in
+`MainTabPager` now uses M3E hosts for PAYMENTS/CALENDAR/QBANK/SOCIAL/FFCS/LIBRARIES/FREE_CLASSROOMS.
+
 ---
 
 ## 5. Screen Migration Standard Operating Procedure (SOP)
