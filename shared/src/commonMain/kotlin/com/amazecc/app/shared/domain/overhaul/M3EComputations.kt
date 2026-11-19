@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.domain.overhaul
 
+import com.amazecc.app.shared.domain.EmbeddedLinkCode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
@@ -11,6 +12,30 @@ import kotlin.math.floor
  * and filtering on [Dispatchers.Default] so the Compose UI thread is never blocked.
  */
 object M3EComputations {
+
+    /** The one key a course is counted on: `(T)`, `(L)` and bare-code rows all collapse here. */
+    fun canonicalCourseKey(code: String): String = EmbeddedLinkCode.baseCode(code)
+
+    /**
+     * De-duplicate attendance cards on the canonical base code, keeping the richest report of a
+     * course rather than adding two rows of the same half. Callers that need the two halves of an
+     * embedded pair combined should build their cards from `Projections.mergedCourses`; this
+     * guard is for the `BCSE101(T)` + `BCSE101` double-report that used to inflate the summary.
+     */
+    fun deduplicateByBaseCode(cards: List<M3ECourseAttendanceCardState>): List<M3ECourseAttendanceCardState> {
+        val byBase = LinkedHashMap<String, M3ECourseAttendanceCardState>()
+        cards.forEach { card ->
+            val key = EmbeddedLinkCode.baseCode(card.courseCode).ifEmpty { card.courseCode }
+            val current = byBase[key]
+            // More classes held means more information; an already-linked card wins a tie.
+            if (current == null || card.totalClasses > current.totalClasses ||
+                (card.totalClasses == current.totalClasses && card.isEmbedded && !current.isEmbedded)
+            ) {
+                byBase[key] = card
+            }
+        }
+        return byBase.values.toList()
+    }
 
     /**
      * Compute bunk margin for a single course.
@@ -49,7 +74,7 @@ object M3EComputations {
         var critical = 0
         var warning = 0
 
-        courses.forEach { course ->
+        deduplicateByBaseCode(courses).forEach { course ->
             if (course.totalClasses > 0) {
                 if (course.percentage < targetPct) {
                     critical++

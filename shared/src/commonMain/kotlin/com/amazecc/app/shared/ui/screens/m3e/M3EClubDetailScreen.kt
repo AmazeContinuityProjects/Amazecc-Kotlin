@@ -21,9 +21,12 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.WorkOutline
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
@@ -32,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.overhaul.M3EEventRegistrationUi
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -49,15 +53,24 @@ data class M3EClubDetailState(
     val instagram: String? = null,
     val whatsapp: String? = null,
     val isEnrolled: Boolean = false,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    /** Present only when this club is linked to a real event-hub registration. */
+    val eventId: String? = null,
+    /** The club's own application site, used when there is no linked event. */
+    val applyUrl: String? = null,
+    val registrationStatus: M3EEventRegistrationUi? = null,
+    val notice: String? = null
 )
 
 /** User intents emitted by [M3EClubDetailScreen]. */
 sealed interface M3EClubDetailAction {
-    data object ToggleEnroll : M3EClubDetailAction
+    /** Register through the event hub using the club's linked event id. */
+    data object RegisterEvent : M3EClubDetailAction
     data class OpenLink(val url: String) : M3EClubDetailAction
     data object Refresh : M3EClubDetailAction
     data object Back : M3EClubDetailAction
+    data object DismissStatus : M3EClubDetailAction
+    data object DismissNotice : M3EClubDetailAction
 }
 
 /**
@@ -73,7 +86,11 @@ fun M3EClubDetailScreen(
     val colors = M3ETheme.colors
 
     Box(modifier = modifier.fillMaxSize().background(colors.background)) {
-        if (state.clubId.isBlank() && !state.isLoading) {
+        if (state.isLoading && state.clubId.isBlank()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = colors.primary)
+            }
+        } else if (state.clubId.isBlank()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Rounded.SearchOff, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(48.dp))
@@ -81,6 +98,7 @@ fun M3EClubDetailScreen(
                 }
             }
         } else {
+        val applyUrl = state.applyUrl
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
@@ -97,7 +115,6 @@ fun M3EClubDetailScreen(
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(state.name.ifBlank { "Club" }, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
-                            Text("VIT Chennai Chapter", fontSize = 12.sp, color = colors.onSurfaceVariant)
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 if (!state.website.isNullOrBlank()) {
                                     IconButton(onClick = { onAction(M3EClubDetailAction.OpenLink(state.website)) }) {
@@ -135,18 +152,24 @@ fun M3EClubDetailScreen(
                 }
             }
 
-            item(key = "hiring") {
-                M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.LOW) {
-                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.WorkOutline, contentDescription = null, tint = colors.secondary, modifier = Modifier.size(20.dp))
-                            Text("Hiring Information", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
+            applyUrl?.takeIf { it.isNotBlank() }?.let { siteUrl ->
+                item(key = "hiring") {
+                    M3ESurfaceCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        onClick = { onAction(M3EClubDetailAction.OpenLink(siteUrl)) }
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Rounded.WorkOutline, contentDescription = null, tint = colors.secondary, modifier = Modifier.size(20.dp))
+                                Text("Applications", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
+                            }
+                            Text(
+                                "Apply on the club's own site.",
+                                fontSize = 12.sp,
+                                color = colors.onSurfaceVariant
+                            )
                         }
-                        Text(
-                            "Currently recruiting for technical and management roles. Check the club feed for application links.",
-                            fontSize = 12.sp,
-                            color = colors.onSurfaceVariant
-                        )
                     }
                 }
             }
@@ -166,22 +189,39 @@ fun M3EClubDetailScreen(
             }
 
             item(key = "enroll") {
+                val siteUrl = applyUrl?.takeIf { it.isNotBlank() }
+                val hasEvent = !state.eventId.isNullOrBlank()
+                val canApply = hasEvent || siteUrl != null
+                val cardText = when {
+                    hasEvent && state.isEnrolled -> "Registered"
+                    hasEvent -> "Register for Event"
+                    siteUrl != null -> "Apply on club's own site"
+                    else -> "Applications are handled on the club's own site"
+                }
                 M3ESurfaceCard(
                     modifier = Modifier.fillMaxWidth(),
                     containerLevel = SurfaceContainerLevel.STANDARD,
-                    borderColor = if (state.isEnrolled) colors.success else colors.primary,
-                    onClick = { onAction(M3EClubDetailAction.ToggleEnroll) }
+                    borderColor = if (hasEvent && state.isEnrolled) colors.success else colors.primary,
+                    onClick = if (canApply) {
+                        {
+                            if (hasEvent) {
+                                onAction(M3EClubDetailAction.RegisterEvent)
+                            } else if (siteUrl != null) {
+                                onAction(M3EClubDetailAction.OpenLink(siteUrl))
+                            }
+                        }
+                    } else null
                 ) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-                        if (state.isEnrolled) {
+                        if (hasEvent && state.isEnrolled) {
                             Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = colors.success)
+                            Spacer(Modifier.size(8.dp))
                         }
-                        Spacer(Modifier.size(if (state.isEnrolled) 8.dp else 0.dp))
                         Text(
-                            if (state.isEnrolled) "Enrolled" else "Enroll in Club",
+                            text = cardText,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (state.isEnrolled) colors.success else colors.primary
+                            color = if (hasEvent && state.isEnrolled) colors.success else colors.primary
                         )
                     }
                 }
@@ -191,6 +231,65 @@ fun M3EClubDetailScreen(
                 Spacer(Modifier.height(BOTTOM_NAV_PADDING))
             }
         }
+        }
+
+        val status = state.registrationStatus
+        if (status != null) {
+            val normalized = status.status.trim().lowercase()
+            val isPayment = normalized == "payment_required" || normalized == "payment_form"
+            val isRedirect = normalized == "redirect"
+            val title = when {
+                normalized == "success" -> "Registration confirmed"
+                normalized == "already_registered" -> "Already registered"
+                isPayment -> "Payment required"
+                isRedirect -> "Continue on the event hub"
+                normalized in setOf("session_expired", "invalid_credentials", "error") -> "Registration could not be completed"
+                else -> "Registration update"
+            }
+            val paymentUrl = status.paymentUrl?.takeIf { it.isNotBlank() }
+            AlertDialog(
+                onDismissRequest = { onAction(M3EClubDetailAction.DismissStatus) },
+                title = { Text(title, fontWeight = FontWeight.Bold, color = colors.onSurface) },
+                text = {
+                    Text(
+                        status.message?.takeIf { it.isNotBlank() }
+                            ?: if (isPayment) "Complete payment to confirm your seat." else "The event hub returned an update for your registration.",
+                        color = colors.onSurfaceVariant
+                    )
+                },
+                confirmButton = {
+                    if ((isPayment || isRedirect) && paymentUrl != null) {
+                        TextButton(onClick = { onAction(M3EClubDetailAction.OpenLink(paymentUrl)) }) {
+                            Text(if (isPayment) "Pay now" else "Continue", color = colors.primary)
+                        }
+                    } else {
+                        TextButton(onClick = { onAction(M3EClubDetailAction.DismissStatus) }) {
+                            Text("OK", color = colors.primary)
+                        }
+                    }
+                },
+                dismissButton = {
+                    if ((isPayment || isRedirect) && paymentUrl != null) {
+                        TextButton(onClick = { onAction(M3EClubDetailAction.DismissStatus) }) {
+                            Text("Later", color = colors.onSurfaceVariant)
+                        }
+                    }
+                }
+            )
+        }
+
+        val notice = state.notice
+        if (!notice.isNullOrBlank()) {
+            AlertDialog(
+                onDismissRequest = { onAction(M3EClubDetailAction.DismissNotice) },
+                title = { Text("Club applications", fontWeight = FontWeight.Bold, color = colors.onSurface) },
+                text = { Text(notice, color = colors.onSurfaceVariant) },
+                confirmButton = {
+                    TextButton(onClick = { onAction(M3EClubDetailAction.DismissNotice) }) {
+                        Text("OK", color = colors.primary)
+                    }
+                }
+            )
         }
     }
 }

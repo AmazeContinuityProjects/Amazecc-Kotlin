@@ -1791,15 +1791,47 @@ internal object VtopScripts {
     /**
      * `/EventHub/profile` — authenticated.
      *
-     * A table only counts if its first row mentions `event` **and** one of
-     * `order` / `payment` / `receipt`. Data rows need at least 8 cells; the tail cells are scanned
-     * for controls whose text names the action (`receipt`, `pay now`, `pay later`, …).
+     * Mirrors AmazeCC-API `src/app/api/events/profile/route.ts`. `#regTable` has 9 columns:
+     * 0 S.No, 1 Event Name, 2 Order Id, 3 Event Date, 4 Venue, 5 Time, 6 Payment Status,
+     * 7 Receipt, 8 Certificate. The action links are matched by their `href` fragments, and all
+     * URLs are absolutized to the Event Hub host. `eid` is best-effort (only live rows carry it),
+     * falling back to the order id so a row is never dropped. A table counts when its header
+     * mentions `event` and one of `order`/`payment`/`receipt` (the fallback for future markup).
      */
     fun parseEventHubProfile(html: String): String {
         return parseInjectedHtml(
             html = html,
             body = """
         function squish(el) { return (el ? (el.textContent || '') : '').replace(/\s+/g, ' ').trim(); }
+        var BASE = 'https://eventhubcc.vit.ac.in';
+        function abs(href) {
+          if (!href || href === '#') return null;
+          if (/^https?:\/\//i.test(href)) return href;
+          if (href.charAt(0) === '/') return BASE + href;
+          return BASE + '/EventHub/' + href;
+        }
+        function extractEid(row) {
+          var eid = null;
+          var ctrls = row.querySelectorAll('button, a, input');
+          for (var i = 0; i < ctrls.length && !eid; i++) {
+            var el = ctrls[i];
+            var onclick = el.getAttribute('onclick') || '';
+            var href = el.getAttribute('href') || '';
+            var formaction = el.getAttribute('formaction') || '';
+            var name = (el.getAttribute('name') || '').toLowerCase();
+            var value = (el.getAttribute('value') || '').toString();
+            var legacy = onclick.match(/getRecepit\s*\(\s*['"]?([^'")\s]+)['"]?\s*\)/i)
+              || href.match(/studentRecepit\/([^\/]+)/)
+              || onclick.match(/paynow\s*\(\s*['"]?([^'")\s]+)['"]?\s*\)/i);
+            if (legacy) { eid = legacy[1]; break; }
+            var generic = href.match(/[?&]eid=([^&#\s]+)/i)
+              || formaction.match(/[?&]eid=([^&#\s]+)/i)
+              || onclick.match(/[?&]eid=([^&#'"\s]+)/i);
+            if (generic) { eid = generic[1]; break; }
+            if (name === 'eid' && value) { eid = value; break; }
+          }
+          return eid;
+        }
         var events = [];
         var tables = doc.querySelectorAll('table');
 
@@ -1812,60 +1844,160 @@ internal object VtopScripts {
 
           for (var ri = 1; ri < rows.length; ri++) {
             var tds = rows[ri].querySelectorAll('td');
-            if (tds.length < 8) continue;
+            if (tds.length < 7) continue;
             var cell = function(i) { return i < tds.length ? squish(tds[i]) : ''; };
+            var eventName = cell(1);
+            var orderId = cell(2);
+            if (!eventName || !orderId) continue;
 
-            var eid = '', receiptLink = null, certificateLink = null,
-                payNowLink = null, payLaterLink = null;
+            var paymentCell = tds[6];
+            var payAnchor = paymentCell.querySelector('a[href*="showPaymentTC"]')
+              || rows[ri].querySelector('a[href*="showPaymentTC"]');
+            var payNowUrl = payAnchor ? abs(payAnchor.getAttribute('href')) : null;
+            var paymentStatus = payNowUrl ? 'Pay Now' : squish(paymentCell);
 
-            // Column 7 onwards carries the action controls.
-            for (var ci = 7; ci < tds.length; ci++) {
-              var ctrls = tds[ci].querySelectorAll('button, a, input');
-              for (var k = 0; k < ctrls.length; k++) {
-                var el = ctrls[k];
-                var text = squish(el).toLowerCase();
-                var onclick = el.getAttribute('onclick') || '';
-                var href = el.getAttribute('href') || el.getAttribute('formaction') || '';
-                if (href === '#') href = '';
+            var receiptCell = tds.length > 7 ? tds[7] : null;
+            var receiptAnchor = receiptCell ? receiptCell.querySelector('a[href*="/receipt/"]') : null;
+            var receiptHref = receiptAnchor ? receiptAnchor.getAttribute('href') : null;
+            var receiptUrl = abs(receiptHref);
+            var receiptId = receiptHref ? (receiptHref.match(/\/receipt\/([^\/?#]+)/) || [])[1] || null : null;
 
-                if (!eid) {
-                  var m1 = onclick.match(/getRecepit\(['"]?([^'")\s]+)['"]?\)/);
-                  if (m1) eid = m1[1];
-                  else {
-                    var m2 = href.match(/studentRecepit\/([^/?#]+)/);
-                    if (m2) eid = m2[1];
-                    else {
-                      var m3 = onclick.match(/paynow\(['"]?([^'")\s]+)['"]?\)/);
-                      if (m3) eid = m3[1];
-                    }
-                  }
-                }
-                if (!receiptLink && text.indexOf('receipt') !== -1) {
-                  receiptLink = href || ('/EventHub/studentRecepit/' + eid + '/');
-                }
-                if (!certificateLink && (text.indexOf('certificate') !== -1 || text.indexOf('download') !== -1)) {
-                  certificateLink = href || null;
-                }
-                if (!payNowLink && (text.indexOf('pay now') !== -1 || onclick.indexOf('paynow') !== -1)) {
-                  var m4 = onclick.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/);
-                  payNowLink = href || (m4 ? m4[1] : null);
-                }
-                if (!payLaterLink && text.indexOf('pay later') !== -1) {
-                  payLaterLink = href || null;
-                }
-              }
-            }
+            var certCell = tds.length > 8 ? tds[8] : null;
+            var certAnchor = certCell ? certCell.querySelector('a[href*="getCertificate"]') : null;
+            var certHref = certAnchor ? certAnchor.getAttribute('href') : null;
+            var certificateUrl = abs(certHref);
+            var certificateId = certHref ? (certHref.match(/getCertificate\/([^\/?#]+)/) || [])[1] || null : null;
 
+            var eid = extractEid(rows[ri]) || orderId || '';
             events.push({
-              name: cell(1), eid: eid, date: cell(3), venue: cell(4),
-              time: cell(5), paymentStatus: cell(6),
-              receiptLink: receiptLink, certificateLink: certificateLink,
-              payNowLink: payNowLink, payLaterLink: payLaterLink
+              name: eventName, eid: eid, orderId: orderId,
+              date: cell(3), venue: cell(4), time: cell(5),
+              paymentStatus: paymentStatus,
+              receiptId: receiptId, certificateId: certificateId,
+              receiptUrl: receiptUrl, certificateUrl: certificateUrl,
+              payNowUrl: payNowUrl, payLaterLink: null,
+              receiptLink: receiptUrl, certificateLink: certificateUrl, payNowLink: payNowUrl
             });
           }
         }
 
         return JSON.stringify({ ok: true, events: events });
+        """
+        )
+    }
+
+    /**
+     * `/EventHub/eventPreview` — authenticated. The Ktor layer fetches the page; this only parses
+     * it. Mirrors AmazeCC-API `src/app/api/events/preview/route.ts`: every `.list-group-item` has a
+     * `.fw-bold` label; `Event Description` is pulled out, all other labels become `metaDetails`,
+     * and `#EventFees1` becomes the `Total Fees` entry. The poster URL is built in Kotlin because
+     * it is a pure function of the event id.
+     */
+    fun parseEventHubPreview(html: String): String {
+        return parseInjectedHtml(
+            html = html,
+            body = """
+        function squish(el) { return (el ? (el.textContent || '') : '').replace(/\s+/g, ' ').trim(); }
+        var description = '';
+        var meta = {};
+        var items = doc.querySelectorAll('.list-group-item');
+        for (var i = 0; i < items.length; i++) {
+          var labelEl = items[i].querySelector('.fw-bold');
+          var label = labelEl ? squish(labelEl) : '';
+          if (!label) continue;
+          var spans = items[i].querySelectorAll('span');
+          var parts = [];
+          for (var s = 0; s < spans.length; s++) {
+            var cls = spans[s].className ? String(spans[s].className) : '';
+            if (cls.indexOf('badge') !== -1 || cls.indexOf('fw-bold') !== -1) continue;
+            var t = squish(spans[s]);
+            if (t) parts.push(t);
+          }
+          var value = parts.join(' ').trim();
+          var labelled = items[i].querySelector('span label');
+          if (labelled) value = squish(labelled);
+          if (label === 'Event Description') description = value;
+          else if (value) meta[label] = value;
+        }
+        var fee = doc.querySelector('#EventFees1');
+        if (fee) meta['Total Fees'] = (fee.value || '0').toString();
+        return JSON.stringify({ ok: true, description: description, metaDetails: meta });
+        """
+        )
+    }
+
+    /**
+     * The event-preview form, read before registering. Mirrors the first half of AmazeCC-API
+     * `src/app/api/events/register/route.ts`: a login form means the session expired; the absence
+     * of a register button means the user is already registered; otherwise every named hidden
+     * input is collected verbatim so the Kotlin layer can replay the form with `id=<eid>` added.
+     */
+    fun parseEventHubRegistrationForm(html: String): String {
+        return parseInjectedHtml(
+            html = html,
+            body = """
+        function squish(el) { return (el ? (el.textContent || '') : '').replace(/\s+/g, ' ').trim(); }
+        if (doc.querySelector('form[action="/EventHub/mainDashboard"]')) {
+          return JSON.stringify({ ok: true, sessionExpired: true, alreadyRegistered: false, hiddenFields: {} });
+        }
+        var forms = doc.querySelectorAll('form');
+        var regForm = null;
+        for (var f = 0; f < forms.length; f++) {
+          var method = (forms[f].getAttribute('method') || '').toUpperCase();
+          if (method !== 'POST') continue;
+          var btn = forms[f].querySelector('button[formaction="/EventHub/registerEvent"]');
+          if (!btn) {
+            var btns = forms[f].querySelectorAll('button');
+            for (var b = 0; b < btns.length; b++) {
+              if (squish(btns[b]).toLowerCase().indexOf('register') !== -1) { btn = btns[b]; break; }
+            }
+          }
+          if (btn) { regForm = forms[f]; break; }
+        }
+        if (!regForm) {
+          return JSON.stringify({ ok: true, sessionExpired: false, alreadyRegistered: true, hiddenFields: {} });
+        }
+        var hidden = {};
+        var inputs = regForm.querySelectorAll('input');
+        for (var j = 0; j < inputs.length; j++) {
+          var name = inputs[j].getAttribute('name');
+          if (name) hidden[name] = inputs[j].getAttribute('value') || '';
+        }
+        var registerAction = regForm.getAttribute('action') || '';
+        var buttonAction = regForm.querySelector('button[formaction]')
+          ? regForm.querySelector('button[formaction]').getAttribute('formaction') : '';
+        return JSON.stringify({
+          ok: true, sessionExpired: false, alreadyRegistered: false,
+          hiddenFields: hidden, registerAction: registerAction, buttonAction: buttonAction
+        });
+        """
+        )
+    }
+
+    /**
+     * The `showPaymentTC` page. The Kotlin layer follows the 302 to this page and needs the
+     * payment form's action and hidden inputs to emulate checking the T&C box before submitting.
+     */
+    fun parseEventHubPaymentForm(html: String): String {
+        return parseInjectedHtml(
+            html = html,
+            body = """
+        function squish(el) { return (el ? (el.textContent || '') : '').replace(/\s+/g, ' ').trim(); }
+        var form = null;
+        var forms = doc.querySelectorAll('form');
+        for (var f = 0; f < forms.length; f++) {
+          var action = forms[f].getAttribute('action') || '';
+          if (action.toLowerCase().indexOf('doptmpayment') !== -1) { form = forms[f]; break; }
+          if (!form) form = forms[f];
+        }
+        if (!form) return JSON.stringify({ ok: false, error: 'payment form not found' });
+        var hidden = {};
+        var inputs = form.querySelectorAll('input');
+        for (var i = 0; i < inputs.length; i++) {
+          var name = inputs[i].getAttribute('name');
+          if (name) hidden[name] = inputs[i].getAttribute('value') || '';
+        }
+        return JSON.stringify({ ok: true, action: form.getAttribute('action') || '', hiddenFields: hidden });
         """
         )
     }

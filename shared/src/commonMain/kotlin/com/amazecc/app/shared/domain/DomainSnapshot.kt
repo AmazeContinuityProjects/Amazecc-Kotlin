@@ -129,6 +129,16 @@ data class Course(
     val grade: Grade? = null,
     /** Curriculum baskets this course belongs to, for the curriculum screen. */
     val baskets: List<BasketRef> = emptyList(),
+    /**
+     * Raw theory/lab rows behind this course, kept for screens that need a single half (course
+     * detail, the predictor's per-half regimen). This is the default-merged course; the halves
+     * are the escape hatch, never a second course in a list or summary.
+     */
+    val halves: List<EmbeddedCourseHalf> = emptyList(),
+    /** True when a theory row and a lab row of one base code were folded into this course. */
+    val isEmbeddedMerged: Boolean = false,
+    /** The stable base code this course was linked on, even if [code] carries a legacy suffix. */
+    val linkedBaseCode: String = "",
 )
 
 @Serializable

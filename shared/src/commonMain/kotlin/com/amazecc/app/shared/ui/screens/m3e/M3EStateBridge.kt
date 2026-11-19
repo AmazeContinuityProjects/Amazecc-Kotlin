@@ -62,6 +62,9 @@ import com.amazecc.app.shared.domain.overhaul.M3EEventCategory
 import com.amazecc.app.shared.domain.overhaul.M3EEventHubAction
 import com.amazecc.app.shared.domain.overhaul.M3EEventHubState
 import com.amazecc.app.shared.domain.overhaul.M3EEventItem
+import com.amazecc.app.shared.domain.overhaul.M3EEventPreviewUi
+import com.amazecc.app.shared.domain.overhaul.M3EEventRegistrationUi
+import com.amazecc.app.shared.domain.overhaul.M3ERegisteredEventItem
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleAction
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleState
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyAction
@@ -162,7 +165,7 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
     }
 
     val currentSem = domain.academics.semesters[selectedSemId]
-    val courses = remember(currentSem) { currentSem?.courses?.values?.toList().orEmpty() }
+    val courses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
 
     val quickStats = remember(currentSem, courses, allGrades) {
         val totalClasses = courses.sumOf { it.attendance?.total ?: 0 }
@@ -320,7 +323,7 @@ fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
     var searchQuery by remember { mutableStateOf("") }
 
     val currentSem = domain.academics.semesters[selectedSemId]
-    val rawCourses = remember(currentSem) { currentSem?.courses?.values?.toList().orEmpty() }
+    val rawCourses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
 
     val allCards = remember(rawCourses) {
         rawCourses.map { c ->
@@ -438,7 +441,7 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
     var expandedCourseCode by remember { mutableStateOf<String?>(null) }
 
     val currentSem = domain.academics.semesters[selectedSemId]
-    val rawCourses = remember(currentSem) { currentSem?.courses?.values?.toList().orEmpty() }
+    val rawCourses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
 
     val academicCourses = remember(rawCourses) {
         rawCourses.map { c ->
@@ -780,7 +783,7 @@ fun M3EMarksPredictorScreen(modifier: Modifier = Modifier) {
     val isLoading by AppState.isLoading.collectAsState()
 
     val currentSem = domain.academics.semesters[selectedSemId]
-    val rawCourses = remember(currentSem) { currentSem?.courses?.values?.toList().orEmpty() }
+    val rawCourses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
 
     var selectedCourseCode by remember { mutableStateOf<String?>(null) }
     val gradesMap = remember { mutableStateMapOf<String, String>() }
@@ -1218,9 +1221,23 @@ fun M3EEventHubScreen(modifier: Modifier = Modifier) {
     val eventsRes by AppState.events.collectAsState()
     val registeredRes by AppState.registeredEvents.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
+    val errorMessage by AppState.error.collectAsState()
+    val previewRes by AppState.eventPreview.collectAsState()
+    val registrationRes by AppState.eventRegistration.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(M3EEventCategory.ALL) }
+    // Which click opened the preview dialog; guards against a stale preview from a prior event.
+    var previewEventId by remember { mutableStateOf<String?>(null) }
+    // Set on a register tap so a stale registration result is not shown on entry.
+    var isRegistrationStatusVisible by remember { mutableStateOf(false) }
+
+    // A confirmed registration changes the real registration list (and its receipt URLs).
+    LaunchedEffect(registrationRes) {
+        if (registrationRes?.status?.equals("success", ignoreCase = true) == true) {
+            AppState.refreshEventsProfile()
+        }
+    }
 
     val allEvents = remember(eventsRes, registeredRes) {
         val regIds = registeredRes?.events?.map { it.eid }.orEmpty().toSet()
@@ -1236,7 +1253,8 @@ fun M3EEventHubScreen(modifier: Modifier = Modifier) {
             M3EEventItem(
                 id = e.eid,
                 title = e.title,
-                festName = "Campus Fest",
+                // The event feed has no fest-name field — leave blank instead of inventing one.
+                festName = "",
                 category = category,
                 date = e.date,
                 time = e.time ?: "",
@@ -1246,6 +1264,50 @@ fun M3EEventHubScreen(modifier: Modifier = Modifier) {
                 isRegistered = e.eid in regIds
             )
         }.orEmpty()
+    }
+
+    val registeredItems = remember(registeredRes) {
+        registeredRes?.events.orEmpty().map { r ->
+            M3ERegisteredEventItem(
+                eid = r.eid,
+                title = r.title,
+                venue = r.location,
+                date = r.date,
+                time = r.time,
+                paymentStatus = r.paymentStatus,
+                receiptUrl = r.receiptUrl,
+                certificateUrl = r.certificateUrl,
+                payNowUrl = r.payNowUrl
+            )
+        }
+    }
+
+    val preview = remember(previewRes, previewEventId, allEvents) {
+        val p = previewRes
+        if (p != null && previewEventId == p.eid) {
+            M3EEventPreviewUi(
+                eid = p.eid,
+                title = allEvents.firstOrNull { it.id == p.eid }?.title.orEmpty(),
+                imageUrl = p.imageSrc,
+                description = p.description,
+                metaDetails = p.metaDetails.orEmpty()
+            )
+        } else {
+            null
+        }
+    }
+
+    val registrationResult = remember(registrationRes, isRegistrationStatusVisible) {
+        val r = registrationRes
+        if (isRegistrationStatusVisible && r != null) {
+            M3EEventRegistrationUi(
+                status = r.status,
+                message = r.message,
+                paymentUrl = r.url
+            )
+        } else {
+            null
+        }
     }
 
     val filtered = remember(allEvents, searchQuery, selectedCategory) {
@@ -1268,8 +1330,12 @@ fun M3EEventHubScreen(modifier: Modifier = Modifier) {
         filteredEvents = filtered,
         selectedCategory = selectedCategory,
         searchQuery = searchQuery,
-        registeredCount = allEvents.count { it.isRegistered },
-        isLoading = isLoading
+        registeredCount = registeredItems.size,
+        isLoading = isLoading,
+        errorMessage = errorMessage,
+        registeredEvents = registeredItems,
+        preview = preview,
+        registrationResult = registrationResult
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -1279,8 +1345,17 @@ fun M3EEventHubScreen(modifier: Modifier = Modifier) {
                 when (action) {
                     is M3EEventHubAction.SelectCategory -> selectedCategory = action.category
                     is M3EEventHubAction.SearchQueryChanged -> searchQuery = action.query
-                    is M3EEventHubAction.RegisterEvent -> {}
-                    is M3EEventHubAction.EventClicked -> {}
+                    is M3EEventHubAction.RegisterEvent -> {
+                        isRegistrationStatusVisible = true
+                        AppState.registerForEvent(action.eventId)
+                    }
+                    is M3EEventHubAction.EventClicked -> {
+                        previewEventId = action.eventId
+                        AppState.refreshEventPreview(action.eventId)
+                    }
+                    is M3EEventHubAction.DismissPreview -> previewEventId = null
+                    is M3EEventHubAction.DismissRegistrationStatus -> isRegistrationStatusVisible = false
+                    is M3EEventHubAction.OpenExternalLink -> openExternalUrl(action.url)
                     is M3EEventHubAction.Refresh -> AppState.syncEventsAndClubs()
                 }
             },
@@ -1294,24 +1369,32 @@ fun M3EClubHubScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val clubsRes by AppState.clubs.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
+    val errorMessage by AppState.error.collectAsState()
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(M3EClubCategory.ALL) }
     var expandedClubId by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
 
     val allClubs = remember(clubsRes) {
         clubsRes?.clubs?.map { c ->
+            // ClubItem exposes only real fields. Absent values stay blank/0 so the
+            // stateless screen omits those rows instead of inventing data.
             M3EClubItem(
-                id = c.id ?: "",
+                id = c.id.orEmpty(),
                 name = c.name ?: "Club",
                 category = M3EClubCategory.ALL,
-                type = "CLUB",
-                studentLead = "Lead",
-                facultyCoordinator = "Faculty",
-                memberCount = 50,
+                type = "",
+                studentLead = "",
+                facultyCoordinator = "",
+                memberCount = 0,
                 isRecruiting = false,
                 instagramHandle = c.instagram,
-                description = c.description ?: ""
+                description = c.description.orEmpty(),
+                // ClubItem has no dedicated recruitment-link field yet; the club's own
+                // website is the only real external link available in the current contract.
+                recruitmentLink = c.recruitmentLink?.takeIf { it.isNotBlank() }
+                    ?: c.website?.takeIf { it.isNotBlank() }
             )
         }.orEmpty()
     }
@@ -1320,7 +1403,7 @@ fun M3EClubHubScreen(modifier: Modifier = Modifier) {
         allClubs.filter { club ->
             val matchCategory = when (selectedCategory) {
                 M3EClubCategory.ALL -> true
-                M3EClubCategory.RECRUITING -> club.isRecruiting
+                M3EClubCategory.RECRUITING -> club.isRecruiting || !club.recruitmentLink.isNullOrBlank()
                 else -> club.category == selectedCategory
             }
             val matchQuery = searchQuery.isBlank() ||
@@ -1336,7 +1419,9 @@ fun M3EClubHubScreen(modifier: Modifier = Modifier) {
         selectedCategory = selectedCategory,
         searchQuery = searchQuery,
         expandedClubId = expandedClubId,
-        isLoading = isLoading
+        isLoading = isLoading,
+        errorMessage = errorMessage,
+        notice = notice
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -1349,7 +1434,17 @@ fun M3EClubHubScreen(modifier: Modifier = Modifier) {
                     is M3EClubHubAction.ToggleExpandClub -> {
                         expandedClubId = if (expandedClubId == action.clubId) null else action.clubId
                     }
-                    is M3EClubHubAction.ApplyClub -> {}
+                    is M3EClubHubAction.ApplyClub -> {
+                        val link = clubsRes?.clubs?.firstOrNull { it.id == action.clubId }
+                            ?.website?.takeIf { it.isNotBlank() }
+                        if (!link.isNullOrBlank()) {
+                            openExternalUrl(link)
+                        } else {
+                            notice = "No application link is available for this club yet. Check the club's own page."
+                        }
+                    }
+                    is M3EClubHubAction.OpenLink -> openExternalUrl(action.url)
+                    is M3EClubHubAction.DismissNotice -> notice = null
                     is M3EClubHubAction.Refresh -> AppState.syncEventsAndClubs()
                 }
             },
@@ -1454,7 +1549,7 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
     val cgpa = currentSem?.gpa?.trim()?.toDoubleOrNull() ?: -1.0
     // Academics is the single source of truth for attendance; derive the overall
     // percentage from the selected semester's courses exactly like the home quick stats.
-    val profileCourses = currentSem?.courses?.values?.toList().orEmpty()
+    val profileCourses = com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId)
     val profileTotalClasses = profileCourses.sumOf { it.attendance?.total ?: 0 }
     val profileAttendedClasses = profileCourses.sumOf { it.attendance?.attended ?: 0 }
     val attendancePct = if (profileTotalClasses > 0) {

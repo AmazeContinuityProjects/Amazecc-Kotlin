@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -36,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -160,6 +162,76 @@ fun M3EClubHubScreen(
             )
         }
 
+        if (state.isLoading) {
+            item(key = "club_hub_loading") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = colors.primary
+                    )
+                    Text(
+                        text = "Loading clubs…",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        val errorMessage = state.errorMessage
+        if (!errorMessage.isNullOrBlank()) {
+            item(key = "club_hub_error") {
+                M3ESurfaceCard(
+                    containerLevel = SurfaceContainerLevel.LOW,
+                    cornerRadius = 18.dp,
+                    borderColor = colors.error,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = "Couldn't refresh clubs",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colors.error
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = errorMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+
+        val notice = state.notice
+        if (!notice.isNullOrBlank()) {
+            item(key = "club_hub_notice") {
+                M3ESurfaceCard(
+                    containerLevel = SurfaceContainerLevel.HIGH,
+                    cornerRadius = 18.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            text = notice,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurface
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        TextButton(onClick = { onAction(M3EClubHubAction.DismissNotice) }) {
+                            Text("Dismiss", color = colors.primary)
+                        }
+                    }
+                }
+            }
+        }
+
         // 4. Counter Header
         item {
             Row(
@@ -215,7 +287,8 @@ fun M3EClubHubScreen(
                     club = club,
                     isExpanded = state.expandedClubId == club.id,
                     onToggleExpand = { onAction(M3EClubHubAction.ToggleExpandClub(club.id)) },
-                    onApply = { onAction(M3EClubHubAction.ApplyClub(club.id)) }
+                    onApply = { onAction(M3EClubHubAction.ApplyClub(club.id)) },
+                    onOpenLink = { onAction(M3EClubHubAction.OpenLink(it)) }
                 )
             }
         }
@@ -233,9 +306,11 @@ private fun ClubCard(
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
     onApply: () -> Unit,
+    onOpenLink: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    val showApply = club.isRecruiting || !club.recruitmentLink.isNullOrBlank()
 
     M3ESurfaceCard(
         containerLevel = if (isExpanded) SurfaceContainerLevel.HIGH else SurfaceContainerLevel.LOW,
@@ -257,36 +332,40 @@ private fun ClubCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colors.primaryContainer)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = club.type,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.sp
-                            ),
-                            color = colors.onPrimaryContainer
-                        )
+                    if (club.type.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.primaryContainer)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = club.type,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp
+                                ),
+                                color = colors.onPrimaryContainer
+                            )
+                        }
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colors.surfaceContainerHigh)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = club.category.label,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 9.sp
-                            ),
-                            color = colors.onSurfaceVariant
-                        )
+                    if (club.category != M3EClubCategory.ALL) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.surfaceContainerHigh)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = club.category.label,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 9.sp
+                                ),
+                                color = colors.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 
@@ -326,52 +405,64 @@ private fun ClubCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Student Lead & Members
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Lead: ${club.studentLead}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant
-                )
+            // Student Lead & Members — only when the source actually provided them.
+            if (club.studentLead.isNotBlank() || club.memberCount > 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (club.studentLead.isNotBlank()) {
+                        Text(
+                            text = "Lead: ${club.studentLead}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    } else {
+                        Spacer(Modifier.width(1.dp))
+                    }
 
-                Text(
-                    text = "${club.memberCount}+ members",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.primary
-                )
+                    if (club.memberCount > 0) {
+                        Text(
+                            text = "${club.memberCount}+ members",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.primary
+                        )
+                    }
+                }
             }
 
             // Expanded details
             if (isExpanded) {
                 Spacer(modifier = Modifier.height(14.dp))
 
-                Text(
-                    text = club.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.School,
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
+                if (club.description.isNotBlank()) {
                     Text(
-                        text = "Faculty Coordinator: ${club.facultyCoordinator}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.onSurfaceVariant
+                        text = club.description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurface
                     )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+
+                if (club.facultyCoordinator.isNotBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.School,
+                            contentDescription = null,
+                            tint = colors.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Faculty Coordinator: ${club.facultyCoordinator}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
                 }
 
                 if (!club.recruitmentDeadline.isNullOrBlank()) {
@@ -389,7 +480,7 @@ private fun ClubCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    if (club.isRecruiting) {
+                    if (showApply) {
                         ElevatedButton(
                             onClick = onApply,
                             modifier = Modifier.weight(1f),
@@ -412,10 +503,16 @@ private fun ClubCard(
                         }
                     }
 
-                    if (!club.instagramHandle.isNullOrBlank()) {
+                    val instagramHandle = club.instagramHandle
+                    if (!instagramHandle.isNullOrBlank()) {
+                        val instagramUrl = if (instagramHandle.startsWith("http", ignoreCase = true)) {
+                            instagramHandle
+                        } else {
+                            "https://instagram.com/${instagramHandle.removePrefix("@")}"
+                        }
                         ElevatedButton(
-                            onClick = {},
-                            modifier = if (club.isRecruiting) Modifier.weight(1f) else Modifier.fillMaxWidth(),
+                            onClick = { onOpenLink(instagramUrl) },
+                            modifier = if (showApply) Modifier.weight(1f) else Modifier.fillMaxWidth(),
                             shape = CircleShape,
                             colors = ButtonDefaults.elevatedButtonColors(
                                 containerColor = colors.surfaceContainerHigh,

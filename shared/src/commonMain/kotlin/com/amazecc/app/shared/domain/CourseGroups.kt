@@ -1,7 +1,6 @@
 package com.amazecc.app.shared.domain
 
 import com.amazecc.app.shared.state.AcademicDerivers
-import com.amazecc.app.shared.vtop.VtopCourseCode
 
 /**
  * The course-grouping projection the academic spine renders from.
@@ -107,9 +106,9 @@ data class CourseGroup(
         get() = theory != null && lab != null
 }
 
-private val TRAILING_COMPONENT = Regex("\\([LPT]\\)$")
-
-private fun Course.isLabComponent(): Boolean = AcademicDerivers.isLabCourse(code, type, slots)
+private fun Course.isLabComponent(): Boolean =
+    EmbeddedLinkCode.halfOf(rawCode = code, typeHint = type, slot = slots.joinToString("+"), title = title)
+        ?.isLab ?: AcademicDerivers.isLabCourse(code, type, slots)
 
 /**
  * The field mapping every [CourseAttendance] is built from.
@@ -198,7 +197,7 @@ internal fun buildCourseGroups(
         val isCurrent = selectedSemester != "All" && semId == selectedSemester
         sem.courses.values
             .filter { it.code.isNotBlank() }
-            .groupBy { it.code.replace(TRAILING_COMPONENT, "").trim() }
+            .groupBy { EmbeddedLinkCode.baseCode(it.code).ifEmpty { it.code.trim() } }
             .forEach { (baseCode, courses) ->
                 val theory = courses.firstOrNull { !it.isLabComponent() }
                 val lab = courses.firstOrNull { it.isLabComponent() }
@@ -236,10 +235,10 @@ internal fun findCourseGroup(
     selectedSemester: String = "All",
 ): CourseGroup? {
     // Keys are bare course codes now; normalise anyway so a stale suffixed key still resolves.
-    val cleanCode = VtopCourseCode.base(courseCode).ifEmpty { courseCode.trim() }
+    val cleanCode = EmbeddedLinkCode.baseCode(courseCode).ifEmpty { courseCode.trim() }
 
     fun courseToGroup(semId: String, sem: Semester): CourseGroup? {
-        val matches = sem.courses.values.filter { VtopCourseCode.base(it.code) == cleanCode }
+        val matches = sem.courses.values.filter { EmbeddedLinkCode.baseCode(it.code) == cleanCode }
         if (matches.isEmpty()) return null
         // An embedded ETH/ELA pair is merged at the store, so there is normally one course.
         // Legacy snapshots may still hold two rows; fold them the same way.
@@ -279,11 +278,11 @@ internal fun gradeHistory(
     snapshot: DomainSnapshot,
     courseCode: String,
 ): List<Pair<String, CourseGrade?>> {
-    val cleanCode = courseCode.replace(TRAILING_COMPONENT, "").trim()
+    val cleanCode = EmbeddedLinkCode.baseCode(courseCode).ifEmpty { courseCode.trim() }
     val items = mutableListOf<Pair<String, CourseGrade?>>()
     snapshot.academics.semesters.forEach { (semId, sem) ->
         sem.courses.values.forEach { course ->
-            if (course.code.replace(TRAILING_COMPONENT, "").trim() == cleanCode) {
+            if (EmbeddedLinkCode.baseCode(course.code) == cleanCode) {
                 items.add(semId to course.asGrade())
             }
         }

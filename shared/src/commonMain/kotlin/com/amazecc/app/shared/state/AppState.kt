@@ -722,6 +722,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     val feedbackStatus: StateFlow<FeedbackStatusRes?> = AppDataStore.feedbackStatus
     val events: StateFlow<EventHubRes?> = AppDataStore.events
     val registeredEvents: StateFlow<EventHubRegisteredEventsRes?> = AppDataStore.registeredEvents
+    /** Last event-detail preview; refreshed with [refreshEventPreview]. */
+    val eventPreview: StateFlow<EventHubPreview?> = AppDataStore.eventPreview
+    /** Outcome of the last [registerForEvent] attempt (success, payment or already registered). */
+    val eventRegistration: StateFlow<EventHubRegisterRes?> = AppDataStore.eventRegistration
     val clubs: StateFlow<ClubsRes?> = AppDataStore.clubs
 
     private val _pastSemestersSynced = MutableStateFlow(SettingsManager.getBoolean(SettingsManager.PAST_SEMESTER_SYNCED, false))
@@ -2616,6 +2620,17 @@ fun updateMoodleData(data: MoodleRes?) {
                 SyncEngine.markModuleError(SyncModule.EVENTS, e.message ?: "Network error")
                 SyncEngine.addLog(SyncModule.EVENTS, e.message ?: "Network error", SyncStatus.ERROR)
             }
+            // The authenticated registration list carries receipt/certificate/payment links. It
+            // is fetched through VtopEventHub in LOCAL mode and from the cache in OFFLINE_CACHE —
+            // only a genuinely successful response may replace the cached list.
+            try {
+                val profileRes = AmazeClient.getEventsProfile()
+                if (profileRes.success && profileRes.error == null) {
+                    AppDataStore.setRegisteredEvents(profileRes)
+                }
+            } catch (_: Exception) {
+                // Keep the last known registration list; the profile is best-effort here.
+            }
             try {
                 val clubsRes = AmazeClient.getClubsDetails()
                 if (clubsRes.error == null) {
@@ -3241,6 +3256,35 @@ fun updateMoodleData(data: MoodleRes?) {
         scope.launch {
             syncEventsAndClubs()
             try { AmazeClient.eventLogin() } catch (_: Exception) { }
+        }
+    }
+
+    /** Fetches the detail page for one event and publishes it to [eventPreview]. */
+    fun refreshEventPreview(eid: String) {
+        scope.launch {
+            AppDataStore.setEventPreview(AmazeClient.getEventPreview(eid))
+        }
+    }
+
+    /** Registers for one event and publishes the outcome to [eventRegistration]. */
+    fun registerForEvent(eid: String) {
+        scope.launch {
+            AppDataStore.setEventRegistration(AmazeClient.registerForEvent(eid))
+        }
+    }
+
+    /** Refreshes and caches the authenticated registration list (receipt/certificate/payment). */
+    fun refreshEventsProfile() {
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        launchSweep(setOf(SyncModule.EVENTS)) {
+            val result = syncModule(
+                name = "Registered Events",
+                fetch = { AmazeClient.getEventsProfile() },
+                isSuccess = { it.error == null },
+                errorMessage = { it.error },
+                update = { AppDataStore.setRegisteredEvents(it) }
+            )
+            updateSyncSummary(listOf(result))
         }
     }
 }

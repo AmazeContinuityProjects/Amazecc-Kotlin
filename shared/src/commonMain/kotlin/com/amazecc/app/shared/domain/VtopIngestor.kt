@@ -59,7 +59,7 @@ object VtopIngestor {
     fun fromLegacy(
         snapshot: AppDataSnapshot,
         selectedSemesterId: String? = null,
-    ): DomainSnapshot = DomainSnapshot(
+    ): DomainSnapshot = EmbeddedLinkMerge.mergeSnapshot(DomainSnapshot(
         academics = academicsFrom(snapshot, selectedSemesterId),
         schedule = Schedule(
             exams = snapshot.academic.semesters
@@ -108,7 +108,7 @@ object VtopIngestor {
             qcm = snapshot.qcmView,
             tasks = snapshot.tasks,
         ),
-    )
+    ))
 
     /**
      * The inverse of [fromLegacy].
@@ -412,7 +412,7 @@ object VtopIngestor {
      */
     suspend fun merge(current: DomainSnapshot, incoming: DomainSnapshot): DomainSnapshot =
         mutex.withLock {
-            DomainSnapshot(
+            EmbeddedLinkMerge.mergeSnapshot(DomainSnapshot(
                 academics = Academics(
                     // Incoming semesters win; anything it lacks is carried forward.
                     semesters = current.academics.semesters + incoming.academics.semesters,
@@ -424,7 +424,7 @@ object VtopIngestor {
                 campus = current.campus,
                 engagement = current.engagement,
                 services = current.services,
-            )
+            ))
         }
 
     /** Exposed so the merge policy is testable without a snapshot. */

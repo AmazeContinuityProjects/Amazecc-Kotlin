@@ -14,6 +14,8 @@ import com.amazecc.app.shared.model.ClubsRes
 import com.amazecc.app.shared.model.CurriculumRes
 import com.amazecc.app.shared.model.EventHubRegisteredEventsRes
 import com.amazecc.app.shared.model.DocumentItem
+import com.amazecc.app.shared.model.EventHubPreview
+import com.amazecc.app.shared.model.EventHubRegisterRes
 import com.amazecc.app.shared.model.EventHubRes
 import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.model.FeedbackStatusRes
@@ -132,6 +134,19 @@ object AppDataStore {
     private val _circularDownload = MutableStateFlow<CircularDownloadResult?>(null)
     val circularDownload: StateFlow<CircularDownloadResult?> = _circularDownload.asStateFlow()
     fun setCircularDownload(res: CircularDownloadResult?) { _circularDownload.value = res }
+
+    /**
+     * Last event preview and registration attempt. Transient like the receipt detail: fetched on
+     * demand, never written into a JSON backup. The event list and the registered-event list are
+     * the persistable counterparts ([setEvents] / [setRegisteredEvents]).
+     */
+    private val _eventPreview = MutableStateFlow<EventHubPreview?>(null)
+    val eventPreview: StateFlow<EventHubPreview?> = _eventPreview.asStateFlow()
+    fun setEventPreview(res: EventHubPreview?) { _eventPreview.value = res }
+
+    private val _eventRegistration = MutableStateFlow<EventHubRegisterRes?>(null)
+    val eventRegistration: StateFlow<EventHubRegisterRes?> = _eventRegistration.asStateFlow()
+    fun setEventRegistration(res: EventHubRegisterRes?) { _eventRegistration.value = res }
 
     private fun <T> derived(select: (AppDataSnapshot) -> T): StateFlow<T> =
         _data.map(select)

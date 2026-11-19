@@ -519,7 +519,9 @@ data class ClubItem(
     @SerialName("logo_url") val logoUrl: String? = null,
     val website: String? = null,
     val instagram: String? = null,
-    val whatsapp: String? = null
+    val whatsapp: String? = null,
+    @SerialName("recruitment_link") val recruitmentLink: String? = null,
+    @SerialName("event_id") val eventId: String? = null
 )
 
 @Serializable

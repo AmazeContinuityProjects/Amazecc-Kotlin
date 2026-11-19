@@ -33,6 +33,22 @@ object Projections {
 
     // ── academics ────────────────────────────────────────────────────────────
 
+    /**
+     * The one course key every consumer groups on. A `(T)` API row and an unsuffixed scraper
+     * row carrying only a `type` resolve to the same string, so they can never be counted twice.
+     */
+    fun canonicalCourseKey(code: String): String = EmbeddedLinkCode.baseCode(code)
+
+    /**
+     * The default roster: one [Course] per canonical base code, with an embedded theory/lab
+     * pair already folded together. Screens that genuinely need a single half read
+     * [Course.halves] instead of re-splitting the roster.
+     */
+    fun mergedCourses(snapshot: DomainSnapshot, semesterId: String): List<Course> =
+        EmbeddedLinkMerge.mergeSnapshot(snapshot).academics.semesters[semesterId]?.courses?.values.orEmpty()
+            .toList()
+            .sortedBy { it.code }
+
     data class CourseRow(
         val code: String,
         val title: String,
@@ -46,7 +62,7 @@ object Projections {
     )
 
     fun courses(snapshot: DomainSnapshot, semesterId: String): List<CourseRow> {
-        val sem = semester(snapshot, semesterId) ?: return emptyList()
+        val sem = EmbeddedLinkMerge.mergeSnapshot(snapshot).academics.semesters[semesterId] ?: return emptyList()
         return sem.courses.values
             .sortedBy { it.code }
             .map { c ->
@@ -84,7 +100,7 @@ object Projections {
     }
 
     fun attendance(snapshot: DomainSnapshot, semesterId: String): List<AttendanceRow> {
-        val sem = semester(snapshot, semesterId) ?: return emptyList()
+        val sem = EmbeddedLinkMerge.mergeSnapshot(snapshot).academics.semesters[semesterId] ?: return emptyList()
         return sem.courses.values
             .filter { it.attendance != null }
             .sortedBy { it.code }
@@ -109,7 +125,8 @@ object Projections {
      * [currentSemesterAttendance].
      */
     fun semesterAttendance(snapshot: DomainSnapshot, semesterId: String): List<CourseAttendance> =
-        semester(snapshot, semesterId)?.courses?.values?.map { it.asAttendance() }.orEmpty()
+        EmbeddedLinkMerge.mergeSnapshot(snapshot).academics.semesters[semesterId]?.courses?.values
+            ?.map { it.asAttendance() }.orEmpty()
 
     /**
      * Every course's attendance in the semester attendance *reports* from: the one with the most
@@ -326,7 +343,7 @@ object Projections {
     )
 
     fun marks(snapshot: DomainSnapshot, semesterId: String): List<MarksRow> {
-        val sem = semester(snapshot, semesterId) ?: return emptyList()
+        val sem = EmbeddedLinkMerge.mergeSnapshot(snapshot).academics.semesters[semesterId] ?: return emptyList()
         return sem.courses.values
             .filter { it.marks != null && it.marks!!.assessments.isNotEmpty() }
             .sortedBy { it.code }
@@ -368,12 +385,17 @@ object Projections {
 
     fun exams(snapshot: DomainSnapshot, semesterId: String): List<ExamRow> {
         val sem = semester(snapshot, semesterId) ?: return emptyList()
-        val courseByCode = sem.courses
+        val merged = EmbeddedLinkMerge.mergeSnapshot(snapshot)
+        // An exam can be filed against `BCSE101(T)` while the merged roster holds `BCSE101`.
+        // Look both up on the canonical base code so the half's type is never lost.
+        val typeByBase = merged.academics.semesters[semesterId]?.courses?.values
+            .orEmpty().associate { EmbeddedLinkCode.baseCode(it.code) to it.type }
         return snapshot.schedule.exams
             .filter { it.semesterId == semesterId }
             .sortedBy { it.date }
             .map { e ->
-                val type = courseByCode[e.courseCode]?.type.orEmpty()
+                val type = typeByBase[EmbeddedLinkCode.baseCode(e.courseCode)]
+                    ?: sem.courses[e.courseCode]?.type.orEmpty()
                 ExamRow(
                     courseCode = e.courseCode,
                     courseTitle = e.courseTitle,
@@ -437,10 +459,7 @@ object Projections {
      * silently become false here, which is exactly the bug the audit found.
      */
     private val String.isLabType: Boolean
-        get() {
-            val t = trim().lowercase()
-            return t == "embedded lab" || t == "lab only" || t == "lab" || t == "ela"
-        }
+        get() = EmbeddedLinkCode.halfOf(rawCode = "", typeHint = this) == EmbeddedLinkCode.Half.LAB
 
     /** `10.0` -> `10`, `9.5` -> `9.5`. Avoids "Total: 10.0" on a card. */
     internal fun trimNumber(v: Double): String =

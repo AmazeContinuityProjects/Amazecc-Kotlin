@@ -122,21 +122,20 @@ class EmbeddedPairSplitTest {
     // ── Which the pairing layer then joins back up ────────────────────────────
 
     @Test
-    fun theGroupIsEmbeddedSoTheUiShowsBothHalves() {
-        val groups = buildCourseGroups(withAttendance().snapshot())
-        val embedded = groups.filter { it.isEmbedded }
-        assertEquals(
-            setOf("BACSE105", "BACSE106", "BAECE203", "BAGER101"),
-            embedded.map { it.courseCode }.toSet()
-        )
+    fun embeddedPairsAreLinkedIntoOneCourseAtIngestion() {
+        val courses = withAttendance().snapshot().academics.semesters.getValue("CH20262701").courses
+        val pairs = setOf("BACSE105", "BACSE106", "BAECE203", "BAGER101")
+        assertEquals(pairs, courses.keys.intersect(pairs))
+        // The raw halves remain available on the merged course for detail/predictor screens.
+        pairs.forEach { code -> assertEquals(2, courses.getValue(code).halves.size, code) }
     }
 
     @Test
-    fun theCardCarriesBothHalvesAttendance() {
-        val group = buildCourseGroups(withAttendance().snapshot())
-            .first { it.courseCode == "BACSE105" }
-        assertEquals(24, group.theoryAtt!!.attendedClasses)
-        assertEquals(18, group.labAtt!!.attendedClasses)
+    fun theLinkedCardCarriesCombinedAttendance() {
+        val course = withAttendance().snapshot().academics.semesters.getValue("CH20262701")
+            .courses.getValue("BACSE105")
+        assertEquals(42, course.attendance!!.attended)
+        assertEquals(47, course.attendance!!.total)
     }
 
     @Test
@@ -213,22 +212,25 @@ class EmbeddedPairSplitTest {
     @Test
     fun aCourseWithNoLabMarksRowStillShowsItsLabHalf() {
         val academic = AcademicMerge.upsertMarks(withAttendance(), "CH20262701", marksRows())
-        val group = buildCourseGroups(academic.snapshot())
-            .first { it.courseCode == "BACSE105" }
-        assertTrue(group.isEmbedded, "attendance proves the pair exists")
-        assertNotNull(group.lab, "attendance put a lab half there and marks must not delete it")
-        assertNull(group.lab!!.totalMark, "there is genuinely no lab marks row this term")
-        assertEquals(45.0, group.theory!!.totalMark!!, 0.001)
+        val course = academic.snapshot().academics.semesters.getValue("CH20262701")
+            .courses.getValue("BACSE105")
+        assertEquals(2, course.halves.size, "both attendance halves survive the marks upsert")
+        val theory = course.halves.first { it.half == "T" }
+        val lab = course.halves.first { it.half == "L" }
+        assertNull(lab.marks, "there is genuinely no lab marks row this term")
+        assertEquals(45.0, theory.marks?.assessments?.firstOrNull()?.score?.toDoubleOrNull() ?: 0.0, 0.001)
     }
 
     @Test
     fun aCompletePairKeepsEachHalfsOwnMarks() {
         val academic = AcademicMerge.upsertMarks(withAttendance(), "CH20262701", marksRows())
-        val group = buildCourseGroups(academic.snapshot())
-            .first { it.courseCode == "BACSE106" }
-        assertTrue(group.isEmbedded)
-        assertEquals(44.0, group.theory!!.totalMark!!, 0.001)
-        assertEquals(88.0, group.lab!!.totalMark!!, 0.001)
+        val course = academic.snapshot().academics.semesters.getValue("CH20262701")
+            .courses.getValue("BACSE106")
+        assertEquals(2, course.halves.size)
+        val theory = course.halves.first { it.half == "T" }
+        val lab = course.halves.first { it.half == "L" }
+        assertEquals(44.0, theory.marks?.assessments?.firstOrNull()?.score?.toDoubleOrNull() ?: 0.0, 0.001)
+        assertEquals(88.0, lab.marks?.assessments?.firstOrNull()?.score?.toDoubleOrNull() ?: 0.0, 0.001)
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.amazecc.app.shared.state
 
+import com.amazecc.app.shared.domain.EmbeddedLinkCode
+import com.amazecc.app.shared.domain.EmbeddedLinkMerge
 import com.amazecc.app.shared.model.AllGradesRes
 import com.amazecc.app.shared.model.AttendanceRes
 import com.amazecc.app.shared.model.ExamScheduleRes
@@ -47,8 +49,7 @@ object AcademicMerge {
      * pairs both timetable rows with the same attendance row and loses the lab's numbers.
      */
     fun isLabRow(courseType: String?, slot: String?): Boolean =
-        courseType?.contains("lab", ignoreCase = true) == true ||
-            slotTokens(slot).firstOrNull()?.startsWith("L", ignoreCase = true) == true
+        EmbeddedLinkCode.isLabRow(courseType, slot)
 
     /**
      * The store key for one half of a course.
@@ -179,17 +180,27 @@ object AcademicMerge {
      * never written under a key a reader cannot pair it with.
      */
     internal fun canonicalHalfKey(raw: String?): String {
-        val text = raw.orEmpty()
-        val base = VtopCourseCode.base(text)
-        if (base.isEmpty()) return ""
-        val suffix = VtopCourseCode.suffixOf(text)
-        // Only the lab marker survives. A "(T)" marker is redundant - the bare key is the theory
-        // half - and "(P)" is how a project row was written, which pairs with nothing. With no
-        // marker, fall back to how VTOP wrote the code: `BACSE102L` is a lab, `BACSE101` is not.
-        val isLab = suffix == "L" ||
-            (suffix == null && VtopCourseCode.componentOf(text).isLab)
-        return halfKey(base, isLab)
+        // One canonical rule: EmbeddedLinkCode strips (T)/(L)/-T/-L and classifies the half from
+        // the code suffix or the course type. Only the lab marker survives; a "(T)" marker is
+        // redundant because the bare key already is the theory half.
+        return EmbeddedLinkCode.halfKey(raw)
     }
+
+    /**
+     * The linking step of the ingestion path: fold each semester's theory and lab rows of one
+     * base code into a single logical course with combined credits, slots, attendance and marks.
+     *
+     * Additive by design - the `upsert*` functions above still keep one key per half so a module
+     * that synced before this step can be re-linked without being re-fetched. Call this once
+     * after a sync (or on a legacy snapshot) and every downstream reader sees one course.
+     * Pure and idempotent.
+     */
+    fun linkEmbeddedPairs(academic: AcademicData): AcademicData = academic.copy(
+        semesters = academic.semesters.mapValues { (_, sem) ->
+            if (sem.courses.isEmpty()) sem
+            else sem.copy(courses = EmbeddedLinkMerge.mergeStoredCourses(sem.courses))
+        }
+    )
 
     fun upsertAttendance(academic: AcademicData, semesterId: String, res: AttendanceRes?): AcademicData {
         val cleaned = AppSanitizers.sanitizeAttendance(res) ?: return academic

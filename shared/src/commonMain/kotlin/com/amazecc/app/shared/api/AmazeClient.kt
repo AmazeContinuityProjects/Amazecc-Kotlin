@@ -1554,6 +1554,11 @@ if (useMockData) return DemoData.get("qcmView", QcmViewRes.serializer()) ?: QcmV
 
     suspend fun getEvents(): EventHubRes {
 if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: EventHubRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            AppState.markServedFromCache("Events")
+            return AppDataStore.events.value
+                ?: EventHubRes(success = true, message = "Served from local cache")
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             // EventHub is public, so there are no credentials to check here.
             return try {
@@ -1588,6 +1593,17 @@ if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: Even
     }
 
     suspend fun getEventPreview(eid: String): EventHubPreview? {
+        if (useMockData) return null
+        // Previews are fetched live; there is no persisted preview cache to serve offline.
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return null
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopEventHub.fetchEventPreview(eid)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        // Legacy REMOTE proxy — kept as a fallback only, never a hard dependency on Hono.
         return try {
             val jsessionid = SessionManager.clubToken.value
             val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
@@ -1611,6 +1627,17 @@ if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: Even
     }
 
     suspend fun registerForEvent(eid: String): EventHubRegisterRes? {
+        if (useMockData) return null
+        // Registration is a write; OFFLINE_CACHE deliberately does not fake a result.
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return null
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopEventHub.registerForEvent(eid)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        // Legacy REMOTE proxy — kept as a fallback only, never a hard dependency on Hono.
         return try {
             val jsessionid = SessionManager.clubToken.value
             val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
@@ -1633,7 +1660,34 @@ if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: Even
         }
     }
 
+    /** Payment hand-off and receipt/certificate downloads, pinned to Event Hub by the on-device client. */
+    suspend fun getEventPayNow(url: String): EventHubRegisterRes? {
+        if (useMockData) return null
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL ||
+            vtopSource == com.amazecc.app.shared.vtop.VtopSource.REMOTE
+        ) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopEventHub.buildPaymentLoginHtml(url)
+            } catch (e: Exception) {
+                null
+            }
+        }
+        return null
+    }
+
+    suspend fun downloadEventFile(url: String): ByteArray? {
+        if (useMockData) return null
+        return try {
+            com.amazecc.app.shared.vtop.VtopEventHub.downloadEventFile(url)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     suspend fun eventLogin(): String? {
+        // LOCAL authenticates inside VtopEventHub per call; OFFLINE_CACHE has no session at all.
+        // Neither mode should make a Hono request just to obtain an Event Hub cookie.
+        if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
         val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials() ?: return null
         return try {
             val response = httpClient.post("$baseUrl/api/events/login") {
@@ -1658,6 +1712,11 @@ if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: Even
 
     suspend fun getEventsProfile(): EventHubRegisteredEventsRes {
 if (useMockData) return DemoData.get("eventsProfile", EventHubRegisteredEventsRes.serializer()) ?: EventHubRegisteredEventsRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            AppState.markServedFromCache("Registered Events")
+            return AppDataStore.registeredEvents.value
+                ?: EventHubRegisteredEventsRes(success = true, message = "Served from local cache")
+        }
         val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && creds != null) {
             return try {

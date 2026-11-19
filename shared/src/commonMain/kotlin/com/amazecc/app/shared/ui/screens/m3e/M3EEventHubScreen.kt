@@ -23,10 +23,13 @@ import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +49,9 @@ import com.amazecc.app.shared.domain.overhaul.M3EEventCategory
 import com.amazecc.app.shared.domain.overhaul.M3EEventHubAction
 import com.amazecc.app.shared.domain.overhaul.M3EEventHubState
 import com.amazecc.app.shared.domain.overhaul.M3EEventItem
+import com.amazecc.app.shared.domain.overhaul.M3EEventPreviewUi
+import com.amazecc.app.shared.domain.overhaul.M3EEventRegistrationUi
+import com.amazecc.app.shared.domain.overhaul.M3ERegisteredEventItem
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -65,163 +72,475 @@ fun M3EEventHubScreen(
 ) {
     val colors = M3ETheme.colors
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.surface),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // 1. Header Bar
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Event Hub",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 24.sp
-                        ),
-                        color = colors.onSurface
-                    )
-                    Text(
-                        text = "Riviera, Gravitas & Campus Fests",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant
-                    )
-                }
-
-                IconButton(
-                    onClick = { onAction(M3EEventHubAction.Refresh) },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(colors.surfaceContainerHigh)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = "Refresh",
-                        tint = colors.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-
-        // 2. Search Field
-        item {
-            OutlinedTextField(
-                value = state.searchQuery,
-                onValueChange = { onAction(M3EEventHubAction.SearchQueryChanged(it)) },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        text = "Search events, fests, or venues...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = null,
-                        tint = colors.primary
-                    )
-                },
-                singleLine = true,
-                shape = CircleShape,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = colors.onSurface,
-                    unfocusedTextColor = colors.onSurface,
-                    focusedContainerColor = colors.surfaceContainerHigh,
-                    unfocusedContainerColor = colors.surfaceContainerLow,
-                    focusedBorderColor = colors.primary,
-                    unfocusedBorderColor = colors.outlineVariant,
-                    focusedPlaceholderColor = colors.onSurfaceVariant,
-                    unfocusedPlaceholderColor = colors.onSurfaceVariant
-                )
-            )
-        }
-
-        // 3. Category Selector
-        item {
-            M3EConnectedButtonGroup(
-                items = M3EEventCategory.entries,
-                selectedItem = state.selectedCategory,
-                onItemSelected = { onAction(M3EEventHubAction.SelectCategory(it)) },
-                labelProvider = { it.label },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        // 4. Counter Header
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Events (${state.filteredEvents.size})",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = colors.onSurface
-                )
-                Text(
-                    text = "${state.registeredCount} Registered",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.primary
-                )
-            }
-        }
-
-        // 5. Events List
-        if (state.filteredEvents.isEmpty()) {
+    Box {
+        LazyColumn(
+            modifier = modifier
+                .fillMaxSize()
+                .background(colors.surface),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // 1. Header Bar
             item {
-                M3ESurfaceCard(
-                    containerLevel = SurfaceContainerLevel.LOW,
-                    cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
+                    Column {
+                        Text(
+                            text = "Event Hub",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 24.sp
+                            ),
+                            color = colors.onSurface
+                        )
+                        Text(
+                            text = "Riviera, Gravitas & Campus Fests",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { onAction(M3EEventHubAction.Refresh) },
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(colors.surfaceContainerHigh)
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Event,
-                            contentDescription = null,
-                            tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(44.dp)
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Refresh",
+                            tint = colors.primary,
+                            modifier = Modifier.size(20.dp)
                         )
-                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                }
+            }
+
+            // 2. Search Field
+            item {
+                OutlinedTextField(
+                    value = state.searchQuery,
+                    onValueChange = { onAction(M3EEventHubAction.SearchQueryChanged(it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = {
                         Text(
-                            text = "No events found in this category",
+                            text = "Search events, fests, or venues...",
                             style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurfaceVariant
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = null,
+                            tint = colors.primary
+                        )
+                    },
+                    singleLine = true,
+                    shape = CircleShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = colors.onSurface,
+                        unfocusedTextColor = colors.onSurface,
+                        focusedContainerColor = colors.surfaceContainerHigh,
+                        unfocusedContainerColor = colors.surfaceContainerLow,
+                        focusedBorderColor = colors.primary,
+                        unfocusedBorderColor = colors.outlineVariant,
+                        focusedPlaceholderColor = colors.onSurfaceVariant,
+                        unfocusedPlaceholderColor = colors.onSurfaceVariant
+                    )
+                )
+            }
+
+            // 3. Category Selector
+            item {
+                M3EConnectedButtonGroup(
+                    items = M3EEventCategory.entries,
+                    selectedItem = state.selectedCategory,
+                    onItemSelected = { onAction(M3EEventHubAction.SelectCategory(it)) },
+                    labelProvider = { it.label },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            // Loading feedback from the real sync flow.
+            if (state.isLoading) {
+                item(key = "event_hub_loading") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = colors.primary
+                        )
+                        Text(
+                            text = "Loading events…",
+                            style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant
                         )
                     }
                 }
             }
-        } else {
-            items(state.filteredEvents) { event ->
-                EventCard(
-                    event = event,
-                    onRegister = { onAction(M3EEventHubAction.RegisterEvent(event.id)) },
-                    onClick = { onAction(M3EEventHubAction.EventClicked(event.id)) }
-                )
+
+            // Sync/profile error from AppState — never silently swallowed.
+            val errorMessage = state.errorMessage
+            if (!errorMessage.isNullOrBlank()) {
+                item(key = "event_hub_error") {
+                    M3ESurfaceCard(
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        cornerRadius = 18.dp,
+                        borderColor = colors.error,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "Couldn't refresh events",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.error
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = errorMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Registered Events — real registrations from AppState.registeredEvents.
+            if (state.registeredEvents.isNotEmpty()) {
+                item(key = "registered_events_header") {
+                    Text(
+                        text = "Registered Events",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colors.onSurface
+                    )
+                }
+                items(state.registeredEvents) { registration ->
+                    RegisteredEventCard(
+                        registration = registration,
+                        onOpenLink = { onAction(M3EEventHubAction.OpenExternalLink(it)) }
+                    )
+                }
+            }
+
+            // 4. Counter Header
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Events (${state.filteredEvents.size})",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colors.onSurface
+                    )
+                    Text(
+                        text = "${state.registeredCount} Registered",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.primary
+                    )
+                }
+            }
+
+            // 5. Events List
+            if (state.filteredEvents.isEmpty()) {
+                item {
+                    M3ESurfaceCard(
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        cornerRadius = 20.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Event,
+                                contentDescription = null,
+                                tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
+                                modifier = Modifier.size(44.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "No events found in this category",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(state.filteredEvents) { event ->
+                    EventCard(
+                        event = event,
+                        onRegister = { onAction(M3EEventHubAction.RegisterEvent(event.id)) },
+                        onClick = { onAction(M3EEventHubAction.EventClicked(event.id)) }
+                    )
+                }
+            }
+
+            // Bottom Spacing for floating navigation bar clearance (140dp)
+            item(key = "bottom_spacer") {
+                Spacer(Modifier.height(140.dp))
             }
         }
 
-        // Bottom Spacing for floating navigation bar clearance (140dp)
-        item(key = "bottom_spacer") {
-            Spacer(Modifier.height(140.dp))
+        val preview = state.preview
+        if (preview != null) {
+            EventPreviewDialog(
+                preview = preview,
+                onDismiss = { onAction(M3EEventHubAction.DismissPreview) },
+                onOpenPoster = { onAction(M3EEventHubAction.OpenExternalLink(it)) }
+            )
+        }
+
+        val registration = state.registrationResult
+        if (registration != null) {
+            EventRegistrationDialog(
+                result = registration,
+                onDismiss = { onAction(M3EEventHubAction.DismissRegistrationStatus) },
+                onOpenPayment = { onAction(M3EEventHubAction.OpenExternalLink(it)) }
+            )
         }
     }
+}
+
+@Composable
+private fun RegisteredEventCard(
+    registration: M3ERegisteredEventItem,
+    onOpenLink: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 18.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = registration.title.ifBlank { "Registered event" },
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+            val meta = listOfNotNull(
+                registration.date?.takeIf { it.isNotBlank() },
+                registration.time?.takeIf { it.isNotBlank() },
+                registration.venue.takeIf { it.isNotBlank() }
+            )
+            if (meta.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = meta.joinToString(" • "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
+                )
+            }
+            val paymentStatus = registration.paymentStatus
+            if (!paymentStatus.isNullOrBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Payment: $paymentStatus",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.primary
+                )
+            }
+
+            val links = mutableListOf<Pair<String, String>>()
+            registration.receiptUrl?.takeIf { it.isNotBlank() }?.let { links.add("Receipt" to it) }
+            registration.certificateUrl?.takeIf { it.isNotBlank() }?.let { links.add("Certificate" to it) }
+            registration.payNowUrl?.takeIf { it.isNotBlank() }?.let { links.add("Pay now" to it) }
+            if (links.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    links.forEach { (label, url) ->
+                        ElevatedButton(
+                            onClick = { onOpenLink(url) },
+                            shape = CircleShape,
+                            colors = ButtonDefaults.elevatedButtonColors(
+                                containerColor = colors.surfaceContainerHigh,
+                                contentColor = colors.onSurface
+                            )
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EventPreviewDialog(
+    preview: M3EEventPreviewUi,
+    onDismiss: () -> Unit,
+    onOpenPoster: (String) -> Unit
+) {
+    val colors = M3ETheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = preview.title.ifBlank { "Event details" },
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val posterUrl = preview.imageUrl
+                if (!posterUrl.isNullOrBlank()) {
+                    M3ESurfaceCard(
+                        containerLevel = SurfaceContainerLevel.HIGH,
+                        cornerRadius = 16.dp,
+                        onClick = { onOpenPoster(posterUrl) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Image,
+                                contentDescription = null,
+                                tint = colors.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "View event poster",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.onSurface
+                            )
+                        }
+                    }
+                }
+                val description = preview.description
+                if (!description.isNullOrBlank()) {
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurface
+                    )
+                }
+                preview.metaDetails.forEach { (key, value) ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = key,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = value,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+                if (description.isNullOrBlank() && preview.metaDetails.isEmpty() && posterUrl.isNullOrBlank()) {
+                    Text(
+                        text = "No further details are available for this event.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close", color = colors.primary) }
+        }
+    )
+}
+
+@Composable
+private fun EventRegistrationDialog(
+    result: M3EEventRegistrationUi,
+    onDismiss: () -> Unit,
+    onOpenPayment: (String) -> Unit
+) {
+    val colors = M3ETheme.colors
+    val status = result.status.trim().lowercase()
+    val isPayment = status == "payment_required" || status == "payment_form"
+    val isRedirect = status == "redirect"
+    val isError = status == "session_expired" || status == "invalid_credentials" || status == "error"
+    val title = when {
+        status == "success" -> "Registration confirmed"
+        status == "already_registered" -> "Already registered"
+        isPayment -> "Payment required"
+        isRedirect -> "Continue on the event hub"
+        isError -> "Registration could not be completed"
+        else -> "Registration update"
+    }
+    val body = result.message?.takeIf { it.isNotBlank() }
+        ?: when {
+            status == "success" -> "Your seat is confirmed. Your receipt and certificate appear in Registered Events once available."
+            status == "already_registered" -> "You are already registered for this event."
+            isPayment -> "Complete the payment on the event's site to confirm your seat."
+            isRedirect -> "Finish the registration on the event hub's site."
+            isError -> "Please try again after refreshing your event hub session."
+            else -> "The event hub returned an update for your registration."
+        }
+    val paymentUrl = result.paymentUrl?.takeIf { it.isNotBlank() }
+    val actionLabel = when {
+        isPayment -> "Pay now"
+        isRedirect -> "Continue"
+        else -> "OK"
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+        },
+        text = {
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant
+            )
+        },
+        confirmButton = {
+            if ((isPayment || isRedirect) && paymentUrl != null) {
+                TextButton(onClick = { onOpenPayment(paymentUrl) }) { Text(actionLabel, color = colors.primary) }
+            } else {
+                TextButton(onClick = onDismiss) { Text(actionLabel, color = colors.primary) }
+            }
+        },
+        dismissButton = {
+            if ((isPayment || isRedirect) && paymentUrl != null) {
+                TextButton(onClick = onDismiss) { Text("Later", color = colors.onSurfaceVariant) }
+            }
+        }
+    )
 }
 
 @Composable
@@ -253,36 +572,40 @@ private fun EventCard(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colors.primaryContainer)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = event.festName.uppercase(),
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.sp
-                            ),
-                            color = colors.onPrimaryContainer
-                        )
+                    if (event.festName.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.primaryContainer)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = event.festName.uppercase(),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp
+                                ),
+                                color = colors.onPrimaryContainer
+                            )
+                        }
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colors.surfaceContainerHigh)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = event.category.label,
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 9.sp
-                            ),
-                            color = colors.onSurfaceVariant
-                        )
+                    if (event.category != M3EEventCategory.ALL) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.surfaceContainerHigh)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = event.category.label,
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 9.sp
+                                ),
+                                color = colors.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 

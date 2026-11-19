@@ -11,10 +11,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.domain.Projections
+import com.amazecc.app.shared.domain.overhaul.M3EEventRegistrationUi
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AcademicDerivers.resolveCurrentSemester
 import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
@@ -27,6 +27,7 @@ import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ContentData
 import com.amazecc.app.shared.utils.SocialUtils
+import com.amazecc.app.shared.utils.openExternalUrl
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -546,12 +547,32 @@ fun M3EClubDetailScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val clubsRes by AppState.clubs.collectAsState()
     val clubId by AppState.selectedClubId.collectAsState()
-    var isEnrolled by remember { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
+    val registeredRes by AppState.registeredEvents.collectAsState()
+    val registrationRes by AppState.eventRegistration.collectAsState()
+    val isLoading by AppState.isLoading.collectAsState()
+    var isRegistrationStatusVisible by remember { mutableStateOf(false) }
+    var notice by remember { mutableStateOf<String?>(null) }
 
     val club = remember(clubsRes, clubId) {
         clubsRes?.clubs?.firstOrNull { it.id == clubId }
     }
+    // /api/clubs/details carries event_id and recruitment_link on each club row.
+    val eventId = club?.eventId?.takeIf { it.isNotBlank() }
+    // Enrollment is derived from real registrations, never from a local toggle.
+    val isEnrolled = remember(registeredRes, eventId) {
+        eventId != null && registeredRes?.events?.any { it.eid == eventId } == true
+    }
+    val applyUrl = club?.recruitmentLink?.takeIf { it.isNotBlank() }
+        ?: club?.website?.takeIf { it.isNotBlank() }
+    val registrationStatus = remember(registrationRes, isRegistrationStatusVisible) {
+        val r = registrationRes
+        if (isRegistrationStatusVisible && r != null) {
+            M3EEventRegistrationUi(status = r.status, message = r.message, paymentUrl = r.url)
+        } else {
+            null
+        }
+    }
+
     val state = M3EClubDetailState(
         clubId = club?.id.orEmpty(),
         name = club?.name.orEmpty(),
@@ -559,7 +580,12 @@ fun M3EClubDetailScreenHost(modifier: Modifier = Modifier) {
         website = club?.website,
         instagram = club?.instagram,
         whatsapp = club?.whatsapp,
-        isEnrolled = isEnrolled
+        isEnrolled = isEnrolled,
+        isLoading = isLoading,
+        eventId = eventId,
+        applyUrl = applyUrl,
+        registrationStatus = registrationStatus,
+        notice = notice
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -567,10 +593,17 @@ fun M3EClubDetailScreenHost(modifier: Modifier = Modifier) {
             state = state,
             onAction = { action ->
                 when (action) {
-                    is M3EClubDetailAction.ToggleEnroll -> isEnrolled = !isEnrolled
-                    is M3EClubDetailAction.OpenLink -> {
-                        try { uriHandler.openUri(action.url) } catch (_: Exception) { }
+                    is M3EClubDetailAction.RegisterEvent -> {
+                        if (eventId != null) {
+                            isRegistrationStatusVisible = true
+                            AppState.registerForEvent(eventId)
+                        } else {
+                            notice = "This club has no linked event. Apply on the club's own site."
+                        }
                     }
+                    is M3EClubDetailAction.OpenLink -> openExternalUrl(action.url)
+                    is M3EClubDetailAction.DismissStatus -> isRegistrationStatusVisible = false
+                    is M3EClubDetailAction.DismissNotice -> notice = null
                     is M3EClubDetailAction.Refresh -> AppState.syncEventsAndClubs()
                     is M3EClubDetailAction.Back -> backTo(Screen.CLUB_HUB)
                 }
