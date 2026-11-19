@@ -1094,8 +1094,6 @@ enum class M3ESubScreen(val label: String, val category: String, val description
     MOODLE("Moodle LMS", "Academics", "Access course materials, files and assignments"),
     OD_TRACKER("OD Tracker", "Academics", "Track on-duty hours, lab & theory approvals"),
     FEEDBACK_STATUS("Feedback Status", "Academics", "VTOP faculty feedback completion status"),
-    COURSE_MANAGEMENT("Course Management", "Academics", "Option changes, EXC registration & minors"),
-    ARREARS("Arrear & Remedial", "Academics", "Arrear registrations, schedule & grades"),
     QBANK("Question Bank", "Academics", "Previous CAT and FAT exam question papers"),
 
     HOSTEL("Hostel & Mess", "Campus Life", "Room details, block info and monthly mess menus"),

@@ -1808,8 +1808,6 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                             M3ESubScreen.MOODLE -> AppState.navigateTo(Screen.MOODLE)
                             M3ESubScreen.OD_TRACKER -> AppState.navigateTo(Screen.OD_TRACKER)
                             M3ESubScreen.FEEDBACK_STATUS -> AppState.navigateTo(Screen.FEEDBACK_STATUS)
-                            M3ESubScreen.COURSE_MANAGEMENT -> AppState.navigateTo(Screen.COURSE_MANAGEMENT)
-                            M3ESubScreen.ARREARS -> AppState.navigateTo(Screen.ARREAR)
                             M3ESubScreen.QBANK -> AppState.navigateTo(Screen.QBANK)
                             M3ESubScreen.HOSTEL -> AppState.navigateTo(Screen.HOSTEL)
                             M3ESubScreen.TRANSPORT -> AppState.navigateTo(Screen.TRANSPORT)

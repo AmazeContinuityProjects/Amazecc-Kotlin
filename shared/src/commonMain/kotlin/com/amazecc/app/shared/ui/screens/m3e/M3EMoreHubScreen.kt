@@ -302,8 +302,6 @@ private fun FeatureTileCard(
         M3ESubScreen.MOODLE -> Icons.Rounded.MenuBook
         M3ESubScreen.OD_TRACKER -> Icons.Rounded.TaskAlt
         M3ESubScreen.FEEDBACK_STATUS -> Icons.Rounded.RateReview
-        M3ESubScreen.COURSE_MANAGEMENT -> Icons.Rounded.Tune
-        M3ESubScreen.ARREARS -> Icons.Rounded.History
         M3ESubScreen.QBANK -> Icons.Rounded.Topic
         M3ESubScreen.HOSTEL -> Icons.Rounded.Hotel
         M3ESubScreen.TRANSPORT -> Icons.Rounded.DirectionsBus

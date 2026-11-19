@@ -97,18 +97,18 @@ all data comes from the existing `AppState` flows plus `AmazeClient` (ONLINE) / 
 
 **Academic & social wave** — hosts in `M3EAcademicLegacyBridge.kt`:
 `M3ECourseAttendanceScreenHost`, `M3ECourseDashboardScreenHost`, `M3EODTrackerScreenHost`,
-`M3EArrearScreenHost`, `M3EQBankScreenHost`, `M3ESocialScreenHost`, `M3EFfcsPlannerScreenHost`,
+`M3EQBankScreenHost`, `M3ESocialScreenHost`, `M3EFfcsPlannerScreenHost`,
 `M3EClubDetailScreenHost`, `M3EFeedbackStatusScreenHost`, `M3EFresherWelcomeScreenHost`,
-`M3EHallOfFameScreenHost`.
+`M3EHallOfFameScreenHost`. (The former Arrear & Remedial page has since been removed — see Phase 9.)
 
 **Campus & services wave** — hosts in `M3ECampusLegacyBridge.kt`:
 `M3EPaymentsScreenHost`, `M3ELibrariesScreenHost`, `M3ECalendarScreenHost`,
 `M3ECircularsScreenHost`, `M3EMoodleScreenHost`, `M3EDocumentsScreenHost`,
 `M3EChangelogScreenHost`, `M3EAboutScreenHost`.
 
-**Final two legacy screens** — `M3ESplashScreen.kt` (M3E launch/branding with spring reveal) and
-`M3ECourseManagementScreen.kt` + `M3ERemainingLegacyBridge.kt` (four scraper-backed tabs, M3E
-connected button group and wavy progress). With these, no legacy screen remains routed from `App.kt`.
+**Final legacy screen** — `M3ESplashScreen.kt` (M3E launch/branding with spring reveal).
+With this, no legacy screen remains routed from `App.kt`. The former `M3ECourseManagementScreen`
+and its four tabs were later removed with their retired endpoints (see Phase 9).
 
 **Onboarding** — `OnboardingScreen.kt` fully converted (no legacy `AmazeTheme`/`AccentTheme`/
 `HeroPanel`/`AmazeTextField`), with new `M3EOnboardingState.kt` + `M3EOnboardingComponents.kt`.
@@ -144,6 +144,15 @@ The following features now have BOTH a headless-VTOP (LOCAL/OFFLINE_CACHE) path 
 
 New `SyncModule`s: FREE_CLASSROOMS, DOCUMENTS, OD_DETAILS, FEEDBACK_STATUS. Tab routing in
 `MainTabPager` now uses M3E hosts for PAYMENTS/CALENDAR/QBANK/SOCIAL/FFCS/LIBRARIES/FREE_CLASSROOMS.
+
+### Phase 9: Removal of retired pages (2026-11)
+Neither API repo serves arrear/remedial or course-option/EXC/minor-honour/course-completion
+endpoints anymore, so both pages were removed end-to-end: `Screen.ARREAR` and
+`Screen.COURSE_MANAGEMENT` (enum + `App.kt` routes + header configs + More Hub entries/navigation),
+their stateless screens and hosts (`M3EArrearScreen`, `M3ECourseManagementScreen`,
+`M3ERemainingLegacyBridge`, legacy `ArrearTabScreen`, `CourseManagementScreen`), the four dead
+`AmazeClient` fetchers, and the stale `KEY_SYNC_ARREAR` setting. The shared `ArrearResponse` model
+remains in use by receipts, documents, hostel counselling and projects.
 
 ---
 

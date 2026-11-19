@@ -286,30 +286,6 @@ fun M3EODTrackerScreenHost(modifier: Modifier = Modifier) {
 }
 
 // ============================================================================
-// 4. Arrears & Remedial
-// ============================================================================
-
-@Composable
-fun M3EArrearScreenHost(modifier: Modifier = Modifier) {
-    val isDark = M3EStateBridge.isDarkThemeActive()
-    var activeTab by remember { mutableStateOf(M3EArrearTab.SCHEDULE) }
-
-    AmazeM3ETheme(isDark = isDark) {
-        M3EArrearScreen(
-            state = M3EArrearState(activeTab = activeTab),
-            onAction = { action ->
-                when (action) {
-                    is M3EArrearAction.SelectTab -> activeTab = action.tab
-                    is M3EArrearAction.Refresh -> AppState.loadAllData()
-                    is M3EArrearAction.Back -> backTo(Screen.ACADEMICS)
-                }
-            },
-            modifier = modifier
-        )
-    }
-}
-
-// ============================================================================
 // 5. QBank catalog
 // ============================================================================
 

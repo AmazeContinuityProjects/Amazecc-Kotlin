@@ -21,7 +21,6 @@ object SettingsManager {
     const val KEY_SYNC_EXAM = "sync_exam"
     const val KEY_SYNC_PROFILE = "sync_profile"
     const val KEY_SYNC_ADDITIONAL = "sync_additional"
-    const val KEY_SYNC_ARREAR = "sync_arrear"
     const val KEY_NAVBAR_ITEMS = "navbar_items"
     const val KEY_DASHBOARD_WIDGETS = "dashboard_widgets"
     const val KEY_SHOW_ATTENDANCE_IN_STATS = "show_attendance_in_stats"

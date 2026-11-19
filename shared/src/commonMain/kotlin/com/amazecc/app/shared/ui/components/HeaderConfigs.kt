@@ -171,13 +171,6 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showBackButton = true,
         showSyncButton = true
     )
-    Screen.COURSE_MANAGEMENT -> HeaderConfig(
-        title = "Course Management",
-        description = "Option changes, EXC, minors",
-        showBackButton = true,
-        showSyncButton = false,
-        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
-    )
     Screen.FEEDBACK_STATUS -> HeaderConfig(
         title = "Feedback Status",
         description = "Course feedback status",
@@ -263,13 +256,6 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showBackButton = true,
         showSyncButton = false,
         onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
-    )
-    Screen.ARREAR -> HeaderConfig(
-        title = "Arrear Management",
-        description = "Track backlogs and exams",
-        showBackButton = true,
-        showSyncButton = true,
-        onBackOverride = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) }
     )
     Screen.HOME_LEGACY -> HeaderConfig(
         title = "Classic Dashboard",

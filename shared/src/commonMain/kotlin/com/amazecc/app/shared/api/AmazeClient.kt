@@ -2134,26 +2134,6 @@ if (useMockData) return DemoData.get("facultyScrape", FacultyScrapeRes.serialize
         return null
     }
 
-    suspend fun getCourseOptionChange(): ArrearResponse {
-if (useMockData) return DemoData.get("courseOptionChange", ArrearResponse.serializer()) ?: ArrearResponse()
-        return postAuthorized<ArrearResponse>("course-option-change") ?: ArrearResponse(success = false, message = "Empty response")
-    }
-
-    suspend fun getExcRegistration(): ArrearResponse {
-if (useMockData) return DemoData.get("excRegistration", ArrearResponse.serializer()) ?: ArrearResponse()
-        return postAuthorized<ArrearResponse>("exc-registration") ?: ArrearResponse(success = false, message = "Empty response")
-    }
-
-    suspend fun getMinorHonour(): ArrearResponse {
-if (useMockData) return DemoData.get("minorHonour", ArrearResponse.serializer()) ?: ArrearResponse()
-        return postAuthorized<ArrearResponse>("minor-honour") ?: ArrearResponse(success = false, message = "Empty response")
-    }
-
-    suspend fun getCourseCompletion(): ArrearResponse {
-if (useMockData) return DemoData.get("courseCompletion", ArrearResponse.serializer()) ?: ArrearResponse()
-        return postAuthorized<ArrearResponse>("course-completion") ?: ArrearResponse(success = false, message = "Empty response")
-    }
-
     suspend fun getProjects(): ArrearResponse {
 if (useMockData) return DemoData.get("projects", ArrearResponse.serializer()) ?: ArrearResponse()
         return postAuthorized<ArrearResponse>("project") ?: ArrearResponse(success = false, message = "Empty response")

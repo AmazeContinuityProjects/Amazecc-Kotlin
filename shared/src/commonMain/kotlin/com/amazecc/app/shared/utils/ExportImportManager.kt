@@ -46,7 +46,6 @@ object ExportImportManager {
         SettingsManager.KEY_SYNC_EXAM,
         SettingsManager.KEY_SYNC_PROFILE,
         SettingsManager.KEY_SYNC_ADDITIONAL,
-        SettingsManager.KEY_SYNC_ARREAR,
         SettingsManager.KEY_NAVBAR_ITEMS,
         SettingsManager.KEY_DASHBOARD_WIDGETS,
         SettingsManager.KEY_SYNC_ENABLED_MODULES,

@@ -226,7 +226,6 @@ Academics Hub → card grid → separate screens (each with back button):
 AcademicsHub (card grid)
 ├── Grade History     → Screen.GRADES
 ├── GPA Predictor     → Screen.GPA_PREDICTOR
-├── Arrear Management → Screen.ARREAR
 ├── Makeup & Compre   → Screen.MAKEUP_COMPRE
 ├── Circulars         → Screen.CIRCULARS
 ├── Curriculum        → Screen.CURRICULUM
