@@ -515,6 +515,133 @@ data class M3ESemesterGradeRecord(
     val courses: List<M3ESemesterGradeCourse>
 )
 
+/** Which of the three pages of the grade-history flow is currently on screen. */
+enum class M3EGradeScreen { OVERVIEW, INSIGHTS, COURSE }
+
+/**
+ * Semantic grade hue, mirroring the six tones the web app's `ToneBadge` uses:
+ * S amber, A green, B blue, C cyan, D violet, E/F red, N/P grey.
+ */
+enum class M3EGradeTone { AMBER, GREEN, BLUE, CYAN, VIOLET, RED, GREY }
+
+/** Mini GPA-bar hue: no bar at zero, success >= 9, primary >= 8, warning otherwise. */
+enum class M3EGradePointTone { NONE, SUCCESS, PRIMARY, WARNING }
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeCourseRow(
+    val courseCode: String,
+    val courseTitle: String,
+    /** Display-ready, e.g. "92.5%" or "—%". */
+    val grandTotal: String,
+    /** Parsed score, null when VTOP published none. */
+    val score: Double?,
+    val grade: String,
+    val tone: M3EGradeTone,
+    val isEmbedded: Boolean,
+    val courseType: String = ""
+)
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeTermOption(
+    val termId: String,
+    val label: String,
+    val shortLabel: String = label
+)
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeTermRow(
+    val termId: String,
+    val label: String,
+    val gpa: Double,
+    val courseCount: Int,
+    val scoredCount: Int,
+    val avgScore: Double,
+    val pointTone: M3EGradePointTone?
+)
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeDistributionRow(
+    val grade: String,
+    val count: Int,
+    /** Percentage of graded courses, 0-100. */
+    val share: Double,
+    val tone: M3EGradeTone
+)
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeTypeAverage(
+    val type: String,
+    val avg: Double,
+    val count: Int
+)
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeTermScore(
+    val termId: String,
+    val label: String,
+    val avgScore: Double,
+    val scoredCount: Int
+)
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeInsightSlide(
+    val id: String,
+    val label: String,
+    val value: String,
+    val sub: String,
+    val badge: String,
+    val tone: M3EGradeTone
+)
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeBreakdownRow(
+    val component: String,
+    val weightagePercent: String,
+    val scoredMark: String,
+    val maxMark: String,
+    /** Parsed weightage, used only for heaviest-first ordering. */
+    val weightage: Double = 0.0
+)
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeScaleRow(
+    val grade: String,
+    val range: String,
+    val tone: M3EGradeTone,
+    val isYours: Boolean
+)
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeEmbeddedHalf(
+    val label: String,
+    val scoreText: String,
+    val creditsLabel: String?,
+    val assessmentCount: Int,
+    val assessments: List<M3EGradeBreakdownRow>
+)
+
+@androidx.compose.runtime.Immutable
+data class M3EGradeCourseDetail(
+    val courseCode: String,
+    val courseTitle: String,
+    val courseType: String,
+    /** Display-ready "<grandTotal>%". */
+    val overallText: String,
+    val grade: String,
+    /** "<points>/10" or "—". */
+    val pointsLabel: String,
+    val assessmentCount: Int,
+    val breakdown: List<M3EGradeBreakdownRow>,
+    val gradeScale: List<M3EGradeScaleRow>,
+    val embeddedHalves: List<M3EGradeEmbeddedHalf>,
+    val isEmbedded: Boolean
+)
+
+/**
+ * Immutable grade-history state. The first block is the ingestor's historical projection;
+ * the second block is the derived, page-ready view consumed by the three M3E pages.
+ */
+@androidx.compose.runtime.Immutable
 data class M3EGradesHistoryState(
     val cumulativeGpa: Double,
     val totalCreditsEarned: Int,
@@ -525,11 +652,31 @@ data class M3EGradesHistoryState(
     val semesters: List<M3ESemesterGradeRecord>,
     val expandedSemesterId: String? = null,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    // Page-ready view (all values derived from the real grade payload by the host).
+    val screen: M3EGradeScreen = M3EGradeScreen.OVERVIEW,
+    val selectedCourseCode: String? = null,
+    val selectedTermId: String? = null,
+    val cumulativeValue: String = "—",
+    val cumulativeBadge: String? = null,
+    val cumulativeSubtitle: String = "Mean of terms, not weighted",
+    val termOptions: List<M3EGradeTermOption> = emptyList(),
+    val courseRows: List<M3EGradeCourseRow> = emptyList(),
+    val termRows: List<M3EGradeTermRow> = emptyList(),
+    val insightSlides: List<M3EGradeInsightSlide> = emptyList(),
+    val distributionRows: List<M3EGradeDistributionRow> = emptyList(),
+    val typeAverages: List<M3EGradeTypeAverage> = emptyList(),
+    val termScores: List<M3EGradeTermScore> = emptyList(),
+    val courseDetail: M3EGradeCourseDetail? = null
 )
 
 sealed interface M3EGradesHistoryAction {
+    /** Kept for older callers; the host treats it as a term selection. */
     data class ToggleExpandSemester(val semesterId: String) : M3EGradesHistoryAction
+    data class SelectTerm(val termId: String) : M3EGradesHistoryAction
+    data object OpenInsights : M3EGradesHistoryAction
+    data class OpenCourse(val courseCode: String) : M3EGradesHistoryAction
+    data object BackToOverview : M3EGradesHistoryAction
     data object Refresh : M3EGradesHistoryAction
 }
 

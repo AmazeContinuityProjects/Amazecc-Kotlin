@@ -40,6 +40,7 @@ import com.amazecc.app.shared.utils.DemoData
 import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.vtop.VtopGradeHistoryResult
 import com.amazecc.app.shared.config.SlotMap
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -74,6 +75,49 @@ private data class FfcsFeedbackResponse(
     val feedbackStatus: FeedbackStatusRes? = null,
     val error: String? = null
 )
+
+/**
+ * Pure mapping from one LOCAL `StudentGradeHistory` scrape to the server's `AllGradesRes`
+ * shape. Kept as a top-level function so it can be unit-tested without a WebView/session
+ * (it is the seam `getAllGrades()` uses for both the LOCAL branch and the REMOTE fallback).
+ *
+ * Every value is copied from the scrape: the published CGPA and baskets go to `overall`
+ * verbatim, and each course becomes a `GradeItem` with its real code/title/credits/grade.
+ * Nothing is reconstructed — a missing GPA or total stays null/empty.
+ */
+fun buildAllGradesFromGradeHistory(
+    history: VtopGradeHistoryResult,
+    semesterId: String
+): AllGradesRes {
+    val grades = history.courses.map { c ->
+        GradeItem(
+            courseCode = c.code,
+            courseTitle = c.title,
+            courseType = c.type,
+            credits = c.credits,
+            grade = c.grade,
+            grandTotal = "",
+            examMonth = c.examMonth,
+            resultDeclared = c.resultDeclared,
+            distributionType = c.distributionType
+        )
+    }
+    val semester = SemesterGradeResult(
+        // Per-semester GPA and grand totals come from the semester grade view, not this
+        // page; leave them unset rather than invent a number. The published CGPA lives in
+        // `overall.cgpa` exactly as the server returns it.
+        creditsEarned = history.cgpa.creditsEarned,
+        grades = grades
+    )
+    return AllGradesRes(
+        success = true,
+        semesters = mapOf(semesterId to semester),
+        overall = OverallGrades(
+            cgpa = history.cgpa,
+            curriculum = history.baskets
+        )
+    )
+}
 
 object AmazeClient {
     var baseUrl: String
@@ -804,37 +848,34 @@ object AmazeClient {
         return fallbackCachedMarks(semesterId) ?: MarksRes(success = false, message = "Empty response")
     }
 
+    /** LOCAL (and REMOTE-failure) path: one scrape → full `AllGradesRes`, then seed the cache. */
+    private suspend fun localAllGrades(): AllGradesRes = try {
+        val history = com.amazecc.app.shared.vtop.VtopDataSource.fetchGradeHistory()
+        if (history == null) {
+            fallbackCachedAllGrades()
+        } else {
+            val hasData = history.courses.isNotEmpty() ||
+                history.cgpa.cgpa != null || history.baskets.isNotEmpty()
+            if (!hasData) {
+                fallbackCachedAllGrades()
+            } else {
+                val semesterId = com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value.orEmpty()
+                val result = buildAllGradesFromGradeHistory(history, semesterId)
+                AppDataStore.upsertGrades(result)
+                result
+            }
+        }
+    } catch (e: Exception) {
+        fallbackCachedAllGrades()
+    }
+
     suspend fun getAllGrades(): AllGradesRes {
         if (useMockData) return DemoData.get("allGrades", AllGradesRes.serializer()) ?: AllGradesRes()
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
             return fallbackCachedAllGrades()
         }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
-            return try {
-                val fetched = com.amazecc.app.shared.vtop.VtopDataSource.fetchGrades()
-                if (fetched != null) {
-                    val semesterId = com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value ?: ""
-                    val rows = fetched.effectiveGrades.orEmpty().mapNotNull { row ->
-                        val title = row.basketTitle?.trim().orEmpty()
-                        val grade = row.grade?.trim().orEmpty()
-                        if (title.isEmpty() && grade.isEmpty()) return@mapNotNull null
-                        com.amazecc.app.shared.model.GradeItem(
-                            courseTitle = title,
-                            courseType = row.courseType.orEmpty(),
-                            grade = grade,
-                            grandTotal = ""
-                        )
-                    }
-                    if (rows.isNotEmpty()) {
-                        AllGradesRes(
-                            success = true,
-                            grades = mapOf(semesterId to com.amazecc.app.shared.model.SemesterGradeResult(grades = rows))
-                        )
-                    } else fallbackCachedAllGrades()
-                } else fallbackCachedAllGrades()
-            } catch (e: Exception) {
-                fallbackCachedAllGrades()
-            }
+            return localAllGrades()
         }
         return try {
             // Canonical route (AmazeCC-API / Hono): /api/grades with the full
@@ -847,39 +888,10 @@ object AmazeClient {
                 postAuthorized<AllGradesRes>("all-grades")?.takeIf { it.success }
                     ?: remote?.takeIf { it.success }
             }
-            if (effectiveRemote != null) {
-                effectiveRemote
-            } else {
-                // Remote failed or returned empty: fallback to local scraper if possible, then cache
-                try {
-                    val fetched = com.amazecc.app.shared.vtop.VtopDataSource.fetchGrades()
-                    if (fetched != null) {
-                        val semesterId = com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value ?: ""
-                        val rows = fetched.effectiveGrades.orEmpty().mapNotNull { row ->
-                            val title = row.basketTitle?.trim().orEmpty()
-                            val grade = row.grade?.trim().orEmpty()
-                            if (title.isEmpty() && grade.isEmpty()) return@mapNotNull null
-                            com.amazecc.app.shared.model.GradeItem(
-                                courseTitle = title,
-                                courseType = row.courseType.orEmpty(),
-                                grade = grade,
-                                grandTotal = ""
-                            )
-                        }
-                        if (rows.isNotEmpty()) {
-                            AllGradesRes(
-                                success = true,
-                                grades = mapOf(semesterId to com.amazecc.app.shared.model.SemesterGradeResult(grades = rows))
-                            )
-                        } else fallbackCachedAllGrades()
-                    } else fallbackCachedAllGrades()
-                } catch (_: Exception) {
-                    fallbackCachedAllGrades()
-                }
-            }
+            effectiveRemote ?: localAllGrades()
         } catch (e: Exception) {
-            // UnknownHostException / Network error: graceful fallback to local cache
-            fallbackCachedAllGrades()
+            // UnknownHostException / Network error: graceful fallback to local scrape, then cache
+            localAllGrades()
         }
     }
 

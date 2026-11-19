@@ -32,7 +32,15 @@ data class GradeItem(
     val grandTotal: String = "",
     val grade: String = "",
     val details: List<GradeBreakdown>? = null,
-    val range: GradeRange? = null
+    val range: GradeRange? = null,
+    // Additive enrichment from the published effective-grade row. These let the UI show
+    // per-course credits/context straight from the grade payload instead of joining the
+    // academics snapshot. Never fabricated: each mirrors a real `<td>` when present.
+    val credits: String? = null,
+    val examMonth: String? = null,
+    val resultDeclared: String? = null,
+    val distributionType: String? = null,
+    val courseId: String? = null
 )
 
 @Serializable
@@ -103,6 +111,38 @@ data class GradeCurriculumBasket(
     val creditsEarned: String? = null
 )
 
+/**
+ * One published effective-grade row from the `StudentGradeHistory` page.
+ *
+ * Column map is verbatim from `amazecc-api-hono/src/routes/remote/grades.ts`:
+ * tds[1]=code, [2]=title, [3]=type, [4]=credits, [5]=grade, [6]=examMonth,
+ * [7]=resultDeclared, [8]=distributionType. Rows without numeric credits or a valid
+ * grade letter are rejected by the scraper before they reach this model.
+ */
+@Serializable
+data class GradeHistoryCourse(
+    val code: String = "",
+    val title: String = "",
+    val type: String = "",
+    val credits: String = "",
+    val grade: String = "",
+    val examMonth: String? = null,
+    val resultDeclared: String? = null,
+    val distributionType: String? = null
+)
+
+/**
+ * Everything the `StudentGradeHistory` page publishes, parsed in one pass:
+ * effective-grade courses, the authoritative CGPA summary and curriculum baskets.
+ */
+@Serializable
+data class GradeHistorySummary(
+    val ok: Boolean = true,
+    val courses: List<GradeHistoryCourse> = emptyList(),
+    val cgpa: CgpaSummary = CgpaSummary(),
+    val baskets: List<GradeCurriculumBasket> = emptyList()
+)
+
 @Serializable
 data class FeedbackSemester(
     val text: String,
@@ -131,7 +171,13 @@ data class EffectiveGradeCourse(
     val courseType: String? = null,
     val creditsEarned: String? = null,
     val grade: String? = null,
-    val distributionType: String? = null
+    val distributionType: String? = null,
+    // Additive: the real identity of the row. The legacy scraper only filled basketTitle,
+    // which is code-less and gets dropped by AppSanitizers.sanitizeAllGrades().
+    val courseCode: String? = null,
+    val courseTitle: String? = null,
+    val examMonth: String? = null,
+    val resultDeclared: String? = null
 )
 
 @Serializable

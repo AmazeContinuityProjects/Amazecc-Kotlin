@@ -467,6 +467,125 @@ internal object VtopScripts {
     }
 
     /**
+     * `examinations/examGradeView/StudentGradeHistory` — one POST, whole summary.
+     *
+     * Port of `amazecc-api-hono/src/routes/remote/grades.ts` (plus the two curriculum
+     * tables beside it). Everything is read from the *same* page in one pass:
+     *  - effective-grade rows: `#fixedTableContainer table` eq(1), `tr.tableContent`,
+     *    cells 1=code 2=title 3=type 4=credits 5=grade 6=examMonth 7=resultDeclared
+     *    8=distributionType. A row is kept only when credits are numeric and grade is a
+     *    single S/A/B/C/D/E/F letter — the exact guards the server uses.
+     *  - curriculum baskets: tables eq(5) (cells 0/1/2) and eq(6) (cells 0/2/3).
+     *  - published CGPA: first `table.table.table-hover.table-bordered tbody tr`,
+     *    cells 0=creditsRegistered 1=creditsEarned 2=cgpa 3..10=S/A/B/C/D/E/F/N counts.
+     *
+     * The emitted object mirrors [com.amazecc.app.shared.model.GradeHistorySummary] exactly:
+     * `{ok, courses:[{code,title,type,credits,grade,examMonth,resultDeclared,distributionType}],
+     *   cgpa:{creditsRegistered,creditsEarned,cgpa,grades:{S..N}}, baskets:[...]}`.
+     * Non-numeric CGPA cells are emitted as null; a missing/invalid count becomes 0.
+     */
+    fun fetchGradeHistorySummary(path: String, body: String): String {
+        val p = jsString(path)
+        val b = jsString(body)
+        return wrapped(
+            """
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', $p, false);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.send($b);
+
+        if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+        if (xhr.status >= 400) return JSON.stringify({ ok: false, error: 'http error ' + xhr.status });
+
+        var res = xhr.responseText || '';
+        var lower = res.toLowerCase();
+        if (lower.indexOf('not authorized') !== -1 ||
+            lower.indexOf('session timed out') !== -1 ||
+            lower.indexOf('invalid session') !== -1 ||
+            lower.indexOf('session expired') !== -1) {
+          return JSON.stringify({ ok: false, error: 'not authorized' });
+        }
+
+        var doc = new DOMParser().parseFromString(res, 'text/html');
+        var CREDITS_NUMERIC = /^\d+(?:\.\d+)?${'$'}/;
+        var GRADE_LETTER = /^[SABCDEF]${'$'}/i;
+        var cell = function(tds, i) { return tds[i] ? (tds[i].textContent || '').trim() : ''; };
+        var count = function(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; };
+
+        var courses = [];
+        var tables = doc.querySelectorAll('#fixedTableContainer table');
+        var eff = tables[1];
+        if (eff) {
+          var effRows = eff.querySelectorAll('tr.tableContent');
+          for (var i = 0; i < effRows.length; i++) {
+            var tds = effRows[i].querySelectorAll('td');
+            var credits = cell(tds, 4);
+            var grade = cell(tds, 5);
+            if (!CREDITS_NUMERIC.test(credits) || !GRADE_LETTER.test(grade)) continue;
+            courses.push({
+              code: cell(tds, 1),
+              title: cell(tds, 2),
+              type: cell(tds, 3),
+              credits: credits,
+              grade: grade,
+              examMonth: cell(tds, 6),
+              resultDeclared: cell(tds, 7),
+              distributionType: cell(tds, 8)
+            });
+          }
+        }
+
+        var baskets = [];
+        var t5 = tables[5];
+        if (t5) {
+          var rows5 = t5.querySelectorAll('tr.tableContent');
+          for (var a = 0; a < rows5.length; a++) {
+            var c5 = rows5[a].querySelectorAll('td');
+            baskets.push({
+              basketTitle: cell(c5, 0),
+              creditsRequired: cell(c5, 1),
+              creditsEarned: cell(c5, 2)
+            });
+          }
+        }
+        var t6 = tables[6];
+        if (t6) {
+          var rows6 = t6.querySelectorAll('tr.tableContent');
+          for (var d = 0; d < rows6.length; d++) {
+            var c6 = rows6[d].querySelectorAll('td');
+            baskets.push({
+              basketTitle: cell(c6, 0),
+              creditsRequired: cell(c6, 2),
+              creditsEarned: cell(c6, 3)
+            });
+          }
+        }
+
+        var cgpa = { creditsRegistered: null, creditsEarned: null, cgpa: null, grades: null };
+        var cgpaRow = doc.querySelector('table.table.table-hover.table-bordered tbody tr');
+        if (cgpaRow) {
+          var tc = cgpaRow.querySelectorAll('td');
+          var registered = cell(tc, 0);
+          var earned = cell(tc, 1);
+          var published = cell(tc, 2);
+          if (CREDITS_NUMERIC.test(registered)) cgpa.creditsRegistered = registered;
+          if (CREDITS_NUMERIC.test(earned)) cgpa.creditsEarned = earned;
+          if (CREDITS_NUMERIC.test(published)) cgpa.cgpa = published;
+          cgpa.grades = {
+            S: count(cell(tc, 3)), A: count(cell(tc, 4)),
+            B: count(cell(tc, 5)), C: count(cell(tc, 6)),
+            D: count(cell(tc, 7)), E: count(cell(tc, 8)),
+            F: count(cell(tc, 9)), N: count(cell(tc, 10))
+          };
+        }
+
+        return JSON.stringify({ ok: true, courses: courses, cgpa: cgpa, baskets: baskets });
+        """
+        )
+    }
+
+    /**
      * `p2p/Payments` — the dues page.
      *
      * Not a table parse: a green `<font color='green'>` means "no dues", and any table at all

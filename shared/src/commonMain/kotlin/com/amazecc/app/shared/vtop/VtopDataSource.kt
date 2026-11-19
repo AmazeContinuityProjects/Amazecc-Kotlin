@@ -46,6 +46,10 @@ import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.state.IdentitySource
 import com.amazecc.app.shared.state.IdentityExtractor
 import com.amazecc.app.shared.model.AllGradesRes
+import com.amazecc.app.shared.model.CgpaSummary
+import com.amazecc.app.shared.model.GradeCounts
+import com.amazecc.app.shared.model.GradeCurriculumBasket
+import com.amazecc.app.shared.model.GradeHistoryCourse
 import com.amazecc.app.shared.model.GradeItem
 import com.amazecc.app.shared.model.SemesterGradeResult
 import com.amazecc.app.shared.model.EffectiveGradeCourse
@@ -103,6 +107,103 @@ data class VtopCourse(
         facultyDetails = facultyDetails
     )
 }
+
+/**
+ * Structured result of one `StudentGradeHistory` scrape — the JSON emitted by
+ * [VtopScripts.fetchGradeHistorySummary]. It carries the published CGPA and curriculum
+ * baskets (the server's `overall` block) plus the effective-grade rows needed to give
+ * every `GradeItem` a real course code before it reaches the store sanitizer.
+ */
+data class VtopGradeHistoryResult(
+    val ok: Boolean,
+    val error: String? = null,
+    val courses: List<GradeHistoryCourse> = emptyList(),
+    val cgpa: CgpaSummary = CgpaSummary(),
+    val baskets: List<GradeCurriculumBasket> = emptyList()
+) {
+    companion object {
+        private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+        // Same guards as grades.ts: a row is real only if credits are numeric and the
+        // grade is a single S/A/B/C/D/E/F letter. Kept here too so a malformed bridge
+        // payload can never smuggle a garbage row into the store.
+        private val CREDITS_NUMERIC = Regex("^\\d+(?:\\.\\d+)?$")
+        private val GRADE_LETTER = Regex("^[SABCDEF]$", RegexOption.IGNORE_CASE)
+
+        fun parse(raw: String): VtopGradeHistoryResult {
+            val root = try {
+                json.parseToJsonElement(raw.ifBlank { "{}" }) as? JsonObject
+            } catch (_: Exception) {
+                null
+            } ?: return VtopGradeHistoryResult(ok = false, error = "unparseable response")
+
+            if (root.gradeHistoryStr("ok") != "true") {
+                return VtopGradeHistoryResult(
+                    ok = false,
+                    error = root.gradeHistoryStr("error") ?: root.gradeHistoryStr("__error")
+                )
+            }
+
+            val courses = (root["courses"] as? JsonArray).orEmpty().mapNotNull { el ->
+                val o = el as? JsonObject ?: return@mapNotNull null
+                // The scraper already enforces numeric credits + a letter grade; a row with no
+                // course code cannot survive the store sanitizer, so drop it here as well
+                // instead of caching a grade the app will never show.
+                val code = o.gradeHistoryStr("code")?.trim().orEmpty()
+                if (code.isEmpty()) return@mapNotNull null
+                val credits = o.gradeHistoryStr("credits")?.trim().orEmpty()
+                val grade = o.gradeHistoryStr("grade")?.trim().orEmpty()
+                if (!CREDITS_NUMERIC.matches(credits) || !GRADE_LETTER.matches(grade)) {
+                    return@mapNotNull null
+                }
+                GradeHistoryCourse(
+                    code = code,
+                    title = o.gradeHistoryStr("title").orEmpty(),
+                    type = o.gradeHistoryStr("type").orEmpty(),
+                    credits = credits,
+                    grade = grade,
+                    examMonth = o.gradeHistoryStr("examMonth"),
+                    resultDeclared = o.gradeHistoryStr("resultDeclared"),
+                    distributionType = o.gradeHistoryStr("distributionType")
+                )
+            }
+
+            val cgpaObj = root["cgpa"] as? JsonObject
+            val gradesObj = cgpaObj?.get("grades") as? JsonObject
+            val cgpa = CgpaSummary(
+                creditsRegistered = cgpaObj?.gradeHistoryStr("creditsRegistered")?.takeIf { CREDITS_NUMERIC.matches(it) },
+                creditsEarned = cgpaObj?.gradeHistoryStr("creditsEarned")?.takeIf { CREDITS_NUMERIC.matches(it) },
+                cgpa = cgpaObj?.gradeHistoryStr("cgpa")?.takeIf { CREDITS_NUMERIC.matches(it) },
+                grades = gradesObj?.let {
+                    GradeCounts(
+                        S = it.gradeHistoryInt("S"), A = it.gradeHistoryInt("A"),
+                        B = it.gradeHistoryInt("B"), C = it.gradeHistoryInt("C"),
+                        D = it.gradeHistoryInt("D"), E = it.gradeHistoryInt("E"),
+                        F = it.gradeHistoryInt("F"), N = it.gradeHistoryInt("N")
+                    )
+                }
+            )
+
+            val baskets = (root["baskets"] as? JsonArray).orEmpty().mapNotNull { el ->
+                val o = el as? JsonObject ?: return@mapNotNull null
+                GradeCurriculumBasket(
+                    basketTitle = o.gradeHistoryStr("basketTitle"),
+                    creditsRequired = o.gradeHistoryStr("creditsRequired"),
+                    creditsEarned = o.gradeHistoryStr("creditsEarned")
+                )
+            }
+
+            return VtopGradeHistoryResult(ok = true, courses = courses, cgpa = cgpa, baskets = baskets)
+        }
+    }
+}
+
+/** Reads a JSON string field, treating explicit JSON null as absent. */
+private fun JsonObject.gradeHistoryStr(key: String): String? =
+    (this[key] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content
+
+/** Reads a JSON integer field; a missing or malformed count is 0, never fabricated. */
+private fun JsonObject.gradeHistoryInt(key: String): Int =
+    (this[key] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
 
 /**
  * On-device VTOP data access.
@@ -648,31 +749,52 @@ object VtopDataSource {
     // ── Grades ─────────────────────────────────────────────────────────────
 
     /**
-     * Effective grades from `examinations/examGradeView/StudentGradeHistory`.
-     *
-     * The parser reaches the *second* table inside `#fixedTableContainer` and reads columns
-     * 2/3/4/5/8 (`src/app/api/grades/route.ts:81-93`).
+     * Full `StudentGradeHistory` scrape: published CGPA, curriculum baskets and the
+     * effective-grade rows. The single POST mirrors `grades.ts` and
+     * `fetchAllGradesHistory.ts` so LOCAL mode can build the same `overall`/`semesters`
+     * response the server returns. Null means no usable VTOP data — never a fabricated page.
      */
-    suspend fun fetchGrades(): SemesterGradesRes? {
+    suspend fun fetchGradeHistory(): VtopGradeHistoryResult? {
         if (!VtopSession.hasSession) return null
         val body = sessionBody() ?: return null
-        val result = rows(
-            PATH_GRADE_HISTORY,
-            body,
-            "tr.tableContent",
-            tableSelector = "#fixedTableContainer table",
-            tableIndex = 1
+        var parsed = VtopGradeHistoryResult.parse(
+            evaluate(VtopScripts.fetchGradeHistorySummary(PATH_GRADE_HISTORY, body))
         )
-        if (!result.ok) return null
+        // Same one-shot recovery the old `rows()` path had: an expired session that came back
+        // as "not authorized" gets one genuinely fresh login and one retry.
+        if (!parsed.ok && (VtopSession.isExpired || !VtopSession.hasSession)) {
+            VtopSession.clear()
+            if (ensureSession(forceFresh = true)) {
+                val retryBody = sessionBody() ?: return null
+                parsed = VtopGradeHistoryResult.parse(
+                    evaluate(VtopScripts.fetchGradeHistorySummary(PATH_GRADE_HISTORY, retryBody))
+                )
+            }
+        }
+        return parsed.takeIf { it.ok }
+    }
 
-        val grades = result.rows.mapNotNull { row ->
-            if (row.size < 9) return@mapNotNull null
+    /**
+     * Effective grades from `examinations/examGradeView/StudentGradeHistory`.
+     *
+     * Signature is kept for existing callers (`getGrades`). The old implementation wrote
+     * `tds[2]` (the course title) into `basketTitle` and never set `courseCode`, so
+     * `AppSanitizers.sanitizeAllGrades()` dropped every row. It now uses the shared
+     * [fetchGradeHistory] parser and carries the real code/title/credits on each row.
+     */
+    suspend fun fetchGrades(): SemesterGradesRes? {
+        val history = fetchGradeHistory() ?: return null
+        val grades = history.courses.map { c ->
             EffectiveGradeCourse(
-                basketTitle = row[2].trim(),
-                courseType = row[3].trim(),
-                creditsEarned = row[4].trim(),
-                grade = row[5].trim(),
-                distributionType = row[8].trim()
+                basketTitle = c.title,
+                courseCode = c.code,
+                courseTitle = c.title,
+                courseType = c.type,
+                creditsEarned = c.credits,
+                grade = c.grade,
+                examMonth = c.examMonth,
+                resultDeclared = c.resultDeclared,
+                distributionType = c.distributionType
             )
         }
 
@@ -681,22 +803,13 @@ object VtopDataSource {
             effectiveGrades = grades,
             error = if (grades.isEmpty()) "No grades returned by VTOP" else null
         )
-        if (res.success && grades.isNotEmpty()) {
-            val semesterId = VtopSession.semesterSubId.value ?: ""
-            val rows = grades.mapNotNull { row ->
-                val title = row.basketTitle?.trim().orEmpty()
-                val grade = row.grade?.trim().orEmpty()
-                if (title.isEmpty() && grade.isEmpty()) return@mapNotNull null
-                GradeItem(
-                    courseTitle = title,
-                    courseType = row.courseType.orEmpty(),
-                    grade = grade,
-                    grandTotal = ""
-                )
-            }
-            if (rows.isNotEmpty()) {
-                AppDataStore.upsertGrades(AllGradesRes(success = true, grades = mapOf(semesterId to SemesterGradeResult(grades = rows))))
-            }
+        if (res.success) {
+            val semesterId = VtopSession.semesterSubId.value.orEmpty()
+            // Cache the full shape — including the published CGPA and baskets — so the
+            // offline path can serve the same response, not just a code-less grade list.
+            AppDataStore.upsertGrades(
+                com.amazecc.app.shared.api.buildAllGradesFromGradeHistory(history, semesterId)
+            )
         }
         return res
     }

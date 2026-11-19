@@ -73,6 +73,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EFacultyState
 import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomsAction
 import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomsState
 import com.amazecc.app.shared.domain.overhaul.M3EGenderPreference
+import com.amazecc.app.shared.domain.overhaul.M3EGradeScreen
 import com.amazecc.app.shared.domain.overhaul.M3EGradesHistoryAction
 import com.amazecc.app.shared.domain.overhaul.M3EGradesHistoryState
 import com.amazecc.app.shared.domain.overhaul.M3EHomeAction
@@ -895,6 +896,12 @@ fun M3EExamScheduleScreen(modifier: Modifier = Modifier) {
     }
 }
 
+/** One entry of the grade-history host's local, screen-scoped subpage stack. */
+private data class M3EGradeSubpage(
+    val screen: M3EGradeScreen,
+    val courseCode: String? = null
+)
+
 @Composable
 fun M3EGradesHistoryScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
@@ -902,15 +909,24 @@ fun M3EGradesHistoryScreen(modifier: Modifier = Modifier) {
     val allGrades by AppState.allGrades.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
 
-    var expandedSemesterId by remember { mutableStateOf<String?>(null) }
+    // Navigation lives here, not in the stateless screen. The web app's `useSubpageStack`
+    // has one child level (insights or a course); its back button always resets to the
+    // overview because neither child owns the other, so clearing this stack is the port.
+    var stack by remember { mutableStateOf<List<M3EGradeSubpage>>(emptyList()) }
+    val current = stack.lastOrNull()
+    val screen = current?.screen ?: M3EGradeScreen.OVERVIEW
+    val selectedCourseCode = current?.courseCode
+    var selectedTermId by remember { mutableStateOf<String?>(null) }
 
-    // The published CGPA, grade distribution and credits come from the /api/remote/grades
-    // payload; the domain snapshot supplies per-semester course rows and SGPA.
-    val state = remember(domain, allGrades, expandedSemesterId, isLoading) {
+    // Real data only: the /api/remote/grades payload is authoritative for terms, courses,
+    // grades and the published CGPA; the domain snapshot is its cached mirror/fallback.
+    val state = remember(domain, allGrades, screen, selectedCourseCode, selectedTermId, isLoading) {
         buildGradesHistoryState(
             snapshot = domain,
             allGrades = allGrades,
-            expandedSemesterId = expandedSemesterId,
+            screen = screen,
+            selectedCourseCode = selectedCourseCode,
+            selectedTermId = selectedTermId,
             isLoading = isLoading
         )
     }
@@ -920,8 +936,18 @@ fun M3EGradesHistoryScreen(modifier: Modifier = Modifier) {
             state = state,
             onAction = { action ->
                 when (action) {
-                    is M3EGradesHistoryAction.ToggleExpandSemester -> {
-                        expandedSemesterId = if (expandedSemesterId == action.semesterId) null else action.semesterId
+                    is M3EGradesHistoryAction.SelectTerm -> selectedTermId = action.termId
+                    is M3EGradesHistoryAction.ToggleExpandSemester -> selectedTermId = action.semesterId
+                    is M3EGradesHistoryAction.OpenInsights -> {
+                        stack = listOf(M3EGradeSubpage(M3EGradeScreen.INSIGHTS))
+                    }
+                    is M3EGradesHistoryAction.OpenCourse -> {
+                        stack = listOf(M3EGradeSubpage(M3EGradeScreen.COURSE, action.courseCode))
+                    }
+                    M3EGradesHistoryAction.BackToOverview -> {
+                        // Web behaviour: back from either child resets to the overview and
+                        // keeps the term the reader last selected.
+                        stack = emptyList()
                     }
                     is M3EGradesHistoryAction.Refresh -> AppState.refreshGrades()
                 }
