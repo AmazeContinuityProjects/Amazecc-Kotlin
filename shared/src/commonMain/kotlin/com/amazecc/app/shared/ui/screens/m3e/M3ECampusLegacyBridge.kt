@@ -317,8 +317,12 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
     var eventFilter by remember { mutableStateOf(M3ECalendarFilter.ALL) }
 
     // Always (re)fetch when there is nothing to show — including a null/empty first load.
-    LaunchedEffect(calendars, selectedSemester) {
-        if (calendars.isEmpty()) AppState.refreshCalendarsList()
+    // `refreshCalendarsList` also primes the single General Semester cache, so the grid renders
+    // even when only the ALL calendar comes back from the scraper/API.
+    LaunchedEffect(calendars.isEmpty(), calendarRes?.months.isNullOrEmpty(), selectedSemester) {
+        if (calendars.isEmpty() || calendarRes?.months.isNullOrEmpty() == true) {
+            AppState.refreshCalendarsList()
+        }
     }
 
     val months = remember(calendars, calendarRes, selectedCalendarIndex, today) {
@@ -347,8 +351,10 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
         selectedMonthIndex = selectedMonthIndex.coerceIn(0, (months.size - 1).coerceAtLeast(0)),
         selectedDay = selectedDay,
         eventFilter = eventFilter,
-        isLoading = isLoading && months.isEmpty(),
-        errorMessage = error ?: calendarsListRes?.takeIf { !it.success }?.let { it.error ?: it.message }
+        isLoading = months.isEmpty() && error == null,
+        errorMessage = error
+            ?: calendarsListRes?.takeIf { !it.success }?.let { it.error ?: it.message }
+            ?: "No calendar entries available — pull to retry"
     )
 
     AmazeM3ETheme(isDark = isDark) {

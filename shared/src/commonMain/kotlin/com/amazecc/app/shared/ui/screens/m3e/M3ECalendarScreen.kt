@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,9 +31,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -262,35 +265,12 @@ fun M3ECalendarScreen(
                                     if (day == null) {
                                         Spacer(Modifier.weight(1f).height(36.dp))
                                     } else {
-                                        val hasEvents = day.events.isNotEmpty()
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .height(36.dp)
-                                                .padding(2.dp)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .background(
-                                                    when {
-                                                        day.isSelected -> colors.primary
-                                                        day.isToday -> colors.primaryContainer
-                                                        hasEvents -> colors.surfaceContainerHigh
-                                                        else -> colors.surfaceContainerLow
-                                                    }
-                                                )
-                                                .border(
-                                                    width = if (day.isToday && !day.isSelected) 1.dp else 0.dp,
-                                                    color = colors.primary,
-                                                    shape = RoundedCornerShape(10.dp)
-                                                )
-                                                .clickable { onAction(M3ECalendarAction.SelectDay(day.date)) },
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "${day.date}",
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = if (day.isSelected) colors.onPrimary else colors.onSurface
-                                            )
-                                        }
+                                        CalendarDayCell(
+                                            day = day,
+                                            isSelected = state.selectedDay == day.date,
+                                            modifier = Modifier.weight(1f),
+                                            onClick = { onAction(M3ECalendarAction.SelectDay(day.date)) }
+                                        )
                                     }
                                 }
                             }
@@ -385,6 +365,72 @@ fun M3ECalendarScreen(
 
         item(key = "bottom_spacer") {
             Spacer(Modifier.height(BOTTOM_NAV_PADDING))
+        }
+    }
+}
+
+/**
+ * One M3E calendar day: springy selection morph, emphasized date and semantic event dots.
+ * The scale uses the Expressive spatial-fast spring so selecting a day feels physical.
+ */
+@Composable
+private fun CalendarDayCell(
+    day: M3ECalendarDay,
+    isSelected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val colors = M3ETheme.colors
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.08f else 1f,
+        animationSpec = M3ETheme.motion.spatialFast(),
+        label = "CalendarDaySelection"
+    )
+    val dotColors = day.events.take(3).map { event ->
+        when {
+            event.type.contains("exam", ignoreCase = true) ||
+                event.category.contains("exam", ignoreCase = true) -> colors.error
+            event.type.contains("holiday", ignoreCase = true) ||
+                event.category.contains("holiday", ignoreCase = true) -> colors.tertiary
+            else -> colors.primary
+        }
+    }
+    Box(
+        modifier = modifier
+            .scale(scale)
+            .height(42.dp)
+            .padding(2.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                when {
+                    isSelected -> colors.primary
+                    day.isToday -> colors.primaryContainer
+                    day.events.isNotEmpty() -> colors.surfaceContainerHigh
+                    else -> colors.surfaceContainerLow
+                }
+            )
+            .border(
+                width = if (day.isToday && !isSelected) 1.dp else 0.dp,
+                color = colors.primary,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "${day.date}",
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                color = if (isSelected) colors.onPrimary else colors.onSurface
+            )
+            if (dotColors.isNotEmpty()) {
+                Spacer(Modifier.height(2.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    dotColors.forEach { dot ->
+                        Box(Modifier.size(4.dp).clip(CircleShape).background(dot))
+                    }
+                }
+            }
         }
     }
 }

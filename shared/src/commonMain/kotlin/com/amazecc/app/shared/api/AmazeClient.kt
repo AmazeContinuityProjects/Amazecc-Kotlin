@@ -1044,17 +1044,24 @@ if (useMockData) return DemoData.get("curriculum", CurriculumRes.serializer()) ?
 
     suspend fun getCalendar(type: String = "ALL", semesterId: String? = null): CalendarRes {
 if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: CalendarRes()
+        // A blank semester id used to make every LOCAL fetch fall through to postAuthorized,
+        // which is a no-op outside REMOTE — the calendar then looked permanently empty.
+        val sem = semesterId
+            ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value?.takeIf { it.isNotBlank() }
+            ?: com.amazecc.app.shared.state.AppState.selectedSemester.value.takeIf { it.isNotBlank() }
+            ?: com.amazecc.app.shared.state.AppDataStore.academic.value.semesters.keys
+                .firstOrNull { it.isNotBlank() }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
             return com.amazecc.app.shared.state.AppDataStore.calendar.value
                 ?: CalendarRes(success = true, message = "Served from local cache")
         }
         return try {
-            val rawJson = if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && semesterId != null) {
+            val rawJson = if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && sem != null) {
                 // Same analysis path as REMOTE — only the transport differs.
-                com.amazecc.app.shared.vtop.VtopDataSource.fetchCalendarRaw(semesterId, type)
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchCalendarRaw(sem, type)
             } else {
                 val params = mutableMapOf("type" to type)
-                if (semesterId != null) params["semesterId"] = semesterId
+                if (sem != null) params["semesterId"] = sem
                 postAuthorized<JsonElement>("calendar", params)
             }
             if (rawJson != null) {
@@ -1079,16 +1086,26 @@ if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: Ca
                     return CalendarRes(success = true, months = months)
                 }
             }
-            CalendarRes(success = false, message = "Empty response")
+            // Never leave the screen empty when a previously fetched calendar exists.
+            com.amazecc.app.shared.state.AppDataStore.calendar.value?.takeIf { it.months.isNotEmpty() }
+                ?: CalendarRes(success = false, message = "Empty response")
         } catch (e: Exception) {
-            CalendarRes(success = false, message = e.message, error = e.toString())
+            com.amazecc.app.shared.state.AppDataStore.calendar.value?.takeIf { it.months.isNotEmpty() }
+                ?: CalendarRes(success = false, message = e.message, error = e.toString())
         }
     }
 
     suspend fun getCalendars(semesterId: String? = null): CalendarsListRes {
 if (useMockData) return DemoData.get("calendars", CalendarsListRes.serializer()) ?: CalendarsListRes()
+        val cachedSingle = com.amazecc.app.shared.state.AppDataStore.calendar.value
+            ?.takeIf { it.months.isNotEmpty() }
+        fun fromSingle() = cachedSingle?.let {
+            CalendarsListRes(success = true, calendars = listOf(NamedCalendar("General Semester", it.months)))
+        }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
             return com.amazecc.app.shared.state.AppDataStore.calendarsList.value
+                ?.takeIf { it.calendars.isNotEmpty() }
+                ?: fromSingle()
                 ?: CalendarsListRes(success = true, message = "Served from local cache")
         }
         return coroutineScope {
@@ -1105,7 +1122,8 @@ if (useMockData) return DemoData.get("calendars", CalendarsListRes.serializer())
             if (calendars.isNotEmpty()) {
                 CalendarsListRes(success = true, calendars = calendars)
             } else {
-                CalendarsListRes(success = false, message = results.firstOrNull()?.first?.message ?: "Empty response")
+                fromSingle()
+                    ?: CalendarsListRes(success = false, message = results.firstOrNull()?.first?.message ?: "Empty response")
             }
         }
     }

@@ -1983,8 +1983,15 @@ val results = supervisorScope {
                 fetch = { AmazeClient.getCalendars(semesterId = sem) },
                 isSuccess = { it.success },
                 errorMessage = { it.message },
-                update = {
-                    AppDataStore.setCalendarsList(it)
+                update = { list ->
+                    AppDataStore.setCalendarsList(list)
+                    // Cache the General Semester calendar separately too, so the calendar screen
+                    // can still render when only the single ALL calendar came back.
+                    list.calendars.firstOrNull { it.name == "General Semester" }?.let { general ->
+                        AppDataStore.setCalendar(
+                            com.amazecc.app.shared.model.CalendarRes(success = true, months = general.months)
+                        )
+                    }
                 }
             )
             updateSyncSummary(listOf(res))
