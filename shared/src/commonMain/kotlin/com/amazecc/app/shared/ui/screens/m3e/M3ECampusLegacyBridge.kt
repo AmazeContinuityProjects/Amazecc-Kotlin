@@ -22,6 +22,8 @@ import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ChangelogEntry
 import com.amazecc.app.shared.utils.ContentData
 import com.amazecc.app.shared.utils.UpdateConfig
+import com.amazecc.app.shared.utils.openDocumentBytes
+import com.amazecc.app.shared.utils.openExternalUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -53,13 +55,22 @@ private fun navigateBackOrMore() {
 fun M3EPaymentsScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val paymentsRes by AppState.payments.collectAsState()
+    val receiptDetail by AppState.receiptDetail.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
     val error by AppState.error.collectAsState()
+    val scope = rememberCoroutineScope()
 
     var selectedTab by remember { mutableStateOf(M3EPaymentsTab.DUES) }
+    var receiptDismissed by remember { mutableStateOf(false) }
+    var receiptNotice by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(paymentsRes) {
         if (paymentsRes == null) AppState.refreshPayments()
+    }
+    // A freshly fetched detail reopens the sheet; dismissing it keeps it closed until new data
+    // arrives (no AppState clear API is part of the receipt contract).
+    LaunchedEffect(receiptDetail) {
+        if (receiptDetail != null) receiptDismissed = false
     }
     AppBackHandler { navigateBackOrMore() }
 
@@ -80,7 +91,9 @@ fun M3EPaymentsScreenHost(modifier: Modifier = Modifier) {
         receipts = receipts,
         selectedTab = selectedTab,
         isLoading = isLoading && paymentsRes == null,
-        errorMessage = error ?: paymentsRes?.error
+        errorMessage = error ?: paymentsRes?.error,
+        receiptDetail = receiptDetail?.takeIf { !receiptDismissed },
+        receiptNotice = receiptNotice
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -90,9 +103,20 @@ fun M3EPaymentsScreenHost(modifier: Modifier = Modifier) {
                 when (action) {
                     is M3EPaymentsAction.SelectTab -> selectedTab = action.tab
                     M3EPaymentsAction.Refresh -> AppState.refreshPayments()
-                    // The legacy screen left payment gateway and PDF download unimplemented.
-                    is M3EPaymentsAction.PayNow -> Unit
-                    is M3EPaymentsAction.DownloadReceipt -> Unit
+                    // No in-app gateway exists: open VTOP's real payments page in a browser.
+                    is M3EPaymentsAction.PayNow -> openExternalUrl(VTOP_PAYMENTS_URL)
+                    is M3EPaymentsAction.DownloadReceipt -> {
+                        val receiptNo = (dues + receipts)
+                            .firstOrNull { it.id == action.paymentId }?.receiptNo
+                        if (receiptNo.isNullOrBlank()) {
+                            receiptNotice = "No receipt number is attached to this payment."
+                        } else {
+                            receiptNotice = null
+                            receiptDismissed = false
+                            scope.launch { AppState.refreshReceiptDetail(receiptNo) }
+                        }
+                    }
+                    M3EPaymentsAction.DismissReceipt -> receiptDismissed = true
                 }
             },
             modifier = modifier
@@ -100,13 +124,16 @@ fun M3EPaymentsScreenHost(modifier: Modifier = Modifier) {
     }
 }
 
+private const val VTOP_PAYMENTS_URL = "https://vtopcc.vit.ac.in/vtop/p2p/Payments"
+
 private fun PaymentItem.toM3EPaymentItem() = M3EPaymentItem(
     id = billingId,
     reference = receiptNo?.takeIf { it.isNotBlank() } ?: billingId,
     date = paymentDate ?: dueDate ?: "",
     description = description,
     amount = normalizeWalletBalance(amount),
-    isPaid = status.equals("PAID", ignoreCase = true)
+    isPaid = status.equals("PAID", ignoreCase = true),
+    receiptNo = receiptNo.orEmpty()
 )
 
 private fun normalizeWalletBalance(raw: String?): String =
@@ -569,24 +596,38 @@ fun M3EMoodleScreenHost(modifier: Modifier = Modifier) {
 /**
  * Stateful host for [M3EDocumentsScreen].
  *
- * There is no documents endpoint or scraper: `AppState.documents` is the data
+ * There is no documents listing endpoint: `AppState.documents` is the data
  * worker's flattened view of the existing `/api/circulars` folder tree. The host
- * only collects that flow, refreshes when empty, maps each `DocumentItem` into
- * an immutable [M3EDocumentCard], and forwards user intents. No tabs.
+ * collects that flow, refreshes when empty, maps each `DocumentItem` into an
+ * immutable [M3EDocumentCard], and forwards user intents. No tabs.
  *
  * Only `id` and `title` are read from `DocumentItem` (owned by the data-layer
- * worker) — the flattening may add any number of detail fields; the screen stays
- * simple and does not depend on them.
+ * worker). `OpenDocument(id)` delegates the credentialed circular download to
+ * `AppState.downloadDocument`; the resulting [AppState.circularDownload] value is
+ * handed to the platform's `openDocumentBytes` from a `LaunchedEffect`.
  */
 @Composable
 fun M3EDocumentsScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val documents by AppState.documents.collectAsState()
+    val downloadResult by AppState.circularDownload.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
     val error by AppState.error.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    // Identity guard: open each fetched document exactly once. Kept as Any? so the host does not
+    // need to name the data worker's result type (only its bytes/fileName/mimeType members).
+    var lastOpenedDownload by remember { mutableStateOf<Any?>(null) }
 
     LaunchedEffect(documents) {
         if (documents.isEmpty()) AppState.refreshDocuments()
+    }
+    LaunchedEffect(downloadResult) {
+        val result = downloadResult
+        if (result != null && result !== lastOpenedDownload) {
+            lastOpenedDownload = result
+            openDocumentBytes(result.bytes, result.fileName, result.mimeType)
+        }
     }
     AppBackHandler { navigateBackOrMore() }
 
@@ -611,10 +652,10 @@ fun M3EDocumentsScreenHost(modifier: Modifier = Modifier) {
             onAction = { action ->
                 when (action) {
                     M3EDocumentsAction.Refresh -> AppState.refreshDocuments()
-                    // The flattened item carries its source circular id, but commonMain has no
-                    // circular-download API (the reference /api/circulars/download needs a
-                    // credentialed POST). Id is carried for a future deep link, as with OpenCircular.
-                    is M3EDocumentsAction.OpenDocument -> Unit
+                    // Download runs off the UI thread and publishes into AppState.circularDownload;
+                    // the LaunchedEffect above performs the actual platform "open document" call.
+                    is M3EDocumentsAction.OpenDocument ->
+                        scope.launch { AppState.downloadDocument(action.id) }
                 }
             },
             modifier = modifier

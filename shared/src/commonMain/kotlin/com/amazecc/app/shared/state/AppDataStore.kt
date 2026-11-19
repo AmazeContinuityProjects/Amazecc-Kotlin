@@ -9,6 +9,7 @@ import com.amazecc.app.shared.model.CabShareUser
 import com.amazecc.app.shared.model.CalendarRes
 import com.amazecc.app.shared.model.CalendarsListRes
 import com.amazecc.app.shared.model.CircularsRes
+import com.amazecc.app.shared.model.CircularDownloadResult
 import com.amazecc.app.shared.model.ClubsRes
 import com.amazecc.app.shared.model.CurriculumRes
 import com.amazecc.app.shared.model.EventHubRegisteredEventsRes
@@ -115,6 +116,18 @@ object AppDataStore {
     private val _feedbackStatus = MutableStateFlow<FeedbackStatusRes?>(null)
     val feedbackStatus: StateFlow<FeedbackStatusRes?> = _feedbackStatus.asStateFlow()
     fun setFeedbackStatus(res: FeedbackStatusRes?) { _feedbackStatus.value = res }
+
+    // ── On-demand action results ────────────────────────────────────────────
+    // Transient by design: receipt details and downloaded binaries are fetched only when the
+    // user asks, and are deliberately NOT part of AppDataSnapshot (no binary in a JSON backup).
+
+    private val _receiptDetail = MutableStateFlow<ArrearResponse?>(null)
+    val receiptDetail: StateFlow<ArrearResponse?> = _receiptDetail.asStateFlow()
+    fun setReceiptDetail(res: ArrearResponse?) { _receiptDetail.value = res }
+
+    private val _circularDownload = MutableStateFlow<CircularDownloadResult?>(null)
+    val circularDownload: StateFlow<CircularDownloadResult?> = _circularDownload.asStateFlow()
+    fun setCircularDownload(res: CircularDownloadResult?) { _circularDownload.value = res }
 
     private fun <T> derived(select: (AppDataSnapshot) -> T): StateFlow<T> =
         _data.map(select)

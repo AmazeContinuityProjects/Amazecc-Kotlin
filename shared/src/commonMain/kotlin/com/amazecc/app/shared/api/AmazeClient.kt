@@ -1906,6 +1906,94 @@ if (useMockData) return DemoData.get("circulars", CircularsRes.serializer()) ?: 
         return postAuthorized<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
     }
 
+    // ── Document / payment detail actions ──────────────────────────────────
+
+    /**
+     * Downloads the binary behind a circular (or any document whose [circularId] is the
+     * `viewCertificate` id VTOP emitted in the circular tree).
+     *
+     * REMOTE: `POST /api/circulars/download` with the authorized session, returning the raw PDF
+     * with its `Content-Type` / `Content-Disposition` headers intact.
+     * LOCAL: the on-device scraper walks the same `PATH_CIRCULAR_DOWNLOAD` VTOP path.
+     * OFFLINE_CACHE: there is no cached binary, so this returns null rather than inventing one.
+     *
+     * Failure at any stage yields null; no placeholder bytes are ever manufactured.
+     */
+    suspend fun downloadCircular(circularId: String): CircularDownloadResult? {
+        if (circularId.isBlank()) return null
+        if (useMockData) return null
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return null
+
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.downloadCircular(circularId)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        // REMOTE — mirror getSyllabusPdf's session handling and raw-binary read.
+        var cookies = SessionManager.cookies.value
+        var authorizedID = SessionManager.authorizedID.value
+        var csrf = SessionManager.csrf.value
+        if (cookies == null || authorizedID == null || csrf == null || SessionManager.isSessionStale(SESSION_MAX_AGE_MS)) {
+            if (refreshSession()) {
+                cookies = SessionManager.cookies.value
+                authorizedID = SessionManager.authorizedID.value
+                csrf = SessionManager.csrf.value
+            }
+        }
+        if (!SessionManager.hasRemoteCookies || cookies == null || authorizedID == null || csrf == null) return null
+
+        return try {
+            val response: HttpResponse = httpClient.post("$baseUrl/api/circulars/download") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("cookies", cookies)
+                    put("authorizedID", authorizedID)
+                    put("csrf", csrf)
+                    put("circularId", circularId)
+                })
+            }
+            if (response.status != HttpStatusCode.OK) return null
+            val contentTypeHeader = response.headers["Content-Type"].orEmpty()
+            // A 200 carrying JSON is the proxy's error envelope, not a document.
+            if (contentTypeHeader.contains("json", ignoreCase = true)) return null
+            val bytes = response.body<ByteArray>()
+            if (bytes.isEmpty()) return null
+            val mimeType = contentTypeHeader.substringBefore(';').trim()
+                .ifBlank { "application/pdf" }
+            val fileName = circularDownloadFileName(response.headers["Content-Disposition"])
+                ?: "$circularId.pdf"
+            CircularDownloadResult(bytes = bytes, fileName = fileName, mimeType = mimeType)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Detail tables for one payment receipt.
+     *
+     * REMOTE: `POST /api/finance` with `section="receipt"` and the receipt's [applNo]; the route
+     * returns `{ success, tables: [{ headers, rows: [{header: value}] }] }` which is normalised into
+     * the app's [ArrearResponse] shape (rows aligned to their headers).
+     * LOCAL: there is no dedicated on-device receipt-detail scraper — the payments scraper only
+     * produces the receipts *list* — so this returns null rather than fabricating table cells.
+     * OFFLINE_CACHE: null; no receipt detail is cached as a binary/derived view.
+     */
+    suspend fun getReceiptDetail(applNo: String): ArrearResponse? {
+        if (applNo.isBlank()) return null
+        if (useMockData) return null
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return null
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) return null
+
+        val raw = postAuthorized<JsonObject>(
+            "finance",
+            mapOf("section" to "receipt", "applNo" to applNo)
+        ) ?: return null
+        return receiptResponseFromJson(raw)
+    }
+
 
     // â”€â”€ Phase 3 endpoints â”€â”€
 
@@ -2477,6 +2565,94 @@ private fun parseFileExtension(contentDisposition: String?, contentType: String?
         ct.contains("excel") -> "xls"
         else -> "bin"
     }
+}
+
+/**
+ * Pulls the download's file name out of a `Content-Disposition` header.
+ *
+ * Honours both the quoted `filename="..."` form and the RFC 5987 `filename*=UTF-8''...` form,
+ * decoding percent escapes as UTF-8. Returns null when the header carries no usable name so the
+ * caller can fall back to `<circularId>.pdf`.
+ */
+internal fun circularDownloadFileName(contentDisposition: String?): String? {
+    if (contentDisposition.isNullOrBlank()) return null
+
+    val encoded = Regex("filename\\*\\s*=\\s*UTF-8''([^;]+)", RegexOption.IGNORE_CASE)
+        .find(contentDisposition)?.groupValues?.getOrNull(1)
+    if (!encoded.isNullOrBlank()) {
+        return percentDecodeUtf8(encoded.trim().trim('"')).takeIf { it.isNotBlank() }
+    }
+
+    val quoted = Regex("filename\\s*=\\s*\"([^\"]*)\"", RegexOption.IGNORE_CASE)
+        .find(contentDisposition)?.groupValues?.getOrNull(1)
+    if (!quoted.isNullOrBlank()) return quoted.trim()
+
+    val plain = Regex("filename\\s*=\\s*([^;]+)", RegexOption.IGNORE_CASE)
+        .find(contentDisposition)?.groupValues?.getOrNull(1)
+    return plain?.trim()?.trim('"')?.takeIf { it.isNotBlank() }
+}
+
+/** Percent-decodes a header value into a UTF-8 string (no platform dependency). */
+internal fun percentDecodeUtf8(value: String): String {
+    val bytes = mutableListOf<Byte>()
+    var i = 0
+    while (i < value.length) {
+        val c = value[i]
+        if (c == '%' && i + 2 < value.length) {
+            val hex = value.substring(i + 1, i + 3)
+            val byte = hex.toIntOrNull(16)
+            if (byte != null) {
+                bytes.add(byte.toByte())
+                i += 3
+                continue
+            }
+        }
+        c.toString().toByteArray().forEach { bytes.add(it) }
+        i++
+    }
+    return bytes.toByteArray().decodeToString()
+}
+
+/**
+ * Normalises the `{ success, tables }` shape returned by `POST /api/finance?section=receipt`.
+ *
+ * The API emits each row as a `{ header: value }` object; the app's [ApiTable] stores rows as
+ * `List<String>` aligned to [ApiTable.headers], so the values are re-ordered by header here.
+ * Returns null unless `success` is true, and drops empty tables — no cells are invented.
+ */
+internal fun receiptResponseFromJson(raw: JsonObject): ArrearResponse? {
+    val success = runCatching { raw["success"]?.jsonPrimitive?.booleanOrNull }.getOrNull() ?: false
+    if (!success) return null
+
+    val tablesArray = raw["tables"] as? JsonArray ?: return null
+    val tables = tablesArray.mapNotNull { element ->
+        val obj = element as? JsonObject ?: return@mapNotNull null
+        val headers = (obj["headers"] as? JsonArray).orEmpty()
+            .mapNotNull { runCatching { (it as? JsonPrimitive)?.content?.trim() }.getOrNull() }
+            .filter { it.isNotEmpty() }
+        val rowsArray = obj["rows"] as? JsonArray ?: return@mapNotNull null
+        val rows = rowsArray.mapNotNull { rowElement ->
+            val rowObj = rowElement as? JsonObject ?: return@mapNotNull null
+            val cells = if (headers.isNotEmpty()) {
+                headers.map { header ->
+                    runCatching { rowObj[header]?.jsonPrimitive?.content?.trim() }.getOrNull().orEmpty()
+                }
+            } else {
+                rowObj.values.mapNotNull {
+                    runCatching { (it as? JsonPrimitive)?.content?.trim() }.getOrNull()
+                }
+            }
+            cells.takeIf { it.any { cell -> cell.isNotBlank() } }
+        }
+        if (rows.isEmpty()) return@mapNotNull null
+        ApiTable(
+            headers = headers,
+            rows = rows,
+            title = runCatching { (obj["title"] as? JsonPrimitive)?.content }.getOrNull(),
+            caption = runCatching { (obj["caption"] as? JsonPrimitive)?.content }.getOrNull()
+        )
+    }
+    return ArrearResponse(success = true, tables = tables)
 }
 
 

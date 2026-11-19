@@ -712,6 +712,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     // Wired M3E data paths (the caches live in AppDataStore; these are the screen-facing aliases).
     val freeClassrooms: StateFlow<FreeClassroomsRes?> = AppDataStore.freeClassrooms
     val documents: StateFlow<List<DocumentItem>> = AppDataStore.documents
+    /** Binary of the most recent document/circular download (transient, never persisted). */
+    val circularDownload: StateFlow<CircularDownloadResult?> = AppDataStore.circularDownload
+    /** Detail tables of the most recently requested payment receipt (transient). */
+    val receiptDetail: StateFlow<ArrearResponse?> = AppDataStore.receiptDetail
     val odDetails: StateFlow<OdDetailsRes?> = AppDataStore.odDetails
     val feedbackStatus: StateFlow<FeedbackStatusRes?> = AppDataStore.feedbackStatus
     val events: StateFlow<EventHubRes?> = AppDataStore.events
@@ -2159,6 +2163,39 @@ val results = supervisorScope {
             )
             _error.value = if (result.success) null else result.message
             updateSyncSummary(listOf(result))
+        }
+    }
+
+    /**
+     * Fetches the detail tables for one payment receipt into [receiptDetail].
+     *
+     * Non-suspend: follows the refresh-function pattern by running on the app scope via
+     * [launchSweep]. There is no dedicated SyncModule for a single receipt, so the module set is
+     * empty and no VTOP session gate is forced; the client applies its own source rules. The
+     * result is published to the transient store flow, and a failed fetch leaves a null detail
+     * (never faked).
+     */
+    fun refreshReceiptDetail(applNo: String) {
+        // One-off drill-down: don't use launchSweep here — it would be dropped while a real
+        // sync sweep is active and would reset every module's progress state.
+        scope.launch {
+            _syncStatus.value = "Loading receipt detail..."
+            val detail = runCatching { AmazeClient.getReceiptDetail(applNo) }.getOrNull()
+            AppDataStore.setReceiptDetail(detail)
+            if (detail == null) _error.value = "Receipt detail unavailable"
+        }
+    }
+
+    /**
+     * Downloads a document/circular binary into [circularDownload].
+     *
+     * Non-suspend: launches a coroutine that calls [AmazeClient.downloadCircular] and publishes
+     * the result (or null on failure) to the transient store flow.
+     */
+    fun downloadDocument(id: String) {
+        scope.launch {
+            val result = AmazeClient.downloadCircular(id)
+            AppDataStore.setCircularDownload(result)
         }
     }
 

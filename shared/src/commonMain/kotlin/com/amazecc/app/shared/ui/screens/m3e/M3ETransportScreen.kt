@@ -398,25 +398,28 @@ private fun BusRouteCard(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    ElevatedButton(
-                        onClick = onCallDriver,
-                        modifier = Modifier.weight(1f),
-                        shape = CircleShape,
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = colors.primaryContainer,
-                            contentColor = colors.onPrimaryContainer
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Call,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Call Driver",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                        )
+                    // Only offer a call when the route actually carries a driver number.
+                    if (route.driverPhone.isNotBlank()) {
+                        ElevatedButton(
+                            onClick = onCallDriver,
+                            modifier = Modifier.weight(1f),
+                            shape = CircleShape,
+                            colors = ButtonDefaults.elevatedButtonColors(
+                                containerColor = colors.primaryContainer,
+                                contentColor = colors.onPrimaryContainer
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Call,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Call Driver",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
                     }
 
                     if (!route.whatsappGroup.isNullOrBlank()) {

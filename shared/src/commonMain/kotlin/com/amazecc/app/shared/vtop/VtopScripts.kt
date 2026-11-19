@@ -1199,6 +1199,52 @@ internal object VtopScripts {
     }
 
     /**
+     * Downloads a circular PDF from `admissions/viewStatusWiseCostCentreCircularContent`.
+     *
+     * Query parameters mirror the server proxy: `_csrf`, `authorizedID`, `val` (the circular id)
+     * and `x` (UTC timestamp). Synchronous XHR cannot use `responseType = 'arraybuffer'`, so the
+     * response is forced through `charset=x-user-defined` and rebuilt byte-by-byte
+     * (`charCodeAt(i) & 0xff`) before chunked base64 encoding. [VtopDataSource] decodes the
+     * base64 back to the original bytes.
+     */
+    fun downloadCircular(path: String, csrf: String, authorizedID: String, circularId: String): String {
+        val p = jsString(path)
+        val c = jsString(csrf)
+        val a = jsString(authorizedID)
+        val v = jsString(circularId)
+        return wrapped(
+            """
+        var qs = '_csrf=' + encodeURIComponent($c) +
+          '&authorizedID=' + encodeURIComponent($a) +
+          '&val=' + encodeURIComponent($v) +
+          '&x=' + encodeURIComponent(new Date().toUTCString());
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', $p + '?' + qs, false);
+        xhr.overrideMimeType('text/plain; charset=x-user-defined');
+        xhr.send();
+        if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+        if (xhr.status < 200 || xhr.status >= 300) return JSON.stringify({ ok: false, status: xhr.status });
+        var text = xhr.responseText || '';
+        if (!text.length) return JSON.stringify({ ok: false, error: 'empty response' });
+        var bytes = new Uint8Array(text.length);
+        for (var i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i) & 0xff;
+        var binary = '';
+        var chunk = 0x8000;
+        for (var j = 0; j < bytes.length; j += chunk) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(j, j + chunk));
+        }
+        var b64 = btoa(binary);
+        var cd = xhr.getResponseHeader('Content-Disposition') || '';
+        var fstar = cd.match(/filename\*=UTF-8''([^;]+)/i);
+        var fplain = cd.match(/filename\s*=\s*"([^"]*)"/i);
+        var fileName = fstar ? decodeURIComponent(fstar[1].trim()) : (fplain ? fplain[1] : ($v + '.pdf'));
+        var ct = xhr.getResponseHeader('Content-Type') || 'application/pdf';
+        return JSON.stringify({ ok: true, status: xhr.status, base64: b64, contentType: ct, fileName: fileName });
+         """
+        )
+    }
+
+    /**
      * `proctor/viewStudentCredentials` as a standalone module.
      *
      * Same parse as the PROFILE_IMAGES leg, but the response **spreads** it

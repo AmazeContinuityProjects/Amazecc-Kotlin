@@ -18,6 +18,8 @@ import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.domain.Course
 import com.amazecc.app.shared.domain.splitSlots
 import com.amazecc.app.shared.utils.AttendanceTimetable
+import com.amazecc.app.shared.utils.dialPhoneNumber
+import com.amazecc.app.shared.utils.openExternalUrl
 import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.domain.overhaul.AcademicCourseFilter
 import com.amazecc.app.shared.domain.overhaul.AttendanceFilter
@@ -1024,10 +1026,15 @@ fun M3ETransportScreen(modifier: Modifier = Modifier) {
                     is M3ETransportAction.ToggleExpandRoute -> {
                         expandedRouteId = if (expandedRouteId == action.routeId) null else action.routeId
                     }
-                    // The transit API exposes no dial-in / chat deep link beyond the raw numbers;
-                    // leave these as no-ops rather than fabricate a contact route.
-                    is M3ETransportAction.CallDriver -> {}
-                    is M3ETransportAction.OpenWhatsappGroup -> {}
+                    // Platform intents: dial the route's real driver number and open the
+                    // route's WhatsApp group URL. Blank/absent data is a no-op (buttons are gated
+                    // in the screen too), so we never fire an empty dialer or browser intent.
+                    is M3ETransportAction.CallDriver -> {
+                        if (action.phoneNumber.isNotBlank()) dialPhoneNumber(action.phoneNumber)
+                    }
+                    is M3ETransportAction.OpenWhatsappGroup -> {
+                        if (action.link.isNotBlank()) openExternalUrl(action.link)
+                    }
                     is M3ETransportAction.Refresh -> AppState.refreshTransport()
                 }
             },

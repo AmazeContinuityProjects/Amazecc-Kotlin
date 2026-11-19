@@ -8,6 +8,7 @@ import com.amazecc.app.shared.model.AttendanceRes
 import com.amazecc.app.shared.model.BankInfoRes
 import com.amazecc.app.shared.model.CGPAResult
 import com.amazecc.app.shared.model.CircularItem
+import com.amazecc.app.shared.model.CircularDownloadResult
 import com.amazecc.app.shared.model.CircularsRes
 import com.amazecc.app.shared.model.CategoryDetail
 import com.amazecc.app.shared.model.CurriculumBasket
@@ -70,6 +71,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.put
+import kotlin.io.encoding.Base64
 
 /** One course as VTOP's course-info table describes it. */
 data class VtopCourse(
@@ -1078,6 +1080,40 @@ object VtopDataSource {
         val output = CircularsRes(success = true, circulars = root.decodeList("circulars", circularItems) ?: emptyList())
         AppDataStore.setCirculars(output)
         return output
+    }
+
+    /**
+     * Downloads a circular's binary from [PATH_CIRCULAR_DOWNLOAD] using the validated on-device
+     * session. The WebView script returns the raw bytes base64-encoded (plus the response headers);
+     * anything short of a 2xx with non-empty bytes is a failure and yields null — no data is
+     * fabricated. Called by `AmazeClient.downloadCircular` when the source is LOCAL.
+     */
+    suspend fun downloadCircular(circularId: String): CircularDownloadResult? {
+        if (circularId.isBlank()) return null
+        if (!VtopSession.hasSession) return null
+        val csrf = VtopSession.csrf.value?.takeIf { it.isNotBlank() } ?: return null
+        val authorizedID = VtopSession.authorizedID.value?.takeIf { it.isNotBlank() } ?: return null
+
+        val raw = evaluate(
+            VtopScripts.downloadCircular(PATH_CIRCULAR_DOWNLOAD, csrf, authorizedID, circularId)
+        )
+        val root = raw.rawObject()
+        if (!(root["ok"] as? JsonPrimitive)?.content.equals("true", ignoreCase = true)) return null
+
+        val encoded = (root["base64"] as? JsonPrimitive)?.content ?: return null
+        val bytes = try {
+            Base64.Default.decode(encoded)
+        } catch (_: Exception) {
+            return null
+        }
+        if (bytes.isEmpty()) return null
+
+        val mimeType = (root["contentType"] as? JsonPrimitive)?.content
+            ?.substringBefore(';')?.trim()?.takeIf { it.isNotBlank() }
+            ?: "application/pdf"
+        val fileName = (root["fileName"] as? JsonPrimitive)?.content?.trim()?.takeIf { it.isNotBlank() }
+            ?: "$circularId.pdf"
+        return CircularDownloadResult(bytes = bytes, fileName = fileName, mimeType = mimeType)
     }
 
     suspend fun fetchCredentials(): CredentialsRes? {        val body = sessionBody() ?: return null

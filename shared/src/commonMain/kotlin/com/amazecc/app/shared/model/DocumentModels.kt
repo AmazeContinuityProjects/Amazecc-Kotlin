@@ -29,3 +29,17 @@ data class DocumentItem(
     val messages: List<String> = emptyList(),
     val error: String? = null
 )
+
+/**
+ * Result of downloading a circular / document binary.
+ *
+ * Deliberately **not** `@Serializable`: the raw bytes are transient and are never written to the
+ * encrypted app snapshot or a backup — only the live `AppState.circularDownload` flow carries them.
+ * [fileName] and [mimeType] come from the download response headers; nothing is synthesised when a
+ * download fails (the caller returns null instead).
+ */
+data class CircularDownloadResult(
+    val bytes: ByteArray,
+    val fileName: String,
+    val mimeType: String
+)

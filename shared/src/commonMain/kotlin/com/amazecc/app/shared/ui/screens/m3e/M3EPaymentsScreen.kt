@@ -23,15 +23,18 @@ import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Payment
 import androidx.compose.material.icons.rounded.Pending
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
@@ -40,8 +43,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.model.ArrearResponse
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
@@ -59,7 +64,9 @@ data class M3EPaymentItem(
     val date: String,
     val description: String,
     val amount: String,
-    val isPaid: Boolean
+    val isPaid: Boolean,
+    /** VTOP application number used to fetch this payment's receipt detail. */
+    val receiptNo: String = ""
 )
 
 /** Immutable, screen-owned state for [M3EPaymentsScreen]. */
@@ -70,7 +77,11 @@ data class M3EPaymentsState(
     val receipts: List<M3EPaymentItem> = emptyList(),
     val selectedTab: M3EPaymentsTab = M3EPaymentsTab.DUES,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Non-null when a receipt detail has been fetched; rendered in a detail dialog. */
+    val receiptDetail: ArrearResponse? = null,
+    /** Neutral (non-error) feedback, e.g. when a payment has no receipt number. */
+    val receiptNotice: String? = null
 )
 
 /** The two payment ledger views. */
@@ -85,6 +96,7 @@ sealed interface M3EPaymentsAction {
     data object Refresh : M3EPaymentsAction
     data class PayNow(val paymentId: String) : M3EPaymentsAction
     data class DownloadReceipt(val paymentId: String) : M3EPaymentsAction
+    data object DismissReceipt : M3EPaymentsAction
 }
 
 /**
@@ -175,6 +187,31 @@ fun M3EPaymentsScreen(
             )
         }
 
+        // Neutral feedback (not an error) — e.g. a receipt row with no application number.
+        if (!state.receiptNotice.isNullOrBlank()) {
+            item(key = "notice") {
+                M3ESurfaceCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    containerLevel = SurfaceContainerLevel.LOW
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Rounded.Info,
+                            contentDescription = null,
+                            tint = colors.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = state.receiptNotice,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurface
+                        )
+                    }
+                }
+            }
+        }
+
         val visibleItems = when (state.selectedTab) {
             M3EPaymentsTab.DUES -> state.dues
             M3EPaymentsTab.RECEIPTS -> state.receipts
@@ -232,6 +269,138 @@ fun M3EPaymentsScreen(
             Spacer(Modifier.height(BOTTOM_NAV_PADDING))
         }
     }
+
+    val detail = state.receiptDetail
+    if (detail != null) {
+        ReceiptDetailDialog(
+            response = detail,
+            onDismiss = { onAction(M3EPaymentsAction.DismissReceipt) }
+        )
+    }
+}
+
+/** M3E-styled dialog that renders the VTOP receipt's tables and key/value rows. */
+@Composable
+private fun ReceiptDetailDialog(
+    response: ArrearResponse,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    AlertDialog(
+        modifier = modifier,
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Payment Receipt",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+        },
+        text = {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (response.keyValuePairs.isNotEmpty()) {
+                    item(key = "fields") {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.LOW
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                response.keyValuePairs.forEach { pair ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = pair.label,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = colors.onSurfaceVariant,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            text = pair.value,
+                                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                            color = colors.onSurface,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                response.tables.forEachIndexed { index, table ->
+                    item(key = "table_$index") {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.LOW
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                val title = table.title ?: table.caption ?: "Details"
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.onSurface
+                                )
+                                table.headers.forEach { header ->
+                                    Text(
+                                        text = header,
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colors.primary
+                                    )
+                                }
+                                table.rows.forEach { row ->
+                                    Text(
+                                        text = row.joinToString("  •  "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = colors.onSurfaceVariant,
+                                        maxLines = 3,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                response.messages.forEach { message ->
+                    item(key = "message_${message.message}") {
+                        Text(
+                            text = message.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                }
+                if (response.keyValuePairs.isEmpty() && response.tables.isEmpty() && response.messages.isEmpty()) {
+                    item(key = "empty") {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.LOW
+                        ) {
+                            Text(
+                                text = response.message ?: "No receipt details available",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = "Close", color = colors.primary)
+            }
+        }
+    )
 }
 
 @Composable
@@ -415,6 +584,15 @@ private fun PaymentCard(
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                     )
                 }
+            }
+
+            if (!payment.isPaid) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Opens VTOP payments in your browser",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.onSurfaceVariant
+                )
             }
         }
     }
