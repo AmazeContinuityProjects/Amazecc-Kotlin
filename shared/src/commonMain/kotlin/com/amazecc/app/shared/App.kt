@@ -177,7 +177,7 @@ fun App() {
                                 Screen.CLUB_DETAIL -> M3EClubDetailScreenHost()
                                 Screen.MOODLE -> M3EMoodleScreenHost()
                                 Screen.TASKS -> M3ETasksScreen()
-                                Screen.EXAM_SCHEDULE -> M3EExamScheduleScreen()
+                                Screen.EXAM_SCHEDULE -> M3EExamScheduleHost()
                                 Screen.CHANGELOG -> M3EChangelogScreenHost()
                                 Screen.HALL_OF_FAME -> M3EHallOfFameScreenHost()
                                 Screen.HOME -> M3EHomeScreen()
@@ -185,7 +185,7 @@ fun App() {
                                 Screen.ATTENDANCE -> M3EAttendanceScreen()
                                 Screen.ACADEMICS -> M3EAcademicsScreen()
                                 Screen.LIBRARIES -> M3ELibrariesScreenHost()
-                                Screen.PROFILE -> M3EProfileScreen()
+                                Screen.PROFILE -> M3EProfileHost()
                                 Screen.MORE -> M3EMoreHubScreen()
                             }
                         }

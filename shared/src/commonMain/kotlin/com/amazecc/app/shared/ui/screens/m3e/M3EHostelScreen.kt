@@ -46,6 +46,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EHostelAction
 import com.amazecc.app.shared.domain.overhaul.M3EHostelDetails
 import com.amazecc.app.shared.domain.overhaul.M3EHostelState
 import com.amazecc.app.shared.domain.overhaul.M3EHostelTab
+import com.amazecc.app.shared.domain.overhaul.M3ELaundrySlot
 import com.amazecc.app.shared.domain.overhaul.M3ELeaveRecord
 import com.amazecc.app.shared.domain.overhaul.M3EMessMealItem
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
@@ -267,6 +268,9 @@ fun M3EHostelScreen(
                         details = state.hostelDetails,
                         onCallWarden = { onAction(M3EHostelAction.CallWarden) }
                     )
+                }
+                item {
+                    LaundryScheduleCard(slots = state.laundrySchedule)
                 }
             }
         }
@@ -636,6 +640,80 @@ private fun RoomDetailsCard(
 }
 
 @Composable
+private fun LaundryScheduleCard(
+    slots: List<M3ELaundrySlot>,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 20.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        // M3ESurfaceCard already applies its 16.dp content padding — no extra inner padding.
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = if (slots.isEmpty()) {
+                    "Laundry Schedule"
+                } else {
+                    "Laundry Schedule (${slots.size})"
+                },
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (slots.isEmpty()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Info,
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(40.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "No laundry schedule available",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    slots.forEach { slot ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (slot.date.isNotBlank()) {
+                                Text(
+                                    text = "Date ${slot.date}",
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                    color = colors.onSurface
+                                )
+                            }
+                            if (slot.roomNumber.isNotBlank()) {
+                                Text(
+                                    text = "Rooms ${slot.roomNumber}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun DetailRow(
     label: String,
     value: String
@@ -721,6 +799,11 @@ private fun createMockHostelState() = M3EHostelState(
             items = listOf("Phulka Roti", "Mixed Vegetable Kurma", "Egg Curry", "Fresh Fruit Salad"),
             isCurrent = false
         )
+    ),
+    laundrySchedule = listOf(
+        M3ELaundrySlot(date = "1", roomNumber = "112 - 336"),
+        M3ELaundrySlot(date = "2", roomNumber = "337 - 561"),
+        M3ELaundrySlot(date = "3", roomNumber = "562 - 786")
     ),
     leaves = listOf(
         M3ELeaveRecord(

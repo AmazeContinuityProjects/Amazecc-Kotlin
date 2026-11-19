@@ -265,6 +265,7 @@ class M3EProfileStateBridgeTest {
                 is M3EProfileAction.CopyText -> {}
                 is M3EProfileAction.OpenEmail -> {}
                 is M3EProfileAction.OpenPhone -> {}
+                else -> Unit
             }
         }
 

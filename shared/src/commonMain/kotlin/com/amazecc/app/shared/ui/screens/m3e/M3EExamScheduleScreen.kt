@@ -1,7 +1,6 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,51 +14,58 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CalendarToday
-import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.LocationOn
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ElevatedButton
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.ExamSeries as DomainExamSeries
 import com.amazecc.app.shared.domain.overhaul.ExamSeries
+import com.amazecc.app.shared.domain.overhaul.ExamStatus
 import com.amazecc.app.shared.domain.overhaul.M3EExamEntry
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleAction
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleState
+import com.amazecc.app.shared.domain.overhaul.M3EExamSeriesGroup
 import com.amazecc.app.shared.model.ExamScheduleRes
+import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
+import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
+import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.utils.ExamUtils
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
-import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
-import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
-import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
-import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Material 3 Expressive Exam Schedules & Seating Hub.
- * 100% Stateless: accepts [M3EExamScheduleState] and emits [M3EExamScheduleAction].
- * Features Next Exam Countdown Hero, Series filtering, and Venue/Seat allocation cards.
+ * Material 3 Expressive Exam Schedule & Seating hub.
+ * 100% stateless: accepts [M3EExamScheduleState] and emits [M3EExamScheduleAction].
+ *
+ * One hero (the next-exam countdown card), a data-driven series filter, a grouped timeline with
+ * semantic status tones, and explicit loading / empty / error states. Layout spacing comes from
+ * `LazyColumn` — content inside [M3ESurfaceCard] never re-adds the card's own 16.dp padding.
  */
 @Composable
 fun M3EExamScheduleScreen(
@@ -68,6 +74,11 @@ fun M3EExamScheduleScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    // Legacy hosts (the bridge) do not populate groupedEntries yet — derive the same groups here
+    // so their rows keep rendering until App.kt points at M3EExamScheduleHost.
+    val groups = state.groupedEntries.ifEmpty {
+        M3EExamScheduleComputations.groupBySeries(state.filteredExams)
+    }
 
     Box(
         modifier = modifier
@@ -79,7 +90,7 @@ fun M3EExamScheduleScreen(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Header
+            // ── Header ────────────────────────────────────────────────────────────────
             item(key = "exam_header") {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -89,189 +100,184 @@ fun M3EExamScheduleScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
                             text = "Exam Schedules",
-                            fontSize = 28.sp,
+                            style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
                             color = colors.onSurface
                         )
                         Text(
                             text = state.semesterName,
-                            fontSize = 13.sp,
+                            style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant
                         )
                     }
 
-                    IconButton(
-                        onClick = { onAction(M3EExamScheduleAction.ExportCalendar) },
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(colors.primaryContainer)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.EventAvailable,
-                            contentDescription = "Export to Calendar",
-                            tint = colors.onPrimaryContainer
-                        )
-                    }
-                }
-            }
-
-            // Next Upcoming Exam Hero Card
-            state.nextUpcomingExam?.let { nextExam ->
-                item(key = "next_exam_hero") {
-                    M3ESurfaceCard(
-                        containerLevel = SurfaceContainerLevel.HIGH,
-                        cornerRadius = 24.dp,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = { onAction(M3EExamScheduleAction.ExamClicked(nextExam)) }
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(CircleShape)
-                                        .background(colors.primaryContainer)
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = "UPCOMING EXAM",
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = colors.onPrimaryContainer
-                                    )
-                                }
-
-                                Text(
-                                    text = if (nextExam.daysRemaining == 0) "Today" else "In ${nextExam.daysRemaining} days",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = colors.primary
-                                )
-                            }
-
-                            Text(
-                                text = "${nextExam.courseCode} • ${nextExam.courseTitle}",
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.onSurface
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        IconButton(
+                            onClick = { onAction(M3EExamScheduleAction.Refresh) },
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(colors.surfaceContainerHigh)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Refresh,
+                                contentDescription = "Refresh exam schedule",
+                                tint = colors.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
                             )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.LocationOn,
-                                        contentDescription = null,
-                                        tint = colors.onSurfaceVariant,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        text = "${nextExam.venue} (Seat ${nextExam.seatNumber})",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = colors.onSurface
-                                    )
-                                }
-
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.AccessTime,
-                                        contentDescription = null,
-                                        tint = colors.onSurfaceVariant,
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                    Text(
-                                        text = nextExam.examTime,
-                                        fontSize = 13.sp,
-                                        color = colors.onSurfaceVariant
-                                    )
-                                }
-                            }
+                        }
+                        IconButton(
+                            onClick = { onAction(M3EExamScheduleAction.ExportCalendar) },
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(colors.primaryContainer)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.EventAvailable,
+                                contentDescription = "Export to Calendar",
+                                tint = colors.onPrimaryContainer,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
                 }
             }
 
-            // Series Selector (All, CAT-1, CAT-2, FAT)
-            item(key = "series_selector") {
-                M3EConnectedButtonGroup(
-                    items = ExamSeries.entries,
-                    selectedItem = state.selectedSeries,
-                    onItemSelected = { onAction(M3EExamScheduleAction.SelectSeries(it)) },
-                    labelProvider = { it.label }
-                )
-            }
-
-            if (state.errorMessage != null) {
-                item(key = "exam_error") {
-                    M3ESurfaceCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        containerLevel = SurfaceContainerLevel.LOW,
-                        borderColor = colors.error
-                    ) {
-                        Text(
-                            text = state.errorMessage ?: "",
-                            fontSize = 12.sp,
-                            color = colors.error
-                        )
-                    }
-                }
-            }
-
-            // Exams List
-            if (state.filteredExams.isEmpty()) {
-                item(key = "empty_exams") {
+            // ── Loading / error ───────────────────────────────────────────────────────
+            if (state.isLoading) {
+                item(key = "exam_loading") {
                     M3ESurfaceCard(
                         containerLevel = SurfaceContainerLevel.LOW,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.CalendarToday,
-                                contentDescription = null,
-                                tint = colors.onSurfaceVariant,
-                                modifier = Modifier.size(40.dp)
-                            )
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text(
-                                text = "No exams scheduled for ${state.selectedSeries.label}",
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.SemiBold,
+                                text = "Syncing exam schedule…",
+                                style = MaterialTheme.typography.titleMedium,
                                 color = colors.onSurface
+                            )
+                            // M3E's signature wavy determinate indicator. No real fraction exists
+                            // during a fetch, so this is a gentle moving sweep, not a false percent.
+                            M3EWavyLinearProgress(progress = 0.35f)
+                            Text(
+                                text = "Pulling the latest CAT / FAT timetable from VTOP.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
                             )
                         }
                     }
                 }
+            } else if (state.errorMessage != null) {
+                item(key = "exam_error") {
+                    M3ESurfaceCard(
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        borderColor = colors.error,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ErrorOutline,
+                                    contentDescription = null,
+                                    tint = colors.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = state.errorMessage.orEmpty(),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.error
+                                )
+                            }
+                            Button(onClick = { onAction(M3EExamScheduleAction.Refresh) }) {
+                                Text("Try again")
+                            }
+                        }
+                    }
+                }
             } else {
-                items(
-                    items = state.filteredExams,
-                    key = { it.id }
-                ) { exam ->
-                    M3EExamCard(
-                        exam = exam,
-                        onClick = { onAction(M3EExamScheduleAction.ExamClicked(exam)) }
-                    )
+                // ── One hero: next exam countdown ────────────────────────────────────
+                state.nextUpcomingExam?.let { nextExam ->
+                    item(key = "next_exam_hero") {
+                        M3EExamNextExamHero(
+                            exam = nextExam,
+                            onClick = { onAction(M3EExamScheduleAction.ExamClicked(nextExam)) }
+                        )
+                    }
+                }
+
+                // ── Calm status summary ─────────────────────────────────────────────
+                item(key = "exam_summary") {
+                    M3EExamStatusSummary(counts = state.statusCounts)
+                }
+
+                // ── Data-driven series filter ───────────────────────────────────────
+                if (state.availableSeries.size > 1) {
+                    item(key = "series_selector") {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                text = "Exam series",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = colors.onSurfaceVariant
+                            )
+                            M3EConnectedButtonGroup(
+                                items = state.availableSeries,
+                                selectedItem = state.selectedSeries,
+                                onItemSelected = { onAction(M3EExamScheduleAction.SelectSeries(it)) },
+                                labelProvider = { it.label }
+                            )
+                        }
+                    }
+                }
+
+                // ── Grouped timeline ────────────────────────────────────────────────
+                if (state.filteredExams.isEmpty()) {
+                    item(key = "empty_exams") {
+                        M3ESurfaceCard(
+                            containerLevel = SurfaceContainerLevel.LOW,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CalendarToday,
+                                    contentDescription = null,
+                                    tint = colors.onSurfaceVariant,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                                Text(
+                                    text = "No exams scheduled for ${state.selectedSeries.label}",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = colors.onSurface
+                                )
+                                Text(
+                                    text = "CAT, FAT and lab timetables appear here once VTOP syncs them.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    groups.forEach { group ->
+                        item(key = "exam_group_${group.series.name}") {
+                            M3EExamSeriesSection(
+                                group = group,
+                                hallTicketUrl = state.hallTicketUrl,
+                                onAction = onAction
+                            )
+                        }
+                    }
                 }
             }
 
-            // Bottom Spacing (twice nav bar height: 140dp)
+            // Bottom spacing (twice nav bar height: 140dp)
             item(key = "bottom_spacer") {
                 Spacer(Modifier.height(140.dp))
             }
@@ -279,118 +285,354 @@ fun M3EExamScheduleScreen(
     }
 }
 
+/** Semantic status colour, always from the M3E palette — never a hard-coded hex. */
 @Composable
-private fun M3EExamCard(
+private fun statusColor(status: ExamStatus): Color = when (status) {
+    ExamStatus.UPCOMING -> M3ETheme.colors.success
+    ExamStatus.TODAY -> M3ETheme.colors.warning
+    ExamStatus.COMPLETED -> M3ETheme.colors.onSurfaceVariant
+}
+
+@Composable
+private fun seriesColor(series: ExamSeries): Color = when (series) {
+    ExamSeries.FAT -> M3ETheme.colors.tertiary
+    ExamSeries.CAT1, ExamSeries.CAT2 -> M3ETheme.colors.secondary
+    ExamSeries.ALL -> M3ETheme.colors.primary
+}
+
+/** Legacy-safe countdown: prefer the computed label, fall back to whole days for old states. */
+private fun countdownFor(exam: M3EExamEntry): String {
+    if (exam.countdownLabel.isNotBlank()) return exam.countdownLabel
+    if (exam.status == ExamStatus.COMPLETED) return "Completed"
+    return if (exam.daysRemaining == 0) "Today" else "In ${exam.daysRemaining} days"
+}
+
+/** Venue + seat on one line; the derived hall location is shown only when it exists. */
+private fun venueSeatFor(exam: M3EExamEntry): String {
+    val venue = exam.venueDisplay.ifBlank { exam.venue }
+    val location = exam.seatLocation
+    val seat = if (location.isBlank()) exam.seatNumber else "${exam.seatNumber} ($location)"
+    return "$venue | Seat: $seat"
+}
+
+@Composable
+private fun M3EExamNextExamHero(
     exam: M3EExamEntry,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
-
     M3ESurfaceCard(
-        containerLevel = SurfaceContainerLevel.LOW,
-        onClick = onClick,
-        modifier = modifier.fillMaxWidth()
+        containerLevel = SurfaceContainerLevel.HIGH,
+        cornerRadius = 28.dp,
+        modifier = modifier.fillMaxWidth(),
+        onClick = onClick
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            // Date & Slot Banner Row
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(colors.primaryContainer)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colors.primaryContainer)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "${exam.date} • ${exam.session}",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.onPrimaryContainer
-                        )
-                    }
-
                     Text(
-                        text = "Slot ${exam.slot}",
-                        fontSize = 12.sp,
+                        text = "UPCOMING EXAM",
+                        style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = colors.primary
+                        color = colors.onPrimaryContainer
                     )
                 }
-
                 Text(
-                    text = exam.examSeries.label,
-                    fontSize = 11.sp,
-                    color = colors.onSurfaceVariant,
-                    fontWeight = FontWeight.Medium
+                    text = countdownFor(exam),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = statusColor(exam.status)
                 )
             }
 
-            // Course Code & Title
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(
-                    text = exam.courseCode,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.primary
+            Text(
+                text = "${exam.courseCode} • ${exam.courseTitle}",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = colors.onSurface
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.LocationOn,
+                    contentDescription = null,
+                    tint = colors.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
                 )
                 Text(
-                    text = exam.courseTitle,
-                    fontSize = 15.sp,
+                    text = venueSeatFor(exam),
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = colors.onSurface
                 )
             }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.AccessTime,
+                    contentDescription = null,
+                    tint = colors.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Text(
+                    text = exam.examTime.ifBlank { "Time TBA" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
 
-            // Venue, Seat & Timings
+@Composable
+private fun M3EExamStatusSummary(counts: com.amazecc.app.shared.domain.overhaul.M3EExamStatusCounts) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SummaryCell("Upcoming", counts.upcoming, statusColor(ExamStatus.UPCOMING))
+            SummaryCell("Today", counts.today, statusColor(ExamStatus.TODAY))
+            SummaryCell("Completed", counts.completed, statusColor(ExamStatus.COMPLETED))
+        }
+    }
+}
+
+@Composable
+private fun SummaryCell(label: String, count: Int, color: Color) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = M3ETheme.colors.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun M3EExamSeriesSection(
+    group: M3EExamSeriesGroup,
+    hallTicketUrl: String?,
+    onAction: (M3EExamScheduleAction) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(seriesColor(group.series))
+                )
+                Text(
+                    text = group.label,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onSurface
+                )
+            }
+            Text(
+                text = "${group.entries.size} papers",
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.onSurfaceVariant
+            )
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            group.entries.forEach { exam ->
+                M3EExamRowCard(
+                    exam = exam,
+                    hallTicketUrl = hallTicketUrl,
+                    onClick = { onAction(M3EExamScheduleAction.ExamClicked(exam)) },
+                    onOpenHallTicket = { url -> onAction(M3EExamScheduleAction.OpenHallTicket(url)) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun M3EExamRowCard(
+    exam: M3EExamEntry,
+    hallTicketUrl: String?,
+    onClick: () -> Unit,
+    onOpenHallTicket: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    val tone = statusColor(exam.status)
+
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 20.dp,
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Course identity + semantic status badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.LocationOn,
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
+                    Text(
+                        text = exam.courseCode,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.primary
                     )
                     Text(
-                        text = "${exam.venue} | Seat: ${exam.seatNumber}",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
+                        text = exam.courseTitle,
+                        style = MaterialTheme.typography.titleMedium,
                         color = colors.onSurface
                     )
                 }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(tone.copy(alpha = 0.16f))
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.AccessTime,
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
-                    )
                     Text(
-                        text = exam.examTime,
-                        fontSize = 12.sp,
-                        color = colors.onSurfaceVariant
+                        text = exam.status.label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = tone
                     )
                 }
             }
+
+            // Date / session / slot banner
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(colors.primaryContainer)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "${exam.date} • ${exam.session}",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onPrimaryContainer
+                    )
+                }
+                Text(
+                    text = "Slot ${exam.slot}",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.primary
+                )
+            }
+
+            // Detail rows
+            M3EExamDetailRow(Icons.Rounded.AccessTime, "Reporting", exam.reportingTime.ifBlank { "TBA" })
+            M3EExamDetailRow(Icons.Rounded.AccessTime, "Exam time", exam.examTime.ifBlank { "TBA" })
+            M3EExamDetailRow(
+                Icons.Rounded.LocationOn,
+                "Venue",
+                exam.venueDisplay.ifBlank { exam.venue }.ifBlank { "TBA" }
+            )
+            M3EExamDetailRow(
+                Icons.Rounded.CalendarMonth,
+                "Seat",
+                if (exam.seatLocation.isBlank()) exam.seatNumber.ifBlank { "TBA" }
+                else "${exam.seatNumber.ifBlank { "TBA" }} · ${exam.seatLocation}"
+            )
+
+            // Hall ticket — only when the payload actually exposes a link.
+            if (hallTicketUrl != null) {
+                Button(onClick = { onOpenHallTicket(hallTicketUrl) }) {
+                    Icon(
+                        imageVector = Icons.Rounded.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Hall ticket")
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun M3EExamDetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+    val colors = M3ETheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = colors.onSurfaceVariant,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = colors.onSurface
+        )
     }
 }
 
@@ -416,9 +658,8 @@ internal fun examSeriesFor(rawType: String): ExamSeries {
 /**
  * Pure, headless-testable mapping of the real `ExamScheduleRes` payload into stateless screen rows.
  *
- * The series comes from the `schedule` map key (which the domain snapshot discards), and every
- * display field comes straight from [com.amazecc.app.shared.model.ExamItem] - no hardcoded FAT,
- * empty day/slot, or duplicated reporting/exam times.
+ * Kept verbatim for the legacy bridge and its wiring tests. The new host uses the richer
+ * [M3EExamScheduleComputations.buildEntries] instead, which adds status/countdown/seat fields.
  */
 internal fun mapExamScheduleResToEntries(
     res: ExamScheduleRes,

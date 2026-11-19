@@ -1,11 +1,16 @@
 package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.model.AccountCredential
+import com.amazecc.app.shared.model.AcknowledgementDocument
+import com.amazecc.app.shared.model.AcknowledgementInfo
 import com.amazecc.app.shared.model.ApaarIdRes
 import com.amazecc.app.shared.model.ApaarInfo
 import com.amazecc.app.shared.model.BankInfo
 import com.amazecc.app.shared.model.BankInfoRes
 import com.amazecc.app.shared.model.CredentialsRes
+import com.amazecc.app.shared.model.ContactEntry
+import com.amazecc.app.shared.model.RESIDENCE_DAYSCHOLAR
+import com.amazecc.app.shared.model.RESIDENCE_HOSTELLER
 import com.amazecc.app.shared.model.DayboarderInfo
 import com.amazecc.app.shared.model.DayboarderRes
 import com.amazecc.app.shared.model.EptScheduleRes
@@ -21,12 +26,16 @@ import com.amazecc.app.shared.model.StudentIdentity
 import com.amazecc.app.shared.model.StudentProfileRes
 import com.amazecc.app.shared.model.UniversityDayRes
 import com.amazecc.app.shared.model.VtopTable
+import com.amazecc.app.shared.model.WhoamiRes
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 
 /**
  * Deciphers raw endpoint payloads into clean [StudentIdentity] fragments.
@@ -267,6 +276,349 @@ object IdentityExtractor {
                 tables = normalizeTables(res.tables)
             )
         )
+    }
+
+    // ── /api/remote/whoami (flat consolidated payload) ──
+
+    private val whoamiJson = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+
+    /** Convenience overload for callers that decoded the wire model directly. */
+    fun fromWhoami(res: WhoamiRes): StudentIdentity =
+        fromWhoami(whoamiJson.encodeToJsonElement(WhoamiRes.serializer(), res).jsonObject)
+
+    /**
+     * Deciphers the flat `/api/remote/whoami` response into a single canonical
+     * fragment. The server spreads the identity at the top level and folds ten
+     * VTOP pages (student, proctor, hodDean, credentials, apaar, bank, contact,
+     * acknowledgement, dayboarder, eptSchedule) into nested blocks. Every folded
+     * field is mapped; nested shapes are read defensively so a sibling-parser
+     * change can never crash the client.
+     */
+    fun fromWhoami(obj: JsonObject): StudentIdentity {
+        val regNo = str(obj, "regNo") ?: str(obj, "applicationNumber")
+        val isHostellerFlag = (obj["isHosteller"] as? JsonPrimitive)?.booleanOrNull ?: false
+
+        val currentRows = rowsFromJson(obj["currentAddress"])
+        val permanentRows = rowsFromJson(obj["permanentAddress"])
+        val fatherRows = rowsFromJson(obj["father"])
+        val motherRows = rowsFromJson(obj["mother"])
+        val friendMobile = str(obj, "friendMobile")
+            ?: (currentRows + permanentRows).firstOrNull {
+                it.label.contains("friend", true) && it.label.contains("mobile", true)
+            }?.value
+
+        val proctorOfficial = officialFromJson(obj["proctor"])
+        val hodDeanOfficials = officialsFromJson(obj["hodDean"])
+        val credentials = credentialsFromJson(obj["credentials"])
+        val ranks = ranksFromJson(obj["ranks"])
+        val bank = bankFromJson(obj["bank"])
+        val apaar = apaarFromJson(obj["apaar"])
+        val contacts = contactsFromJson(obj["contact"])
+        val acknowledgement = acknowledgementFromJson(obj["acknowledgement"])
+
+        val (dayboarderTitle, dayboarderRows) = dayboarderFieldsFromJson(obj["dayboarder"] as? JsonObject)
+        val dayboarder = dayboarderRows.takeIf { it.isNotEmpty() }
+            ?.let { DayboarderInfo(isDayboarder = true, fields = it) }
+
+        val ept = eptFromJson(obj["eptSchedule"])
+
+        val residence = deriveResidenceStatus(isHostellerFlag, dayboarderRows)
+        // Keep the legacy boolean in sync with the tri-state status where possible.
+        val effectiveHosteller = when (residence) {
+            RESIDENCE_HOSTELLER -> true
+            RESIDENCE_DAYSCHOLAR -> false
+            else -> isHostellerFlag
+        }
+
+        return StudentIdentity(
+            regNo = regNo,
+            name = str(obj, "name"),
+            email = str(obj, "email"),
+            mobile = str(obj, "mobile"),
+            dob = str(obj, "dob"),
+            gender = str(obj, "gender"),
+            bloodGroup = str(obj, "bloodGroup"),
+            photoBase64 = str(obj, "photoBase64"),
+            isHosteller = effectiveHosteller,
+            residenceStatus = residence,
+            friendlyName = str(obj, "friendlyName"),
+            // Prefer the consolidated acknowledgement's application number when the flat
+            // snapshot has none; fall back to regNo as the legacy student parser did.
+            applicationNumber = str(obj, "applicationNumber") ?: acknowledgement?.applicationNo ?: regNo,
+            program = str(obj, "program"),
+            school = str(obj, "school") ?: proctorOfficial?.school,
+            campus = str(obj, "campus"),
+            batch = str(obj, "batch"),
+            section = str(obj, "section"),
+            advisorName = str(obj, "advisorName"),
+            nationality = str(obj, "nationality"),
+            nativeLanguage = str(obj, "nativeLanguage"),
+            nativeState = str(obj, "nativeState"),
+            community = str(obj, "community"),
+            religion = str(obj, "religion"),
+            caste = str(obj, "caste"),
+            physicallyChallenged = str(obj, "physicallyChallenged"),
+            aadharNumber = str(obj, "aadharNumber"),
+            friendMobile = friendMobile,
+            currentAddress = currentRows,
+            permanentAddress = permanentRows,
+            father = fatherRows,
+            mother = motherRows,
+            guardian = str(obj, "guardian"),
+            proctor = proctorOfficial,
+            hodDean = hodDeanOfficials,
+            credentials = credentials,
+            ranks = ranks,
+            eptTables = ept.tables,
+            eptTitle = ept.title,
+            eptFields = ept.fields,
+            eptMessages = ept.messages,
+            dayboarder = dayboarder,
+            dayboarderTitle = dayboarderTitle,
+            contacts = contacts,
+            contactTitle = str(obj, "contactTitle"),
+            acknowledgement = acknowledgement,
+            apaar = apaar,
+            bank = bank
+        )
+    }
+
+    /**
+     * Residence precedence (mirrors the web client):
+     *  1. an explicit `isHosteller = true` is authoritative → HOSTELLER;
+     *  2. the canonical "Staying Type" dayboarder field text (raw value or its
+     *     `selectedText`) containing DAYBOARDER/DAYSCHOLAR → DAYSCHOLAR, or
+     *     HOSTELLER/HOSTEL → HOSTELLER;
+     *  3. a dayboarder block that carries meaningful fields but no readable
+     *     staying type → DAYSCHOLAR (a hosteller who also has the page is still
+     *     covered by rule 1);
+     *  4. otherwise null — the caller keeps the onboarding choice as fallback.
+     */
+    fun deriveResidenceStatus(isHosteller: Boolean, dayboarderRows: List<KeyValueRow>): String? {
+        if (isHosteller) return RESIDENCE_HOSTELLER
+        val staying = dayboarderRows.firstOrNull {
+            it.label.contains("staying", true) && it.label.contains("type", true)
+        }?.value.orEmpty()
+        if (staying.contains("DAYBOARDER", true) ||
+            staying.contains("DAY BOARDER", true) ||
+            staying.contains("DAY BOARDING", true) ||
+            staying.contains("DAYSCHOLAR", true) ||
+            staying.contains("DAY SCHOLAR", true)
+        ) return RESIDENCE_DAYSCHOLAR
+        if (staying.contains("HOSTELLER", true) || staying.contains("HOSTEL", true)) return RESIDENCE_HOSTELLER
+        if (dayboarderRows.isNotEmpty()) return RESIDENCE_DAYSCHOLAR
+        return null
+    }
+
+    // ── Flat-payload decipher helpers ──
+
+    private fun str(obj: JsonObject, vararg keys: String): String? {
+        for (key in keys) {
+            val value = (obj[key] as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf { it.isNotBlank() }
+            if (value != null) return value
+        }
+        return null
+    }
+
+    private fun rowsFromJson(el: JsonElement?): List<KeyValueRow> = when (el) {
+        is JsonArray -> el.mapNotNull { item ->
+            val o = item as? JsonObject ?: return@mapNotNull null
+            val label = str(o, "label") ?: return@mapNotNull null
+            val value = str(o, "value") ?: return@mapNotNull null
+            KeyValueRow(label, value)
+        }
+        is JsonObject -> toStringRows(el)
+        else -> emptyList()
+    }
+
+    private fun officialFromJson(el: JsonElement?): Official? {
+        val o = el as? JsonObject ?: return null
+        val extras = (o["extras"] as? JsonArray).orEmpty().mapNotNull { item ->
+            val row = item as? JsonObject ?: return@mapNotNull null
+            val label = str(row, "label") ?: return@mapNotNull null
+            val value = str(row, "value") ?: return@mapNotNull null
+            KeyValueRow(label, value)
+        }
+        val official = Official(
+            role = str(o, "role"),
+            name = str(o, "name"),
+            designation = str(o, "designation"),
+            email = str(o, "email"),
+            phone = str(o, "phone", "mobile", "mobileNumber"),
+            school = str(o, "school"),
+            cabin = str(o, "cabin"),
+            department = str(o, "department"),
+            intercom = str(o, "intercom"),
+            facultyId = str(o, "facultyId", "faculty_id"),
+            photoBase64 = str(o, "photoBase64"),
+            extras = extras
+        )
+        return official.takeIf {
+            it.role != null || it.name != null || it.designation != null ||
+                it.photoBase64 != null || it.extras.isNotEmpty()
+        }
+    }
+
+    private fun officialsFromJson(el: JsonElement?): List<Official> = when (el) {
+        is JsonArray -> el.mapNotNull { officialFromJson(it) }
+        is JsonObject -> listOfNotNull(officialFromJson(el))
+        else -> emptyList()
+    }
+
+    private fun credentialsFromJson(el: JsonElement?): List<AccountCredential> = when (el) {
+        is JsonArray -> el.mapNotNull { item ->
+            val o = item as? JsonObject ?: return@mapNotNull null
+            val account = str(o, "account") ?: return@mapNotNull null
+            AccountCredential(
+                account = account,
+                username = str(o, "username") ?: "",
+                password = str(o, "password", "defaultCredentials") ?: "",
+                url = str(o, "url"),
+                venueDate = str(o, "venueDate") ?: "",
+                seatLocation = str(o, "seatLocation") ?: ""
+            )
+        }
+        else -> emptyList()
+    }
+
+    private fun ranksFromJson(el: JsonElement?): List<RankInfo> = when (el) {
+        is JsonArray -> el.mapNotNull { item ->
+            val o = item as? JsonObject ?: return@mapNotNull null
+            val name = str(o, "name") ?: return@mapNotNull null
+            val rank = str(o, "rank") ?: return@mapNotNull null
+            RankInfo(name, rank)
+        }
+        else -> emptyList()
+    }
+
+    private fun bankFromJson(el: JsonElement?): BankInfo? {
+        val o = el as? JsonObject ?: return null
+        val fields = rowsFromJson(o["fields"])
+        val name = str(o, "name", "bankName", "bank")
+        val branch = str(o, "branch")
+        val address = str(o, "address")
+        return if (name == null && branch == null && address == null && fields.isEmpty()) null
+        else BankInfo(name, branch, address, fields)
+    }
+
+    private fun apaarFromJson(el: JsonElement?): ApaarInfo? {
+        val o = el as? JsonObject ?: return null
+        val has = (o["hasApaar"] as? JsonPrimitive)?.booleanOrNull ?: false
+        val fields = rowsFromJson(o["fields"])
+        val tables = whoamiTables(o["tables"])
+        if (!has && fields.isEmpty() && tables.isEmpty()) return null
+        return ApaarInfo(hasApaar = has, fields = fields, tables = tables)
+    }
+
+    private fun contactsFromJson(el: JsonElement?): List<ContactEntry> = when (el) {
+        is JsonArray -> el.mapNotNull { item ->
+            val o = item as? JsonObject ?: return@mapNotNull null
+            val office = str(o, "office") ?: ""
+            val description = str(o, "description") ?: ""
+            if (office.isBlank() && description.isBlank()) return@mapNotNull null
+            ContactEntry(office = office, description = description, email = str(o, "email"))
+        }
+        else -> emptyList()
+    }
+
+    private fun acknowledgementFromJson(el: JsonElement?): AcknowledgementInfo? {
+        val o = el as? JsonObject ?: return null
+        val documents = (o["documents"] as? JsonArray).orEmpty().mapNotNull { item ->
+            val doc = item as? JsonObject ?: return@mapNotNull null
+            AcknowledgementDocument(
+                serialNo = str(doc, "serialNo"),
+                documentName = str(doc, "documentName"),
+                status = str(doc, "status")
+            )
+        }
+        val info = AcknowledgementInfo(
+            title = str(o, "title"),
+            documents = documents,
+            applicationNo = str(o, "applicationNo"),
+            registerNo = str(o, "registerNo"),
+            programme = str(o, "programme"),
+            branch = str(o, "branch"),
+            campus = str(o, "campus")
+        )
+        return info.takeIf {
+            it.title != null || it.documents.isNotEmpty() || it.applicationNo != null ||
+                it.registerNo != null || it.programme != null || it.branch != null || it.campus != null
+        }
+    }
+
+    /**
+     * `dayboarder.fields` is `{ key: { label, value, selectedText? } }`. We feed a
+     * normalized copy through the existing fuzzy canonicalizer so the canonical
+     * labels ("Staying Type", …) stay consistent with the per-endpoint path, and
+     * let `selectedText` (the friendly selected option) win for display/derivation.
+     */
+    private fun dayboarderFieldsFromJson(raw: JsonObject?): Pair<String?, List<KeyValueRow>> {
+        if (raw == null) return null to emptyList()
+        val title = str(raw, "title")
+        val fieldsObj = raw["fields"] as? JsonObject ?: return title to emptyList()
+        val normalized = JsonObject(fieldsObj.entries.associate { (key, value) ->
+            val rewritten = if (value is JsonObject) {
+                val selectedText = str(value, "selectedText")
+                if (selectedText != null) JsonObject(value.toMap() + ("value" to JsonPrimitive(selectedText)))
+                else value
+            } else value
+            key to rewritten
+        })
+        return title to decipherDayboarderFields(normalized)
+    }
+
+    private data class EptParts(
+        val title: String?,
+        val tables: List<VtopTable>,
+        val fields: List<KeyValueRow>,
+        val messages: List<KeyValueRow>
+    )
+
+    private fun eptFromJson(el: JsonElement?): EptParts {
+        val o = el as? JsonObject ?: return EptParts(null, emptyList(), emptyList(), emptyList())
+        val fields = rowsFromJson(o["keyValuePairs"]) + rowsFromJson(o["formFields"])
+        val messages = rowsFromJson(o["messages"])
+        val message = str(o, "message")
+        val allMessages = if (message != null) messages + KeyValueRow("Message", message) else messages
+        return EptParts(str(o, "title"), whoamiTables(o["tables"]), fields, allMessages)
+    }
+
+    /**
+     * Hono `VtopTable.rows` are arrays of key/value objects (not Kotlin's
+     * `List<List<String>>`). Derive headers from the declared list or the union
+     * of row keys and flatten each row to cells in that order.
+     */
+    private fun whoamiTables(el: JsonElement?): List<VtopTable> = when (el) {
+        is JsonArray -> el.mapNotNull { element ->
+            val o = element as? JsonObject ?: return@mapNotNull null
+            val caption = str(o, "caption")
+            val declared = (o["headers"] as? JsonArray).orEmpty()
+                .mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.takeIf { h -> h.isNotBlank() } }
+            val rowsEl = o["rows"] as? JsonArray
+            if (rowsEl == null) {
+                if (caption == null) null else VtopTable(caption, declared, emptyList())
+            } else {
+                val rowObjects = rowsEl.mapNotNull { it as? JsonObject }
+                val derivedHeaders = if (rowObjects.isNotEmpty() && rowObjects.size == rowsEl.size) {
+                    declared.ifEmpty {
+                        buildList {
+                            rowObjects.forEach { obj -> obj.keys.forEach { k -> if (k !in this) add(k) } }
+                        }
+                    }
+                } else declared
+                val rows = rowsEl.mapNotNull { row ->
+                    when (row) {
+                        is JsonObject -> derivedHeaders.map { h -> str(row, h).orEmpty() }
+                            .takeIf { cells -> cells.any { it.isNotBlank() } }
+                        is JsonArray -> row.map { jsonToText(it).trim() }
+                            .takeIf { cells -> cells.any { it.isNotBlank() } }
+                        else -> null
+                    }
+                }
+                if (rows.isEmpty() && caption == null) null else VtopTable(caption, derivedHeaders, rows)
+            }
+        }
+        else -> emptyList()
     }
 
     // ── Shared decipher helpers ──

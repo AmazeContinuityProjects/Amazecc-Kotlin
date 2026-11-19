@@ -24,6 +24,7 @@ import com.amazecc.app.shared.model.EptScheduleRes
 import com.amazecc.app.shared.model.HostelDetails
 import com.amazecc.app.shared.model.HostelInfo
 import com.amazecc.app.shared.model.LeaveItem
+import com.amazecc.app.shared.model.LibraryRes
 import com.amazecc.app.shared.model.MarksCourseItem
 import com.amazecc.app.shared.model.MarksRes
 import com.amazecc.app.shared.model.PaymentItem
@@ -72,6 +73,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.put
@@ -1005,6 +1007,29 @@ object VtopDataSource {
         return res
     }
 
+    // ── Library dues ───────────────────────────────────────────────────────
+
+    /**
+     * VTOP library dues (`/vtop/finance/libraryPayments`), the same page the reference API serves
+     * as `POST /api/finance {section:library}`. Prefers the dedicated headless scraper; the raw
+     * generic page scrape below is kept as a fallback so a transport-level hiccup in the scraper's
+     * own script still yields whatever tables VTOP returned. Both paths return null — never a
+     * fabricated book — when there is no session or no usable data.
+     */
+    suspend fun fetchLibrary(): LibraryRes? {
+        VtopLibraryScraper.fetchLibraryDues()?.let { return it }
+        if (!vtopEngineSupported || !VtopSession.hasSession) return null
+        val page = parsePage(PATH_LIBRARY_PAYMENTS) ?: return null
+        // Re-emit the generic parse in the reference parser's shape and let the shared mapper
+        // decide which rows are real books.
+        val payload = buildJsonObject {
+            put("ok", true)
+            put("tables", page.tables.toJsonArray())
+            put("keyValuePairs", page.keyValuePairs.toJsonObject())
+        }.toString()
+        return VtopLibraryScraper.parsePayload(payload)
+    }
+
     // ── Group A — generic page parse ───────────────────────────────────────
     // APAAR, EPT, Registration Schedule, University Day and Dayboarder are all
     // "a form plus a couple of tables" with no bespoke column mapping, so they share one parser:
@@ -1389,6 +1414,17 @@ object VtopDataSource {
             }
         }
 
+        // Same session, so the tracking link rides along with the registration fetch. Use the
+        // page's own csrf (matches what the VTOP page posts) with the login token as fallback.
+        // A GPS failure is deliberately swallowed: the registration page is the primary payload.
+        val busUrl = if (busRouteId.isNotBlank()) {
+            val pageCsrf = page.hiddenFields["_csrf"]?.takeIf { it.isNotBlank() }
+                ?: page.formFields["_csrf"]?.takeIf { it.isNotBlank() }
+                ?: VtopSession.csrf.value.orEmpty()
+            runCatching { fetchBusUrl(busRouteId, pageCsrf) }.getOrDefault("")
+                .takeIf { it.isNotBlank() }
+        } else null
+
         val res = TransportDataRes(
             success = true,
             hasRegistration = busRouteId.isNotBlank() || regNo != null,
@@ -1396,10 +1432,63 @@ object VtopDataSource {
             name = name,
             branch = branch,
             routeSelected = routeSelected,
-            busRouteId = busRouteId.ifBlank { null }
+            busRouteId = busRouteId.ifBlank { null },
+            busUrl = busUrl
         )
         AppDataStore.setTransportData(res)
         return res
+    }
+
+    /**
+     * Pure decode of a `trackMyBus` response body into a share URL. VTOP answers this endpoint
+     * with an HTML "Unidentified OS or Browser" page when `Accept` isn't JSON, so anything that
+     * is not a JSON object with a non-blank `busUrl` yields "" — never a thrown exception.
+     */
+    fun parseBusUrl(raw: String): String {
+        if (raw.isBlank()) return ""
+        if (raw.trimStart().startsWith("<!doctype html", ignoreCase = true)) return ""
+        return runCatching {
+            val root = json.parseToJsonElement(raw) as? JsonObject ?: return@runCatching ""
+            (root["busUrl"] as? JsonPrimitive)?.content?.trim().orEmpty()
+        }.getOrDefault("")
+    }
+
+    /** POST `trackMyBus` with the `Accept: application/json` header and return its busUrl. */
+    private suspend fun fetchBusUrl(busRouteId: String, pageCsrf: String): String = withContext(Dispatchers.Default) {
+        if (!vtopEngineSupported) return@withContext ""
+        val authId = VtopSession.authorizedID.value?.takeIf { it.isNotBlank() } ?: return@withContext ""
+        val script = buildBusUrlScript(authId, pageCsrf, busRouteId)
+        val envelope = runCatching {
+            Vtop.engineInstance().evaluate(script, timeoutMs = 15_000)
+        }.getOrNull() ?: return@withContext ""
+        val root = runCatching { json.parseToJsonElement(envelope) }.getOrNull() as? JsonObject
+            ?: return@withContext ""
+        if ((root["ok"] as? JsonPrimitive)?.booleanOrNull != true) return@withContext ""
+        parseBusUrl((root["text"] as? JsonPrimitive)?.content.orEmpty())
+    }
+
+    private fun buildBusUrlScript(authId: String, pageCsrf: String, busRouteId: String): String {
+        fun js(value: String): String = VtopScripts.jsString(value)
+        return """
+            (function() {
+              try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', ${js(PATH_TRANSPORT_TRACK)}, false);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                // Without this VTOP replies with an HTML "Unidentified OS or Browser" page.
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.send('authorizedID=' + encodeURIComponent(${js(authId)})
+                  + '&_csrf=' + encodeURIComponent(${js(pageCsrf)})
+                  + '&busRouteId=' + encodeURIComponent(${js(busRouteId)})
+                  + '&x=' + Date.now());
+                if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+                return JSON.stringify({ ok: true, text: xhr.responseText || '' });
+              } catch (e) {
+                return JSON.stringify({ ok: false, error: String(e && e.message ? e.message : e) });
+              }
+            })();
+        """.trimIndent()
     }
 
     suspend fun fetchOdDetails(semesterId: String): OdDetailsRes? {

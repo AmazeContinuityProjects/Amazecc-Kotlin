@@ -47,6 +47,9 @@ internal fun mergeIdentity(
         bloodGroup = m.str(current.bloodGroup, fragment.bloodGroup, "bloodGroup"),
         photoBase64 = m.str(current.photoBase64, fragment.photoBase64, "photoBase64"),
         isHosteller = m.boolean(current.isHosteller, fragment.isHosteller, "isHosteller"),
+        // Tri-state string on purpose: unlike the boolean above, ME can overwrite
+        // this in BOTH directions (HOSTELLER ↔ DAYSCHOLAR) at tier 8.
+        residenceStatus = m.str(current.residenceStatus, fragment.residenceStatus, "residenceStatus"),
         friendlyName = m.str(current.friendlyName, fragment.friendlyName, "friendlyName"),
         applicationNumber = m.str(current.applicationNumber, fragment.applicationNumber, "applicationNumber"),
         program = m.str(current.program, fragment.program, "program"),
@@ -74,12 +77,19 @@ internal fun mergeIdentity(
         credentials = m.list(current.credentials, fragment.credentials, "credentials"),
         ranks = m.list(current.ranks, fragment.ranks, "ranks"),
         eptTables = m.list(current.eptTables, fragment.eptTables, "eptTables"),
+        eptTitle = m.str(current.eptTitle, fragment.eptTitle, "eptTitle"),
+        eptFields = m.list(current.eptFields, fragment.eptFields, "eptFields"),
+        eptMessages = m.list(current.eptMessages, fragment.eptMessages, "eptMessages"),
         registrationFields = m.list(current.registrationFields, fragment.registrationFields, "registrationFields"),
         registrationTables = m.list(current.registrationTables, fragment.registrationTables, "registrationTables"),
         universityDayTitle = m.str(current.universityDayTitle, fragment.universityDayTitle, "universityDayTitle"),
         universityDayFields = m.list(current.universityDayFields, fragment.universityDayFields, "universityDayFields"),
         universityDayTables = m.list(current.universityDayTables, fragment.universityDayTables, "universityDayTables"),
         dayboarder = m.dayboarder(current.dayboarder, fragment.dayboarder, "dayboarder"),
+        dayboarderTitle = m.str(current.dayboarderTitle, fragment.dayboarderTitle, "dayboarderTitle"),
+        contacts = m.list(current.contacts, fragment.contacts, "contacts"),
+        contactTitle = m.str(current.contactTitle, fragment.contactTitle, "contactTitle"),
+        acknowledgement = m.acknowledgement(current.acknowledgement, fragment.acknowledgement, "acknowledgement"),
         apaar = m.apaar(current.apaar, fragment.apaar, "apaar"),
         bank = m.bank(current.bank, fragment.bank, "bank")
     )
@@ -175,6 +185,24 @@ private class Merger(
             hasApaar = boolean(c.hasApaar, incoming.hasApaar, "$path.hasApaar"),
             fields = list(c.fields, incoming.fields, "$path.fields"),
             tables = list(c.tables, incoming.tables, "$path.tables")
+        )
+    }
+
+    fun acknowledgement(
+        current: com.amazecc.app.shared.model.AcknowledgementInfo?,
+        incoming: com.amazecc.app.shared.model.AcknowledgementInfo?,
+        path: String
+    ): com.amazecc.app.shared.model.AcknowledgementInfo? {
+        if (incoming == null) return current
+        val c = current ?: com.amazecc.app.shared.model.AcknowledgementInfo()
+        return com.amazecc.app.shared.model.AcknowledgementInfo(
+            title = str(c.title, incoming.title, "$path.title"),
+            documents = list(c.documents, incoming.documents, "$path.documents"),
+            applicationNo = str(c.applicationNo, incoming.applicationNo, "$path.applicationNo"),
+            registerNo = str(c.registerNo, incoming.registerNo, "$path.registerNo"),
+            programme = str(c.programme, incoming.programme, "$path.programme"),
+            branch = str(c.branch, incoming.branch, "$path.branch"),
+            campus = str(c.campus, incoming.campus, "$path.campus")
         )
     }
 

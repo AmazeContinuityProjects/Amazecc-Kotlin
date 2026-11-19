@@ -226,7 +226,11 @@ data class BookItem(
     val title: String,
     val author: String? = null,
     val dueDate: String? = null,
-    val fineAmount: String? = null
+    val fineAmount: String? = null,
+    /** ISBN from the VTOP library-dues table (used as [bookId] when no other id exists). */
+    val isbn: String? = null,
+    /** Raw "days overdue" text from the VTOP library-dues table, e.g. `"12"`. */
+    val daysOverdue: String? = null
 )
 
 @Serializable
@@ -346,6 +350,8 @@ data class TransportDataRes(
     val routeSelected: String? = null,
     val busRouteId: String? = null,
     val qrCode: String? = null,
+    /** Live GPS share link from `/vtop/transport/trackMyBus`; null when unavailable. */
+    val busUrl: String? = null,
     val error: String? = null,
     val message: String? = null
 )

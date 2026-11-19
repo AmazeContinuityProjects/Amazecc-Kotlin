@@ -2054,41 +2054,19 @@ val results = supervisorScope {
 
     fun refreshProfile() {
         if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
-        launchSweep(setOf(SyncModule.STUDENT_PROFILE, SyncModule.PROFILE_IMAGES, SyncModule.BANK_INFO,
-            SyncModule.DAYBOARDER, SyncModule.EPT_SCHEDULE, SyncModule.REGISTRATION_SCHEDULE, SyncModule.APAAR_ID)) {
+        launchSweep(
+            setOf(
+                SyncModule.STUDENT_PROFILE, SyncModule.PROFILE_IMAGES, SyncModule.CREDENTIALS,
+                SyncModule.BANK_INFO, SyncModule.APAAR_ID, SyncModule.DAYBOARDER,
+                SyncModule.EPT_SCHEDULE, SyncModule.REGISTRATION_SCHEDULE, SyncModule.UNIVERSITY_DAY
+            )
+        ) {
             _syncStatus.value = "Syncing profile..."
-            val results = supervisorScope {
-                    listOf(
-                        async {
-                            syncModule("Dayboarder Info", { AmazeClient.getDayboarderInfo() }, { it.success }, { it.error }) {
-                                UserStore.merge(IdentityExtractor.fromDayboarder(it), IdentitySource.RECORDS)
-                            }
-                        },
-                        async {
-                            syncModule("EPT Schedule", { AmazeClient.getEptSchedule() }, { it.success }, { it.error }) {
-                                UserStore.merge(IdentityExtractor.fromEptSchedule(it), IdentitySource.RECORDS)
-                            }
-                        },
-                        async {
-                            syncModule("Registration Schedule", { AmazeClient.getRegistrationSchedule() }, { it.success }, { it.error }) {
-                                UserStore.merge(IdentityExtractor.fromRegistrationSchedule(it), IdentitySource.RECORDS)
-                                updateFfcsRegistration(parseFfcsRegistration(it))
-                            }
-                        },
-                        async {
-                            syncModule("University Day", { AmazeClient.getUniversityDay() }, { it.success }, { it.error }) {
-                                UserStore.merge(IdentityExtractor.fromUniversityDay(it), IdentitySource.RECORDS)
-                            }
-                        },
-                        async { syncIdentityModules() }
-                    ).awaitAll().flatMap { result ->
-                        when (result) {
-                            is List<*> -> @Suppress("UNCHECKED_CAST") (result as List<SyncModuleResult>)
-                            else -> listOf(result as SyncModuleResult)
-                        }
-                    }
-                }
-                updateSyncSummary(results)
+            // The consolidated whoami payload already carries the folded records,
+            // so one identity sweep covers every profile module without fetching
+            // the same records a second time. UNIVERSITY_DAY is now part of the set.
+            val results = syncIdentityModules()
+            updateSyncSummary(results)
         }
     }
 
@@ -2356,30 +2334,52 @@ val results = supervisorScope {
     }
 
     /**
-     * Identity sync: one consolidated `/api/me` fetch merged under the ME tier,
-     * replacing the five per-endpoint identity fetches (tiers 2–6). Falls back
-     * to those individual fetches when `/api/me` is unavailable (old server,
-     * demo mode, partial failure).
+     * Identity sync: one consolidated `/api/remote/whoami` fetch merged under the
+     * ME tier, covering identity core plus every folded profile module. Falls
+     * back to the individual per-endpoint fetches when the consolidated payload
+     * is unavailable (old server, demo mode, partial failure).
      */
     private suspend fun syncIdentityModules(): List<SyncModuleResult> {
         val me = AmazeClient.getMe()
         if (me.success && me.identity != null) {
-            UserStore.merge(me.identity, IdentitySource.ME)
+            val identity = me.identity
+            UserStore.merge(identity, IdentitySource.ME)
+            reconcileResidentialStatus(identity)
             reconcileExamSeatAlerts()
-            val names = listOf(
-                "Student Profile", "Profile Images", "Credentials",
-                "Bank Information", "APAAR ID"
-            ).filter { name ->
+            val names = ConsolidatedIdentityModuleNames.filter { name ->
                 SyncEngine.moduleOf(name)?.let { SyncEngine.isModuleEnabled(it) } ?: true
             }
             names.forEach { name ->
                 SyncEngine.moduleOf(name)?.let {
                     SyncEngine.markModuleSuccess(it)
-                    SyncEngine.addLog(it, "Synced via /api/me", SyncStatus.SUCCESS)
+                    SyncEngine.addLog(it, "Synced via /api/remote/whoami", SyncStatus.SUCCESS)
                 }
             }
+            // Registration schedule & university day are not among the ten folded
+            // VTOP pages. Fill them individually when the snapshot did not carry
+            // them so their pages still have real data — no double-fetch of data
+            // the consolidated payload already supplied.
+            try {
+                if (identity.registrationFields.isEmpty() && identity.registrationTables.isEmpty()) {
+                    AmazeClient.getRegistrationSchedule().takeIf { it.success }?.let { res ->
+                        UserStore.merge(IdentityExtractor.fromRegistrationSchedule(res), IdentitySource.RECORDS)
+                        updateFfcsRegistration(parseFfcsRegistration(res))
+                    }
+                }
+            } catch (_: Exception) {}
+            try {
+                if (identity.universityDayTitle == null && identity.universityDayFields.isEmpty() &&
+                    identity.universityDayTables.isEmpty()
+                ) {
+                    AmazeClient.getUniversityDay().takeIf { it.success }?.let { res ->
+                        UserStore.merge(IdentityExtractor.fromUniversityDay(res), IdentitySource.RECORDS)
+                    }
+                }
+            } catch (_: Exception) {}
             return names.map { SyncModuleResult(it, true) }
         }
+        // Consolidated payload unavailable — sweep each source individually,
+        // including the records that whoami would otherwise have carried.
         return supervisorScope {
             listOf(
                 async {
@@ -2407,9 +2407,61 @@ val results = supervisorScope {
                     syncModule("APAAR ID", { AmazeClient.getApaarId() }, { it.success }, { it.error }) {
                         UserStore.merge(IdentityExtractor.fromApaarId(it), IdentitySource.APAAR)
                     }
+                },
+                async {
+                    syncModule("Dayboarder Info", { AmazeClient.getDayboarderInfo() }, { it.success }, { it.error }) {
+                        UserStore.merge(IdentityExtractor.fromDayboarder(it), IdentitySource.RECORDS)
+                        reconcileResidentialStatus(UserStore.identity.value)
+                    }
+                },
+                async {
+                    syncModule("EPT Schedule", { AmazeClient.getEptSchedule() }, { it.success }, { it.error }) {
+                        UserStore.merge(IdentityExtractor.fromEptSchedule(it), IdentitySource.RECORDS)
+                    }
+                },
+                async {
+                    syncModule("Registration Schedule", { AmazeClient.getRegistrationSchedule() }, { it.success }, { it.error }) {
+                        UserStore.merge(IdentityExtractor.fromRegistrationSchedule(it), IdentitySource.RECORDS)
+                        updateFfcsRegistration(parseFfcsRegistration(it))
+                    }
+                },
+                async {
+                    syncModule("University Day", { AmazeClient.getUniversityDay() }, { it.success }, { it.error }) {
+                        UserStore.merge(IdentityExtractor.fromUniversityDay(it), IdentitySource.RECORDS)
+                    }
                 }
             ).awaitAll()
         }
+    }
+
+    /** Modules covered by the consolidated identity snapshot / its fallback sweep. */
+    private val ConsolidatedIdentityModuleNames = listOf(
+        "Student Profile", "Profile Images", "Credentials",
+        "Bank Information", "APAAR ID", "Dayboarder Info",
+        "EPT Schedule", "Registration Schedule", "University Day"
+    )
+
+    /**
+     * Reconciles the onboarding-time [residentialStatus] with authoritative
+     * identity data. Precedence mirrors the web client: a bus registration forces
+     * DAYSCHOLAR; otherwise a tri-state identity residence (HOSTELLER /
+     * DAYSCHOLAR) wins; a null derived status keeps the onboarding choice.
+     */
+    private fun reconcileResidentialStatus(identity: com.amazecc.app.shared.model.StudentIdentity) {
+        val hasBusRegistration = runCatching { AppDataStore.transportData.value?.hasRegistration == true }
+            .getOrDefault(false)
+        val resolved = when {
+            hasBusRegistration -> "Dayscholar"
+            identity.residenceStatus == com.amazecc.app.shared.model.RESIDENCE_DAYSCHOLAR -> "Dayscholar"
+            identity.residenceStatus == com.amazecc.app.shared.model.RESIDENCE_HOSTELLER -> "Hosteller"
+            else -> null
+        }
+        if (resolved != null && _residentialStatus.value != resolved) {
+            _residentialStatus.value = resolved
+            SettingsManager.setString(SettingsManager.RESIDENTIAL_STATUS, resolved)
+        }
+        // The web client forces "DAYSCHOLAR + bus" when a bus registration exists.
+        if (hasBusRegistration && !_isBusSubscriber.value) setBusSubscriber(true)
     }
 
     private fun updateSyncSummary(results: List<SyncModuleResult>) {

@@ -459,6 +459,31 @@ enum class ExamSeries(val label: String) {
     FAT("FAT / Final")
 }
 
+/**
+ * Time-of-day aware status of a paper. Ported from the web app's `ExamState`: an exam whose end
+ * time has passed is "completed" even on its own calendar day, so a 12:30 PM CAT is done by 3 PM
+ * rather than at midnight.
+ */
+enum class ExamStatus(val label: String) {
+    UPCOMING("Upcoming"),
+    TODAY("Today"),
+    COMPLETED("Completed")
+}
+
+/** Counts behind the schedule summary strip. */
+data class M3EExamStatusCounts(
+    val upcoming: Int = 0,
+    val today: Int = 0,
+    val completed: Int = 0
+)
+
+/** One series section of the grouped exam timeline. */
+data class M3EExamSeriesGroup(
+    val series: ExamSeries,
+    val label: String,
+    val entries: List<M3EExamEntry>
+)
+
 data class M3EExamEntry(
     val id: String,
     val courseCode: String,
@@ -473,7 +498,13 @@ data class M3EExamEntry(
     val venue: String,
     val seatNumber: String,
     val daysRemaining: Int = 0,
-    val isHappeningSoon: Boolean = false
+    val isHappeningSoon: Boolean = false,
+    // Derived display data. Defaults keep every legacy constructor (bridge, mock previews,
+    // existing tests) compiling unchanged; the host fills these through M3EExamScheduleComputations.
+    val status: ExamStatus = ExamStatus.UPCOMING,
+    val countdownLabel: String = "",
+    val seatLocation: String = "",
+    val venueDisplay: String = ""
 )
 
 data class M3EExamScheduleState(
@@ -483,7 +514,15 @@ data class M3EExamScheduleState(
     val exams: List<M3EExamEntry>,
     val filteredExams: List<M3EExamEntry>,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    // --- richer M3E UX ---
+    /** Timeline sections, already filtered and sorted by the host. */
+    val groupedEntries: List<M3EExamSeriesGroup> = emptyList(),
+    /** Data-driven filter options from the `schedule` map keys; ALL is always first. */
+    val availableSeries: List<ExamSeries> = ExamSeries.entries.toList(),
+    /** External hall ticket link. Null today (the VTOP payload exposes no such field). */
+    val hallTicketUrl: String? = null,
+    val statusCounts: M3EExamStatusCounts = M3EExamStatusCounts()
 )
 
 sealed interface M3EExamScheduleAction {
@@ -491,6 +530,8 @@ sealed interface M3EExamScheduleAction {
     data class ExamClicked(val exam: M3EExamEntry) : M3EExamScheduleAction
     data object ExportCalendar : M3EExamScheduleAction
     data object Refresh : M3EExamScheduleAction
+    /** Emitted only when the payload actually exposes a hall-ticket URL. */
+    data class OpenHallTicket(val url: String) : M3EExamScheduleAction
 }
 
 // ==========================================
@@ -732,6 +773,12 @@ data class M3EMessMealItem(
     val isCurrent: Boolean = false
 )
 
+/** One hostel laundry slot, mapped from the real [com.amazecc.app.shared.model.LaundryRes] rows. */
+data class M3ELaundrySlot(
+    val date: String,
+    val roomNumber: String
+)
+
 data class M3ELeaveRecord(
     val leaveId: String,
     val visitPlace: String,
@@ -753,6 +800,7 @@ data class M3EHostelState(
     val hostelDetails: M3EHostelDetails,
     val selectedTab: M3EHostelTab = M3EHostelTab.MESS_MENU,
     val todayMessMenu: List<M3EMessMealItem> = emptyList(),
+    val laundrySchedule: List<M3ELaundrySlot> = emptyList(),
     val leaves: List<M3ELeaveRecord> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
@@ -1137,6 +1185,23 @@ sealed interface M3ETasksAction {
 // 20. PROFILE & DIGITAL ID IMMUTABLE STATE & ACTIONS
 // ==========================================
 
+/** Typed residence derived from the whoami payload, with the onboarding choice as fallback. */
+enum class M3EResidenceStatus { HOSTELLER, DAYSCHOLAR, UNKNOWN }
+
+/** One `contact` fragment from whoami: an office, its description and an optional email. */
+data class M3EContactItem(
+    val office: String,
+    val description: String,
+    val email: String? = null
+)
+
+/** One document inside whoami `acknowledgement.documents`. */
+data class M3EAcknowledgementDocument(
+    val serialNo: String,
+    val documentName: String,
+    val status: String
+)
+
 data class M3EMentorItem(
     val role: String,
     val name: String,
@@ -1145,7 +1210,9 @@ data class M3EMentorItem(
     val email: String? = null,
     val phone: String? = null,
     val cabin: String? = null,
-    val photoBase64: String? = null
+    val photoBase64: String? = null,
+    /** Unrecognized label/value rows carried by the whoami official fragment. */
+    val extras: List<M3EFieldItem> = emptyList()
 )
 
 data class M3EAddressItem(
@@ -1197,7 +1264,13 @@ data class M3EProfileState(
     val showVtopPassword: Boolean = false,
     val mentors: List<M3EMentorItem> = emptyList(),
     val addresses: List<M3EAddressItem> = emptyList(),
-    val personalRecords: List<M3EFieldItem> = emptyList()
+    val personalRecords: List<M3EFieldItem> = emptyList(),
+    // Consolidated identity (whoami) display models — all default to "absent", never fabricated.
+    val residence: M3EResidenceStatus = M3EResidenceStatus.UNKNOWN,
+    val contacts: List<M3EContactItem> = emptyList(),
+    val acknowledgementDocuments: List<M3EAcknowledgementDocument> = emptyList(),
+    /** Mirrors AppState.isBusSubscriber; only meaningful for a dayscholar. */
+    val isRegisteredForBus: Boolean = false
 )
 
 sealed interface M3EProfileAction {
@@ -1211,6 +1284,10 @@ sealed interface M3EProfileAction {
     data class CopyText(val text: String, val label: String) : M3EProfileAction
     data class OpenEmail(val email: String) : M3EProfileAction
     data class OpenPhone(val phone: String) : M3EProfileAction
+    /** Residence segmented-control selection; the host persists it via AppState. */
+    data class SetResidence(val residence: M3EResidenceStatus) : M3EProfileAction
+    /** "Registered for University Transport / Bus" checkbox (dayscholar only). */
+    data class SetRegisteredForBus(val enabled: Boolean) : M3EProfileAction
 }
 
 // ==========================================

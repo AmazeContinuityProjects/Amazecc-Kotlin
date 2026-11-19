@@ -1,6 +1,6 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -38,7 +38,9 @@ import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.SupervisorAccount
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,21 +48,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EAddressItem
+import com.amazecc.app.shared.domain.overhaul.M3EAcknowledgementDocument
+import com.amazecc.app.shared.domain.overhaul.M3EContactItem
 import com.amazecc.app.shared.domain.overhaul.M3EFieldItem
 import com.amazecc.app.shared.domain.overhaul.M3EMentorItem
 import com.amazecc.app.shared.domain.overhaul.M3EProfileAction
 import com.amazecc.app.shared.domain.overhaul.M3EProfileState
+import com.amazecc.app.shared.domain.overhaul.M3EResidenceStatus
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -70,11 +78,23 @@ import com.amazecc.app.shared.utils.toImageBitmap
 import io.ktor.util.decodeBase64Bytes
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+/** Stable test tags for the residence-adaptive profile surface. */
+object M3EProfileTestTags {
+    const val RESIDENT_BADGE = "m3e_profile_resident_badge"
+    const val RESIDENCE_CARD = "m3e_profile_residence_card"
+    const val RESIDENCE_VALUE = "m3e_profile_residence_value"
+    const val ID_BACK_RESIDENCE = "m3e_profile_id_back_residence"
+    const val RESIDENCE_SEGMENT_HOSTELLER = "m3e_profile_segment_hosteller"
+    const val RESIDENCE_SEGMENT_DAYSCHOLAR = "m3e_profile_segment_dayscholar"
+    const val BUS_CHECKBOX = "m3e_profile_bus_checkbox"
+    const val CONTACT_CARD = "m3e_profile_contact_card"
+    const val ACK_DOCUMENT = "m3e_profile_ack_document"
+}
+
 /**
  * Material 3 Expressive Digital Student ID & Profile Screen.
  * 100% Stateless: accepts [M3EProfileState] and emits [M3EProfileAction].
- * Features double-sided Digital ID card with photo decoding, status cards, proctor/mentor cards,
- * personal records, addresses, and VTOP credentials.
+ * One hero (the digital ID card); all other blocks are calm semantic surface tiers.
  */
 @Composable
 fun M3EProfileScreen(
@@ -148,7 +168,7 @@ fun M3EProfileScreen(
             }
         }
 
-        // 2. Digital Student ID Card
+        // 2. Digital Student ID Card — the single expressive hero
         item {
             DigitalIdCard(
                 state = state,
@@ -181,14 +201,19 @@ fun M3EProfileScreen(
             }
         }
 
-        // 4. Status Cards Grid
+        // 4. Typed residence card — semantic container, no extra border/shadow
+        item {
+            ResidenceStatusCard(state = state)
+        }
+
+        // 5. Academic & Identity Status — each card only when its fragment is present
         val statusCards = listOfNotNull(
-            state.bankInfo?.let { Triple("Bank Details", it, Icons.Rounded.AccountBalance) },
-            state.apaarId?.let { Triple("APAAR / ABC ID", it, Icons.Rounded.Badge) },
-            state.dayboarderInfo?.let { Triple("Campus Residence", it, Icons.Rounded.Home) },
             state.eptStatus?.let { Triple("EPT Schedule", it, Icons.Rounded.School) },
-            state.registrationSchedule?.let { Triple("Registration", it, Icons.Rounded.HowToReg) },
-            state.rankAir?.let { Triple("Entrance Rank", it, Icons.Rounded.EmojiEvents) }
+            state.registrationSchedule?.let { Triple("Course Registration", it, Icons.Rounded.HowToReg) },
+            state.bankInfo?.let { Triple("Bank Details", it, Icons.Rounded.AccountBalance) },
+            state.dayboarderInfo?.let { Triple("Dayboarder Info", it, Icons.Rounded.Home) },
+            state.apaarId?.let { Triple("APAAR / ABC ID", it, Icons.Rounded.Badge) },
+            state.rankAir?.let { Triple("VITEEE Rank", it, Icons.Rounded.EmojiEvents) }
         )
         if (statusCards.isNotEmpty()) {
             item {
@@ -196,7 +221,33 @@ fun M3EProfileScreen(
             }
         }
 
-        // 5. Proctor Contact Card
+        // 6. Residential status segmented control (+ bus checkbox for dayscholars)
+        item {
+            ResidencePreferenceCard(
+                state = state,
+                onSetResidence = { onAction(M3EProfileAction.SetResidence(it)) },
+                onSetBus = { onAction(M3EProfileAction.SetRegisteredForBus(it)) }
+            )
+        }
+
+        // 7. Contact cards from whoami `contact`
+        if (state.contacts.isNotEmpty()) {
+            item {
+                ContactsSection(
+                    contacts = state.contacts,
+                    onEmail = { onAction(M3EProfileAction.OpenEmail(it)) }
+                )
+            }
+        }
+
+        // 8. Acknowledgement documents from whoami `acknowledgement.documents`
+        if (state.acknowledgementDocuments.isNotEmpty()) {
+            item {
+                AcknowledgementSection(documents = state.acknowledgementDocuments)
+            }
+        }
+
+        // 9. Proctor Contact Card
         item {
             ProctorContactCard(
                 state = state,
@@ -205,7 +256,7 @@ fun M3EProfileScreen(
             )
         }
 
-        // 6. Faculty Mentors & Leadership Cards (if any HoD/Dean mentors exist)
+        // 10. Faculty Mentors & Leadership (proctor + HoD/Dean)
         val leadershipMentors = state.mentors.filter { it.role != "Proctor" }
         if (leadershipMentors.isNotEmpty()) {
             item {
@@ -217,26 +268,22 @@ fun M3EProfileScreen(
             }
         }
 
-        // 7. Personal Information Card
+        // 11. Personal Information grid (records folded in + Hostel Status cell)
         item {
-            PersonalDetailsCard(state = state)
+            PersonalInformationCard(state = state)
         }
 
-        // 8. Detailed Personal Records Grid (if available)
-        if (state.personalRecords.isNotEmpty()) {
-            item {
-                PersonalRecordsSection(records = state.personalRecords)
-            }
-        }
-
-        // 9. Address Records (Current & Permanent)
+        // 12. Address Records — Current + Permanent as separate cards
         if (state.addresses.isNotEmpty()) {
-            item {
-                AddressRecordsSection(addresses = state.addresses)
+            items(
+                count = state.addresses.size,
+                key = { index -> state.addresses[index].title + index }
+            ) { index ->
+                AddressRecordCard(address = state.addresses[index])
             }
         }
 
-        // 10. VTOP Credentials Card
+        // 13. VTOP Credentials Card
         if (!state.vtopUsername.isNullOrBlank()) {
             item {
                 CredentialsCard(
@@ -259,17 +306,15 @@ private fun DigitalIdCard(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    val photoBitmap = rememberDecodedImage(state.photoBase64)
 
-    val photoBitmap = remember(state.photoBase64) {
-        state.photoBase64?.let { b64 ->
-            try {
-                val clean = if (b64.contains(",")) b64.substringAfter(",") else b64
-                clean.trim().decodeBase64Bytes().toImageBitmap()
-            } catch (_: Throwable) {
-                null
-            }
-        }
-    }
+    // Spring physics on the flip — the only motion on this otherwise calm screen.
+    val flipRotation by animateFloatAsState(
+        targetValue = if (state.isIdCardFlipped) 180f else 0f,
+        animationSpec = M3ETheme.motion.spatialDefault(),
+        label = "ProfileIdCardFlip"
+    )
+    val faceRotation = if (state.isIdCardFlipped) flipRotation - 180f else flipRotation
 
     M3ESurfaceCard(
         containerLevel = SurfaceContainerLevel.HIGH,
@@ -279,7 +324,9 @@ private fun DigitalIdCard(
             .clickable(onClick = onFlip)
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { rotationY = faceRotation }
         ) {
             // Card Top Banner
             Row(
@@ -327,7 +374,7 @@ private fun DigitalIdCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             if (!state.isIdCardFlipped) {
-                // Front Side: Photo, Name, Reg No, Barcode
+                // Front Side: Photo, Name, Reg No, Residence badge, Barcode
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -390,6 +437,10 @@ private fun DigitalIdCard(
                                     .size(14.dp)
                                     .clickable(onClick = onCopyRegNo)
                             )
+
+                            residenceBadgeLabel(state.residence)?.let { label ->
+                                ResidentBadge(label = label, isHosteller = state.residence == M3EResidenceStatus.HOSTELLER)
+                            }
                         }
 
                         Text(
@@ -419,7 +470,6 @@ private fun DigitalIdCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Simulated Barcode Pattern
                         repeat(32) { index ->
                             val barWidth = if (index % 3 == 0) 3.dp else 1.5.dp
                             val barHeight = if (index % 5 == 0) 34.dp else 28.dp
@@ -445,6 +495,7 @@ private fun DigitalIdCard(
                 }
             } else {
                 // Back Side: Residence, Emergency, Blood Group, QR
+                val (residenceLabel, residenceValue) = idBackResidence(state)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -469,7 +520,7 @@ private fun DigitalIdCard(
                                 color = colors.onSurfaceVariant
                             )
                             Text(
-                                text = state.bloodGroup,
+                                text = orDash(state.bloodGroup),
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                 color = colors.onSurface
                             )
@@ -482,7 +533,7 @@ private fun DigitalIdCard(
                                 color = colors.onSurfaceVariant
                             )
                             Text(
-                                text = state.dob,
+                                text = orDash(state.dob),
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                 color = colors.onSurface
                             )
@@ -495,30 +546,29 @@ private fun DigitalIdCard(
                                 color = colors.onSurfaceVariant
                             )
                             Text(
-                                text = state.applicationNumber,
+                                text = orDash(state.applicationNumber),
                                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                 color = colors.onSurface
                             )
                         }
                     }
 
-                    if (state.hostelBlock != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Hostel Residence",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "${state.hostelBlock} - Room ${orDash(state.hostelRoom ?: "")}",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                                    color = colors.onSurface
-                                )
-                            }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = residenceLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                            Text(
+                                text = residenceValue,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.onSurface,
+                                modifier = Modifier.testTag(M3EProfileTestTags.ID_BACK_RESIDENCE)
+                            )
                         }
                     }
 
@@ -573,6 +623,267 @@ private fun DigitalIdCard(
 }
 
 @Composable
+private fun ResidentBadge(label: String, isHosteller: Boolean) {
+    val colors = M3ETheme.colors
+    val container = if (isHosteller) colors.primaryContainer else colors.secondaryContainer
+    val content = if (isHosteller) colors.onPrimaryContainer else colors.onSecondaryContainer
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(container)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+            color = content,
+            modifier = Modifier.testTag(M3EProfileTestTags.RESIDENT_BADGE)
+        )
+    }
+}
+
+/** Semantic residence card: primaryContainer / secondaryContainer / surfaceContainerHigh. */
+@Composable
+private fun ResidenceStatusCard(state: M3EProfileState, modifier: Modifier = Modifier) {
+    val colors = M3ETheme.colors
+    val (container, content) = when (state.residence) {
+        M3EResidenceStatus.HOSTELLER -> colors.primaryContainer to colors.onPrimaryContainer
+        M3EResidenceStatus.DAYSCHOLAR -> colors.secondaryContainer to colors.onSecondaryContainer
+        M3EResidenceStatus.UNKNOWN -> colors.surfaceContainerHigh to colors.onSurface
+    }
+
+    // Custom semantic surface: no border, no shadow (expressive restraint).
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(container)
+            .padding(16.dp)
+            .testTag(M3EProfileTestTags.RESIDENCE_CARD),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(content.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Home,
+                contentDescription = null,
+                tint = content,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Residence",
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                color = content
+            )
+            Text(
+                text = residenceCardValue(state),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = content,
+                modifier = Modifier.testTag(M3EProfileTestTags.RESIDENCE_VALUE)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ResidencePreferenceCard(
+    state: M3EProfileState,
+    onSetResidence: (M3EResidenceStatus) -> Unit,
+    onSetBus: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 20.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Residential Status",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val hostellerSelected = state.residence == M3EResidenceStatus.HOSTELLER
+                val dayscholarSelected = state.residence == M3EResidenceStatus.DAYSCHOLAR
+                if (hostellerSelected) {
+                    Button(
+                        onClick = { onSetResidence(M3EResidenceStatus.HOSTELLER) },
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(M3EProfileTestTags.RESIDENCE_SEGMENT_HOSTELLER)
+                    ) { Text("Hosteller", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
+                } else {
+                    OutlinedButton(
+                        onClick = { onSetResidence(M3EResidenceStatus.HOSTELLER) },
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(M3EProfileTestTags.RESIDENCE_SEGMENT_HOSTELLER)
+                    ) { Text("Hosteller", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
+                }
+                if (dayscholarSelected) {
+                    Button(
+                        onClick = { onSetResidence(M3EResidenceStatus.DAYSCHOLAR) },
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(M3EProfileTestTags.RESIDENCE_SEGMENT_DAYSCHOLAR)
+                    ) { Text("Day Scholar", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
+                } else {
+                    OutlinedButton(
+                        onClick = { onSetResidence(M3EResidenceStatus.DAYSCHOLAR) },
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag(M3EProfileTestTags.RESIDENCE_SEGMENT_DAYSCHOLAR)
+                    ) { Text("Day Scholar", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
+                }
+            }
+
+            if (state.residence == M3EResidenceStatus.DAYSCHOLAR) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSetBus(!state.isRegisteredForBus) },
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Checkbox(
+                        checked = state.isRegisteredForBus,
+                        onCheckedChange = onSetBus,
+                        modifier = Modifier.testTag(M3EProfileTestTags.BUS_CHECKBOX)
+                    )
+                    Text(
+                        text = "Registered for University Transport / Bus",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContactsSection(
+    contacts: List<M3EContactItem>,
+    onEmail: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Contact",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = colors.onSurface
+        )
+        contacts.forEach { contact ->
+            M3ESurfaceCard(
+                containerLevel = SurfaceContainerLevel.LOW,
+                cornerRadius = 16.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(M3EProfileTestTags.CONTACT_CARD)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = orDash(contact.office),
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = colors.primary
+                    )
+                    ProfileDataRow(label = "Description", value = contact.description)
+                    contact.email?.takeIf { it.isNotBlank() }?.let { email ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = email,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.onSurface
+                            )
+                            IconButton(onClick = { onEmail(email) }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Email,
+                                    contentDescription = "Email $email",
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AcknowledgementSection(
+    documents: List<M3EAcknowledgementDocument>,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 20.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = "Acknowledgement",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+            documents.forEach { doc ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag(M3EProfileTestTags.ACK_DOCUMENT),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${orDash(doc.serialNo.trim())}. ${orDash(doc.documentName.trim())}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurface
+                    )
+                    Text(
+                        text = orDash(doc.status.trim()),
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = colors.primary
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun MetricTile(
     title: String,
     value: String,
@@ -616,7 +927,7 @@ private fun StatusCardsSection(
 
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "Academic & Campus Status",
+            text = "Academic & Identity Status",
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             color = colors.onSurface
         )
@@ -803,35 +1114,71 @@ private fun MentorsSection(
                     modifier = Modifier.size(20.dp)
                 )
                 Text(
-                    text = "Academic Leadership & Mentors",
+                    text = "Faculty Mentors & Leadership",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = colors.onSurface
                 )
             }
 
             mentors.forEach { mentor ->
+                val mentorPhoto = rememberDecodedImage(mentor.photoBase64)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = mentor.role,
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colors.primary
-                        )
-                        Text(
-                            text = mentor.name,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = colors.onSurface
-                        )
-                        if (!mentor.department.isNullOrBlank()) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(colors.primaryContainer),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (mentorPhoto != null) {
+                                Image(
+                                    bitmap = mentorPhoto,
+                                    contentDescription = "${mentor.name} photo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape)
+                                )
+                            } else {
+                                Text(
+                                    text = mentor.name.take(1).ifBlank { "?" },
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.onPrimaryContainer
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = mentor.department,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant
+                                text = mentor.role,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
                             )
+                            Text(
+                                text = mentor.name,
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.onSurface
+                            )
+                            if (!mentor.department.isNullOrBlank()) {
+                                Text(
+                                    text = mentor.department,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                            mentor.extras.forEach { extra ->
+                                Text(
+                                    text = "${extra.label}: ${extra.value}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
                         }
                     }
 
@@ -876,7 +1223,7 @@ private fun MentorsSection(
 }
 
 @Composable
-private fun PersonalDetailsCard(
+private fun PersonalInformationCard(
     state: M3EProfileState,
     modifier: Modifier = Modifier
 ) {
@@ -892,55 +1239,27 @@ private fun PersonalDetailsCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Contact & Profile Details",
+                text = "Personal Information",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = colors.onSurface
             )
 
-            ProfileDataRow(label = "Student Email", value = state.email)
-            ProfileDataRow(label = "Phone Number", value = state.phone)
             ProfileDataRow(label = "School", value = state.school)
-            ProfileDataRow(label = "Campus Location", value = state.campus)
-        }
-    }
-}
-
-@Composable
-private fun PersonalRecordsSection(
-    records: List<M3EFieldItem>,
-    modifier: Modifier = Modifier
-) {
-    val colors = M3ETheme.colors
-
-    M3ESurfaceCard(
-        containerLevel = SurfaceContainerLevel.LOW,
-        cornerRadius = 20.dp,
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = "Personal Records",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = colors.onSurface
-            )
-
-            records.forEach { record ->
+            ProfileDataRow(label = "Programme", value = state.programme)
+            ProfileDataRow(label = "Campus", value = state.campus)
+            ProfileDataRow(label = "Mobile", value = state.phone)
+            ProfileDataRow(label = "Email", value = state.email)
+            state.personalRecords.forEach { record ->
                 ProfileDataRow(label = record.label, value = record.value)
             }
+            ProfileDataRow(label = "Hostel Status", value = hostelStatusValue(state))
         }
     }
 }
 
 @Composable
-private fun AddressRecordsSection(
-    addresses: List<M3EAddressItem>,
-    modifier: Modifier = Modifier
-) {
+private fun AddressRecordCard(address: M3EAddressItem, modifier: Modifier = Modifier) {
     val colors = M3ETheme.colors
-
     M3ESurfaceCard(
         containerLevel = SurfaceContainerLevel.LOW,
         cornerRadius = 20.dp,
@@ -948,29 +1267,19 @@ private fun AddressRecordsSection(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Text(
-                text = "Address Records",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = colors.onSurface
+                text = address.title,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.primary
             )
-
-            addresses.forEach { addr ->
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = addr.title,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colors.primary
-                    )
-                    addr.lines.forEach { line ->
-                        Text(
-                            text = line,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.onSurfaceVariant
-                        )
-                    }
-                }
+            address.lines.forEach { line ->
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
+                )
             }
         }
     }
@@ -1123,6 +1432,56 @@ private fun ProfileDataRow(
     }
 }
 
+@Composable
+private fun rememberDecodedImage(base64: String?) = remember(base64) {
+    base64?.let { b64 ->
+        try {
+            val clean = if (b64.contains(",")) b64.substringAfter(",") else b64
+            clean.trim().decodeBase64Bytes().toImageBitmap()
+        } catch (_: Throwable) {
+            null
+        }
+    }
+}
+
+private fun residenceBadgeLabel(status: M3EResidenceStatus): String? = when (status) {
+    M3EResidenceStatus.HOSTELLER -> "Hosteller"
+    M3EResidenceStatus.DAYSCHOLAR -> "Day Scholar"
+    M3EResidenceStatus.UNKNOWN -> null
+}
+
+/** "<block> - Room <room>" for a hosteller; dayscholar/unknown never show hostel block data. */
+private fun hostelRoomValue(state: M3EProfileState): String {
+    val block = state.hostelBlock?.takeIf { it.isNotBlank() }
+    val room = state.hostelRoom?.takeIf { it.isNotBlank() }
+    return when {
+        block != null && room != null -> "$block - Room $room"
+        block != null -> block
+        room != null -> "Room $room"
+        else -> "—"
+    }
+}
+
+private fun residenceCardValue(state: M3EProfileState): String = when (state.residence) {
+    M3EResidenceStatus.HOSTELLER -> hostelRoomValue(state)
+    M3EResidenceStatus.DAYSCHOLAR -> state.dayboarderInfo?.takeIf { it.isNotBlank() } ?: "Dayscholar"
+    M3EResidenceStatus.UNKNOWN -> "—"
+}
+
+/** Label + value for the ID card back; every value comes from real state or an em dash. */
+private fun idBackResidence(state: M3EProfileState): Pair<String, String> = when (state.residence) {
+    M3EResidenceStatus.HOSTELLER -> "Hostel Residence" to hostelRoomValue(state)
+    M3EResidenceStatus.DAYSCHOLAR ->
+        "Residence" to (state.dayboarderInfo?.takeIf { it.isNotBlank() } ?: "Dayscholar")
+    M3EResidenceStatus.UNKNOWN -> "Residence" to "—"
+}
+
+private fun hostelStatusValue(state: M3EProfileState): String = when (state.residence) {
+    M3EResidenceStatus.HOSTELLER -> hostelRoomValue(state)
+    M3EResidenceStatus.DAYSCHOLAR -> "Day Scholar"
+    M3EResidenceStatus.UNKNOWN -> "—"
+}
+
 /** Missing profile data renders as an em dash, never as a plausible-looking placeholder. */
 private fun orDash(value: String): String = value.ifBlank { "—" }
 
@@ -1174,5 +1533,6 @@ private fun createMockProfileState() = M3EProfileState(
     hostelRoom = "514",
     cgpa = 9.24,
     attendancePercentage = 91.5,
+    residence = M3EResidenceStatus.HOSTELLER,
     isIdCardFlipped = false
 )

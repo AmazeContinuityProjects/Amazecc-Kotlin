@@ -532,6 +532,7 @@ object SyncEngine {
         "Dayboarder Info" to SyncModule.DAYBOARDER,
         "EPT Schedule" to SyncModule.EPT_SCHEDULE,
         "Registration Schedule" to SyncModule.REGISTRATION_SCHEDULE,
+        "University Day" to SyncModule.UNIVERSITY_DAY,
         "APAAR ID" to SyncModule.APAAR_ID,
         "Circulars" to SyncModule.CIRCULARS,
         "Free Classrooms" to SyncModule.FREE_CLASSROOMS,

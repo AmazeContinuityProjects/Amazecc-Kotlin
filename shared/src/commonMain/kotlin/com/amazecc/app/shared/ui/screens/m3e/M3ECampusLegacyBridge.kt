@@ -381,19 +381,33 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
     }
 }
 
-private fun CalendarMonth.toM3ECalendarMonth(today: LocalDate) = M3ECalendarMonth(
-    name = month,
-    leadingBlankDays = leadingBlankDaysFor(month, today),
-    days = days.map { day ->
-        M3ECalendarDay(
-            date = day.date,
-            events = day.events.map { event ->
-                M3ECalendarEvent(title = event.text, type = event.type, category = event.category)
-            },
-            isToday = isSameMonth(month, today) && day.date == today.dayOfMonth
-        )
-    }
-)
+private fun CalendarMonth.toM3ECalendarMonth(today: LocalDate): M3ECalendarMonth {
+    // Prefer the scraper's explicit year/month; fall back to parsing the month label so the
+    // grid always starts on the real weekday and ends on the real last date of the month.
+    val parsed = parseMonthLabel(month)
+    val resolvedYear = year ?: parsed?.second ?: today.year
+    val resolvedMonth = monthNumber ?: parsed?.first ?: today.monthNumber
+    return M3ECalendarMonth(
+        name = month,
+        leadingBlankDays = leadingBlankDays(resolvedYear, resolvedMonth),
+        days = days.map { day ->
+            M3ECalendarDay(
+                date = day.date,
+                events = day.events.map { event ->
+                    M3ECalendarEvent(title = event.text, type = event.type, category = event.category)
+                },
+                isToday = resolvedYear == today.year && resolvedMonth == today.monthNumber && day.date == today.dayOfMonth
+            )
+        }
+    )
+}
+
+private fun parseMonthLabel(label: String): Pair<Int, Int>? {
+    val parts = label.trim().split(Regex("\\s+"))
+    val number = Month.entries.firstOrNull { it.name.equals(parts.firstOrNull().orEmpty(), ignoreCase = true) }
+        ?.monthNumberValue ?: return null
+    return number to (parts.getOrNull(1)?.toIntOrNull() ?: return null)
+}
 
 /** 1-based month number; `kotlinx.datetime.Month` has no `number` property in this version. */
 private val Month.monthNumberValue: Int get() = ordinal + 1
@@ -405,19 +419,13 @@ private fun isSameMonth(monthName: String, date: LocalDate): Boolean {
     return parsed.monthNumberValue == date.monthNumber && year == date.year
 }
 
-private fun leadingBlankDaysFor(monthName: String, today: LocalDate): Int {
-    val parts = monthName.trim().split(Regex("\\s+"))
-    val monthNumber = Month.entries
-        .firstOrNull { it.name.equals(parts.firstOrNull().orEmpty(), ignoreCase = true) }
-        ?.monthNumberValue ?: return 0
-    val year = parts.getOrNull(1)?.toIntOrNull() ?: today.year
-    // Sakamoto's weekday algorithm (0 = Sunday). Avoids platform-specific DayOfWeek APIs and
-    // keeps this helper usable from commonMain without extra kotlinx-datetime extensions.
+private fun leadingBlankDays(year: Int, monthNumber: Int): Int {
+    // Sakamoto's weekday algorithm (0 = Sunday), Monday-first leading blanks.
     val offsets = intArrayOf(0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4)
     val adjustedYear = if (monthNumber < 3) year - 1 else year
     val sundayBased = (adjustedYear + adjustedYear / 4 - adjustedYear / 100 + adjustedYear / 400 +
         offsets[monthNumber - 1] + 1).floorMod(7)
-    return (sundayBased + 6) % 7 // convert to Monday-first leading blanks
+    return (sundayBased + 6) % 7
 }
 
 private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor

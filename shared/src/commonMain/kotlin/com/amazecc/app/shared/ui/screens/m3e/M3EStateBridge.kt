@@ -82,6 +82,8 @@ import com.amazecc.app.shared.domain.overhaul.M3EHostelAction
 import com.amazecc.app.shared.domain.overhaul.M3EHostelDetails
 import com.amazecc.app.shared.domain.overhaul.M3EHostelState
 import com.amazecc.app.shared.domain.overhaul.M3EHostelTab
+import com.amazecc.app.shared.domain.overhaul.M3ELaundrySlot
+import com.amazecc.app.shared.domain.overhaul.M3EMessMealItem
 import com.amazecc.app.shared.domain.overhaul.M3ELeaveRecord
 import com.amazecc.app.shared.domain.overhaul.M3EMarksPredictorAction
 import com.amazecc.app.shared.domain.overhaul.M3EMarksPredictorState
@@ -889,6 +891,7 @@ fun M3EExamScheduleScreen(modifier: Modifier = Modifier) {
                         AppState.selectExamSemester(selectedSemId)
                         refreshTick++
                     }
+                    else -> Unit // additional actions are handled by the dedicated host
                 }
             },
             modifier = modifier
@@ -961,22 +964,79 @@ fun M3EGradesHistoryScreen(modifier: Modifier = Modifier) {
 fun M3EHostelScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val hostelRes by AppState.hostelDetails.collectAsState()
+    val messMenuRes by AppState.messMenu.collectAsState()
+    val laundryRes by AppState.laundrySchedule.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
 
     var selectedTab by remember { mutableStateOf(M3EHostelTab.MESS_MENU) }
 
     val hostelInfo = hostelRes?.hostelInfo
     val details = remember(hostelInfo) {
+        // VTOP's "Mess Information" value is the real mess type/preference
+        // (NON VEG, FOOD PARK, ...), so prefer it over the historic literal.
+        val realMess = hostelInfo?.messInfo?.trim()?.takeIf {
+            it.isNotBlank() && !it.equals("NOT ALLOTED", ignoreCase = true)
+        }
         M3EHostelDetails(
-            blockName = hostelInfo?.blockName ?: "Q Block",
-            roomNumber = hostelInfo?.roomNo ?: "514",
+            blockName = hostelInfo?.blockName?.trim()?.takeIf {
+                it.isNotBlank() && !it.equals("NOT ALLOTED", ignoreCase = true)
+            } ?: "Q Block",
+            roomNumber = hostelInfo?.roomNo?.trim()?.takeIf {
+                it.isNotBlank() && !it.equals("NOT ALLOTED", ignoreCase = true)
+            } ?: "514",
+            // HostelDetails carries no room designation, bed or warden fields; keep the
+            // legacy placeholders only as last-resort fallbacks until a real source exists.
             roomType = "2 Bed AC",
             bedNumber = "B",
-            messType = "Special Mess",
-            messCaterer = hostelInfo?.messInfo ?: "CRCL Caterers",
+            messType = realMess ?: "Special Mess",
+            messCaterer = realMess ?: "CRCL Caterers",
             wardenName = "Dr. Ramesh K",
             wardenPhone = "+91 94421 00000"
         )
+    }
+
+    // Scraped mess rows are numbered strings ("1. Idly 2. Vada ..."); split them into
+    // individual dishes without inventing any content. An unnumbered row stays intact.
+    fun mealDishes(raw: String?): List<String> {
+        val value = raw?.trim().orEmpty()
+        if (value.isBlank()) return emptyList()
+        val numbered = value.split(Regex("""(?:^|\s)\d+\.\s*"""))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+        return if (numbered.isEmpty()) listOf(value) else numbered
+    }
+
+    val todayMessMenu = remember(messMenuRes) {
+        val todayName = Clock.System.now()
+            .toLocalDateTime(TimeZone.currentSystemDefault())
+            .dayOfWeek.name.uppercase()
+        val todayToken = todayName.take(3)
+        val day = messMenuRes?.list?.firstOrNull { row ->
+            val label = row.Day?.trim()?.uppercase().orEmpty()
+            label == todayName || label == todayToken || label.startsWith(todayToken)
+        }
+        if (day == null) {
+            emptyList()
+        } else {
+            val dayLabel = day.Day?.trim().orEmpty()
+            listOf(
+                M3EMessMealItem("Breakfast", dayLabel, mealDishes(day.Breakfast)),
+                M3EMessMealItem("Lunch", dayLabel, mealDishes(day.Lunch)),
+                M3EMessMealItem("Snacks", dayLabel, mealDishes(day.Snacks)),
+                M3EMessMealItem("Dinner", dayLabel, mealDishes(day.Dinner))
+            ).filter { it.items.isNotEmpty() }
+        }
+    }
+
+    val laundrySchedule = remember(laundryRes) {
+        laundryRes?.list.orEmpty()
+            .filter { !it.Date.isNullOrBlank() || !it.RoomNumber.isNullOrBlank() }
+            .map { slot ->
+                M3ELaundrySlot(
+                    date = slot.Date?.trim().orEmpty(),
+                    roomNumber = slot.RoomNumber?.trim().orEmpty()
+                )
+            }
     }
 
     val leaves = remember(hostelRes) {
@@ -996,6 +1056,8 @@ fun M3EHostelScreen(modifier: Modifier = Modifier) {
     val state = M3EHostelState(
         hostelDetails = details,
         selectedTab = selectedTab,
+        todayMessMenu = todayMessMenu,
+        laundrySchedule = laundrySchedule,
         leaves = leaves,
         isLoading = isLoading
     )
@@ -1753,6 +1815,7 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
                     is M3EProfileAction.OpenPhone -> {
                         try { uriHandler.openUri("tel:${action.phone}") } catch (_: Exception) {}
                     }
+                    else -> Unit // residence actions are handled by the dedicated host
                 }
             },
             modifier = modifier

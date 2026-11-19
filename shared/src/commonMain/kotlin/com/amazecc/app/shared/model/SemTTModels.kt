@@ -19,5 +19,9 @@ data class CalendarDay(
 @Serializable
 data class CalendarMonth(
     val month: String,
-    val days: List<CalendarDay> = emptyList()
+    val days: List<CalendarDay> = emptyList(),
+    /** Explicit calendar year from the scraper; when null the UI parses it from [month]. */
+    val year: Int? = null,
+    /** Explicit 1-based month number from the scraper; when null the UI parses it from [month]. */
+    val monthNumber: Int? = null
 )

@@ -994,7 +994,8 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
 
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && semester != null) {
             return try {
-                val res = com.amazecc.app.shared.vtop.VtopDataSource.fetchExamSchedule(semester)
+                val res = com.amazecc.app.shared.vtop.VtopExamScraper.fetchExamSchedule(semester)
+                    ?: com.amazecc.app.shared.vtop.VtopDataSource.fetchExamSchedule(semester)
                 if (res != null && res.success && res.schedule.isNotEmpty()) res
                 else fallbackCachedExamSchedule(semester) ?: res ?: ExamScheduleRes(success = false, error = "VTOP exam schedule unavailable")
             } catch (e: Exception) {
@@ -1023,7 +1024,8 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
 
         if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semester != null) {
             try {
-                val localRes = com.amazecc.app.shared.vtop.VtopDataSource.fetchExamSchedule(semester)
+                val localRes = com.amazecc.app.shared.vtop.VtopExamScraper.fetchExamSchedule(semester)
+                    ?: com.amazecc.app.shared.vtop.VtopDataSource.fetchExamSchedule(semester)
                 if (localRes != null && localRes.success && localRes.schedule.isNotEmpty()) return localRes
             } catch (_: Exception) {}
         }
@@ -1067,9 +1069,15 @@ if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: Ca
             return com.amazecc.app.shared.state.AppDataStore.calendar.value
                 ?: CalendarRes(success = true, message = "Served from local cache")
         }
+        // The dedicated headless parser mirrors the reference API's month derivation and
+        // sets explicit year/month on every month, so the grid starts and ends on real dates.
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && sem != null) {
+            val scraped = com.amazecc.app.shared.vtop.VtopCalendarScraper.fetchCalendar(sem, type)
+            if (scraped != null && scraped.months.isNotEmpty()) return scraped
+        }
         return try {
             val rawJson = if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL && sem != null) {
-                // Same analysis path as REMOTE — only the transport differs.
+                // Legacy raw path kept as a fallback when the dedicated parser fails.
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchCalendarRaw(sem, type)
             } else {
                 val params = mutableMapOf("type" to type)
@@ -1098,7 +1106,11 @@ if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: Ca
                     return CalendarRes(success = true, months = months)
                 }
             }
-            // Never leave the screen empty when a previously fetched calendar exists.
+            // Remote unavailable → headless scraper is the local source of truth, then cache.
+            if (sem != null && com.amazecc.app.shared.vtop.vtopEngineSupported) {
+                com.amazecc.app.shared.vtop.VtopCalendarScraper.fetchCalendar(sem, type)
+                    ?.takeIf { it.months.isNotEmpty() }?.let { return it }
+            }
             com.amazecc.app.shared.state.AppDataStore.calendar.value?.takeIf { it.months.isNotEmpty() }
                 ?: CalendarRes(success = false, message = "Empty response")
         } catch (e: Exception) {
@@ -1222,7 +1234,23 @@ if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: Pa
     }
 
     suspend fun getLibrary(libUsername: String? = null, libPassword: String? = null): LibraryRes {
-if (useMockData) return DemoData.get("library", LibraryRes.serializer()) ?: LibraryRes()
+        if (useMockData) return DemoData.get("library", LibraryRes.serializer()) ?: LibraryRes()
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
+            return com.amazecc.app.shared.state.AppDataStore.library.value
+                ?: LibraryRes(success = true, message = "Served from local cache")
+        }
+        // VTOP dues come from the live session and need no Koha credentials. The reference
+        // API exposes the same page as POST /api/finance {section=library}.
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL &&
+            com.amazecc.app.shared.vtop.vtopEngineSupported &&
+            com.amazecc.app.shared.vtop.VtopSession.hasSession
+        ) {
+            val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchLibrary()
+            if (local != null) {
+                com.amazecc.app.shared.state.AppDataStore.setLibrary(local)
+                return local
+            }
+        }
         val creds = if (libUsername != null && libPassword != null) {
             mapOf("libUsername" to libUsername, "libPassword" to libPassword)
         } else {
@@ -1233,7 +1261,12 @@ if (useMockData) return DemoData.get("library", LibraryRes.serializer()) ?: Libr
             return LibraryRes(success = false, message = "Library login required", error = "NO_LIB_CREDS")
         }
         return try {
-            postAuthorized<LibraryRes>("library-due", creds) ?: LibraryRes(success = false, message = "Empty response")
+            val params = creds + ("section" to "library")
+            val res = postAuthorized<LibraryRes>("finance", params)
+                ?: postAuthorized<LibraryRes>("library-due", creds) // legacy alias for older servers
+                ?: LibraryRes(success = false, message = "Empty response")
+            com.amazecc.app.shared.state.AppDataStore.setLibrary(res)
+            res
         } catch (e: Exception) {
             LibraryRes(success = false, message = e.message, error = e.toString())
         }
@@ -1976,15 +2009,137 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
     }
 
     /**
-     * Consolidated identity fetch — student + profile-images + credentials +
-     * apaar + bank in a single request. Demo mode reports failure so the caller
-     * falls back to the per-endpoint demo sweep.
+     * Consolidated student-profile fetch across all three VTOP sources.
+     *
+     * The canonical route is `POST /api/remote/whoami` (legacy alias
+     * `/api/whoami`, which is what [postAuthorized] reaches with endpoint
+     * "whoami"). The response is FLAT — the identity is spread at the top level
+     * rather than nested under an `identity` key — so it is deciphered with
+     * [com.amazecc.app.shared.state.IdentityExtractor.fromWhoami].
+     *
+     *  - REMOTE: one authorized POST, mapped via the extractor.
+     *  - OFFLINE_CACHE: restore the encrypted cached identity via UserStore.
+     *  - LOCAL: warm the on-device scraper, merge its folded fragments, and fall
+     *    back to the cached identity if the session cannot serve them.
+     *  - Demo: report failure so the caller keeps the per-endpoint demo sweep.
      */
-    suspend fun getMe(): MeRes {
+    suspend fun getMe(): MeRes = getMeWith(
+        remoteFetch = { postAuthorized<JsonObject>("whoami") },
+        restoreCache = {
+            com.amazecc.app.shared.state.UserStore.loadFromCache()
+            com.amazecc.app.shared.state.UserStore.identity.value
+        },
+        cachedIdentity = { com.amazecc.app.shared.state.UserStore.identity.value },
+        localFetch = { fetchWhoamiLocally() }
+    )
+
+    /**
+     * Test seam for [getMe]: every I/O path is injected so headless JVM tests can
+     * exercise the flat-payload mapping and each source branch without a network,
+     * WebView session or encrypted cache.
+     */
+    suspend fun getMeWith(
+        remoteFetch: suspend () -> JsonObject?,
+        restoreCache: () -> StudentIdentity,
+        cachedIdentity: () -> StudentIdentity,
+        localFetch: suspend () -> StudentIdentity?
+    ): MeRes {
         if (useMockData) return MeRes(success = false, error = "demo mode")
-        return try {
-            postAuthorized<MeRes>("me") ?: MeRes(success = false, error = "Empty response")
-        } catch (e: Exception) { MeRes(success = false, error = e.toString()) }
+        return when (vtopSource) {
+            com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE -> {
+                val restored = restoreCache()
+                if (restored.hasIdentity) MeRes(success = true, identity = restored)
+                else MeRes(success = false, error = "No cached identity")
+            }
+            com.amazecc.app.shared.vtop.VtopSource.LOCAL -> {
+                val local = try { localFetch() } catch (e: Exception) { null }
+                if (local != null && local.hasIdentity) {
+                    MeRes(success = true, identity = local)
+                } else {
+                    val cached = cachedIdentity()
+                    if (cached.hasIdentity) {
+                        MeRes(success = true, identity = cached, error = "Local scrape unavailable; served cached identity")
+                    } else {
+                        MeRes(success = false, error = "Local identity unavailable")
+                    }
+                }
+            }
+            else -> {
+                val obj = try { remoteFetch() } catch (e: Exception) { null }
+                    ?: return MeRes(success = false, error = "Empty response")
+                val res = try { jsonConfig.decodeFromJsonElement<WhoamiRes>(obj) } catch (e: Exception) { null }
+                    ?: return MeRes(success = false, error = "Malformed whoami response")
+                val identity = com.amazecc.app.shared.state.IdentityExtractor.fromWhoami(obj)
+                // HTTP 200 may still report success=false with partial fetchErrors.
+                // Folded fields that did arrive are still usable, so surface them.
+                val ok = identity.hasIdentity || res.success
+                val warning = res.error
+                    ?: res.fetchErrors?.takeIf { it.isNotEmpty() }
+                        ?.let { "Partial whoami data: ${it.keys.sorted().joinToString(", ")}" }
+                MeRes(success = ok, identity = identity, error = if (ok) warning else (warning ?: "Empty whoami"))
+            }
+        }
+    }
+
+    /**
+     * LOCAL implementation of the consolidated sweep. Warms the on-device scraper
+     * once, then folds each per-page scrape into one fragment via the same
+     * extractors and tiers used by the REMOTE identity's sources. Returns null
+     * when no session/page is available so [getMeWith] can use the cached copy.
+     */
+    private suspend fun fetchWhoamiLocally(): StudentIdentity? {
+        if (!com.amazecc.app.shared.vtop.vtopEngineSupported ||
+            !com.amazecc.app.shared.vtop.VtopSession.hasSession
+        ) return null
+        try { com.amazecc.app.shared.vtop.VtopDataSource.fetchWhoami() } catch (_: Exception) {}
+
+        val sources = mutableMapOf<String, Int>()
+        var acc = StudentIdentity()
+        fun absorb(fragment: StudentIdentity, order: Int) {
+            acc = com.amazecc.app.shared.state.mergeIdentity(acc, fragment, order, sources)
+        }
+        val ex = com.amazecc.app.shared.state.IdentityExtractor
+        try {
+            com.amazecc.app.shared.vtop.VtopDataSource.fetchStudentProfile()
+                ?.let { absorb(ex.fromStudentProfile(it), com.amazecc.app.shared.state.IdentitySource.STUDENT.order) }
+        } catch (_: Exception) {}
+        try {
+            com.amazecc.app.shared.vtop.VtopDataSource.fetchProfileImages()
+                ?.let { absorb(ex.fromProfileImages(it), com.amazecc.app.shared.state.IdentitySource.PROFILE_IMAGES.order) }
+        } catch (_: Exception) {}
+        try {
+            com.amazecc.app.shared.vtop.VtopDataSource.fetchCredentials()
+                ?.let { absorb(ex.fromCredentials(it), com.amazecc.app.shared.state.IdentitySource.CREDENTIALS.order) }
+        } catch (_: Exception) {}
+        try {
+            com.amazecc.app.shared.vtop.VtopDataSource.fetchBankInfo()
+                ?.let { absorb(ex.fromBankInfo(it), com.amazecc.app.shared.state.IdentitySource.BANK.order) }
+        } catch (_: Exception) {}
+        try {
+            com.amazecc.app.shared.vtop.VtopDataSource.fetchApaarId()
+                ?.let { absorb(ex.fromApaarId(it), com.amazecc.app.shared.state.IdentitySource.APAAR.order) }
+        } catch (_: Exception) {}
+        try {
+            com.amazecc.app.shared.vtop.VtopDataSource.fetchDayboarder()
+                ?.let { absorb(ex.fromDayboarder(it), com.amazecc.app.shared.state.IdentitySource.RECORDS.order) }
+        } catch (_: Exception) {}
+        try {
+            com.amazecc.app.shared.vtop.VtopDataSource.fetchEptSchedule()
+                ?.let { absorb(ex.fromEptSchedule(it), com.amazecc.app.shared.state.IdentitySource.RECORDS.order) }
+        } catch (_: Exception) {}
+
+        if (acc.residenceStatus == null) {
+            val derived = ex.deriveResidenceStatus(acc.isHosteller, acc.dayboarder?.fields.orEmpty())
+            acc = acc.copy(
+                residenceStatus = derived,
+                isHosteller = when (derived) {
+                    RESIDENCE_HOSTELLER -> true
+                    RESIDENCE_DAYSCHOLAR -> false
+                    else -> acc.isHosteller
+                }
+            )
+        }
+        return acc.takeIf { it.hasIdentity }
     }
 
     suspend fun getCirculars(): CircularsRes {
