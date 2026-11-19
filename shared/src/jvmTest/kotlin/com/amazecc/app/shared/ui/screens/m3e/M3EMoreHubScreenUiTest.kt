@@ -37,7 +37,7 @@ class M3EMoreHubScreenUiTest {
         onNodeWithText("Course Detail").assertExists()
         onNodeWithText("Faculty Directory").assertExists()
         onNodeWithText("Degree Curriculum").assertExists()
-        onNodeWithText("FAT Marks Predictor").assertExists()
+        onNodeWithText("Course Dashboard").assertExists()
     }
 
     @Test

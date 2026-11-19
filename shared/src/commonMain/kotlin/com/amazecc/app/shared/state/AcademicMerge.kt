@@ -311,7 +311,7 @@ object AcademicMerge {
     fun upsertGrades(academic: AcademicData, res: AllGradesRes?): AcademicData {
         val cleaned = AppSanitizers.sanitizeAllGrades(res) ?: return academic
         var out = academic
-        cleaned.grades.orEmpty().forEach { (semId, semResult) ->
+        cleaned.allSemesters.forEach { (semId, semResult) ->
             if (semResult != null) {
                 out = upsertGrades(out, semId, semResult.gpa, semResult.grades)
             }

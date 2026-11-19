@@ -171,7 +171,8 @@ object AppSanitizers {
 
     fun sanitizeAllGrades(res: AllGradesRes?): AllGradesRes? {
         if (res == null) return null
-        val cleaned = res.grades?.mapValues { (_, sem) ->
+        // Normalise both the legacy `grades` map and the hono `semesters` map into one.
+        val cleaned = res.allSemesters.takeIf { it.isNotEmpty() }?.mapValues { (_, sem) ->
             if (sem == null) null
             else sem.copy(
                 gpa = sem.gpa.clean(),
@@ -206,7 +207,9 @@ object AppSanitizers {
                 }
             )
         }
-        return res.copy(grades = cleaned)
+        // Keep `semesters` null so allSemesters resolves to the cleaned `grades` map; the
+        // published `overall` CGPA/curriculum is preserved verbatim.
+        return res.copy(grades = cleaned, semesters = null)
     }
 
     // ── Exam schedule ──

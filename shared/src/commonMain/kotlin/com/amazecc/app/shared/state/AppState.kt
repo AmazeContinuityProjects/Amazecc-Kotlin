@@ -711,6 +711,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
 
     // Wired M3E data paths (the caches live in AppDataStore; these are the screen-facing aliases).
     val freeClassrooms: StateFlow<FreeClassroomsRes?> = AppDataStore.freeClassrooms
+    /** Full grade payload from /api/remote/grades — includes the published CGPA and curriculum. */
+    val allGrades: StateFlow<com.amazecc.app.shared.model.AllGradesRes?> = AppDataStore.allGrades
     val documents: StateFlow<List<DocumentItem>> = AppDataStore.documents
     /** Binary of the most recent document/circular download (transient, never persisted). */
     val circularDownload: StateFlow<CircularDownloadResult?> = AppDataStore.circularDownload

@@ -38,15 +38,20 @@ import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.Explore
+import androidx.compose.material.icons.rounded.FactCheck
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Hotel
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.People
@@ -289,9 +294,12 @@ private fun FeatureTileCard(
     val colors = M3ETheme.colors
 
     val icon: ImageVector = when (screen) {
+        M3ESubScreen.ACADEMICS_HUB -> Icons.Rounded.Dashboard
         M3ESubScreen.ATTENDANCE -> Icons.Rounded.EventAvailable
         M3ESubScreen.LIBRARIES -> Icons.AutoMirrored.Rounded.LibraryBooks
         M3ESubScreen.COURSE_DETAIL -> Icons.Rounded.School
+        M3ESubScreen.COURSE_ATTENDANCE -> Icons.Rounded.FactCheck
+        M3ESubScreen.COURSE_DASHBOARD -> Icons.Rounded.Insights
         M3ESubScreen.FACULTY -> Icons.Rounded.AccountBox
         M3ESubScreen.CURRICULUM -> Icons.Rounded.Badge
         M3ESubScreen.MARKS_PREDICTOR -> Icons.Rounded.Calculate
@@ -315,8 +323,11 @@ private fun FeatureTileCard(
         M3ESubScreen.TASKS -> Icons.Rounded.Assignment
         M3ESubScreen.SOCIAL -> Icons.Rounded.People
         M3ESubScreen.FRESHER_WELCOME -> Icons.Rounded.Explore
+        M3ESubScreen.HALL_OF_FAME -> Icons.Rounded.EmojiEvents
         M3ESubScreen.PROFILE -> Icons.Rounded.Badge
         M3ESubScreen.SETTINGS -> Icons.Rounded.Settings
+        M3ESubScreen.ABOUT -> Icons.Rounded.Info
+        M3ESubScreen.CHANGELOG -> Icons.Rounded.History
     }
 
     M3ESurfaceCard(

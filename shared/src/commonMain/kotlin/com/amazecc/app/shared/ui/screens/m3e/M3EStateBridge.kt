@@ -142,6 +142,7 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
     val isLoading by AppState.isLoading.collectAsState()
     val errorMsg by AppState.error.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
+    val allGrades by AppState.allGrades.collectAsState()
 
     val todayDate = remember {
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
@@ -163,11 +164,15 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
     val currentSem = domain.academics.semesters[selectedSemId]
     val courses = remember(currentSem) { currentSem?.courses?.values?.toList().orEmpty() }
 
-    val quickStats = remember(currentSem, courses) {
+    val quickStats = remember(currentSem, courses, allGrades) {
         val totalClasses = courses.sumOf { it.attendance?.total ?: 0 }
         val attendedClasses = courses.sumOf { it.attendance?.attended ?: 0 }
         val attPct = if (totalClasses > 0) (attendedClasses.toDouble() / totalClasses) * 100.0 else 0.0
-        val cgpa = currentSem?.gpa?.trim()?.toDoubleOrNull() ?: 0.0
+        // The published CGPA from /api/remote/grades is authoritative; the semester GPA is
+        // only a fallback when the grade history has not been fetched yet.
+        val cgpa = allGrades?.publishedCgpa?.toDoubleOrNull()
+            ?: currentSem?.gpa?.trim()?.toDoubleOrNull()
+            ?: 0.0
         val credits = courses.sumOf { it.credits?.toIntOrNull() ?: 0 }
         val safeBunks = courses.sumOf { course ->
             val att = course.attendance
@@ -423,6 +428,7 @@ fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
 fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val domain by AppState.domain.collectAsState()
+    val allGrades by AppState.allGrades.collectAsState()
     val selectedSemId by AppState.selectedSemester.collectAsState()
     val semesterMap by AppState.semesterMap.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
@@ -482,8 +488,10 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    val summary = remember(currentSem, academicCourses) {
-        val cgpa = currentSem?.gpa?.trim()?.toDoubleOrNull() ?: 0.0
+    val summary = remember(currentSem, academicCourses, allGrades) {
+        val cgpa = allGrades?.publishedCgpa?.toDoubleOrNull()
+            ?: currentSem?.gpa?.trim()?.toDoubleOrNull()
+            ?: 0.0
         val earned = academicCourses.filter { it.grade != null && it.grade != "F" }.sumOf { it.credits }
         val reg = academicCourses.sumOf { it.credits }
         M3EAcademicSummary(
@@ -888,15 +896,17 @@ fun M3EExamScheduleScreen(modifier: Modifier = Modifier) {
 fun M3EGradesHistoryScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val domain by AppState.domain.collectAsState()
+    val allGrades by AppState.allGrades.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
 
     var expandedSemesterId by remember { mutableStateOf<String?>(null) }
 
-    // buildGradesHistoryState derives credits, grade counts and the CGPA from the real cached
-    // getAllGrades data (the domain snapshot) - no hardcoded 3-credit courses or 14/8/2 counts.
-    val state = remember(domain, expandedSemesterId, isLoading) {
+    // The published CGPA, grade distribution and credits come from the /api/remote/grades
+    // payload; the domain snapshot supplies per-semester course rows and SGPA.
+    val state = remember(domain, allGrades, expandedSemesterId, isLoading) {
         buildGradesHistoryState(
             snapshot = domain,
+            allGrades = allGrades,
             expandedSemesterId = expandedSemesterId,
             isLoading = isLoading
         )
@@ -1795,9 +1805,12 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                     is M3EMoreHubAction.SearchQueryChanged -> searchQuery = action.query
                     is M3EMoreHubAction.OpenSubScreen -> {
                         when (action.screen) {
+                            M3ESubScreen.ACADEMICS_HUB -> AppState.navigateTo(Screen.ACADEMICS)
                             M3ESubScreen.ATTENDANCE -> AppState.navigateTo(Screen.ATTENDANCE)
                             M3ESubScreen.LIBRARIES -> AppState.navigateTo(Screen.LIBRARIES)
                             M3ESubScreen.COURSE_DETAIL -> AppState.navigateTo(Screen.COURSE_DETAIL)
+                            M3ESubScreen.COURSE_ATTENDANCE -> AppState.navigateTo(Screen.COURSE_ATTENDANCE)
+                            M3ESubScreen.COURSE_DASHBOARD -> AppState.navigateTo(Screen.COURSE_DASHBOARD)
                             M3ESubScreen.FACULTY -> AppState.navigateTo(Screen.FACULTY_INFO)
                             M3ESubScreen.CURRICULUM -> AppState.navigateTo(Screen.CURRICULUM)
                             M3ESubScreen.MARKS_PREDICTOR -> AppState.navigateTo(Screen.GPA_PREDICTOR)
@@ -1821,8 +1834,11 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                             M3ESubScreen.TASKS -> AppState.navigateTo(Screen.TASKS)
                             M3ESubScreen.SOCIAL -> AppState.navigateTo(Screen.SOCIAL)
                             M3ESubScreen.FRESHER_WELCOME -> AppState.navigateTo(Screen.FRESHER_WELCOME)
+                            M3ESubScreen.HALL_OF_FAME -> AppState.navigateTo(Screen.HALL_OF_FAME)
                             M3ESubScreen.PROFILE -> AppState.navigateTo(Screen.PROFILE)
                             M3ESubScreen.SETTINGS -> AppState.navigateTo(Screen.SETTINGS)
+                            M3ESubScreen.ABOUT -> AppState.navigateTo(Screen.ABOUT)
+                            M3ESubScreen.CHANGELOG -> AppState.navigateTo(Screen.CHANGELOG)
                         }
                     }
                     is M3EMoreHubAction.BackToHub -> {

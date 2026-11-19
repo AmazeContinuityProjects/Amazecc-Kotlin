@@ -371,6 +371,7 @@ private fun M3ESemesterGradeCard(
  */
 internal fun buildGradesHistoryState(
     snapshot: DomainSnapshot,
+    allGrades: com.amazecc.app.shared.model.AllGradesRes? = null,
     expandedSemesterId: String? = null,
     isLoading: Boolean = false
 ): M3EGradesHistoryState {
@@ -422,13 +423,17 @@ internal fun buildGradesHistoryState(
         ).also { attemptedTotal += attempted }
     }
 
+    val publishedCounts = allGrades?.overall?.cgpa?.grades
+    val publishedCredits = allGrades?.overall?.cgpa?.creditsEarned?.trim()?.toDoubleOrNull()?.toInt()
     return M3EGradesHistoryState(
-        cumulativeGpa = GradeHistory.cumulativeGpa(rows).value,
-        totalCreditsEarned = semesterRecords.sumOf { it.creditsEarned },
+        // VTOP's published CGPA wins over the derived running mean of SGPA.
+        cumulativeGpa = allGrades?.publishedCgpa?.toDoubleOrNull()
+            ?: GradeHistory.cumulativeGpa(rows).value,
+        totalCreditsEarned = publishedCredits ?: semesterRecords.sumOf { it.creditsEarned },
         totalCreditsAttempted = attemptedTotal,
-        sGradesCount = distribution["S"] ?: 0,
-        aGradesCount = distribution["A"] ?: 0,
-        bGradesCount = distribution["B"] ?: 0,
+        sGradesCount = publishedCounts?.S ?: (distribution["S"] ?: 0),
+        aGradesCount = publishedCounts?.A ?: (distribution["A"] ?: 0),
+        bGradesCount = publishedCounts?.B ?: (distribution["B"] ?: 0),
         semesters = semesterRecords,
         expandedSemesterId = expandedSemesterId,
         isLoading = isLoading

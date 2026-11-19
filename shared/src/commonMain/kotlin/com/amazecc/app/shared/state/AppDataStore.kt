@@ -121,6 +121,10 @@ object AppDataStore {
     // Transient by design: receipt details and downloaded binaries are fetched only when the
     // user asks, and are deliberately NOT part of AppDataSnapshot (no binary in a JSON backup).
 
+    /** Last full grade payload, kept transient so the published CGPA stays reachable by screens. */
+    private val _allGrades = MutableStateFlow<com.amazecc.app.shared.model.AllGradesRes?>(null)
+    val allGrades: StateFlow<com.amazecc.app.shared.model.AllGradesRes?> = _allGrades.asStateFlow()
+
     private val _receiptDetail = MutableStateFlow<ArrearResponse?>(null)
     val receiptDetail: StateFlow<ArrearResponse?> = _receiptDetail.asStateFlow()
     fun setReceiptDetail(res: ArrearResponse?) { _receiptDetail.value = res }
@@ -236,7 +240,7 @@ object AppDataStore {
 
     fun upsertGrades(res: com.amazecc.app.shared.model.AllGradesRes?) = update { s ->
         s.copy(academic = AcademicMerge.upsertGrades(s.academic, res))
-    }
+    }.also { res?.let { _allGrades.value = it } }
 
     fun upsertExams(semesterId: String, res: ExamScheduleRes?) = update { s ->
         s.copy(academic = AcademicMerge.upsertExams(s.academic, semesterId, res))

@@ -822,6 +822,35 @@ data class M3EEventItem(
     val orderId: String? = null
 )
 
+/** One real registration from the event-hub profile payload. */
+data class M3ERegisteredEventItem(
+    val eid: String,
+    val title: String,
+    val venue: String,
+    val date: String? = null,
+    val time: String? = null,
+    val paymentStatus: String? = null,
+    val receiptUrl: String? = null,
+    val certificateUrl: String? = null,
+    val payNowUrl: String? = null
+)
+
+/** Lazy-loaded event preview shown in the event details dialog. */
+data class M3EEventPreviewUi(
+    val eid: String,
+    val title: String = "",
+    val imageUrl: String? = null,
+    val description: String? = null,
+    val metaDetails: Map<String, String> = emptyMap()
+)
+
+/** Result of a registration attempt shown in the status dialog. */
+data class M3EEventRegistrationUi(
+    val status: String,
+    val message: String? = null,
+    val paymentUrl: String? = null
+)
+
 data class M3EEventHubState(
     val events: List<M3EEventItem> = emptyList(),
     val filteredEvents: List<M3EEventItem> = emptyList(),
@@ -829,7 +858,10 @@ data class M3EEventHubState(
     val searchQuery: String = "",
     val registeredCount: Int = 0,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val registeredEvents: List<M3ERegisteredEventItem> = emptyList(),
+    val preview: M3EEventPreviewUi? = null,
+    val registrationResult: M3EEventRegistrationUi? = null
 )
 
 sealed interface M3EEventHubAction {
@@ -838,6 +870,9 @@ sealed interface M3EEventHubAction {
     data class RegisterEvent(val eventId: String) : M3EEventHubAction
     data class EventClicked(val eventId: String) : M3EEventHubAction
     data object Refresh : M3EEventHubAction
+    data object DismissPreview : M3EEventHubAction
+    data object DismissRegistrationStatus : M3EEventHubAction
+    data class OpenExternalLink(val url: String) : M3EEventHubAction
 }
 
 // ==========================================
@@ -857,14 +892,15 @@ data class M3EClubItem(
     val id: String,
     val name: String,
     val category: M3EClubCategory,
-    val type: String, // "CHAPTER" | "CLUB"
-    val studentLead: String,
-    val facultyCoordinator: String,
-    val memberCount: Int,
+    val type: String, // "CHAPTER" | "CLUB"; blank when the source has no value
+    val studentLead: String, // blank when the source has no value
+    val facultyCoordinator: String, // blank when the source has no value
+    val memberCount: Int, // 0 when the source has no value
     val isRecruiting: Boolean = false,
     val recruitmentDeadline: String? = null,
     val instagramHandle: String? = null,
-    val description: String = ""
+    val description: String = "",
+    val recruitmentLink: String? = null
 )
 
 data class M3EClubHubState(
@@ -874,7 +910,8 @@ data class M3EClubHubState(
     val searchQuery: String = "",
     val expandedClubId: String? = null,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val notice: String? = null
 )
 
 sealed interface M3EClubHubAction {
@@ -883,6 +920,8 @@ sealed interface M3EClubHubAction {
     data class ToggleExpandClub(val clubId: String) : M3EClubHubAction
     data class ApplyClub(val clubId: String) : M3EClubHubAction
     data object Refresh : M3EClubHubAction
+    data class OpenLink(val url: String) : M3EClubHubAction
+    data object DismissNotice : M3EClubHubAction
 }
 
 // ==========================================
@@ -1081,7 +1120,10 @@ sealed interface M3ESettingsAction {
 // ==========================================
 
 enum class M3ESubScreen(val label: String, val category: String, val description: String = "") {
+    ACADEMICS_HUB("Academics Hub", "Academics", "Academic overview, credits and quick stats"),
     COURSE_DETAIL("Course Detail", "Academics", "Course syllabi, class IDs and details"),
+    COURSE_ATTENDANCE("Course Attendance", "Academics", "Per-course attendance and bunk predictor"),
+    COURSE_DASHBOARD("Course Dashboard", "Academics", "Deep per-course attendance, marks and assessments"),
     FACULTY("Faculty Directory", "Academics", "Find cabins, emails and school departments"),
     CURRICULUM("Degree Curriculum", "Academics", "Credit baskets, completion audit and non-graded credits"),
     MARKS_PREDICTOR("FAT Marks Predictor", "Academics", "Internal assessment targets and grade boundaries"),
@@ -1109,9 +1151,12 @@ enum class M3ESubScreen(val label: String, val category: String, val description
     TASKS("Tasks & Assignments", "Student Hub", "Deadlines, focus sessions and homework tracker"),
     SOCIAL("Friends & Schedules", "Student Hub", "Compare timetables and find mutual free hours"),
     FRESHER_WELCOME("Fresher Guide", "Student Hub", "Orientation, maps and essential campus guide"),
+    HALL_OF_FAME("Hall of Fame", "Student Hub", "Top performers and campus achievers"),
 
     PROFILE("Digital Student ID", "Account & System", "Proctor details, registration number and credentials"),
-    SETTINGS("Settings & Engine", "Account & System", "Appearance, notifications, Hono API & sync engine")
+    SETTINGS("Settings & Engine", "Account & System", "Appearance, notifications, Hono API & sync engine"),
+    ABOUT("About AmazeCC", "Account & System", "About the project, credits and open-source info"),
+    CHANGELOG("Changelog", "Account & System", "What changed in recent app releases")
 }
 
 data class M3EMoreHubState(

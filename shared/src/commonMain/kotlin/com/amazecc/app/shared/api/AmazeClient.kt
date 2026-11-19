@@ -837,9 +837,18 @@ object AmazeClient {
             }
         }
         return try {
-            val remote = postAuthorized<AllGradesRes>("all-grades")
-            if (remote != null && remote.success) {
+            // Canonical route (AmazeCC-API / Hono): /api/grades with the full
+            // {success, overall:{cgpa,curriculum}, semesters:{...}} shape. The old
+            // /api/all-grades alias is kept as a fallback for older deployments.
+            val remote = postAuthorized<AllGradesRes>("grades")
+            val effectiveRemote = if (remote != null && remote.success && remote.allSemesters.isNotEmpty()) {
                 remote
+            } else {
+                postAuthorized<AllGradesRes>("all-grades")?.takeIf { it.success }
+                    ?: remote?.takeIf { it.success }
+            }
+            if (effectiveRemote != null) {
+                effectiveRemote
             } else {
                 // Remote failed or returned empty: fallback to local scraper if possible, then cache
                 try {

@@ -38,16 +38,69 @@ data class GradeItem(
 @Serializable
 data class SemesterGradeResult(
     val gpa: String? = null,
-    val grades: List<GradeItem> = emptyList()
+    val grades: List<GradeItem> = emptyList(),
+    // Effective-grade details merged by /api/remote/grades:
+    val courseId: String? = null,
+    val creditsEarned: String? = null,
+    val examMonth: String? = null,
+    val resultDeclared: String? = null,
+    val distributionType: String? = null,
+    val effectiveCourseType: String? = null
 )
 
+/**
+ * `/api/remote/grades` response: `overall` carries the published CGPA and the
+ * curriculum baskets, `semesters` carries the per-term grade rows. The legacy
+ * `/api/all-grades` alias used `grades` instead of `semesters`; both are accepted.
+ */
 @Serializable
 data class AllGradesRes(
     val semesterId: String? = null,
+    @kotlinx.serialization.SerialName("grades")
     val grades: Map<String, SemesterGradeResult?>? = null,
+    @kotlinx.serialization.SerialName("semesters")
+    val semesters: Map<String, SemesterGradeResult?>? = null,
+    val overall: OverallGrades? = null,
     val error: String? = null,
     val success: Boolean = true,
     val message: String? = null
+) {
+    val allSemesters: Map<String, SemesterGradeResult?> get() = semesters ?: grades.orEmpty()
+    /** Published CGPA as returned by VTOP — authoritative, never reconstructed. */
+    val publishedCgpa: String? get() = overall?.cgpa?.cgpa?.takeIf { it.isNotBlank() }
+}
+
+@Serializable
+data class OverallGrades(
+    val cgpa: CgpaSummary? = null,
+    val curriculum: List<GradeCurriculumBasket> = emptyList()
+)
+
+@Serializable
+data class CgpaSummary(
+    val creditsRegistered: String? = null,
+    val creditsEarned: String? = null,
+    val cgpa: String? = null,
+    val grades: GradeCounts? = null
+)
+
+@Serializable
+data class GradeCounts(
+    val S: Int = 0,
+    val A: Int = 0,
+    val B: Int = 0,
+    val C: Int = 0,
+    val D: Int = 0,
+    val E: Int = 0,
+    val F: Int = 0,
+    val N: Int = 0
+)
+
+@Serializable
+data class GradeCurriculumBasket(
+    val basketTitle: String? = null,
+    val creditsRequired: String? = null,
+    val creditsEarned: String? = null
 )
 
 @Serializable
