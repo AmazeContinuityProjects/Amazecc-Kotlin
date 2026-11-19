@@ -17,7 +17,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.theme.AmazeTheme
-import kotlin.math.roundToInt
+import com.amazecc.app.shared.utils.toFixed
 
 /**
  * Non-dismissible bottom sheet showing download progress while the syllabus PDF is fetched.
@@ -86,7 +86,7 @@ fun DownloadProgressSheet(
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                "${(progress.coerceIn(0f, 1f) * 100).roundToInt()}%",
+                (progress.coerceIn(0f, 1f) * 100).toFixed(2, "%"),
                 style = AmazeTheme.typography.caption.copy(color = colors.textMuted)
             )
         }

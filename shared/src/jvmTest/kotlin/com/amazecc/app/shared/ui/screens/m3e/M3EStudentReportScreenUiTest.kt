@@ -45,7 +45,7 @@ class M3EStudentReportScreenUiTest {
         onNodeWithText("Aravind Kumar").assertExists()
         onNodeWithText("21BCE1042 • B.Tech Computer Science & Engineering").assertExists()
         onNodeWithText("9.24").assertExists()
-        onNodeWithText("91.5%").assertExists()
+        onNodeWithText("91.50%").assertExists()
         onNodeWithText("124 / 160 Credits").assertExists()
         onNodeWithText("Clean Record (No Arrears)").assertExists()
     }

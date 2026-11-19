@@ -45,6 +45,7 @@ import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.utils.parseViewLink
+import com.amazecc.app.shared.utils.toFixed
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.*
@@ -280,7 +281,7 @@ fun ODTrackerScreen() {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        "${(usagePercent * 100).toInt()}%",
+                        (usagePercent * 100).toFixed(2, "%"),
                         style = AmazeTheme.typography.subheading.copy(
                             color = when {
                                 usagePercent >= 0.9f -> colors.danger

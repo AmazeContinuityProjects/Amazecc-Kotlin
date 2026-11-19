@@ -55,6 +55,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -209,7 +210,7 @@ private fun CourseOverviewSection(state: M3ECourseDetailState) {
                         color = colors.onSurface
                     )
                     Text(
-                        text = "${state.attendancePct}%",
+                        text = state.attendancePct.toFixed(2, "%"),
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Black,
                         color = when (state.tone) {
@@ -408,7 +409,7 @@ private fun CourseMarksSection(state: M3ECourseDetailState) {
                         color = colors.onSurfaceVariant
                     )
                     Text(
-                        text = "${state.internalScored} / ${state.internalMax}",
+                        text = "${state.internalScored.toFixed(2)} / ${state.internalMax.toFixed(2)}",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Black,
                         color = colors.primary
@@ -418,7 +419,7 @@ private fun CourseMarksSection(state: M3ECourseDetailState) {
                 Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     state.classAverage?.let { avg ->
                         Text(
-                            text = "Class Avg: $avg",
+                            text = "Class Avg: ${avg.toFixed(2)}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = colors.onSurfaceVariant
@@ -426,7 +427,7 @@ private fun CourseMarksSection(state: M3ECourseDetailState) {
                     }
                     state.classMax?.let { max ->
                         Text(
-                            text = "Class Max: $max",
+                            text = "Class Max: ${max.toFixed(2)}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = colors.success
@@ -469,14 +470,14 @@ private fun CourseMarksSection(state: M3ECourseDetailState) {
                                 color = colors.onSurface
                             )
                             Text(
-                                text = "Weightage: ${assessment.weightagePercent}%",
+                                text = "Weightage: ${assessment.weightagePercent.toFixed(2)}%",
                                 fontSize = 11.sp,
                                 color = colors.onSurfaceVariant
                             )
                         }
 
                         Text(
-                            text = "${assessment.scoredMarks} / ${assessment.maxMarks}",
+                            text = "${assessment.scoredMarks.toFixed(2)} / ${assessment.maxMarks.toFixed(2)}",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Bold,
                             color = colors.primary
@@ -608,14 +609,14 @@ private fun CoursePredictorSection(
                 )
 
                 Text(
-                    text = state.requiredFinalScore?.let { "$it / 100" } ?: "Calculable on complete internals",
+                    text = state.requiredFinalScore?.let { "${it.toFixed(2)} / 100" } ?: "Calculable on complete internals",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Black,
                     color = colors.primary
                 )
 
                 Text(
-                    text = "Based on current internals (${state.internalScored}/${state.internalMax}) and typical cohort curves.",
+                    text = "Based on current internals (${state.internalScored.toFixed(2)}/${state.internalMax.toFixed(2)}) and typical cohort curves.",
                     fontSize = 11.sp,
                     color = colors.onSurfaceVariant
                 )

@@ -1473,7 +1473,9 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
     val proctor = identityState.proctor
     val hostel = hostelRes?.hostelInfo
     val currentSem = domain.academics.semesters[selectedSemId]
-    val cgpa = currentSem?.gpa?.trim()?.toDoubleOrNull() ?: if (identityState.hasIdentity) 0.0 else 9.24
+    // A negative sentinel means "not available" — never invent a plausible-looking CGPA
+    // or attendance percentage. The screen renders it as an em dash.
+    val cgpa = currentSem?.gpa?.trim()?.toDoubleOrNull() ?: -1.0
     // Academics is the single source of truth for attendance; derive the overall
     // percentage from the selected semester's courses exactly like the home quick stats.
     val profileCourses = currentSem?.courses?.values?.toList().orEmpty()
@@ -1481,7 +1483,7 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
     val profileAttendedClasses = profileCourses.sumOf { it.attendance?.attended ?: 0 }
     val attendancePct = if (profileTotalClasses > 0) {
         (profileAttendedClasses.toDouble() / profileTotalClasses) * 100.0
-    } else if (identityState.hasIdentity) 0.0 else 88.5
+    } else -1.0
 
     val mentors = remember(identityState) {
         val list = mutableListOf<com.amazecc.app.shared.domain.overhaul.M3EMentorItem>()
@@ -1489,7 +1491,7 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
             list.add(
                 com.amazecc.app.shared.domain.overhaul.M3EMentorItem(
                     role = "Proctor",
-                    name = it.name ?: "Proctor",
+                    name = it.name ?: "",
                     designation = it.designation,
                     department = it.department ?: it.school,
                     email = it.email,
@@ -1557,21 +1559,22 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
     val vtopPass = vtopCred?.password ?: ""
 
     val state = M3EProfileState(
-        studentName = identityState.displayName,
-        registrationNumber = identityState.regNo ?: "21BCE0000",
-        applicationNumber = identityState.applicationNumber ?: identityState.regNo ?: "1202200000",
-        programme = identityState.program ?: "B.Tech Computer Science & Engineering",
-        school = identityState.school ?: identityState.proctor?.school ?: "SCOPE",
-        campus = identityState.campus ?: "Vellore Campus",
-        dob = identityState.dob ?: "01 Jan 2004",
-        bloodGroup = identityState.bloodGroup ?: "O +ve",
-        email = identityState.email ?: "student@vitstudent.ac.in",
-        phone = identityState.mobile ?: "+91 90000 00000",
-        proctorName = proctor?.name ?: "Dr. Proctor",
-        proctorEmail = proctor?.email ?: "proctor@vit.ac.in",
-        proctorCabin = proctor?.cabin ?: "SJT 413",
-        hostelBlock = hostel?.blockName ?: "Q Block",
-        hostelRoom = hostel?.roomNo ?: "514",
+        // Empty values stay empty: placeholder text must never look like real student data.
+        studentName = if (identityState.hasIdentity) identityState.displayName else "",
+        registrationNumber = identityState.regNo ?: "",
+        applicationNumber = identityState.applicationNumber ?: "",
+        programme = identityState.program ?: "",
+        school = identityState.school ?: identityState.proctor?.school ?: "",
+        campus = identityState.campus ?: "",
+        dob = identityState.dob ?: "",
+        bloodGroup = identityState.bloodGroup ?: "",
+        email = identityState.email ?: "",
+        phone = identityState.mobile ?: "",
+        proctorName = proctor?.name ?: "",
+        proctorEmail = proctor?.email ?: "",
+        proctorCabin = proctor?.cabin,
+        hostelBlock = hostel?.blockName,
+        hostelRoom = hostel?.roomNo,
         cgpa = cgpa,
         attendancePercentage = attendancePct,
         isIdCardFlipped = isFlipped,
@@ -1593,7 +1596,7 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
                 !b.name.isNullOrBlank() && !accountNo.isNullOrBlank() -> "${b.name} ($accountNo)"
                 !b.name.isNullOrBlank() -> b.name
                 !accountNo.isNullOrBlank() -> "Account $accountNo"
-                else -> "Verified & On File"
+                else -> null
             }
         },
         apaarId = identityState.apaar?.let { a ->
@@ -1605,7 +1608,8 @@ fun M3EProfileScreen(modifier: Modifier = Modifier) {
         },
         dayboarderInfo = identityState.dayboarder?.let { d ->
             val campusLabel = d.fields.firstOrNull { it.label.contains("campus", ignoreCase = true) }?.value
-            if (d.isDayboarder) "Day Boarder (${campusLabel ?: "Verified"})" else "Hosteller"
+            if (!d.isDayboarder) "Hosteller"
+            else if (campusLabel.isNullOrBlank()) "Day Boarder" else "Day Boarder ($campusLabel)"
         },
         eptStatus = if (identityState.eptTables.isNotEmpty()) "${identityState.eptTables.size} Scheduled Exams" else "No Active Exams",
         rankAir = identityState.ranks.firstOrNull()?.rank?.let { "AIR $it" },

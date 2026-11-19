@@ -35,6 +35,7 @@ import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.state.SyncCategory
 import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.utils.toFixed
 import kotlinx.coroutines.delay
 
 private enum class SyncDialogTab(val title: String) {
@@ -342,7 +343,7 @@ private fun OverviewTabContent(
             )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "${syncProgress.percentage.toInt()}%",
+                    text = syncProgress.percentage.toFixed(2, "%"),
                     style = AmazeTheme.typography.subheading.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = AmazeTheme.fontSize.xl,

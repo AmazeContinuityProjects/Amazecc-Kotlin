@@ -43,6 +43,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /** Tabs of the OD Tracker. */
@@ -170,7 +171,7 @@ fun M3EODTrackerScreen(
                                 modifier = Modifier.size(72.dp).clip(RoundedCornerShape(16.dp)).background(tone.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("${(usage * 100).toInt()}%", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = tone)
+                                Text((usage * 100).toFixed(2, "%"), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = tone)
                             }
                         }
                         M3EWavyLinearProgress(progress = usage, activeColor = tone, trackColor = colors.surfaceContainerHighest)

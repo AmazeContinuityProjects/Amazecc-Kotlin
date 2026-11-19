@@ -2001,15 +2001,32 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
      * @param forceFresh If true, always performs a real VTOP login and never accepts a cached-fresh
      *   session. Sync sweeps pass true; per-module token checks pass false.
      * @param captchaHandler Handler to resolve captcha challenges. Defaults to [com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha].
+     * @param verifyOnly When true, confirm the cached session is still valid and return immediately —
+     *   no cookie clearing, no WebView, no re-login. This is the background-sweep path: a
+     *   BroadcastReceiver has no Activity to host the VTOP WebView, so a forced interactive login
+     *   cannot run there and silently attempting one would either throw or hang on the captcha.
      * @return true if an authenticated, unexpired session is ready; false otherwise.
      */
     suspend fun ensureSession(
         forceFresh: Boolean = false,
         captchaHandler: com.amazecc.app.shared.vtop.CaptchaHandler = com.amazecc.app.shared.vtop.CaptchaHandler { challenge ->
             com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha(challenge)
-        }
+        },
+        verifyOnly: Boolean = false
     ): Boolean {
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return true
+
+        // Pure verification first: deliberately ahead of the test seam so a background sweep can be
+        // proven not to enter any login path. Never clears cookies or touches the WebView.
+        if (verifyOnly) {
+            return if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+                com.amazecc.app.shared.vtop.VtopSession.isValid
+            } else {
+                SessionManager.isLoggedIn && !SessionManager.isSessionStale(
+                    com.amazecc.app.shared.vtop.VtopSession.SESSION_REFRESH_THRESHOLD_MS
+                )
+            }
+        }
 
         // Test seam runs before any cached-session short-circuit so tests can prove the login path
         // is reached even when a fresh session is already present.

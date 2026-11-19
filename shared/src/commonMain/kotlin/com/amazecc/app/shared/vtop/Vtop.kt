@@ -2,6 +2,7 @@ package com.amazecc.app.shared.vtop
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,6 +14,15 @@ import kotlinx.serialization.json.jsonPrimitive
 
 /** `PRELOGIN`'s reason when the page's own jQuery has not run yet. */
 private const val JQUERY_ABSENT = "jQuery absent"
+
+/**
+ * How long the interactive captcha prompt waits for a UI answer before it fails the login.
+ *
+ * Without a bound, a missed prompt parks the login coroutine forever — which would hang a sweep
+ * that has no Activity to render the prompt (a background/alarm sync). Treat a timeout as a cancel
+ * so the login returns a failure promptly and the sweep reaches its "sign in again" error path.
+ */
+const val DEFAULT_UI_CAPTCHA_TIMEOUT_MS: Long = 120_000L
 
 /** Handshake attempts, and the pause between them, while jQuery is the only thing missing. */
 private const val PRELOGIN_ATTEMPTS = 8
@@ -105,19 +115,29 @@ object Vtop {
         signal.complete(CaptchaAnswer.Cancelled)
     }
 
-    /** Awaits an answer from the UI. Used by [UiCaptchaHandler]. */
-    suspend fun awaitUiCaptcha(challenge: CaptchaChallenge): CaptchaAnswer = resolveCaptcha(challenge, null)
+    /**
+     * Awaits an answer from the UI. Used by [UiCaptchaHandler].
+     *
+     * The wait is bounded by [timeoutMs] so a prompt nobody can answer fails fast instead of
+     * parking the login coroutine indefinitely. Override the timeout in tests; production uses
+     * [DEFAULT_UI_CAPTCHA_TIMEOUT_MS].
+     */
+    suspend fun awaitUiCaptcha(
+        challenge: CaptchaChallenge,
+        timeoutMs: Long = DEFAULT_UI_CAPTCHA_TIMEOUT_MS
+    ): CaptchaAnswer = resolveCaptcha(challenge, null, timeoutMs)
 
     private suspend fun resolveCaptcha(
         challenge: CaptchaChallenge,
-        handler: CaptchaHandler?
+        handler: CaptchaHandler?,
+        timeoutMs: Long = DEFAULT_UI_CAPTCHA_TIMEOUT_MS
     ): CaptchaAnswer {
         if (handler != null) return handler.onCaptcha(challenge)
         val signal = CompletableDeferred<CaptchaAnswer>()
         captchaSignal = signal
         _captchaRequest.value = challenge
         return try {
-            signal.await()
+            withTimeoutOrNull(timeoutMs) { signal.await() } ?: CaptchaAnswer.Cancelled
         } finally {
             captchaSignal = null
             _captchaRequest.value = null

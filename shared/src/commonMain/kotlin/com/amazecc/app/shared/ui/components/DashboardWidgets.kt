@@ -946,7 +946,7 @@ private fun MetricCardsWidget() {
                 when (key) {
                     "attendance" -> GlassMetricCard(
                         title = "Attendance",
-                        value = if (courses.isNotEmpty()) "${overallAttendance.toInt()}%" else "—",
+                        value = if (courses.isNotEmpty()) overallAttendance.toFixed(2, "%") else "—",
                         icon = Icons.Rounded.CheckCircle,
                         colors = colors,
                         modifier = cardModifier,
@@ -1141,7 +1141,7 @@ private fun AttendanceBunkWidget() {
                         strokeWidth = 8.dp
                     )
                     Text(
-                        text = "${overallAttendance.toInt()}%",
+                        text = overallAttendance.toFixed(2, "%"),
                         style = AmazeTheme.typography.subheading.copy(
                             fontWeight = FontWeight.Bold,
                             color = colors.textPrimary,
@@ -2147,7 +2147,7 @@ private fun CourseAttendanceWidget() {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     StatChip(value = stats.crit.toString(), label = "Critical (<50%)", color = colors.chart5, modifier = Modifier.weight(1f))
-                    StatChip(value = stats.avgPct.toFixed(1, "%"), label = "Overall Avg", color = colors.chart2, modifier = Modifier.weight(1f))
+                    StatChip(value = stats.avgPct.toFixed(2, "%"), label = "Overall Avg", color = colors.chart2, modifier = Modifier.weight(1f))
                 }
             }
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
@@ -2269,7 +2269,7 @@ private fun ModernCourseCardWidget(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    pct.toFixed(0),
+                    pct.toFixed(2),
                     style = AmazeTheme.typography.smallLabel.copy(
                         fontWeight = FontWeight.Bold,
                         color = pctColor,

@@ -71,6 +71,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Foreground catch-up: an Activity now exists, so a due sync can perform the strict fresh
+        // VTOP login that a background alarm sweep deliberately cannot. No-op when nothing is due.
+        AppState.checkDueSync()
     }
 
     override fun onDestroy() {

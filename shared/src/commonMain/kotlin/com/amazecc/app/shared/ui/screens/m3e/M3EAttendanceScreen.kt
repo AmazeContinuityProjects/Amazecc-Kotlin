@@ -40,6 +40,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -75,7 +76,7 @@ fun M3EAttendanceScreen(
                         color = colors.onBackground
                     )
                     Text(
-                        text = "${state.semesterName} · Overall ${state.overallPercentage}%",
+                        text = "${state.semesterName} · Overall ${state.overallPercentage.toFixed(2)}%",
                         fontSize = 13.sp,
                         color = colors.primary,
                         fontWeight = FontWeight.Medium
@@ -247,7 +248,7 @@ private fun M3ECourseAttendanceCard(
 
                 // Headline Attendance %
                 Text(
-                    text = "${course.percentage}%",
+                    text = course.percentage.toFixed(2, "%"),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = statusColor

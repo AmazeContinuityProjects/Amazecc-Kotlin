@@ -27,3 +27,6 @@ actual fun cancelSyncAlarms() {
     UNUserNotificationCenter.currentNotificationCenter()
         .removePendingNotificationRequestsWithIdentifiers(listOf(SYNC_REMINDER_IDENTIFIER))
 }
+
+/** iOS has no Activity-hosted VTOP WebView path available to the sync gate. */
+actual fun canRunInteractiveVtop(): Boolean = false

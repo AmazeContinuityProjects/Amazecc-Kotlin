@@ -43,6 +43,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /** Tabs of the per-course attendance deep dive. */
@@ -169,7 +170,7 @@ fun M3ECourseAttendanceScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "${state.currentPercentage.toInt()}%",
+                            text = state.currentPercentage.toFixed(2, "%"),
                             fontSize = 44.sp,
                             fontWeight = FontWeight.Black,
                             color = toneColor
@@ -267,7 +268,7 @@ fun M3ECourseAttendanceScreen(
                                             )
                                         }
                                         Text(
-                                            "${simulatedPct.toInt()}%",
+                                            "${simulatedPct.toFixed(2)}%",
                                             fontSize = 18.sp,
                                             fontWeight = FontWeight.Black,
                                             color = simulatedTone

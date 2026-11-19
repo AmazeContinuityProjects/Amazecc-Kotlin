@@ -65,6 +65,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import com.amazecc.app.shared.utils.toImageBitmap
 import io.ktor.util.decodeBase64Bytes
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -164,17 +165,17 @@ fun M3EProfileScreen(
             ) {
                 MetricTile(
                     title = "CGPA",
-                    value = "${state.cgpa}",
+                    value = profileMetricValue(state.cgpa),
                     modifier = Modifier.weight(1f)
                 )
                 MetricTile(
                     title = "ATTENDANCE",
-                    value = "${state.attendancePercentage}%",
+                    value = profileMetricValue(state.attendancePercentage, "%"),
                     modifier = Modifier.weight(1f)
                 )
                 MetricTile(
                     title = "CAMPUS",
-                    value = state.campus,
+                    value = orDash(state.campus),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -358,7 +359,7 @@ private fun DigitalIdCard(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = state.studentName,
+                            text = orDash(state.studentName),
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 20.sp
@@ -373,7 +374,7 @@ private fun DigitalIdCard(
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             Text(
-                                text = state.registrationNumber,
+                                text = orDash(state.registrationNumber),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontFamily = FontFamily.Monospace
@@ -392,7 +393,8 @@ private fun DigitalIdCard(
                         }
 
                         Text(
-                            text = "${state.programme} • ${state.school}",
+                            text = listOf(state.programme, state.school).filter { it.isNotBlank() }
+                                .joinToString(" • ").ifBlank { "—" },
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant
                         )
@@ -512,7 +514,7 @@ private fun DigitalIdCard(
                                     color = colors.onSurfaceVariant
                                 )
                                 Text(
-                                    text = "${state.hostelBlock} - Room ${state.hostelRoom ?: "N/A"}",
+                                    text = "${state.hostelBlock} - Room ${orDash(state.hostelRoom ?: "")}",
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                     color = colors.onSurface
                                 )
@@ -704,12 +706,12 @@ private fun ProctorContactCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = state.proctorName,
+                        text = orDash(state.proctorName),
                         style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                         color = colors.onSurface
                     )
                     Text(
-                        text = state.proctorEmail,
+                        text = orDash(state.proctorEmail),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.onSurfaceVariant
                     )
@@ -1114,12 +1116,19 @@ private fun ProfileDataRow(
             color = colors.onSurfaceVariant
         )
         Text(
-            text = value,
+            text = orDash(value),
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
             color = colors.onSurface
         )
     }
 }
+
+/** Missing profile data renders as an em dash, never as a plausible-looking placeholder. */
+private fun orDash(value: String): String = value.ifBlank { "—" }
+
+/** A negative value is the bridge's "no data" sentinel; real values always show 2 decimals. */
+private fun profileMetricValue(value: Double, suffix: String = ""): String =
+    if (value < 0.0) "—" else value.toFixed(2, suffix)
 
 // ==========================================
 // PREVIEWS

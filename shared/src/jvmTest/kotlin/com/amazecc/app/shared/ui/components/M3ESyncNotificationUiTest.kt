@@ -68,10 +68,10 @@ class M3ESyncNotificationUiTest {
         }
 
         // Percentage badge exists on minimized pill
-        onNodeWithText("0%").assertExists()
+        onNodeWithText("0.00%").assertExists()
 
         // Clicking the pill expands into modal
-        onNodeWithText("0%").performClick()
+        onNodeWithText("0.00%").performClick()
 
         // Milestone titles should now appear
         onNodeWithText("Authentication & Session").assertExists()

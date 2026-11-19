@@ -52,6 +52,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -162,7 +163,7 @@ private fun M3EAcademicHeroCard(
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = summary.cgpa.toString(),
+                    text = summary.cgpa.toFixed(2),
                     fontSize = 36.sp,
                     fontWeight = FontWeight.Black,
                     color = colors.primary
@@ -323,7 +324,7 @@ private fun M3EAcademicCourseCard(
                             color = colors.onSurfaceVariant
                         )
                         Text(
-                            text = "${course.internalScored}/${course.internalMax}",
+                            text = "${course.internalScored.toFixed(2)}/${course.internalMax.toFixed(2)}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = colors.primary
@@ -381,14 +382,14 @@ private fun M3EAcademicCourseCard(
                                         color = colors.onSurface
                                     )
                                     Text(
-                                        text = "Weightage: ${assessment.weightagePercent}%",
+                                        text = "Weightage: ${assessment.weightagePercent.toFixed(2)}%",
                                         fontSize = 10.sp,
                                         color = colors.onSurfaceVariant
                                     )
                                 }
 
                                 Text(
-                                    text = "${assessment.scoredMarks} / ${assessment.maxMarks}",
+                                    text = "${assessment.scoredMarks.toFixed(2)} / ${assessment.maxMarks.toFixed(2)}",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = colors.onSurface

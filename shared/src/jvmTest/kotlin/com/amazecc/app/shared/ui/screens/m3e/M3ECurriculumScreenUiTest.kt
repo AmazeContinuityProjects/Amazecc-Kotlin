@@ -66,7 +66,7 @@ class M3ECurriculumScreenUiTest {
 
         onNodeWithText("Degree Curriculum").assertExists()
         onNodeWithText("B.Tech CSE (2021-25)").assertExists()
-        onNodeWithText("77%").assertExists() // 124 / 160 = 77.5% -> 77%
+        onNodeWithText("77.50%").assertExists() // 124 / 160 = 77.5% -> 77.50%
         onNodeWithText("124 / 160 Credits Completed").assertExists()
         onNodeWithText("36 Credits Remaining").assertExists()
         onNodeWithText("CSE3002").assertExists()

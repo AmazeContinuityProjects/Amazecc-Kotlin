@@ -1,6 +1,9 @@
 package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.vtop.AutoCaptchaHandler
+import com.amazecc.app.shared.vtop.UiCaptchaHandler
+import com.amazecc.app.shared.utils.canRunInteractiveVtop
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -516,13 +519,35 @@ object SyncEngine {
     fun isModuleEnabled(module: SyncModule): Boolean = module in activeProfile.enabledModules
 
     /**
+     * Test seam for [canRunInteractiveVtop]: when non-null it replaces the platform Activity probe.
+     * Null in production. Lets tests exercise both the foreground and background gates on the JVM
+     * (where there is never an Activity). Set/cleared only by sync gate tests.
+     */
+    internal var interactiveVtopOverride: (() -> Boolean)? = null
+
+    private fun canRunInteractiveVtopNow(): Boolean =
+        interactiveVtopOverride?.invoke() ?: canRunInteractiveVtop()
+
+    /**
      * Authoritative pre-flight session check for all sync sweeps and operations.
      *
-     * A cached-fresh session is **never** sufficient: by default [forceFresh] is true, so this
-     * forces a real VTOP prelogin/setup -> login (with [captchaHandler]) -> open page ->
-     * authorizedID, persists the freshly captured cookies/csrf/authorizedID via
-     * [com.amazecc.app.shared.api.AmazeClient.ensureSession], and only then returns true. Module
-     * scraping must not start until that succeeds.
+     * Foreground / user-triggered sweeps keep the strict requirement: a cached-fresh session is
+     * **never** sufficient. By default [forceFresh] is true, so this forces a real VTOP
+     * prelogin/setup -> login -> open page -> authorizedID, persists the freshly captured
+     * cookies/csrf/authorizedID via [com.amazecc.app.shared.api.AmazeClient.ensureSession], and only
+     * then returns true. The gate's captcha handler is an [AutoCaptchaHandler] with the UI handler
+     * as its delegate, so headless OCR solves when it can and the UI prompt is the last resort.
+     * Module scraping must not start until that succeeds.
+     *
+     * Deliberate background degradation: when [canRunInteractiveVtop] reports no Activity (an alarm
+     * `BroadcastReceiver`, or desktop/iOS), a forced login physically cannot run —
+     * `VtopEngine.android` throws without an Activity and the UI captcha prompt would park forever.
+     * In that case this **does not clear cookies and does not start an interactive login**; it only
+     * verifies the cached session via `ensureSession(forceFresh = false, verifyOnly = true)`. A
+     * cached-valid session proceeds; an invalid one returns false and the caller
+     * ([AppState.ensureVtopSessionForSweep]) reports the existing "Sign in again to sync" error.
+     * Due syncs are caught up from `MainActivity.onResume()` while an Activity exists so the strict
+     * foreground login still happens for ordinary use.
      *
      * Bypassed automatically when:
      * - [com.amazecc.app.shared.api.AmazeClient.vtopSource] is [com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE].
@@ -542,9 +567,21 @@ object SyncEngine {
         val needsVtop = modules.isEmpty() || modules.any { it != SyncModule.LMS && it != SyncModule.MOODLE }
         if (!needsVtop) return true
 
-        val handler = captchaHandler ?: com.amazecc.app.shared.vtop.CaptchaHandler { challenge ->
-            com.amazecc.app.shared.vtop.Vtop.awaitUiCaptcha(challenge)
+        // Background/alarm sweep: no Activity to host the WebView, so never force a fresh login.
+        // Verify the cached session only; failure takes the caller's "sign in again" error path.
+        if (!canRunInteractiveVtopNow()) {
+            return com.amazecc.app.shared.api.AmazeClient.ensureSession(
+                forceFresh = false,
+                captchaHandler = captchaHandler ?: UiCaptchaHandler,
+                verifyOnly = true
+            )
         }
+
+        val handler = captchaHandler ?: AutoCaptchaHandler(
+            delegate = UiCaptchaHandler,
+            // Honour the same manual-captcha setting the login screens respect.
+            forceManual = { SettingsManager.isVtopManualCaptcha() }
+        )
 
         return com.amazecc.app.shared.api.AmazeClient.ensureSession(
             forceFresh = forceFresh,

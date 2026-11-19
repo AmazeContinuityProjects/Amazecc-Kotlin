@@ -9,7 +9,7 @@ import com.amazecc.app.shared.state.SyncScheduler
 class SyncAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
         val kind = intent?.getStringExtra(EXTRA_KIND) ?: SyncScheduler.LIGHT_KIND
-        AppState.runScheduledSync()
+        AppState.runScheduledSync(kind)
     }
 
     companion object {

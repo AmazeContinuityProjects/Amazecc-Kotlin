@@ -52,6 +52,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWeekStrip
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import kotlinx.datetime.LocalDate
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -94,7 +95,7 @@ fun M3EHomeScreen(
                     M3EStatItem(
                         id = "stat_attendance",
                         label = "Attendance",
-                        value = "${state.quickStats.attendancePercentage}%",
+                        value = state.quickStats.attendancePercentage.toFixed(2, "%"),
                         sub = state.quickStats.attendanceStatusText.ifBlank { "Overall status" },
                         tone = if (state.quickStats.attendancePercentage >= 75.0) M3EStatTone.GOOD else M3EStatTone.CRITICAL,
                         icon = Icons.Rounded.CheckCircle,
@@ -107,7 +108,7 @@ fun M3EHomeScreen(
                         M3EStatItem(
                             id = "stat_cgpa",
                             label = "Cumulative GPA",
-                            value = "${state.quickStats.cgpa}",
+                            value = state.quickStats.cgpa.toFixed(2),
                             sub = "Academic standing",
                             tone = M3EStatTone.PRIMARY,
                             icon = Icons.Rounded.School,
@@ -330,7 +331,7 @@ private fun M3EQuickStatsRow(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "${stats.attendancePercentage}%",
+                    text = stats.attendancePercentage.toFixed(2, "%"),
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = colors.onSurface
@@ -368,7 +369,7 @@ private fun M3EQuickStatsRow(
                 }
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "${stats.cgpa}",
+                    text = stats.cgpa.toFixed(2),
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
                     color = colors.onSurface

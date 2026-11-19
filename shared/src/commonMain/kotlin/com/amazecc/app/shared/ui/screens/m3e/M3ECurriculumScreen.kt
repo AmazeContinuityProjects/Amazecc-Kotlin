@@ -51,6 +51,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -139,7 +140,7 @@ fun M3ECurriculumScreen(
                                 color = colors.onSurface
                             )
                             Text(
-                                text = "${completionPct.toInt()}%",
+                                text = completionPct.toFixed(2, "%"),
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Black,
                                 color = colors.primary
@@ -201,7 +202,7 @@ fun M3ECurriculumScreen(
                                     maxLines = 1
                                 )
                                 Text(
-                                    text = "${basket.creditsCompleted}/${basket.creditsRequired} cr (${pct.toInt()}%)",
+                                    text = "${basket.creditsCompleted}/${basket.creditsRequired} cr (${pct.toFixed(2)}%)",
                                     fontSize = 11.sp,
                                     color = colors.onSurfaceVariant
                                 )

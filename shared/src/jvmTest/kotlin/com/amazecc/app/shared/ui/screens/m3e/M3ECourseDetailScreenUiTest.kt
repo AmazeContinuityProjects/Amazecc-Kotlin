@@ -53,7 +53,7 @@ class M3ECourseDetailScreenUiTest {
         onNodeWithText("Internet and Web Programming").assertExists()
         onNodeWithText("4 Credits").assertExists()
         onNodeWithText("Prof. Sundar").assertExists()
-        onNodeWithText("93.3%").assertExists()
+        onNodeWithText("93.30%").assertExists()
         onNodeWithText("Slot B1+TB1").assertExists()
     }
 

@@ -44,3 +44,9 @@ actual fun cancelSyncAlarms() {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     alarmManager.cancel(pendingIntent)
 }
+
+/**
+ * A foreground Activity is the only thing that can host the VTOP WebView. During an alarm sweep
+ * (BroadcastReceiver) [AndroidApp.activity] is null, so a forced interactive login is impossible.
+ */
+actual fun canRunInteractiveVtop(): Boolean = AndroidApp.activity != null

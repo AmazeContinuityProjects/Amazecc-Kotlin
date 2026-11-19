@@ -23,6 +23,7 @@ class SyncEngineAuthGateTest {
     @AfterTest
     fun tearDown() {
         AmazeClient.sessionLoginOverride = null
+        SyncEngine.interactiveVtopOverride = null
         AmazeClient.setVtopSource(previousVtopSource)
         VtopSession.clear()
     }
@@ -60,6 +61,10 @@ class SyncEngineAuthGateTest {
 
         assertTrue(VtopSession.isValid, "Session must be valid before the gate runs")
 
+        // Simulate a foreground sweep (an Activity is present) so the gate takes the strict
+        // forced-login path rather than the background cached-verification degradation.
+        SyncEngine.interactiveVtopOverride = { true }
+
         // Replace the real (platform-specific) login so the test can observe the login path.
         var loginCalls = 0
         var forcedFlag: Boolean? = null
@@ -83,6 +88,9 @@ class SyncEngineAuthGateTest {
         VtopSession.save(csrf = "fresh_csrf", authorizedID = "21BCE7777", authorizedIDX = "idx_fresh")
         VtopSession.markActive()
         assertTrue(VtopSession.isValid, "A cached-fresh session must be present")
+
+        // Foreground: the default gate call must still force a real login.
+        SyncEngine.interactiveVtopOverride = { true }
 
         var loginCalls = 0
         var forcedFlag: Boolean? = null

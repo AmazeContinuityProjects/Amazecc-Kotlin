@@ -1066,8 +1066,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
      * Skipped entirely for the two sweeps that need no VTOP session (LMS / MOODLE only) and for
      * [com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE].
      *
-     * Never throws: with no Activity to attach a WebView to — a background sync, say — the modules
-     * are left to report their own failure, which is more informative than an exception here.
+     * Deliberate background degradation: when there is no foreground Activity (e.g. an alarm
+     * `BroadcastReceiver`), `SyncEngine.ensureAuthenticatedSession` cannot clear cookies and start
+     * a fresh interactive login — there is no window to host the VTOP WebView and no UI to answer a
+     * captcha. It verifies the cached session instead. On failure this reports the single
+     * "Sign in again to sync" error below rather than throwing; due syncs are caught up from
+     * `MainActivity.onResume()` while an Activity exists so the strict login still runs in normal use.
      */
     private suspend fun ensureVtopSessionForSweep(modules: Set<SyncModule>): Boolean {
         if (AmazeClient.vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return true

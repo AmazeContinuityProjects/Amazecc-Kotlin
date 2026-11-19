@@ -46,6 +46,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -108,7 +109,7 @@ fun M3EGradesHistoryScreen(
                                 color = colors.onSurfaceVariant
                             )
                             Text(
-                                text = state.cumulativeGpa.toString(),
+                                text = state.cumulativeGpa.toFixed(2),
                                 fontSize = 38.sp,
                                 fontWeight = FontWeight.Black,
                                 color = colors.primary
@@ -261,7 +262,7 @@ private fun M3ESemesterGradeCard(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "SGPA: ${semester.sgpa}",
+                            text = "SGPA: ${semester.sgpa.toFixed(2)}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             color = colors.onPrimaryContainer

@@ -54,10 +54,10 @@ class M3EAttendanceScreenUiTest {
         }
 
         onNodeWithText("Attendance Hub").assertExists()
-        onNodeWithText("Winter 2026-27 · Overall 84.2%").assertExists()
+        onNodeWithText("Winter 2026-27 · Overall 84.20%").assertExists()
         onNodeWithText("Safe to Bunk ~5 Classes").assertExists()
         onNodeWithText("Data Structures & Algorithms").assertExists()
-        onNodeWithText("92.8%").assertExists()
+        onNodeWithText("92.80%").assertExists()
         onNodeWithText("26/28 Attended").assertExists()
     }
 

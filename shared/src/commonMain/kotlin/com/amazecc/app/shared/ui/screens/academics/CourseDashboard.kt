@@ -42,6 +42,7 @@ import com.amazecc.app.shared.ui.components.ScreenHeader
 import com.amazecc.app.shared.ui.components.HeaderSpacer
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
+import com.amazecc.app.shared.utils.toFixed
 
 @Composable
 fun CourseDashboardScreen(onBack: () -> Unit) {
@@ -339,7 +340,7 @@ private fun CourseDetailCard(course: CourseGroup, onClick: () -> Unit) {
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "${model.headlinePct.toInt()}%",
+                            text = model.headlinePct.toFixed(2, "%"),
                             style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black, fontSize = AmazeTheme.fontSize.xs)
                         )
                     }
@@ -449,7 +450,7 @@ private fun embeddedRow(
         Spacer(Modifier.width(AmazeTheme.spacing.sm))
         if (row.attendancePct > 0.0) {
             Box(modifier = Modifier.clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(c.copy(alpha = 0.12f)).border(1.dp, c.copy(alpha = 0.3f), RoundedCornerShape(AmazeTheme.radius.xs)).padding(horizontal = 10.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
-                Text("${row.attendancePct.toInt()}%", style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black))
+                Text(row.attendancePct.toFixed(2, "%"), style = AmazeTheme.typography.caption.copy(color = c, fontWeight = FontWeight.Black))
             }
         }
     }

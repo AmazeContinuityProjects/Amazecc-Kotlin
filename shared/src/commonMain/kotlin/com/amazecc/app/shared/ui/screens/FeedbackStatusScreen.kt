@@ -45,6 +45,7 @@ import com.amazecc.app.shared.ui.components.*
 import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
+import com.amazecc.app.shared.utils.toFixed
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -431,7 +432,7 @@ private fun FeedbackHeroCard(semestersData: List<SemesterFeedbackState>, colors:
             Spacer(Modifier.weight(1f))
             HeroChip(
                 text = if (totalGiven == totalFeedbacksPossible && totalFeedbacksPossible > 0) "ALL GIVEN"
-                else "${(completionFraction * 100).toInt()}% DONE",
+                else "${(completionFraction * 100).toFixed(2)}% DONE",
                 p = p
             )
         }

@@ -27,6 +27,7 @@ import com.amazecc.app.shared.ui.components.SemesterPickerSheet
 import com.amazecc.app.shared.utils.ExportImportManager
 import com.amazecc.app.shared.utils.rememberFileImporter
 import com.amazecc.app.shared.utils.rememberFileSaver
+import com.amazecc.app.shared.utils.toFixed
 import com.amazecc.app.shared.vtop.VtopSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -351,7 +352,7 @@ fun DataSyncPage(
                         Text("Sync Engine Status", fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.base)
                         Text(syncProgress.displayText, color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs)
                     }
-                    Text("${syncProgress.percentage.toInt()}%", fontWeight = FontWeight.Bold, color = colors.accent, fontSize = AmazeTheme.fontSize.lg)
+                    Text(syncProgress.percentage.toFixed(2, "%"), fontWeight = FontWeight.Bold, color = colors.accent, fontSize = AmazeTheme.fontSize.lg)
                 }
 
                 Spacer(Modifier.height(AmazeTheme.spacing.sm))

@@ -43,6 +43,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -125,7 +126,7 @@ fun M3EMarksPredictorScreen(
                                 color = colors.onSurfaceVariant
                             )
                             Text(
-                                text = state.predictedGpa.toString(),
+                                text = state.predictedGpa.toFixed(2),
                                 fontSize = 36.sp,
                                 fontWeight = FontWeight.Black,
                                 color = colors.primary
@@ -240,7 +241,7 @@ private fun M3EPredictionCourseCard(
                         color = colors.onSurfaceVariant
                     )
                     Text(
-                        text = "${course.internalScored} / ${course.internalMax}",
+                        text = "${course.internalScored.toFixed(2)} / ${course.internalMax.toFixed(2)}",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = colors.onSurface
@@ -292,7 +293,7 @@ private fun M3EPredictionCourseCard(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = course.requiredFatMark?.let { "$it / 100" } ?: "Guaranteed",
+                        text = course.requiredFatMark?.let { "${it.toFixed(2)} / 100" } ?: "Guaranteed",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                         color = toneColor

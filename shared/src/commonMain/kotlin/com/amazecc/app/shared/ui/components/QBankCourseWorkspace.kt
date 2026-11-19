@@ -39,6 +39,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.strings.Strings
+import com.amazecc.app.shared.utils.toFixed
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
@@ -1148,7 +1149,7 @@ private fun SwotCard(title: String, icon: androidx.compose.ui.graphics.vector.Im
                 topics.sortedByDescending { it.attempts }.forEach { st ->
                     val acc = if (st.attempts == 0) 0f else st.correct.toFloat() / st.attempts
                     Text(
-                        "${st.topic} · ${st.correct}/${st.attempts} (${(acc * 100).toInt()}%)",
+                        "${st.topic} · ${st.correct}/${st.attempts} (${(acc * 100).toFixed(2)}%)",
                         style = AmazeTheme.typography.caption.copy(color = colors.textPrimary, fontWeight = FontWeight.Medium),
                         maxLines = 1
                     )
@@ -1205,7 +1206,7 @@ private fun AnalysisView(
             Spacer(Modifier.height(AmazeTheme.spacing.sm))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "${(overallAcc * 100).toInt()}% accuracy",
+                    "${(overallAcc * 100).toFixed(2)}% accuracy",
                     style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
                 )
                 Spacer(Modifier.width(AmazeTheme.spacing.sm))

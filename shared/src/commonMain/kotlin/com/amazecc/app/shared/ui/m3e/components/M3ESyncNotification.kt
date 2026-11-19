@@ -97,6 +97,7 @@ import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import com.amazecc.app.shared.vtop.VtopSource
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -349,7 +350,7 @@ fun M3ESyncNotification(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "${progressPercent.toInt()}%",
+                            text = progressPercent.toFixed(2, "%"),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
                             color = colors.primary
                         )

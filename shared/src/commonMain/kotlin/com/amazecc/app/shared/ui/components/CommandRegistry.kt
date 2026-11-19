@@ -19,6 +19,7 @@ import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.screens.more.appLibraryItems
 import com.amazecc.app.shared.ui.screens.more.executeAppLibraryItem
 import com.amazecc.app.shared.ui.screens.settings.SettingsSubScreen
+import com.amazecc.app.shared.utils.toFixed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -104,11 +105,12 @@ fun rememberGlobalCommands(): List<CommandItem> {
             sem.courses.values.forEach { course ->
                 if (seenCourseCodes.add(course.courseCode)) {
                     val pct = course.attendance?.attendancePercentage.orEmpty()
+                    val pctDisplay = pct.replace("%", "").trim().toDoubleOrNull()?.toFixed(2) ?: pct
                     result.add(
                         CommandItem(
                             id = "att-${course.courseCode}",
                             label = course.courseTitle,
-                            description = if (pct.isNotBlank()) "Course · $pct% attendance" else "Course · ${course.courseCode}",
+                            description = if (pct.isNotBlank()) "Course · $pctDisplay% attendance" else "Course · ${course.courseCode}",
                             icon = Icons.Rounded.Class,
                             category = "Courses",
                             onSelect = { AppState.openCourseDetail(course.courseCode) }

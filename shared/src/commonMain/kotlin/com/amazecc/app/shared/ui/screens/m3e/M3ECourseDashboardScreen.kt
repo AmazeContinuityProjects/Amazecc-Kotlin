@@ -38,6 +38,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /** One course shown in the cross-semester course dashboard. */
@@ -252,7 +253,7 @@ private fun M3EDashboardCourseCard(course: M3EDashboardCourse, onClick: () -> Un
                     Text(course.courseCode, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.primary)
                 }
                 if (pct != null) {
-                    Text("${pct.toInt()}%", fontSize = 14.sp, fontWeight = FontWeight.Black, color = tone)
+                    Text(pct.toFixed(2, "%"), fontSize = 14.sp, fontWeight = FontWeight.Black, color = tone)
                 }
             }
             Text(course.title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurface, maxLines = 2)

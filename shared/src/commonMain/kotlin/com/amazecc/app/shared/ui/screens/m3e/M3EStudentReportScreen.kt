@@ -46,6 +46,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -193,7 +194,7 @@ fun M3EStudentReportScreen(
                                 color = colors.onSurfaceVariant
                             )
                             Text(
-                                text = state.cgpa.toString(),
+                                text = state.cgpa.toFixed(2),
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.Black,
                                 color = colors.primary
@@ -213,7 +214,7 @@ fun M3EStudentReportScreen(
                                 color = colors.onSurfaceVariant
                             )
                             Text(
-                                text = "${state.overallAttendancePct}%",
+                                text = state.overallAttendancePct.toFixed(2, "%"),
                                 fontSize = 26.sp,
                                 fontWeight = FontWeight.Black,
                                 color = if (state.overallAttendancePct >= 75.0) colors.success else colors.error

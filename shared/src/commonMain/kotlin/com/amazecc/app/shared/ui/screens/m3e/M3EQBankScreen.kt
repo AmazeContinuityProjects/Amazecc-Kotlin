@@ -39,6 +39,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /** One course in the question-bank catalog. */
@@ -57,7 +58,8 @@ data class M3EQBankState(
     val searchQuery: String = "",
     val stats: M3EQBankStats? = null,
     val errorMessage: String? = null,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val isOffline: Boolean = false
 )
 
 /** User intents emitted by [M3EQBankScreen]. */
@@ -110,7 +112,7 @@ fun M3EQBankScreen(
                     M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.HIGH, cornerRadius = 24.dp) {
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Your Practice", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.onSurfaceVariant)
-                            Text("${state.stats.accuracyPct.toInt()}%", fontSize = 34.sp, fontWeight = FontWeight.Black, color = colors.primary)
+                            Text(state.stats.accuracyPct.toFixed(2, "%"), fontSize = 34.sp, fontWeight = FontWeight.Black, color = colors.primary)
                             M3EWavyLinearProgress(
                                 progress = (state.stats.accuracyPct / 100.0).toFloat(),
                                 activeColor = colors.primary,
@@ -131,6 +133,14 @@ fun M3EQBankScreen(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+            }
+
+            if (state.isOffline) {
+                item(key = "offline") {
+                    M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.LOW, borderColor = colors.warning) {
+                        Text("Offline — the course catalog requires a connection. Your local practice stats above are still available.", fontSize = 13.sp, color = colors.warning)
+                    }
+                }
             }
 
             when {

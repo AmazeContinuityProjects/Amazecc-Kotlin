@@ -6,6 +6,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -26,6 +27,9 @@ import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ContentData
 import com.amazecc.app.shared.utils.SocialUtils
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -63,6 +67,7 @@ fun M3ECourseAttendanceScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val domain by AppState.domain.collectAsState()
     val courseCode by AppState.selectedCourseCode.collectAsState()
+    val calendar by AppState.calendar.collectAsState()
 
     var activeTab by remember { mutableStateOf(M3ECourseAttendanceTab.PREDICTOR) }
     var cutoffMode by remember { mutableStateOf(M3ECutoffMode.LID) }
@@ -78,6 +83,23 @@ fun M3ECourseAttendanceScreenHost(modifier: Modifier = Modifier) {
     val attended = course?.attendedClasses ?: 0
     val computedPct = if (total > 0) attended.toDouble() / total * 100.0 else 0.0
     val percentText = course?.attendancePercentage?.replace("%", "")?.toDoubleOrNull()
+
+    // Derive the real future class sessions (same rule as the legacy predictor) and
+    // fold in this host's skipped-date set. Reading the map here keeps the chips live
+    // when a date is toggled; the key is an immutable snapshot so `remember` recomputes.
+    val skippedKeys = skippedDates.filter { it.value }.keys.toSet()
+    val futureClassDates = remember(domain, courseCode, cutoffMode, calendar, skippedKeys) {
+        M3EGapFutureDates.deriveFutureClassDates(
+            months = calendar?.months.orEmpty(),
+            domain = domain,
+            courseCode = courseCode.orEmpty(),
+            courseType = course?.courseType.orEmpty(),
+            cutoffMode = cutoffMode,
+            today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date,
+            skippedKeys = skippedKeys
+        )
+    }
+
     val state = M3ECourseAttendanceState(
         courseCode = course?.courseCode ?: courseCode.orEmpty(),
         courseTitle = course?.courseTitle.orEmpty(),
@@ -88,9 +110,7 @@ fun M3ECourseAttendanceScreenHost(modifier: Modifier = Modifier) {
         currentPercentage = percentText ?: computedPct,
         activeTab = activeTab,
         cutoffMode = cutoffMode,
-        // The calendar working-day helper is private to the legacy screen; the what-if
-        // simulator below covers the same projection need without inventing session dates.
-        futureClassDates = emptyList(),
+        futureClassDates = futureClassDates,
         whatIfAttend = whatIfAttend,
         whatIfMiss = whatIfMiss,
         logs = course?.logs?.map { log ->
@@ -392,10 +412,12 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
 
     val clipboard = LocalClipboardManager.current
 
-    val shareCode = remember(academic, identity) {
-        val attendance = resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
-        if (attendance.isEmpty()) "" else SocialUtils.exportScheduleCode(
-            attendance,
+    val userAttendance = remember(academic) {
+        resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
+    }
+    val shareCode = remember(userAttendance, identity) {
+        if (userAttendance.isEmpty()) "" else SocialUtils.exportScheduleCode(
+            userAttendance,
             identity.displayName.ifBlank { identity.regNo.orEmpty() },
             identity.regNo.orEmpty()
         )
@@ -415,6 +437,12 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
         }
     }
 
+    // SocialUtils does the CPU-bound scan on Dispatchers.Default internally; produceState
+    // keeps the result alive across recompositions and reruns when either input changes.
+    val commonFreeSlots by produceState(initialValue = emptyList<String>(), userAttendance, friendsFlow) {
+        value = SocialUtils.getCommonFreeSlots(userAttendance, friendsFlow)
+    }
+
     AmazeM3ETheme(isDark = isDark) {
         M3ESocialScreen(
             state = M3ESocialState(
@@ -422,7 +450,7 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                 shareCode = shareCode,
                 friends = friends,
                 groups = groups,
-                commonFreeSlots = emptyList(),
+                commonFreeSlots = commonFreeSlots,
                 isAddFriendDialogOpen = addFriendOpen,
                 isCreateGroupDialogOpen = createGroupOpen,
                 addFriendCode = addFriendCode,

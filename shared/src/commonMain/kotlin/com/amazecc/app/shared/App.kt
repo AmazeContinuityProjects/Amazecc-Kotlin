@@ -155,7 +155,7 @@ fun App() {
                                 Screen.TRANSPORT -> M3ETransportScreen()
                                 Screen.EVENTS -> M3EEventHubScreen()
                                 Screen.SETTINGS -> M3ESettingsScreen()
-                                Screen.QBANK -> M3EQBankScreenHost()
+                                Screen.QBANK -> M3EQBankWorkspaceHost()
                                 Screen.SOCIAL -> M3ESocialScreenHost()
                                 Screen.FFCS_PLANNER -> M3EFfcsPlannerScreenHost()
                                 Screen.FREE_CLASSROOMS -> M3EFreeClassroomsScreen()

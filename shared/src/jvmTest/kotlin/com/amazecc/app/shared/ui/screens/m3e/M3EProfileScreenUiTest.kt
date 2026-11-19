@@ -53,7 +53,7 @@ class M3EProfileScreenUiTest {
         onNodeWithText("22BCE1045").assertExists()
         onNodeWithText("VELLORE INSTITUTE OF TECHNOLOGY").assertExists()
         onNodeWithText("9.24").assertExists()
-        onNodeWithText("91.5%").assertExists()
+        onNodeWithText("91.50%").assertExists()
         onNodeWithText("Dr. Anita R").assertExists()
     }
 
