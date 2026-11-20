@@ -32,11 +32,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.utf16CodePoint
+import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.window.Dialog
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
@@ -45,11 +50,25 @@ import com.amazecc.app.shared.ui.screens.*
 import com.amazecc.app.shared.ui.screens.m3e.*
 import com.amazecc.app.shared.ui.screens.academics.*
 import com.amazecc.app.shared.ui.components.MainTabPager
+import com.amazecc.app.shared.ui.components.AppBackHandler
+import com.amazecc.app.shared.ui.components.AppBackHandlerDismissesOverlaysOnEscape
+import com.amazecc.app.shared.ui.components.PushPromptModal
 import com.amazecc.app.shared.ui.screens.onboarding.OnboardingScreen
 import com.amazecc.app.shared.ui.m3e.components.M3ENavigationBar
+import com.amazecc.app.shared.repository.SessionManager
+import com.amazecc.app.shared.utils.openExternalUrl
+import com.amazecc.app.shared.utils.requestNotificationPermissions
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @Composable
 fun App() {
+    // D-057: "g" + letter shortcut sequence tracker (one per composition; resets on Escape).
+    val sequenceTracker = remember { AppState.AppShortcutSequenceTracker() }
+    val appScope = rememberCoroutineScope()
+
     val currentTheme by AppState.theme.collectAsState()
     val currentAccent by AppState.accent.collectAsState()
     val customAccent by AppState.customAccentColor.collectAsState()
@@ -80,6 +99,55 @@ fun App() {
         }
     }
 
+    // D-071: durable screen history — restore the newest entry on start (signed in only).
+    LaunchedEffect(Unit) {
+        AppState.restoreFromHistory()
+    }
+
+    // D-054: web HomeEntryController — a signed-out guest sees the landing surface first,
+    // not the timed Login splash. One-shot so "Get Started"/"Try demo" can dismiss it.
+    LaunchedEffect(Unit) {
+        if (!SessionManager.isLoggedIn && AppState.currentScreen.value == Screen.SPLASH) {
+            AppState.openGuestLanding()
+        }
+    }
+
+    // D-070/D-086: the sync sheet registers as a LIFO overlay; Android back/Escape cancels
+    // via AppState.closeTopOverlay() -> cancelSync(). The inline sheet's X sets
+    // showSyncDialog=false but leaves isSyncing=true (so shouldShow would keep it visible);
+    // that dismissal is treated as a cancel while a sweep is running. No park state exists.
+    LaunchedEffect(Unit) {
+        SyncEngine.showSyncDialog.collect { open ->
+            if (open) {
+                AppState.pushOverlay(AppState.SYNC_SHEET_OVERLAY_ID)
+            } else {
+                if (AppState.isSyncing.value || AppState.isLoading.value) AppState.cancelSync()
+                AppState.popOverlay(AppState.SYNC_SHEET_OVERLAY_ID)
+            }
+        }
+    }
+
+    // D-056: every dismissible surface owns an overlay entry, so back closes the top one.
+    val commandPaletteIsOpen by AppState.commandPaletteOpen.collectAsState()
+    val shortcutsHelpIsOpen by AppState.shortcutsHelpOpen.collectAsState()
+    LaunchedEffect(commandPaletteIsOpen) {
+        if (commandPaletteIsOpen) AppState.pushOverlay(AppState.COMMAND_PALETTE_OVERLAY_ID)
+        else AppState.popOverlay(AppState.COMMAND_PALETTE_OVERLAY_ID)
+    }
+    LaunchedEffect(shortcutsHelpIsOpen) {
+        if (shortcutsHelpIsOpen) AppState.pushOverlay(AppState.SHORTCUTS_HELP_OVERLAY_ID)
+        else AppState.popOverlay(AppState.SHORTCUTS_HELP_OVERLAY_ID)
+    }
+
+    // D-069: web parity PushPromptModal — auto-open 3s after mount when the 3-day dedup
+    // window has elapsed and the user is signed in.
+    LaunchedEffect(Unit) {
+        if (!SessionManager.isLoggedIn) return@LaunchedEffect
+        if (!AppState.pushPromptDue()) return@LaunchedEffect
+        delay(AppState.PUSH_PROMPT_DELAY_MS)
+        if (SessionManager.isLoggedIn && AppState.pushPromptDue()) AppState.openPushPrompt()
+    }
+
     AmazeTheme(
         appTheme = currentTheme,
         accentTheme = currentAccent,
@@ -100,12 +168,8 @@ fun App() {
         ) {
             Surface(
                 modifier = Modifier.fillMaxSize().onKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown && 
-                        (event.isMetaPressed || event.isCtrlPressed) && 
-                        event.key == Key.K) {
-                        AppState.openCommandPalette()
-                        true
-                    } else false
+                    // D-057: web parity — "g"+letter, Alt+letter, Alt+B/P/T, "/", "?", Escape.
+                    handleAppGlobalShortcut(event, sequenceTracker)
                 },
                 color = colors.background
             ) {
@@ -190,6 +254,41 @@ fun App() {
                             }
                         }
                     }
+                    }
+
+                    // D-054: guest landing for entry intents while signed out (web parity: GuestExperience).
+                    val guestLandingOpen by AppState.guestLandingOpen.collectAsState()
+                    if (guestLandingOpen && !SessionManager.isLoggedIn) {
+                        GuestLanding()
+                    }
+
+                    // D-069: auto-opened push prompt (web parity: PushPromptModal).
+                    val pushPromptOpen by AppState.pushPromptOpen.collectAsState()
+                    if (pushPromptOpen) {
+                        PushPromptModal(
+                            onEnable = {
+                                AppState.closePushPrompt()
+                                appScope.launch {
+                                    requestNotificationPermissions()
+                                    AppState.rescheduleNotifications()
+                                }
+                            },
+                            onDismiss = AppState::closePushPrompt
+                        )
+                    }
+
+                    // D-057: shortcuts help sheet ("?").
+                    val shortcutsHelpOpen by AppState.shortcutsHelpOpen.collectAsState()
+                    ShortcutsHelpSheet(isOpen = shortcutsHelpOpen, onClose = AppState::closeShortcutsHelp)
+
+                    // D-070: overlay-first back — the top overlay closes before any screen back.
+                    AppBackHandler(enabled = true) {
+                        if (AppState.closeTopOverlay()) return@AppBackHandler
+                        if (AppState.isAppLibraryOpen.value) {
+                            AppState.closeAppLibrary()
+                            return@AppBackHandler
+                        }
+                        AppState.navigateBack()
                     }
 
                     // These overlays are composed outside every per-screen AmazeM3ETheme wrapper.
@@ -487,4 +586,192 @@ fun App() {
         }
     }
 }
+}
+
+// ── D-057: global keyboard shortcuts (web parity: lib/shortcuts.ts + useGlobalShortcuts.ts) ──
+
+/** Physical-key fallback for Alt+letter, where the modifier may suppress the unicode value. */
+private val ALT_KEY_LETTERS: Map<Key, String> = mapOf(
+    Key.A to "a", Key.B to "b", Key.C to "c", Key.D to "d", Key.E to "e", Key.F to "f",
+    Key.G to "g", Key.H to "h", Key.I to "i", Key.J to "j", Key.K to "k", Key.L to "l",
+    Key.M to "m", Key.N to "n", Key.O to "o", Key.P to "p", Key.Q to "q", Key.R to "r",
+    Key.S to "s", Key.T to "t", Key.U to "u", Key.V to "v", Key.W to "w", Key.X to "x",
+    Key.Y to "y", Key.Z to "z"
+)
+
+/** Web `letterOf(e)`: the letter a key event stands for, independent of dead keys. */
+private fun letterOf(e: KeyEvent): String {
+    val codePoint = e.utf16CodePoint
+    val unicode = if (codePoint >= 32) codePoint.toChar().lowercase() else ""
+    return if (unicode.isNotEmpty() && unicode[0].isLetter()) unicode
+    else ALT_KEY_LETTERS[e.key] ?: unicode
+}
+
+private fun onAltLetter(letter: String) {
+    when (letter) {
+        // Web: Alt+B toggles CGPAHidden, Alt+P toggles privacyMode, Alt+T toggles the theme.
+        "b" -> AppState.setCgpaHidden(!AppState.cgpaHidden.value)
+        "p" -> AppState.togglePrivacyMode()
+        "t" -> AppState.toggleAppTheme()
+        else -> AppState.APP_SHORTCUTS
+            .firstOrNull { it.alt && it.letter.equals(letter, ignoreCase = true) }
+            ?.let { AppState.navigateTo(it.screen) }
+    }
+}
+
+/**
+ * D-057/D-070 — app-wide keys: "g" + letter (1.5s sequence), Alt+letter, Alt+B/P/T,
+ * "/" (palette), "?" (shortcuts help), Ctrl/Cmd+K (palette) and Android-only Escape.
+ */
+private fun handleAppGlobalShortcut(
+    event: KeyEvent,
+    sequenceTracker: AppState.AppShortcutSequenceTracker
+): Boolean {
+    if (event.type != KeyEventType.KeyDown) return false
+    val letter = letterOf(event)
+    when {
+        (event.isMetaPressed || event.isCtrlPressed) && letter == "k" -> {
+            AppState.openCommandPalette()
+            return true
+        }
+        event.key == Key.Escape -> {
+            if (AppBackHandlerDismissesOverlaysOnEscape) {
+                AppState.closeShortcutsHelp()
+                sequenceTracker.reset()
+                if (AppState.closeTopOverlay()) return true
+                if (AppState.isAppLibraryOpen.value) {
+                    AppState.closeAppLibrary()
+                    return true
+                }
+                AppState.navigateBack()
+                return true
+            }
+            // Desktop/iOS: no Escape dismissal of modal sheets — documented contract.
+            return false
+        }
+        // Modified keys are never "typing" — these must run before the plain-letter guard.
+        event.isAltPressed && !event.isCtrlPressed && !event.isMetaPressed -> {
+            onAltLetter(letter)
+            return true
+        }
+        letter == "/" -> {
+            AppState.openCommandPalette()
+            return true
+        }
+        letter == "?" -> {
+            AppState.openShortcutsHelp()
+            return true
+        }
+        // "g" + letter: only consume a plain letter that starts or completes a sequence,
+        // and never while a modal input surface owns the keyboard.
+        (letter == "g" || sequenceTracker.isPending()) &&
+            !event.isAltPressed && !event.isCtrlPressed && !event.isMetaPressed && !event.isShiftPressed &&
+            !AppState.commandPaletteOpen.value && !AppState.shortcutsHelpOpen.value &&
+            !AppState.guestLandingOpen.value -> {
+            sequenceTracker.feed(letter)?.let { target ->
+                AppState.navigateTo(target.screen)
+                return true
+            }
+            if (letter == "g") return true // consume the prefix; a non-match falls through
+            return false
+        }
+        // Never steal plain letters the user is typing.
+        letter.isNotEmpty() && letter[0].isLetter() -> return false
+    }
+    return false
+}
+
+// ── D-054: guest landing surface (web parity: GuestExperience / HomeEntryController) ──
+
+@Composable
+private fun GuestLanding() {
+    val colors = AmazeTheme.colors
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 28.dp, vertical = 48.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Spacer(Modifier.height(56.dp))
+        Text(
+            "Your VIT life, all in one place.",
+            style = AmazeTheme.typography.subheading.copy(
+                fontWeight = FontWeight.Bold,
+                color = colors.textPrimary
+            )
+        )
+        Text(
+            "Attendance, marks, hostel and campus life — together.",
+            style = AmazeTheme.typography.body.copy(color = colors.textSecondary)
+        )
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = {
+                AppState.closeGuestLanding()
+                AppState.clearPendingEntryIntent()
+                AppState.navigateTo(Screen.LOGIN)
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Get Started", style = AmazeTheme.typography.smallLabel)
+        }
+        OutlinedButton(
+            onClick = {
+                AppState.closeGuestLanding()
+                AppState.clearPendingEntryIntent()
+                AppState.enterDemoMode()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Try demo", style = AmazeTheme.typography.smallLabel)
+        }
+        OutlinedButton(
+            onClick = { openExternalUrl("https://amazecc.app/ffcs/") },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("FFCS Planner", style = AmazeTheme.typography.smallLabel)
+        }
+    }
+}
+
+// ── D-057: "?" shortcuts help sheet ──
+
+@Composable
+private fun ShortcutsHelpSheet(isOpen: Boolean, onClose: () -> Unit) {
+    if (!isOpen) return
+    val colors = AmazeTheme.colors
+    Dialog(onDismissRequest = onClose) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(colors.surface, RoundedCornerShape(24.dp))
+                .padding(20.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "Keyboard shortcuts",
+                style = AmazeTheme.typography.subheading.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = colors.textPrimary
+                )
+            )
+            Text("g, then a letter", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+            Text("Home, Attendance, Academics, Grades, OD hours, Events, Library, Payments, Tasks, Free classrooms, Settings.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+            Text("Alt + letter", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+            Text("Quick jump: Home, Attendance, Academics, Grades, OD hours, Events, Library, Settings.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+            Text("Alt + B / P / T", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+            Text("Toggle CGPA in stats / privacy mode / dark theme.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+            Text("?  /  /  /  Ctrl+K", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+            Text("This help / command palette / command palette.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+            Text("Escape", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+            Text("Close the top overlay or go back (Android).", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
+                Text("Got it", style = AmazeTheme.typography.smallLabel)
+            }
+        }
+    }
 }

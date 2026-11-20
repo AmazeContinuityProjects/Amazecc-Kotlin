@@ -9,3 +9,5 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 actual fun AppBackHandler(enabled: Boolean, onBack: () -> Unit) {
     androidx.compose.ui.backhandler.BackHandler(enabled = enabled, onBack = onBack)
 }
+
+actual val AppBackHandlerDismissesOverlaysOnEscape: Boolean = true

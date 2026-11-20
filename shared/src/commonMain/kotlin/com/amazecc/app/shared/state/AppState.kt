@@ -151,8 +151,6 @@ object AppState {
     private val _syncMessage = MutableStateFlow<String?>(null)
     val syncMessage: StateFlow<String?> = _syncMessage.asStateFlow()
 
-    private val backstack = mutableListOf<Screen>()
-
     // Global settings
     private val _theme = MutableStateFlow(AppTheme.SYSTEM)
     val theme: StateFlow<AppTheme> = _theme.asStateFlow()
@@ -949,55 +947,390 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             return AppDataStore.tasks.value.filter { it.dueDate == today && !it.completed }
         }
 
+    /** Web parity (D-071): screens that gate the app — back can never walk out of them. */
+    private val gateScreens = setOf(Screen.SPLASH, Screen.LOGIN, Screen.ONBOARDING)
+
+    /**
+     * The entry pushed when [screen] is visited (web parity: `useDashboardScreenHistory` pushes
+     * the new screenKey). The attendance sub-tab is captured because back/restore returns the
+     * user to where they were on that screen.
+     */
+    private fun historyEntryFor(screen: Screen): AppBackStack.Entry = AppBackStack.Entry(
+        screen = screen.name,
+        subTab = when (screen) {
+            Screen.ATTENDANCE -> _attendanceInitialView.value.takeIf { it.isNotBlank() }
+            else -> null
+        }
+    )
+
+    /**
+     * Applies the sub-tab stored on a history entry when the user returns to that screen
+     * (web parity: `restoreScreen`; Kotlin sub-tab state lives in [AppState]-owned fields
+     * such as [attendanceInitialView]).
+     */
+    private fun restoreEntrySubTab(entry: AppBackStack.Entry) {
+        if (entry.screen == Screen.ATTENDANCE.name) {
+            _attendanceInitialView.value = entry.subTab ?: "Timetable"
+        }
+    }
+
+    private fun String.parseScreen(): Screen? = Screen.entries.firstOrNull { it.name == this }
+
     fun navigateTo(screen: Screen) {
         _isAppLibraryOpen.value = (screen == Screen.MORE)
         headerOverride.value = null
         _headerOverrideOwner.value = null
-        if (_currentScreen.value == screen) return
-        if (screen in rootScreens) {
-            backstack.clear()
+        if (screen in gateScreens) {
+            // Gates clear the history: back cannot walk out of the app through them.
+            AppBackStack.clear()
             _currentScreen.value = screen
             return
         }
-        backstack.removeAll { it == screen }
-        // HOME is the *floor* of the back stack, not a cap: the first entry is always HOME and
-        // everything above it is whatever the user actually visited. So leaving a non-root screen
-        // pushes that screen, and leaving a root that is not HOME (Login, Onboarding) anchors the
-        // stack at HOME - which is what stops a back press walking out of the app.
-        val leaving = _currentScreen.value
-        if (leaving !in rootScreens) {
-            if (backstack.lastOrNull() != leaving) backstack.add(leaving)
-        } else if (backstack.isEmpty()) {
-            // Entering a detail screen from any root with nothing below it: anchor at HOME.
-            backstack.add(Screen.HOME)
-        }
+        if (_currentScreen.value == screen) return
+        AppBackStack.push(historyEntryFor(screen))
         _currentScreen.value = screen
     }
 
-    fun canNavigateBack(): Boolean = backstack.isNotEmpty()
-
-    fun navigateBackTo(screen: Screen) {
-        if (backstack.isNotEmpty() && backstack.last() == screen) {
-            backstack.removeAt(backstack.size - 1)
-        }
-        _currentScreen.value = screen
-    }
-
-    private val rootScreens = setOf(Screen.HOME, Screen.LOGIN, Screen.ONBOARDING, Screen.SPLASH)
-
+    /**
+     * Web parity (D-071): tab switches push history like any other navigation, so back
+     * returns to the previous tab.
+     */
     fun switchTopLevel(screen: Screen) {
         if (_currentScreen.value != screen) {
-            backstack.clear()
+            AppBackStack.push(historyEntryFor(screen))
             _currentScreen.value = screen
         }
     }
 
+    fun canNavigateBack(): Boolean = AppBackStack.size() >= 2
+
+    fun navigateBackTo(screen: Screen) {
+        if (AppBackStack.peek()?.screen == screen.name) {
+            AppBackStack.pop()
+        }
+        _currentScreen.value = screen
+    }
+
     fun navigateBack(): Boolean {
-        if (backstack.isNotEmpty()) {
-            _currentScreen.value = backstack.removeAt(backstack.size - 1)
+        val stack = AppBackStack.entries.value
+        if (stack.size >= 2) {
+            val target = stack[stack.size - 2]
+            AppBackStack.pop()
+            restoreEntrySubTab(target)
+            _currentScreen.value = target.screen.parseScreen() ?: Screen.HOME
             return true
         }
         return false
+    }
+
+    /** Web parity (D-071): restores the newest entry on app start, when signed in. */
+    fun restoreFromHistory() {
+        if (!SessionManager.isLoggedIn) return
+        AppBackStack.peek()?.let { entry ->
+            restoreEntrySubTab(entry)
+            _currentScreen.value = entry.screen.parseScreen() ?: Screen.SPLASH
+        }
+    }
+
+    // ── D-004: web module-registry metadata (metadata-only; no nav behavior change) ──
+
+    /** Web parity (D-004): the surface metadata the web assigns a screen in its module registry. */
+    data class ScreenNavMeta(
+        val screen: Screen,
+        val webIds: Set<String> = emptySet(),
+        val pinnable: Boolean = false,
+        val pinId: String? = null,
+        val pinLabel: String? = null,
+        val sidebar: Boolean = false,
+        val appLibrary: Boolean = false,
+        val commandPalette: Boolean = false,
+        val hostellerGated: Boolean = false
+    )
+
+    private val screenNavMetaTable: Map<Screen, ScreenNavMeta> = mapOf(
+        Screen.HOME to ScreenNavMeta(Screen.HOME, setOf("home"), pinnable = true, pinId = "home", pinLabel = "Home", sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.ATTENDANCE to ScreenNavMeta(Screen.ATTENDANCE, setOf("attendance-calendar"), pinnable = true, pinId = "attendance", pinLabel = "Timetable Calendar", sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.ACADEMICS to ScreenNavMeta(Screen.ACADEMICS, setOf("academics"), pinnable = true, pinId = "academics", pinLabel = "Academics", sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.PAYMENTS to ScreenNavMeta(Screen.PAYMENTS, setOf("payments"), pinnable = true, sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.LIBRARIES to ScreenNavMeta(Screen.LIBRARIES, setOf("libraries"), pinnable = true, sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.TRANSPORT to ScreenNavMeta(Screen.TRANSPORT, setOf("transport", "ds-bus-finder", "ds-transport-reg", "tr-bus-routes", "tr-placements"), pinnable = true, sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.EVENTS to ScreenNavMeta(Screen.EVENTS, setOf("events"), pinnable = true, sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.CLUB_HUB to ScreenNavMeta(Screen.CLUB_HUB, setOf("clubs"), pinnable = true, sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.FACULTY_INFO to ScreenNavMeta(Screen.FACULTY_INFO, setOf("faculty-schedule", "tools-faculty"), pinnable = true, sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.FREE_CLASSROOMS to ScreenNavMeta(Screen.FREE_CLASSROOMS, setOf("free-class"), pinnable = true, sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.TASKS to ScreenNavMeta(Screen.TASKS, setOf("tools", "tools-tasks"), pinnable = true, pinId = "tools", pinLabel = "Tools", commandPalette = true),
+        Screen.QBANK to ScreenNavMeta(Screen.QBANK, setOf("tools-qbank"), commandPalette = true),
+        Screen.SOCIAL to ScreenNavMeta(Screen.SOCIAL, setOf("tools-social"), commandPalette = true),
+        Screen.CABSHARE to ScreenNavMeta(Screen.CABSHARE, setOf("tools-cabshare", "cabshare"), pinnable = true, commandPalette = true),
+        Screen.PROFILE to ScreenNavMeta(Screen.PROFILE, setOf("profile"), pinnable = true, pinId = "profile", pinLabel = "Profile", sidebar = true, appLibrary = true, commandPalette = true),
+        Screen.MORE to ScreenNavMeta(Screen.MORE, setOf("more"), pinnable = true, pinId = "more", pinLabel = "More"),
+        Screen.HOSTEL to ScreenNavMeta(Screen.HOSTEL, setOf("hostel", "hostel-overview", "hostel-mess", "hostel-laundry", "hostel-leave", "hostel-counselling"), sidebar = true, commandPalette = true, hostellerGated = true),
+    )
+
+    /**
+     * Web module-registry metadata mapped onto Kotlin screens (D-004). Metadata only:
+     * the Kotlin tab bar still follows [tabScreens]/[pinnedNavTabs]; no surface consumes
+     * this table yet, so no behavior change is claimed.
+     */
+    val navigationRegistry: List<ScreenNavMeta> get() = screenNavMetaTable.values.toList()
+
+    fun navMetaFor(screen: Screen): ScreenNavMeta? = screenNavMetaTable[screen]
+
+    // ── D-057: global keyboard shortcuts ──
+
+    private const val SHORTCUT_SEQUENCE_TIMEOUT_MS = 1500L
+
+    data class AppShortcutTarget(val letter: String, val screen: Screen, val alt: Boolean = false)
+
+    /**
+     * Web parity (web `lib/shortcuts.ts` NAV_SHORTCUTS): the "g" + letter navigation set.
+     * `alt = true` entries are additionally bound to Alt+letter (web `app/useGlobalShortcuts.ts`).
+     */
+    val APP_SHORTCUTS: List<AppShortcutTarget> = listOf(
+        AppShortcutTarget("h", Screen.HOME, alt = true),
+        AppShortcutTarget("a", Screen.ATTENDANCE, alt = true),
+        AppShortcutTarget("c", Screen.ACADEMICS, alt = false),
+        AppShortcutTarget("g", Screen.GRADES, alt = true),
+        AppShortcutTarget("o", Screen.OD_TRACKER, alt = true),
+        AppShortcutTarget("e", Screen.EVENTS, alt = true),
+        AppShortcutTarget("l", Screen.LIBRARIES, alt = true),
+        AppShortcutTarget("p", Screen.PAYMENTS, alt = false),
+        AppShortcutTarget("t", Screen.TASKS, alt = false),
+        AppShortcutTarget("f", Screen.FREE_CLASSROOMS, alt = false),
+        AppShortcutTarget("s", Screen.SETTINGS, alt = true),
+    )
+
+    /** Pure, injectable-clock tracker for the "g" + letter sequences (web `createSequenceTracker`). */
+    class AppShortcutSequenceTracker(
+        private val nowMs: () -> Long = { Clock.System.now().toEpochMilliseconds() }
+    ) {
+        private var pendingAt: Long? = null
+
+        /** Returns the shortcut the key completes, or null. Consumes the "g" prefix itself. */
+        fun feed(letter: String): AppShortcutTarget? {
+            val now = nowMs()
+            val pending = pendingAt
+            pendingAt = null
+            if (pending != null && now - pending <= SHORTCUT_SEQUENCE_TIMEOUT_MS) {
+                return APP_SHORTCUTS.firstOrNull { it.letter.equals(letter, ignoreCase = true) }
+            }
+            if (letter == "g") {
+                pendingAt = now
+                return null
+            }
+            return null
+        }
+
+        /** True while a "g" prefix is awaiting its second key (web parity: sequence tracker). */
+        fun isPending(): Boolean = pendingAt != null &&
+            nowMs() - pendingAt!! <= SHORTCUT_SEQUENCE_TIMEOUT_MS
+
+        fun reset() { pendingAt = null }
+    }
+
+    // ── D-057: "?" shortcuts help sheet ──
+
+    private val _shortcutsHelpOpen = MutableStateFlow(false)
+    val shortcutsHelpOpen: StateFlow<Boolean> = _shortcutsHelpOpen.asStateFlow()
+
+    fun openShortcutsHelp() { _shortcutsHelpOpen.value = true }
+    fun closeShortcutsHelp() { _shortcutsHelpOpen.value = false }
+
+    // ── D-054: guest landing + entry intents (web parity: HomeEntryController/GuestExperience) ──
+
+    enum class EntryIntent { LOGIN, DEMO }
+
+    private val _pendingEntryIntent = MutableStateFlow<EntryIntent?>(null)
+    val pendingEntryIntent: StateFlow<EntryIntent?> = _pendingEntryIntent.asStateFlow()
+
+    private val _guestLandingOpen = MutableStateFlow(false)
+    val guestLandingOpen: StateFlow<Boolean> = _guestLandingOpen.asStateFlow()
+
+    /**
+     * Web parity: `/?signin=1` starts the "login" entry — a guest gets the login form, and a
+     * student whose saved credentials stopped working gets the credential editor.
+     */
+    fun setPendingEntryIntent(intent: EntryIntent) {
+        _pendingEntryIntent.value = intent
+        if (!SessionManager.isLoggedIn) _guestLandingOpen.value = true
+    }
+
+    fun clearPendingEntryIntent() { _pendingEntryIntent.value = null }
+
+    fun openGuestLanding() { _guestLandingOpen.value = true }
+    fun closeGuestLanding() { _guestLandingOpen.value = false }
+
+    // ── D-070: LIFO overlay back stack (web parity: src/lib/overlayStack.ts) ──
+
+    /** Id registered for the sync sheet overlay (D-070 / D-086). */
+    const val SYNC_SHEET_OVERLAY_ID = "sync-sheet"
+    const val COMMAND_PALETTE_OVERLAY_ID = "command-palette"
+    const val SHORTCUTS_HELP_OVERLAY_ID = "shortcuts-help"
+
+    private val _overlayStack = MutableStateFlow<List<String>>(emptyList())
+    val overlayStack: StateFlow<List<String>> = _overlayStack.asStateFlow()
+
+    fun hasOpenOverlays(): Boolean = _overlayStack.value.isNotEmpty()
+
+    fun pushOverlay(id: String) {
+        if (id in _overlayStack.value) return
+        _overlayStack.value = _overlayStack.value + id
+    }
+
+    fun popOverlay(id: String) {
+        if (id in _overlayStack.value) _overlayStack.value = _overlayStack.value.filter { it != id }
+    }
+
+    /**
+     * Top-only dismissal (LIFO): closes the top overlay and returns true. D-086: Android
+     * back/Escape on the sync sheet cancels the sweep via [cancelSync], so the inline sheet's
+     * `isSyncing`-based `shouldShow` drops to false and it actually disappears.
+     */
+    fun closeTopOverlay(): Boolean {
+        if (_overlayStack.value.isEmpty()) return false
+        val top = _overlayStack.value.last()
+        _overlayStack.value = _overlayStack.value.dropLast(1)
+        when (top) {
+            SYNC_SHEET_OVERLAY_ID -> cancelSync()
+            COMMAND_PALETTE_OVERLAY_ID -> closeCommandPalette()
+            SHORTCUTS_HELP_OVERLAY_ID -> closeShortcutsHelp()
+        }
+        return true
+    }
+
+    // ── D-069: push prompt auto-open (web parity: PushPromptModal) ──
+
+    /** Web parity: three-day dedup window between push prompts. */
+    const val PUSH_PROMPT_THREE_DAYS_MS = 3L * 24 * 60 * 60 * 1000L
+    /** Web parity: PushPromptModal auto-opens 3s after mount. */
+    const val PUSH_PROMPT_DELAY_MS = 3000L
+    const val PUSH_PROMPT_LAST_SHOWN_KEY = "push_prompt_last_shown"
+
+    private val _pushPromptOpen = MutableStateFlow(false)
+    val pushPromptOpen: StateFlow<Boolean> = _pushPromptOpen.asStateFlow()
+
+    fun openPushPrompt() { _pushPromptOpen.value = true }
+
+    fun closePushPrompt() {
+        _pushPromptOpen.value = false
+        SettingsManager.setLong(PUSH_PROMPT_LAST_SHOWN_KEY, Clock.System.now().toEpochMilliseconds())
+    }
+
+    /** Web parity: `shouldShow = !lastPromptTime || now - lastPromptTime > THREE_DAYS_MS`. */
+    fun pushPromptDue(): Boolean {
+        val last = SettingsManager.getLong(PUSH_PROMPT_LAST_SHOWN_KEY, 0L)
+        return last == 0L || (Clock.System.now().toEpochMilliseconds() - last) > PUSH_PROMPT_THREE_DAYS_MS
+    }
+
+    // ── D-072: deep links (web parity: `/?tab=`, share codes; manifest delivery in MainActivity) ──
+
+    sealed class DeepLinkRoute {
+        /** A schedule share code, parsed & imported via [com.amazecc.app.shared.utils.SocialUtils]. */
+        data class ShareCode(val code: String) : DeepLinkRoute()
+        data class Tab(val screen: Screen) : DeepLinkRoute()
+        /** `amazecc://auth-callback/…` — OIDC callback for Amaze ID (D-002, deferred). */
+        data class AuthCallback(val raw: String) : DeepLinkRoute()
+    }
+
+    private val _incomingDeepLink = MutableStateFlow<String?>(null)
+    val incomingDeepLink: StateFlow<String?> = _incomingDeepLink.asStateFlow()
+
+    fun setPendingDeepLink(uri: String) { _incomingDeepLink.value = uri }
+
+    /** Applies a parsed deep link; returns false when nothing routed. */
+    fun consumeIncomingDeepLink(): Boolean {
+        val uri = _incomingDeepLink.value
+        _incomingDeepLink.value = null
+        return uri != null && applyDeepLink(uri)
+    }
+
+    fun applyDeepLink(uri: String): Boolean {
+        return when (val route = parseDeepLink(uri)) {
+            is DeepLinkRoute.ShareCode -> {
+                val friend = try {
+                    com.amazecc.app.shared.utils.SocialUtils.importScheduleCode(route.code)
+                } catch (_: Exception) { null }
+                // Persist through the same store the Social screen reads — FriendsViewModel
+                // owns the friend cache/StateFlow, so bypassing it with a direct write would
+                // leave the UI empty after the deep link.
+                if (friend?.regNumber?.isNotBlank() == true) FriendsViewModel.addFriendFromCode(route.code)
+                navigateTo(Screen.SOCIAL)
+                true
+            }
+            is DeepLinkRoute.Tab -> {
+                if (route.screen != Screen.SPLASH) navigateTo(route.screen)
+                true
+            }
+            is DeepLinkRoute.AuthCallback -> { /* D-002: manifest + login wiring deferred */ true }
+            null -> false
+        }
+    }
+
+    /**
+     * Parses `amazecc://<host>[/path][?query][#fragment]` deep links. Routes:
+     * - `amazecc://share?code=<code>` / `amazecc://share#s=<code>` — schedule share code
+     *   (the reader at [com.amazecc.app.shared.utils.SocialUtils.importScheduleCode] accepts
+     *   `v6|…` codes and `#s=`/`s=`/`#share=`/`share=` encodings — web parity, D-007)
+     * - `amazecc://tab?tab=<Screen>` — web parity: `/?tab=` — open a tab
+     * - `amazecc://auth-callback/…` — OIDC callback (D-002, deferred)
+     */
+    fun parseDeepLink(uri: String): DeepLinkRoute? {
+        val match = Regex("^amazecc://([^/?#]+)([^#]*)(#.*)?$").find(uri.trim()) ?: return null
+        val host = match.groupValues[1].lowercase()
+        val query = match.groupValues[2]
+        return when (host) {
+            "share" -> {
+                val code = query.substringAfter("code=", "").ifBlank { match.groupValues[3] }
+                if (code.isBlank()) null else DeepLinkRoute.ShareCode(code)
+            }
+            "tab" -> screenFromTabParam(query.substringAfter("tab=", ""))?.let { DeepLinkRoute.Tab(it) }
+            "auth-callback" -> DeepLinkRoute.AuthCallback(uri.trim())
+            else -> null
+        }
+    }
+
+    /** Maps the web `/?tab=` names onto Kotlin [Screen]s; null when no Kotlin screen exists. */
+    fun screenFromTabParam(raw: String): Screen? = raw.trim().lowercase().let { param ->
+        when (param) {
+            "home" -> Screen.HOME
+            "attendance" -> Screen.ATTENDANCE
+            "academics" -> Screen.ACADEMICS
+            "payments" -> Screen.PAYMENTS
+            "libraries" -> Screen.LIBRARIES
+            "transport" -> Screen.TRANSPORT
+            "free-class" -> Screen.FREE_CLASSROOMS
+            "tools" -> Screen.TASKS
+            "hostel" -> Screen.HOSTEL
+            "more" -> Screen.MORE
+            "profile" -> Screen.PROFILE
+            "events" -> Screen.EVENTS
+            "clubs" -> Screen.CLUB_HUB
+            "about" -> Screen.ABOUT
+            "qa-bank" -> Screen.QBANK
+            else -> null  // "friend-finder", "community", "paper-scanner", "student-report", ... — no Kotlin screen
+        }
+    }
+
+    // ── D-062 (deferred): exam schedule actions ──
+    // M3EExamScheduleScreen/Host are not in the owning file list; copy-codes, sort, .ics
+    // download and calendar import stay deferred to a follow-up touching them.
+
+    // ── Privacy mode toggle (companion to D-008; blur application is D-008's own work) ──
+
+    private val _privacyMode = MutableStateFlow(SettingsManager.getBoolean("privacy_mode", false))
+    val privacyMode: StateFlow<Boolean> = _privacyMode.asStateFlow()
+
+    fun setPrivacyMode(enabled: Boolean) {
+        _privacyMode.value = enabled
+        SettingsManager.setBoolean("privacy_mode", enabled)
+    }
+
+    fun togglePrivacyMode() { setPrivacyMode(!_privacyMode.value) }
+
+    /** Web parity (Alt+T): toggle light/dark (web: `setTheme(theme === "dark" ? "light" : "dark")`). */
+    fun toggleAppTheme() {
+        _theme.value = if (_theme.value in setOf(AppTheme.DARK, AppTheme.AMOLED)) AppTheme.LIGHT else AppTheme.DARK
+        SettingsManager.setString(SettingsManager.KEY_APP_THEME, _theme.value.name)
     }
 
     private var pendingSemesterSwitch: String? = null
@@ -1112,7 +1445,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         return false
     }
 
-    private fun launchSweep(modules: Set<SyncModule>, stageProfile: String? = null, block: suspend () -> Unit) {
+    private fun launchSweep(modules: Set<SyncModule>, stageProfile: String? = null, block: suspend () -> Unit = {}) {
         if (sweepJob?.isActive == true) {
             _syncMessage.value = "A sync is already running — tap again after it finishes"
             return
@@ -1367,6 +1700,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         }
     }
 
+    /** D-029: single-module retry — re-run one module immediately from the progress sheet. */
+    fun retryModule(module: SyncModule) {
+        if (_isLoading.value) return
+        launchSweep(setOf(module))
+    }
+
     fun loadAllData(scheduledFor: String? = null) {
         if (_isLoading.value) return
         val stageProfile = when (scheduledFor) {
@@ -1400,24 +1739,47 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 _syncStatus.value = "Syncing academic and campus data..."
                 val sem = _selectedSemester.value
 
+                // D-031: Foreground sequential with critical abort — web parity
+                // (`sync-engine/index.ts:230-311`): the daily check runs one module
+                // at a time; a critical failure aborts the remaining foreground steps.
+                var criticalAborted = false
+                val fgResults = mutableListOf<SyncModuleResult>()
+                fgResults += syncModule(
+                    name = "Attendance",
+                    fetch = { AmazeClient.getAcademicData(sem) },
+                    isSuccess = { it.attendance.error == null },
+                    errorMessage = { it.attendance.error },
+                    update = {
+                        AppDataStore.upsertAttendance(sem, it.attendance)
+                        if (it.marks?.error == null) {
+                            it.marks?.let { marks ->
+                                AppDataStore.upsertMarks(sem, marks)
+                            }
+                        }
+                    }
+                ).also { if (!it.success) criticalAborted = true }
+                if (criticalAborted) {
+                    fgResults += SyncModuleResult("Timetable", true, "SKIPPED: critical abort on earlier module")
+                    fgResults += SyncModuleResult("Grade history", true, "SKIPPED: critical abort on earlier module")
+                } else {
+                    fgResults += syncModule(
+                        name = "Timetable",
+                        fetch = { AmazeClient.getTimetable(sem) },
+                        isSuccess = { it.error == null },
+                        errorMessage = { it.error },
+                        update = { AppDataStore.upsertTimetable(sem, it) }
+                    )
+                    fgResults += syncModule(
+                        name = "Grade history",
+                        fetch = { AmazeClient.getAllGrades() },
+                        isSuccess = { it.error == null },
+                        errorMessage = { it.error },
+                        update = { applyAllGrades(it) }
+                    )
+                }
+
                 val results = supervisorScope {
                     val syncResults = listOf(
-                        async {
-                            syncModule(
-                                name = "Attendance",
-                                fetch = { AmazeClient.getAcademicData(sem) },
-                                isSuccess = { it.attendance.error == null },
-                                errorMessage = { it.attendance.error },
-                                update = {
-                                    AppDataStore.upsertAttendance(sem, it.attendance)
-                                    if (it.marks?.error == null) {
-                                        it.marks?.let { marks ->
-                                            AppDataStore.upsertMarks(sem, marks)
-                                        }
-                                    }
-                                }
-                            )
-                        },
                         async {
                             val module = SyncModule.ALL_SEMESTER_ATTENDANCE
                             if (!SyncEngine.isModuleEnabled(module)) {
@@ -1460,28 +1822,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                     SyncModuleResult("All Semesters Attendance", false, "$failed past semester(s) failed")
                                 }
                             }
-                        },
-                        async {
-                            syncModule(
-                                name = "Timetable",
-                                fetch = { AmazeClient.getTimetable(sem) },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
-                                update = {
-                                    AppDataStore.upsertTimetable(sem, it)
-                                }
-                            )
-                        },
-                        async {
-                            syncModule(
-                                name = "Grade history",
-                                fetch = { AmazeClient.getAllGrades() },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
-                                update = {
-                                    applyAllGrades(it)
-                                }
-                            )
                         },
                         async {
                             syncModule(
@@ -1785,7 +2125,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             _pastSemestersSynced.value = true
                         }
                     }
-                    syncResults
+                    fgResults + syncResults
                 }
                 updateSyncSummary(results)
                 sweepSucceeded = results.none { !it.success } && SyncEngine.syncProgress.value.errorCount == 0
@@ -2741,7 +3081,7 @@ val results = supervisorScope {
         SettingsManager.remove(SettingsManager.KEY_PASSWORD)
         SettingsManager.clearMoodleCredentials()
         SessionManager.clearSession()
-        backstack.clear()
+        AppBackStack.clear()
         _currentScreen.value = Screen.LOGIN
         
         // Clear caches

@@ -11,6 +11,8 @@ import androidx.compose.material3.Text
 @Composable
 actual fun AppBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
 
+actual val AppBackHandlerDismissesOverlaysOnEscape: Boolean = false
+
 /**
  * Desktop has no WebView-backed renderer for the latex bundle. Rendering the source is enough to
  * keep layout and state honest while developing; the Android actual renders it properly.

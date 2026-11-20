@@ -13,3 +13,13 @@ import androidx.compose.runtime.Composable
  */
 @Composable
 expect fun AppBackHandler(enabled: Boolean = true, onBack: () -> Unit)
+
+/**
+ * D-070 contract (web parity): overlays dismiss via back on Android. This flag says
+ * whether the root `App` surface's Escape-key handler (in `App.kt`) may dismiss the
+ * top overlay on the platform. Desktop/iOS have no system back mechanism, so Escape
+ * deliberately does not dismiss modal sheets there — the honest, documented contract.
+ *
+ * Android: `true`. iOS/Desktop: `false` (see the "honest contract" note in the drift register).
+ */
+expect val AppBackHandlerDismissesOverlaysOnEscape: Boolean
