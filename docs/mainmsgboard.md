@@ -146,3 +146,5 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 - Critic verdict NEEDS_FIXES. Fixed: (MAJOR) Moodle deadlines were silently dropped - M3EWeekDay gained hasDeadline, M3EHomeWeekDays propagates it, the bridge now passes deadlineDates(AppState.tasks) and collects academic state for exam freshness, and the strip renders a secondary dot + ", assignment due" a11y hint; (MINOR) stat-card test now asserts title-bottom < value-top bounds in both variants; (NIT) exam state collected as state and added to remember keys. Re-running gate_home_wave5.
 ### [2026-11-21 03:20] session-mother - FINAL GREEN gate_home_wave5
 - EXIT 0, all tests pass. All Critic findings fixed and verified. Committing D-128..D-130, then rebuilding APKs.
+### [2026-11-21 03:25] session-mother - FINAL: HOME WAVE COMPLETE
+- Commit 523c528 (12 files). gate_home_wave5 EXIT 0 (all tests), Critic findings all fixed, debug+release APKs BUILD SUCCESSFUL from final tree. Tree clean after this docs commit. No further edits.
