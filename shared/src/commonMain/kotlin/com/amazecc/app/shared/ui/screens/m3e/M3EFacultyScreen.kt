@@ -45,8 +45,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -230,7 +228,6 @@ private fun M3EFacultyCard(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
-    val clipboard = LocalClipboardManager.current
 
     M3ESurfaceCard(
         containerLevel = SurfaceContainerLevel.LOW,
@@ -374,12 +371,7 @@ private fun M3EFacultyCard(
                         modifier = Modifier.padding(end = 2.dp)
                     )
                     IconButton(
-                        onClick = {
-                            if (faculty.email.isNotBlank()) {
-                                clipboard.setText(AnnotatedString(faculty.email))
-                            }
-                            onCopyEmail()
-                        },
+                        onClick = { onCopyEmail() },
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(

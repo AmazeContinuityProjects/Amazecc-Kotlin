@@ -11,6 +11,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.amazecc.app.shared.api.AmazeClient
@@ -700,6 +702,7 @@ fun M3EFacultyScreen(modifier: Modifier = Modifier) {
     val domain by AppState.domain.collectAsState()
     val identityState by UserStore.identity.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
+    val clipboard = LocalClipboardManager.current
 
     var searchQuery by remember { mutableStateOf("") }
     var selectedSchool by remember { mutableStateOf("All") }
@@ -772,7 +775,11 @@ fun M3EFacultyScreen(modifier: Modifier = Modifier) {
                     is M3EFacultyAction.ToggleExpand -> {
                         expandedFacultyId = if (expandedFacultyId == action.facultyId) null else action.facultyId
                     }
-                    is M3EFacultyAction.CopyEmail -> Unit // clipboard copy happens in M3EFacultyScreen (composable context)
+                    is M3EFacultyAction.CopyEmail -> {
+                        if (action.email.isNotBlank()) {
+                            runCatching { clipboard.setText(AnnotatedString(action.email)) }
+                        }
+                    }
                     is M3EFacultyAction.ToggleShowTimetable -> {
                         expandedFacultyId = if (expandedFacultyId == action.facultyId) null else action.facultyId
                     }

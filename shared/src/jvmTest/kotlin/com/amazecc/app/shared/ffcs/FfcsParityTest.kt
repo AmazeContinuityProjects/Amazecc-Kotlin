@@ -2,6 +2,7 @@ package com.amazecc.app.shared.ffcs
 
 import com.amazecc.app.shared.state.FfcsViewModel
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import kotlin.test.Test
@@ -118,7 +119,7 @@ class FfcsParityTest {
     }
 
     @Test
-    fun viewModel_seedsFromRealCourses_andGenerates() = runTest {
+    fun viewModel_seedsFromRealCourses_andGenerates() = runBlocking {
         FfcsViewModel.resetSelection()
         FfcsViewModel.initFromCourses(
             listOf(
