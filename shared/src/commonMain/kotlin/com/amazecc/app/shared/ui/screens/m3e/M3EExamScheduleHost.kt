@@ -25,7 +25,9 @@ import com.amazecc.app.shared.utils.openExternalUrl
 @Composable
 fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
-    val selectedSemId by AppState.selectedSemester.collectAsState()
+    // The exam schedule has its own semester selector. Reading the academic semester here
+    // fetched the wrong papers (usually none) even though exams existed for the exam semester.
+    val selectedExamSemId by AppState.selectedExamSemester.collectAsState()
     val semesterMap by AppState.semesterMap.collectAsState()
     val domain by AppState.domain.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
@@ -36,13 +38,20 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
     var isFetching by remember { mutableStateOf(false) }
     var refreshTick by remember { mutableStateOf(0) }
 
-    // The raw schedule map is the only place exam *series* survive — the domain snapshot flattens
-    // it away. Fetch it directly; AppState's sync path keeps the shared cache warm in parallel.
-    LaunchedEffect(selectedSemId, refreshTick) {
+    // Page entry must not trigger a network sync. The central Sync All button (SyncModule
+    // EXAM_SCHEDULE) keeps the cache warm; the screen only reads that cache on entry.
+    LaunchedEffect(selectedExamSemId) {
+        loadError = null
+        scheduleRes = AmazeClient.fallbackCachedExamSchedule(selectedExamSemId)
+    }
+
+    // Fetching is strictly user-initiated via the Refresh action.
+    LaunchedEffect(refreshTick) {
+        if (refreshTick == 0) return@LaunchedEffect
         isFetching = true
         loadError = null
         try {
-            scheduleRes = AmazeClient.getExamSchedule(selectedSemId)
+            scheduleRes = AmazeClient.getExamSchedule(selectedExamSemId)
         } catch (e: Exception) {
             loadError = e.message ?: "Unable to load exam schedule"
             scheduleRes = null
@@ -70,9 +79,9 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
     val nextUpcoming = remember(filtered) { M3EExamScheduleComputations.nextUpcoming(filtered) }
 
     // DomainSnapshot carries the human-readable semester name; fall back through the id map.
-    val semesterName = semesterMap[selectedSemId]
-        ?: domain.academics.semesters[selectedSemId]?.name
-        ?: selectedSemId
+    val semesterName = semesterMap[selectedExamSemId]
+        ?: domain.academics.semesters[selectedExamSemId]?.name
+        ?: selectedExamSemId
 
     val state = M3EExamScheduleState(
         semesterName = semesterName,
@@ -81,7 +90,9 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
         exams = entries,
         filteredExams = filtered,
         isLoading = isFetching || isLoading,
-        errorMessage = loadError?.takeIf { scheduleRes == null },
+        // A failed fetch returns a non-null ExamScheduleRes(success=false), so exception-only
+        // error detection rendered those failures as "No exams scheduled". Read both sources.
+        errorMessage = examScheduleErrorMessage(loadError, scheduleRes),
         groupedEntries = groups,
         availableSeries = availableSeries,
         // ExamItem / ExamScheduleRes expose no hall-ticket URL today. The state field and the
@@ -98,7 +109,8 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
                 when (action) {
                     is M3EExamScheduleAction.SelectSeries -> selectedSeries = action.series
                     is M3EExamScheduleAction.Refresh -> {
-                        AppState.selectExamSemester(selectedSemId)
+                        // Refreshing must act on the exam semester, not the academic one.
+                        AppState.selectExamSemester(selectedExamSemId)
                         refreshTick++
                     }
                     is M3EExamScheduleAction.OpenHallTicket -> openExternalUrl(action.url)
@@ -110,3 +122,11 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
         )
     }
 }
+
+/**
+ * Pure seam for the host's error state. An exception is kept in [loadError]; a fetched but
+ * unsuccessful payload is non-null, so failure must be read from its `error` / `message` too.
+ */
+internal fun examScheduleErrorMessage(loadError: String?, scheduleRes: ExamScheduleRes?): String? =
+    loadError ?: scheduleRes?.takeIf { !it.success }
+        ?.let { it.error ?: it.message ?: "Unable to load exam schedule" }

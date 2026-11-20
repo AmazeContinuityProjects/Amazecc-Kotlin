@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +46,12 @@ fun M3EProfileHost(modifier: Modifier = Modifier) {
     val residentialRaw by AppState.residentialStatus.collectAsState()
     val isBusSubscriber by AppState.isBusSubscriber.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
+
+    // Opening Profile must not strand a regNo-only identity. AppState owns the coroutine:
+    // the effect just asks it to fill the consolidated whoami snapshot once on entry.
+    LaunchedEffect(Unit) {
+        AppState.syncIdentityIfThin()
+    }
 
     var isFlipped by remember { mutableStateOf(false) }
     var showVtopPassword by remember { mutableStateOf(false) }

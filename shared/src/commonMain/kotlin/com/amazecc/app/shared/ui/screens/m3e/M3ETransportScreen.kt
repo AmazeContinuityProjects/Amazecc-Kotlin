@@ -171,37 +171,66 @@ fun M3ETransportScreen(
                     modifier = Modifier.fillMaxWidth(),
                     containerLevel = SurfaceContainerLevel.STANDARD
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.DirectionsBus,
-                            contentDescription = null,
-                            tint = if (registration.hasRegistration) colors.success else colors.warning,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Bus Registration",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colors.onSurface
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.DirectionsBus,
+                                contentDescription = null,
+                                tint = if (registration.hasRegistration) colors.success else colors.warning,
+                                modifier = Modifier.size(24.dp)
                             )
-                            val status = if (registration.hasRegistration) {
-                                listOfNotNull(
-                                    registration.routeSelected?.takeIf { it.isNotBlank() },
-                                    registration.busRouteId?.takeIf { it.isNotBlank() }?.let { "Route ID $it" },
-                                    registration.registerNumber?.takeIf { it.isNotBlank() }
-                                ).joinToString(" • ").ifBlank { "Bus pass active" }
-                            } else {
-                                "No active bus registration found"
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Bus Registration",
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.onSurface
+                                )
+                                val status = if (registration.hasRegistration) {
+                                    listOfNotNull(
+                                        registration.routeSelected?.takeIf { it.isNotBlank() },
+                                        registration.busRouteId?.takeIf { it.isNotBlank() }?.let { "Route ID $it" },
+                                        registration.registerNumber?.takeIf { it.isNotBlank() }
+                                    ).joinToString(" • ").ifBlank { "Bus pass active" }
+                                } else {
+                                    "No active bus registration found"
+                                }
+                                Text(
+                                    text = status,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant
+                                )
                             }
-                            Text(
-                                text = status,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant
-                            )
+                        }
+
+                        // Live GPS share link is surfaced only when the API actually returned one.
+                        // Restrained secondary styling; no fabricated URL is ever displayed.
+                        val busUrl = registration.busUrl
+                        if (!busUrl.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            ElevatedButton(
+                                onClick = { onAction(M3ETransportAction.OpenBusTracking(busUrl)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = CircleShape,
+                                colors = ButtonDefaults.elevatedButtonColors(
+                                    containerColor = colors.surfaceContainerHigh,
+                                    contentColor = colors.onSurface
+                                )
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.LocationOn,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Open live bus tracking",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
                         }
                     }
                 }
@@ -573,7 +602,8 @@ internal fun transportRegistrationFrom(data: TransportDataRes?): M3ETransportReg
             branch = it.branch,
             routeSelected = it.routeSelected,
             busRouteId = it.busRouteId,
-            qrCode = it.qrCode
+            qrCode = it.qrCode,
+            busUrl = it.busUrl
         )
     }
 

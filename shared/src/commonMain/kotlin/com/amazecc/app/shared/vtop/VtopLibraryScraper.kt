@@ -81,10 +81,16 @@ object VtopLibraryScraper {
         val books = mutableListOf<BookItem>()
         for (t in tables) {
             val titleKey = t.headers.firstOrNull { it.contains("title", true) || it.contains("book", true) }
+            // "Due Date" is a date column, not a fine; choosing it as amountKey would put a
+            // date string into fineAmount. Real VTOP book tables use Amount / Fine / Due Amount.
             val amountKey = t.headers.firstOrNull {
-                it.contains("amount", true) || it.contains("fine", true) || it.contains("due", true)
+                (it.contains("amount", true) && !it.contains("date", true)) ||
+                    it.contains("fine", true) ||
+                    (it.contains("due", true) && !it.contains("date", true) && !it.contains("overdue", true))
             }
-            val daysKey = t.headers.firstOrNull { it.contains("overdue", true) || it.contains("day", true) }
+            val daysKey = t.headers.firstOrNull {
+                it.contains("overdue", true) || (it.contains("day", true) && !it.contains("date", true))
+            }
             val authorKey = t.headers.firstOrNull { it.contains("author", true) }
             val isbnKey = t.headers.firstOrNull { it.contains("isbn", true) }
             if (titleKey == null && amountKey == null) continue
@@ -255,6 +261,16 @@ object VtopLibraryScraper {
         if (warn && warn.value) messages.warning = warn.value;
         if (err && err.value) messages.error = err.value;
         if (okEl && okEl.value) messages.success = okEl.value;
+        // Real VTOP library-dues pages put status in <p class="text-success/text-danger">,
+        // not in hidden inputs. Capture it so "no outstanding dues" reaches the UI.
+        var statusPs = doc.querySelectorAll('p.text-success, p.text-danger, div.text-success, div.text-danger');
+        for (var pi = 0; pi < statusPs.length; pi++) {
+          var pt = squish(statusPs[pi]);
+          if (!pt) continue;
+          if (statusPs[pi].classList.contains('text-danger')) {
+            if (!messages.error) messages.error = pt;
+          } else if (!messages.success) messages.success = pt;
+        }
 
         return JSON.stringify({
           ok: true, tables: tables, keyValuePairs: keyValuePairs, messages: messages

@@ -9,6 +9,7 @@ import com.amazecc.app.shared.model.CabShareHub
 import com.amazecc.app.shared.model.CabShareUser
 import com.amazecc.app.shared.model.CalendarRes
 import com.amazecc.app.shared.model.CalendarsListRes
+import com.amazecc.app.shared.model.CgpaSummary
 import com.amazecc.app.shared.model.CircularsRes
 import com.amazecc.app.shared.model.ClubsRes
 import com.amazecc.app.shared.model.CurriculumRes
@@ -111,7 +112,14 @@ data class StoredQcmTable(
 /** All academic data, one semester map. */
 @Serializable
 data class AcademicData(
-    val semesters: Map<String, SemesterData> = emptyMap()
+    val semesters: Map<String, SemesterData> = emptyMap(),
+    /**
+     * The published CGPA from `/api/remote/grades`' `overall.cgpa` block — authoritative and
+     * never reconstructed from per-semester GPAs. Kept whole (credits, grade counts, etc.) so
+     * screens that show more than the number do not have to re-fetch. Null when the response
+     * carried no `overall` block; the additive default keeps older JSON/cache decodable.
+     */
+    val publishedCgpa: CgpaSummary? = null
 )
 
 @Serializable

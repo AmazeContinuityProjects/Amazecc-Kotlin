@@ -327,7 +327,11 @@ object AcademicMerge {
                 out = upsertGrades(out, semId, semResult.gpa, semResult.grades)
             }
         }
-        return out
+        // The per-semester gpa above is an SGPA. The degree-wide published CGPA lives only in
+        // `overall.cgpa`, so copy that whole block (credits and grade counts included) instead of
+        // reconstructing it from semesters. A response without `overall` leaves a previously
+        // published value in place — it must never fabricate a zero or overwrite good data.
+        return cleaned.overall?.cgpa?.let { out.copy(publishedCgpa = it) } ?: out
     }
 
     fun upsertExams(academic: AcademicData, semesterId: String, res: ExamScheduleRes?): AcademicData {

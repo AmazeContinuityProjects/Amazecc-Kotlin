@@ -1352,7 +1352,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             "Calendars list", "Payments", "Library", "Transport Data", "Buses", "LMS",
             "Registered Events", "Clubs", "QCM View", "Student Profile", "Profile Images", "Credentials",
             "Bank Information", "Dayboarder Info", "EPT Schedule", "Registration Schedule",
-            "APAAR ID", "Circulars", "Moodle Assignments"
+            "APAAR ID", "Circulars", "Moodle Assignments",
+            // Page-local refresh effects are gone: the central sweep is now the only place
+            // these campus/academic modules get fetched, so they must be part of it.
+            "Free Classrooms", "Documents", "OD Details", "Feedback Status"
         ).mapNotNull { SyncEngine.moduleOf(it) }.filter { SyncEngine.isModuleEnabled(it) }.toSet()
 
         launchSweep(sweepModules, stageProfile = stageProfile) {
@@ -1620,6 +1623,42 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 update = {
                                     AppDataStore.setQcmView(it)
                                 }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Free Classrooms",
+                                fetch = { AmazeClient.getFreeClassrooms() },
+                                isSuccess = { it.success },
+                                errorMessage = { it.error ?: it.message },
+                                update = { AppDataStore.setFreeClassrooms(it) }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Documents",
+                                fetch = { AmazeClient.getDocuments() },
+                                isSuccess = { it.isNotEmpty() },
+                                errorMessage = { "No documents available" },
+                                update = { AppDataStore.setDocuments(it) }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "OD Details",
+                                fetch = { AmazeClient.getOdDetails(sem) },
+                                isSuccess = { it.success && it.error == null },
+                                errorMessage = { it.error ?: "OD details unavailable" },
+                                update = { AppDataStore.setOdDetails(it) }
+                            )
+                        },
+                        async {
+                            syncModule(
+                                name = "Feedback Status",
+                                fetch = { AmazeClient.getFeedbackStatus(sem) },
+                                isSuccess = { it.success && it.error == null },
+                                errorMessage = { it.error ?: "Feedback status unavailable" },
+                                update = { AppDataStore.setFeedbackStatus(it) }
                             )
                         },
                         async {
@@ -1978,22 +2017,42 @@ val results = supervisorScope {
         launchSweep(setOf(SyncModule.CALENDARS_LIST)) {
             _syncStatus.value = "Syncing calendars list..."
             val sem = _selectedSemester.value
+            var fetched: com.amazecc.app.shared.model.CalendarsListRes? = null
             val res = syncModule(
                 name = "Calendars list",
-                fetch = { AmazeClient.getCalendars(semesterId = sem) },
+                fetch = { AmazeClient.getCalendars(semesterId = sem).also { fetched = it } },
                 isSuccess = { it.success },
                 errorMessage = { it.message },
                 update = { list ->
                     AppDataStore.setCalendarsList(list)
-                    // Cache the General Semester calendar separately too, so the calendar screen
-                    // can still render when only the single ALL calendar came back.
-                    list.calendars.firstOrNull { it.name == "General Semester" }?.let { general ->
-                        AppDataStore.setCalendar(
-                            com.amazecc.app.shared.model.CalendarRes(success = true, months = general.months)
-                        )
-                    }
+                    // Cache the General Semester calendar separately too, but never overwrite a
+                    // populated single calendar with an empty subset of the list.
+                    list.calendars.firstOrNull { it.name == "General Semester" }
+                        ?.months?.takeIf { it.isNotEmpty() }?.let { months ->
+                            AppDataStore.setCalendar(
+                                com.amazecc.app.shared.model.CalendarRes(success = true, months = months)
+                            )
+                        }
                 }
             )
+            // An empty list must not leave the Calendar screen blank: fall back to the dedicated
+            // single-calendar fetch (itself cache-aware) and seed a one-entry list from it.
+            val list = fetched
+            if (list == null || list.calendars.isEmpty()) {
+                val single = AmazeClient.getCalendar(semesterId = sem)
+                if (single.months.isNotEmpty()) {
+                    AppDataStore.setCalendar(single)
+                    AppDataStore.setCalendarsList(
+                        com.amazecc.app.shared.model.CalendarsListRes(
+                            success = true,
+                            calendars = listOf(
+                                com.amazecc.app.shared.model.NamedCalendar("General Semester", single.months)
+                            )
+                        )
+                    )
+                    _syncStatus.value = "Calendars list empty; served the single semester calendar"
+                }
+            }
             updateSyncSummary(listOf(res))
         }
     }
@@ -2052,6 +2111,36 @@ val results = supervisorScope {
         }
     }
 
+    /**
+     * Non-suspending, bounded identity warm-up for the Profile surface. The stateful host
+     * calls this on entry; all work runs on AppState's supervised sweep scope, never on the
+     * composable's coroutine. Fills the consolidated whoami snapshot only when the store
+     * holds a thin identity, so opening Profile actually populates name/programme/mentors.
+     */
+    fun syncIdentityIfThin() {
+        if (_isLoading.value || sweepJob?.isActive == true) return
+        if (!isThinIdentity(UserStore.identity.value)) return
+        launchSweep(
+            setOf(
+                SyncModule.STUDENT_PROFILE, SyncModule.PROFILE_IMAGES, SyncModule.CREDENTIALS,
+                SyncModule.BANK_INFO, SyncModule.APAAR_ID, SyncModule.DAYBOARDER,
+                SyncModule.EPT_SCHEDULE, SyncModule.REGISTRATION_SCHEDULE, SyncModule.UNIVERSITY_DAY
+            )
+        ) {
+            _syncStatus.value = "Loading student profile..."
+            val results = syncIdentityModules()
+            reportIdentitySync(results)
+        }
+    }
+
+    /** Identity-specific summary: keep a partial-data warning visible above the generic count. */
+    private fun reportIdentitySync(results: List<SyncModuleResult>) {
+        updateSyncSummary(results)
+        results.firstOrNull { it.success && !it.message.isNullOrBlank() }?.message?.let { warning ->
+            _syncStatus.value = "Profile synced with partial data: $warning"
+        }
+    }
+
     fun refreshProfile() {
         if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
         launchSweep(
@@ -2066,7 +2155,7 @@ val results = supervisorScope {
             // so one identity sweep covers every profile module without fetching
             // the same records a second time. UNIVERSITY_DAY is now part of the set.
             val results = syncIdentityModules()
-            updateSyncSummary(results)
+            reportIdentitySync(results)
         }
     }
 
@@ -2341,11 +2430,16 @@ val results = supervisorScope {
      */
     private suspend fun syncIdentityModules(): List<SyncModuleResult> {
         val me = AmazeClient.getMe()
-        if (me.success && me.identity != null) {
-            val identity = me.identity
+        // HTTP 200 may still carry a few fetchErrors. Every field that did arrive is
+        // authoritative at the ME tier: merge it and surface the warning rather than
+        // throwing the whole payload away and falling back to failing per-endpoint scrapes.
+        val identity = me.identity?.takeIf { it.hasIdentity }
+        if (identity != null) {
+            val warning = me.error?.takeIf { it.isNotBlank() }
             UserStore.merge(identity, IdentitySource.ME)
             reconcileResidentialStatus(identity)
             reconcileExamSeatAlerts()
+            if (warning != null) _syncStatus.value = "Profile synced with partial data: $warning"
             val names = ConsolidatedIdentityModuleNames.filter { name ->
                 SyncEngine.moduleOf(name)?.let { SyncEngine.isModuleEnabled(it) } ?: true
             }
@@ -2376,7 +2470,7 @@ val results = supervisorScope {
                     }
                 }
             } catch (_: Exception) {}
-            return names.map { SyncModuleResult(it, true) }
+            return names.map { SyncModuleResult(it, true, warning) }
         }
         // Consolidated payload unavailable — sweep each source individually,
         // including the records that whoami would otherwise have carried.
@@ -3358,6 +3452,28 @@ enum class DashboardWidget {
     QUICK_ACTIONS,
     FREE_CLASSROOMS
 }
+
+/**
+ * A thin identity has a registration number (and possibly a cached photo) but none of the
+ * profile detail the consolidated whoami snapshot supplies. Pure so the Profile-wiring tests
+ * can pin exactly when the host should warm the snapshot.
+ */
+internal fun isThinIdentity(identity: StudentIdentity): Boolean {
+    if (identity.regNo.isNullOrBlank()) return false
+    if (!identity.name.isNullOrBlank() || !identity.friendlyName.isNullOrBlank()) return false
+    return !identity.hasProfileDetail()
+}
+
+private fun StudentIdentity.hasProfileDetail(): Boolean =
+    !email.isNullOrBlank() || !mobile.isNullOrBlank() || !dob.isNullOrBlank() ||
+    !program.isNullOrBlank() || !school.isNullOrBlank() || !campus.isNullOrBlank() ||
+    !applicationNumber.isNullOrBlank() || proctor != null || hodDean.isNotEmpty() ||
+    bank != null || apaar != null || dayboarder != null || acknowledgement != null ||
+    credentials.isNotEmpty() || ranks.isNotEmpty() || contacts.isNotEmpty() ||
+    currentAddress.isNotEmpty() || permanentAddress.isNotEmpty() ||
+    eptTables.isNotEmpty() || eptFields.isNotEmpty() || eptMessages.isNotEmpty() ||
+    registrationFields.isNotEmpty() || registrationTables.isNotEmpty() ||
+    universityDayTitle != null || universityDayFields.isNotEmpty() || universityDayTables.isNotEmpty()
 
 private data class SyncModuleResult(
     val name: String,

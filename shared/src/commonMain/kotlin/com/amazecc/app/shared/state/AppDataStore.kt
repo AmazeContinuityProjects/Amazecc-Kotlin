@@ -1,5 +1,7 @@
 package com.amazecc.app.shared.state
 
+import com.amazecc.app.shared.domain.DomainSnapshot
+import com.amazecc.app.shared.domain.VtopIngestor
 import com.amazecc.app.shared.model.AllGradesRes
 import com.amazecc.app.shared.model.ArrearResponse
 import com.amazecc.app.shared.model.AttendanceRes
@@ -8,6 +10,7 @@ import com.amazecc.app.shared.model.CabShareHub
 import com.amazecc.app.shared.model.CabShareUser
 import com.amazecc.app.shared.model.CalendarRes
 import com.amazecc.app.shared.model.CalendarsListRes
+import com.amazecc.app.shared.model.CgpaSummary
 import com.amazecc.app.shared.model.CircularsRes
 import com.amazecc.app.shared.model.CircularDownloadResult
 import com.amazecc.app.shared.model.ClubsRes
@@ -29,6 +32,7 @@ import com.amazecc.app.shared.model.LaundryRes
 import com.amazecc.app.shared.model.LibraryRes
 import com.amazecc.app.shared.model.MarksRes
 import com.amazecc.app.shared.model.MessMenuRes
+import com.amazecc.app.shared.model.OverallGrades
 import com.amazecc.app.shared.model.MoodleRes
 import com.amazecc.app.shared.model.PaymentsRes
 import com.amazecc.app.shared.model.QcmViewRes
@@ -46,6 +50,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
@@ -64,6 +70,17 @@ object AppDataStore {
         ignoreUnknownKeys = true
         encodeDefaults = false
         explicitNulls = false
+    }
+
+    /** The full grade payload, cached beside the snapshot so [allGrades] survives a cold start. */
+    private const val CACHE_ALL_GRADES = "cache_all_grades"
+
+    /** Matches SnapshotCodec's writer: defaults must be written or the v3 marker can vanish. */
+    private val domainEncoder = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        explicitNulls = false
+        encodeDefaults = true
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -123,9 +140,31 @@ object AppDataStore {
     // Transient by design: receipt details and downloaded binaries are fetched only when the
     // user asks, and are deliberately NOT part of AppDataSnapshot (no binary in a JSON backup).
 
-    /** Last full grade payload, kept transient so the published CGPA stays reachable by screens. */
+    /**
+     * Last full grade payload. In memory it feeds the screens that read the published CGPA;
+     * it is also mirrored to [CACHE_ALL_GRADES] so [restore] / [loadPersistedSnapshot] can put it
+     * back after a cold start instead of leaving screens to fall back to per-semester SGPA.
+     */
     private val _allGrades = MutableStateFlow<com.amazecc.app.shared.model.AllGradesRes?>(null)
     val allGrades: StateFlow<com.amazecc.app.shared.model.AllGradesRes?> = _allGrades.asStateFlow()
+
+    /** Cache the sanitized payload and expose it on [allGrades]. */
+    private fun rememberGrades(res: AllGradesRes) {
+        _allGrades.value = res
+        AppSanitizers.sanitizeAllGrades(res)?.let { cleaned ->
+            runCatching {
+                SettingsManager.setString(CACHE_ALL_GRADES, json.encodeToString(AllGradesRes.serializer(), cleaned))
+            }
+        }
+    }
+
+    /** Restore [allGrades] from the cache, or from a snapshot CGPA when no full payload exists. */
+    private fun restoreGradesFromCache(fallbackCgpa: CgpaSummary? = null) {
+        val cached = SettingsManager.getNullableString(CACHE_ALL_GRADES)
+            ?.let { runCatching { json.decodeFromString(AllGradesRes.serializer(), it) }.getOrNull() }
+        val restored = cached ?: fallbackCgpa?.let { AllGradesRes(overall = OverallGrades(cgpa = it)) }
+        if (restored != null) _allGrades.value = restored
+    }
 
     private val _receiptDetail = MutableStateFlow<ArrearResponse?>(null)
     val receiptDetail: StateFlow<ArrearResponse?> = _receiptDetail.asStateFlow()
@@ -163,6 +202,29 @@ object AppDataStore {
     }
 
     /**
+     * Encode as the persisted v3 domain schema, explicitly carrying the academic snapshot's
+     * published CGPA. The legacy bridge in `VtopIngestor` predates that field, so without this
+     * copy the authoritative `overall.cgpa` would be dropped on every write and lost on restore.
+     */
+    private fun encodeSnapshot(snapshot: AppDataSnapshot): String {
+        val domain = VtopIngestor.fromLegacy(snapshot, selectedSemesterId())
+        return domainEncoder.encodeToString(
+            DomainSnapshot.serializer(),
+            domain.copy(
+                academics = domain.academics.copy(publishedCgpa = snapshot.academic.publishedCgpa)
+            )
+        )
+    }
+
+    /** Inverse of [encodeSnapshot]; v1/v2 blobs go through the plain codec unchanged. */
+    private fun decodeSnapshot(encoded: String): AppDataSnapshot? {
+        val legacy = SnapshotCodec.decode(encoded, selectedSemesterId()) ?: return null
+        if (SnapshotCodec.detect(encoded) != SnapshotCodec.Schema.V3_DOMAIN) return legacy
+        val cgpa = SnapshotCodec.decodeDomain(encoded)?.academics?.publishedCgpa ?: return legacy
+        return legacy.copy(academic = legacy.academic.copy(publishedCgpa = cgpa))
+    }
+
+    /**
      * Restores the persisted snapshot. When no snapshot exists yet, migrates
      * the legacy per-module caches into it (and deletes them).
      *
@@ -175,11 +237,12 @@ object AppDataStore {
             val decoded = runCatching { Encryption.decryptOrPlain(raw) }.getOrNull()
             val schema = decoded?.let { SnapshotCodec.detect(it) }
             val restored = decoded?.let {
-                runCatching { SnapshotCodec.decode(it, selectedSemesterId()) }.getOrNull()
+                runCatching { decodeSnapshot(it) }.getOrNull()
             }
             if (restored != null) {
                 val normalized = AcademicMerge.normalizeEmbeddedKeys(restored)
                 _data.value = normalized
+                restoreGradesFromCache(normalized.academic.publishedCgpa)
                 // Re-persist whenever the read upgraded the schema, so the migration is one-way and
                 // never has to run twice. Also re-persists the embedded-key normalisation.
                 if (normalized != restored || schema != SnapshotCodec.Schema.V3_DOMAIN) persist()
@@ -189,13 +252,19 @@ object AppDataStore {
         migrateLegacyCaches()
     }
 
-    /** Restores a snapshot WITHOUT side effects — for widget/notification processes. */
+    /**
+     * Restores a snapshot for widget/notification processes without re-persisting or deleting
+     * legacy keys. The in-memory grade flow is restored too, so a widget process sees the same
+     * published CGPA as the main one.
+     */
     fun loadPersistedSnapshot(): AppDataSnapshot {
         val raw = SettingsManager.getNullableString(SettingsManager.CACHE_APP_DATA) ?: return AppDataSnapshot()
         val decoded = runCatching { Encryption.decryptOrPlain(raw) }.getOrNull() ?: return AppDataSnapshot()
-        return AcademicMerge.normalizeEmbeddedKeys(
-            runCatching { SnapshotCodec.decode(decoded, selectedSemesterId()) }.getOrNull() ?: AppDataSnapshot()
+        val restored = AcademicMerge.normalizeEmbeddedKeys(
+            runCatching { decodeSnapshot(decoded) }.getOrNull() ?: AppDataSnapshot()
         )
+        restoreGradesFromCache(restored.academic.publishedCgpa)
+        return restored
     }
 
     /**
@@ -206,8 +275,7 @@ object AppDataStore {
      * `_data` becomes the domain snapshot and the two bridge functions are deleted.
      */
     private fun persist() {
-        val encoded = runCatching { SnapshotCodec.encode(_data.value, selectedSemesterId()) }.getOrNull()
-            ?: return
+        val encoded = runCatching { encodeSnapshot(_data.value) }.getOrNull() ?: return
         SettingsManager.setString(SettingsManager.CACHE_APP_DATA, Encryption.encryptOrPlain(encoded))
     }
 
@@ -233,9 +301,13 @@ object AppDataStore {
     fun exportSnapshot(): String =
         runCatching { json.encodeToString(AppDataSnapshot.serializer(), _data.value) }.getOrDefault("{}")
 
-    /** Clears the in-memory snapshot (logout). The persisted key is wiped by the caller's global cache clear. */
+    /**
+     * Clears the in-memory snapshot (logout). The persisted keys are wiped by the caller's global
+     * cache clear, so a later [restore] can still reconstruct state from them before that happens.
+     */
     fun clear() {
         _data.value = AppDataSnapshot()
+        _allGrades.value = null
     }
 
     /** Directly replaces the whole snapshot (backup import). */
@@ -253,9 +325,9 @@ object AppDataStore {
         s.copy(academic = AcademicMerge.upsertMarks(s.academic, semesterId, res))
     }
 
-    fun upsertGrades(res: com.amazecc.app.shared.model.AllGradesRes?) = update { s ->
+    fun upsertGrades(res: AllGradesRes?) = update { s ->
         s.copy(academic = AcademicMerge.upsertGrades(s.academic, res))
-    }.also { res?.let { _allGrades.value = it } }
+    }.also { res?.let(::rememberGrades) }
 
     fun upsertExams(semesterId: String, res: ExamScheduleRes?) = update { s ->
         s.copy(academic = AcademicMerge.upsertExams(s.academic, semesterId, res))
@@ -395,6 +467,7 @@ object AppDataStore {
         }
         readLegacy<AllGradesRes>(SettingsManager.CACHE_GRADES)?.let {
             academic = AcademicMerge.upsertGrades(academic, it); found = true
+            rememberGrades(it)
         }
         readLegacy<Map<String, ExamScheduleRes?>>(SettingsManager.CACHE_ALL_SEMESTER_EXAMS)?.let { map ->
             map.forEach { (sem, v) ->

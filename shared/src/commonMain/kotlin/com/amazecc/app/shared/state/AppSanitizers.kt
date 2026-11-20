@@ -249,7 +249,10 @@ object AppSanitizers {
                     val text = e.text.clean() ?: return@mapNotNull null
                     e.copy(text = text, type = e.type.clean() ?: "Other", category = e.category.clean() ?: "", color = e.color.clean())
                 }
-                if (events.isEmpty()) null else CalendarDay(d.date, events)
+                // Keep eventless day boxes: the headless scraper backfills every day 1..last
+                // explicitly so the grid starts and ends on real dates. Dropping them here made
+                // LOCAL calendars render empty while REMOTE (event-only days) looked correct.
+                CalendarDay(d.date, events)
             })
         })
     }
@@ -265,7 +268,7 @@ object AppSanitizers {
                         val text = e.text.clean() ?: return@mapNotNull null
                         e.copy(text = text, type = e.type.clean() ?: "Other", category = e.category.clean() ?: "", color = e.color.clean())
                     }
-                    if (events.isEmpty()) null else CalendarDay(d.date, events)
+                    CalendarDay(d.date, events)
                 })
             }
             c.copy(name = name, months = months)

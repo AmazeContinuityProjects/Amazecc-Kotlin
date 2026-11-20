@@ -51,7 +51,12 @@ object M3EExamScheduleComputations {
         return when {
             canonical.contains("cat2") -> ExamSeries.CAT2
             canonical.contains("cat1") -> ExamSeries.CAT1
-            canonical.contains("fat") || canonical.contains("final") || canonical.contains("end") -> ExamSeries.FAT
+            // Real VTOP keys include "MID SEMESTER EXAMINATION" / "MIDTERM EXAMINATION",
+            // which used to fold into ALL and then vanish behind the CAT/FAT filters.
+            canonical.contains("midsem") || canonical.contains("midterm") || canonical == "mt" ||
+                rawType?.trim()?.equals("MT", ignoreCase = true) == true -> ExamSeries.CAT2
+            canonical.contains("fat") || canonical.contains("final") || canonical.contains("end") ||
+                canonical.contains("semestrexam") -> ExamSeries.FAT
             canonical.contains("cat") -> ExamSeries.CAT1
             else -> ExamSeries.ALL
         }

@@ -845,10 +845,14 @@ fun M3EExamScheduleScreen(modifier: Modifier = Modifier) {
     var isFetching by remember { mutableStateOf(false) }
     var refreshTick by remember { mutableStateOf(0) }
 
-    // The raw ExamScheduleRes is the only place the exam *series* survives (`schedule` map key) -
-    // the domain snapshot flattens it away, which is why this screen used to render every row as
-    // FAT. Fetch it directly and let AppState's sync path refresh the shared cache in parallel.
-    LaunchedEffect(selectedSemId, refreshTick) {
+    // Legacy bridge: read the cache populated by SyncModule.EXAM_SCHEDULE on entry; fetch only
+    // when the user presses Refresh. (App.kt routes to M3EExamScheduleHost, which does the same.)
+    LaunchedEffect(selectedSemId) {
+        loadError = null
+        scheduleRes = AmazeClient.fallbackCachedExamSchedule(selectedSemId)
+    }
+    LaunchedEffect(refreshTick) {
+        if (refreshTick == 0) return@LaunchedEffect
         isFetching = true
         loadError = null
         try {
@@ -1089,9 +1093,8 @@ fun M3ETransportScreen(modifier: Modifier = Modifier) {
     var activeFilter by remember { mutableStateOf(M3ETransportFilter.ALL) }
     var expandedRouteId by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(Unit) {
-        if (transportData == null) AppState.refreshTransport()
-    }
+    // Data comes from the central Sync All sweep (SyncModule.TRANSPORT); page entry must not
+    // fire a network fetch. The Refresh action remains the only user-initiated fetch.
 
     val routes = remember(busesRes) { mapBusesToRoutes(busesRes) }
 
@@ -1135,6 +1138,9 @@ fun M3ETransportScreen(modifier: Modifier = Modifier) {
                     }
                     is M3ETransportAction.OpenWhatsappGroup -> {
                         if (action.link.isNotBlank()) openExternalUrl(action.link)
+                    }
+                    is M3ETransportAction.OpenBusTracking -> {
+                        if (action.url.isNotBlank()) openExternalUrl(action.url)
                     }
                     is M3ETransportAction.Refresh -> AppState.refreshTransport()
                 }

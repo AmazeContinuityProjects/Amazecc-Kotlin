@@ -56,12 +56,8 @@ fun M3EFreeClassroomsHost(modifier: Modifier = Modifier) {
     var selectedBuilding by remember { mutableStateOf(M3EClassroomBuilding.ALL) }
     var onlyAvailableNow by remember { mutableStateOf(true) }
 
-    // Offline-derived flow: it may start empty rather than null, so trigger the
-    // local recomputation once on mount when nothing has been derived yet.
-    // A Unit key avoids a refresh loop when the derivation legitimately yields no rooms.
-    LaunchedEffect(Unit) {
-        if (freeClassroomsRes?.rooms.isNullOrEmpty()) AppState.refreshFreeClassrooms()
-    }
+    // Free classrooms are derived by the central Sync All sweep (SyncModule.FREE_CLASSROOMS).
+    // Page entry only reads the cached flow; the Refresh action remains the explicit recompute.
     AppBackHandler {
         if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS)
     }

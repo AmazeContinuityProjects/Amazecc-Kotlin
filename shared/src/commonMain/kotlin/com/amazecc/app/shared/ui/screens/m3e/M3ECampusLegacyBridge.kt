@@ -10,9 +10,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.domain.overhaul.M3EKohaBookDetail
+import com.amazecc.app.shared.domain.overhaul.M3EKohaHolding
 import com.amazecc.app.shared.model.BookItem
 import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.model.KohaBook
+import com.amazecc.app.shared.model.KohaDetailBook
+import com.amazecc.app.shared.model.KohaHolding
 import com.amazecc.app.shared.model.PaymentItem
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
@@ -64,9 +68,7 @@ fun M3EPaymentsScreenHost(modifier: Modifier = Modifier) {
     var receiptDismissed by remember { mutableStateOf(false) }
     var receiptNotice by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(paymentsRes) {
-        if (paymentsRes == null) AppState.refreshPayments()
-    }
+    // Payments are synced centrally (SyncModule.PAYMENTS); page entry only reads the cache.
     // A freshly fetched detail reopens the sheet; dismissing it keeps it closed until new data
     // arrives (no AppState clear API is part of the receipt contract).
     LaunchedEffect(receiptDetail) {
@@ -150,6 +152,7 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
     val libraryRes by AppState.library.collectAsState()
     val loginRequired by AppState.libraryLoginRequired.collectAsState()
     val localSearchTick by AppState.localSearchTick.collectAsState()
+    val kohaBookTarget by AppState.kohaBookTarget.collectAsState()
     val scope = rememberCoroutineScope()
 
     var activeTab by remember { mutableStateOf(M3ELibraryTab.MY_BOOKS) }
@@ -162,10 +165,12 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
     var hasCredentials by remember { mutableStateOf(false) }
     var isBusy by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var bookDetail by remember { mutableStateOf<M3EKohaBookDetail?>(null) }
+    var isDetailLoading by remember { mutableStateOf(false) }
+    var detailErrorMessage by remember { mutableStateOf<String?>(null) }
+    var renewNotice by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(libraryRes) {
-        if (libraryRes == null && !loginRequired) AppState.refreshLibrary()
-    }
+    // Library dues are synced centrally (SyncModule.LIBRARY); page entry only reads the cache.
     LaunchedEffect(Unit) {
         SettingsManager.getLibraryCredentials()?.let { creds ->
             username = creds.first
@@ -175,6 +180,30 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
     }
     LaunchedEffect(localSearchTick) {
         if (localSearchTick > 0) activeTab = M3ELibraryTab.CATALOG
+    }
+    // AppState.openKohaBookDetail() sets this target and routes here. Fetch the real detail once,
+    // then consume the target so recomposition/navigation cannot replay the request.
+    LaunchedEffect(kohaBookTarget) {
+        val biblionumber = kohaBookTarget ?: return@LaunchedEffect
+        activeTab = M3ELibraryTab.CATALOG
+        bookDetail = null
+        detailErrorMessage = null
+        isDetailLoading = true
+        try {
+            val res = withContext(Dispatchers.Default) { AmazeClient.getKohaDetail(biblionumber) }
+            if (res.success && res.book != null) {
+                bookDetail = res.book.toM3EKohaBookDetail()
+            } else {
+                detailErrorMessage = res.message?.takeIf { it.isNotBlank() }
+                    ?: res.error?.takeIf { it.isNotBlank() }
+                    ?: "Could not load book details"
+            }
+        } catch (e: Exception) {
+            detailErrorMessage = e.message ?: "Could not load book details"
+        } finally {
+            isDetailLoading = false
+            AppState.consumeKohaBookTarget()
+        }
     }
     AppBackHandler { navigateBackOrMore() }
 
@@ -186,7 +215,11 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
             val res = withContext(Dispatchers.Default) { AmazeClient.searchLibrary(query) }
             searchResults = res.books.map { it.toM3ELibraryBook() }
             totalResults = res.total
-            errorMessage = res.error
+            errorMessage = if (res.success) null else {
+                res.error?.takeIf { it.isNotBlank() }
+                    ?: res.message?.takeIf { it.isNotBlank() }
+                    ?: "Search failed"
+            }
         } catch (e: Exception) {
             errorMessage = e.message ?: "Search failed"
         } finally {
@@ -210,7 +243,11 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
         username = username,
         password = password,
         isBusy = isBusy,
-        errorMessage = errorMessage
+        errorMessage = errorMessage,
+        bookDetail = bookDetail,
+        isDetailLoading = isDetailLoading,
+        detailErrorMessage = detailErrorMessage,
+        renewNotice = renewNotice
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -248,9 +285,20 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
                     is M3ELibrariesAction.RenewBook -> {
                         scope.launch {
                             isBusy = true
+                            errorMessage = null
+                            renewNotice = null
                             try {
-                                withContext(Dispatchers.Default) { AmazeClient.renewLibraryBook(action.bookId) }
-                                AppState.syncLibrary()
+                                val res = withContext(Dispatchers.Default) {
+                                    AmazeClient.renewLibraryBook(action.bookId)
+                                }
+                                // A 404 still returns a BasicRes; never sync or claim success on failure.
+                                val (notice, failure) = renewLibraryOutcome(res)
+                                if (res.success) {
+                                    renewNotice = notice
+                                    AppState.syncLibrary()
+                                } else {
+                                    errorMessage = failure
+                                }
                             } catch (e: Exception) {
                                 errorMessage = e.message ?: "Renewal failed"
                             } finally {
@@ -259,6 +307,12 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
                         }
                     }
                     is M3ELibrariesAction.OpenBookDetail -> AppState.openKohaBookDetail(action.biblionumber)
+                    M3ELibrariesAction.DismissBookDetail -> {
+                        bookDetail = null
+                        detailErrorMessage = null
+                        isDetailLoading = false
+                        AppState.consumeKohaBookTarget()
+                    }
                     M3ELibrariesAction.Refresh -> {
                         if (activeTab == M3ELibraryTab.CATALOG && searchQuery.isNotBlank()) {
                             scope.launch { runCatalogSearch(searchQuery) }
@@ -289,6 +343,29 @@ private fun KohaBook.toM3ELibraryBook() = M3ELibraryBook(
     isbn = isbn.takeIf { it.isNotBlank() }
 )
 
+private fun KohaDetailBook.toM3EKohaBookDetail() = M3EKohaBookDetail(
+    biblionumber = biblionumber,
+    title = title,
+    author = author,
+    publisher = publisher,
+    edition = edition,
+    isbn = isbn,
+    description = description,
+    summary = summary,
+    subjects = subjects,
+    ddc = ddc,
+    holdings = holdings.map { it.toM3EKohaHolding() }
+)
+
+private fun KohaHolding.toM3EKohaHolding() = M3EKohaHolding(
+    barcode = barcode,
+    location = shelvingLocation.ifBlank { currentLibrary },
+    callNumber = callNumber,
+    status = status,
+    dueDate = dateDue,
+    notes = notes
+)
+
 // ==========================================
 // ACADEMIC CALENDAR
 // ==========================================
@@ -316,14 +393,8 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
     var selectedDay by remember { mutableStateOf<Int?>(null) }
     var eventFilter by remember { mutableStateOf(M3ECalendarFilter.ALL) }
 
-    // Always (re)fetch when there is nothing to show — including a null/empty first load.
-    // `refreshCalendarsList` also primes the single General Semester cache, so the grid renders
-    // even when only the ALL calendar comes back from the scraper/API.
-    LaunchedEffect(calendars.isEmpty(), calendarRes?.months.isNullOrEmpty(), selectedSemester) {
-        if (calendars.isEmpty() || calendarRes?.months.isNullOrEmpty() == true) {
-            AppState.refreshCalendarsList()
-        }
-    }
+    // Calendars are synced centrally (SyncModule.CALENDARS_LIST). Page entry reads the cached
+    // flows; the Refresh action below is the only user-initiated fetch.
 
     val months = remember(calendars, calendarRes, selectedCalendarIndex, today) {
         val activeCalendar = calendars.getOrNull(selectedCalendarIndex)
@@ -444,9 +515,7 @@ fun M3ECircularsScreenHost(modifier: Modifier = Modifier) {
 
     var expandedKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    LaunchedEffect(circularsRes) {
-        if (circularsRes == null) AppState.refreshCirculars()
-    }
+    // Circulars are synced centrally (SyncModule.CIRCULARS); page entry reads the cache.
     AppBackHandler { navigateBackOrMore() }
 
     val folders = remember(circularsRes) {
@@ -633,9 +702,7 @@ fun M3EDocumentsScreenHost(modifier: Modifier = Modifier) {
     // need to name the data worker's result type (only its bytes/fileName/mimeType members).
     var lastOpenedDownload by remember { mutableStateOf<Any?>(null) }
 
-    LaunchedEffect(documents) {
-        if (documents.isEmpty()) AppState.refreshDocuments()
-    }
+    // Documents are synced centrally (SyncModule.DOCUMENTS); page entry reads the cache.
     LaunchedEffect(downloadResult) {
         val result = downloadResult
         if (result != null && result !== lastOpenedDownload) {

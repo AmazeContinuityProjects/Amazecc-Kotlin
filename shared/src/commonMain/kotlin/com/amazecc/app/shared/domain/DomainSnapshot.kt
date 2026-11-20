@@ -6,6 +6,7 @@ import com.amazecc.app.shared.model.BusesRes
 import com.amazecc.app.shared.model.CabShareHub
 import com.amazecc.app.shared.model.CabShareUser
 import com.amazecc.app.shared.model.CalendarsListRes
+import com.amazecc.app.shared.model.CgpaSummary
 import com.amazecc.app.shared.model.CircularsRes
 import com.amazecc.app.shared.model.ClubsRes
 import com.amazecc.app.shared.model.CurriculumRes
@@ -83,6 +84,13 @@ data class Academics(
      * per-course field can express.
      */
     val curriculum: CurriculumRes? = null,
+    /**
+     * Published CGPA from the grade-history `overall.cgpa` block. Stored at the group level
+     * because it is a degree-wide fact, not a property of any one semester. Null until a grade
+     * response with an `overall` block has been ingested; the additive default keeps v3 blobs
+     * written before this field decodable.
+     */
+    val publishedCgpa: CgpaSummary? = null,
 )
 
 /**

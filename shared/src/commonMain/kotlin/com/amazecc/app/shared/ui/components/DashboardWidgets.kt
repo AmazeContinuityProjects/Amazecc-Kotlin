@@ -78,6 +78,15 @@ import kotlin.math.roundToInt
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 
+/**
+ * Value shown in the CGPA stat card. The published CGPA from the grade-history `overall` block is
+ * authoritative; a semester GPA is an SGPA and may only be used when no published value exists.
+ */
+fun publishedCgpaOrSemesterGpa(publishedCgpa: String?, semesterGpa: String?): String =
+    publishedCgpa?.takeIf { it.isNotBlank() }
+        ?: semesterGpa?.takeIf { it.isNotBlank() }
+        ?: ""
+
 private class DragState {
     var draggedIndex by mutableStateOf(-1)
     var dragOffset by mutableFloatStateOf(0f)
@@ -872,6 +881,7 @@ private fun ProfileHeaderWidget() {
 private fun MetricCardsWidget() {
     val colors = AmazeTheme.colors
     val academic by AppState.academic.collectAsState()
+    val allGrades by AppState.allGrades.collectAsState()
     val selectedSemester by AppState.selectedSemester.collectAsState()
     val semFromAppState = academic.semesters[selectedSemester] ?: null
     // Prefer the app-state selected semester only if it actually holds courses;
@@ -888,7 +898,14 @@ private fun MetricCardsWidget() {
         statsCardsOrder.filter { enabledStatsCards.contains(it) }
     }
 
-    val cgpa = remember(sem) { sem?.gpa ?: "" }
+    // The persisted snapshot field is canonical; the grade-payload flow is a bridge for
+    // snapshots written before that field existed. Neither is an SGPA.
+    val publishedCgpa = remember(academic, allGrades) {
+        academic.publishedCgpa?.cgpa?.takeIf { it.isNotBlank() } ?: allGrades?.publishedCgpa
+    }
+    val cgpa = remember(publishedCgpa, sem) {
+        publishedCgpaOrSemesterGpa(publishedCgpa, sem?.gpa)
+    }
     val cgpaDisplay = remember(cgpa, isCgpaHidden) {
         if (isCgpaHidden) "\u2022\u2022\u2022"
         else cgpa.toDoubleOrNull()?.toFixed(2) ?: "—"

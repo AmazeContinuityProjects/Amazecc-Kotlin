@@ -1026,6 +1026,7 @@ object VtopDataSource {
             put("ok", true)
             put("tables", page.tables.toJsonArray())
             put("keyValuePairs", page.keyValuePairs.toJsonObject())
+            put("messages", page.messages.toJsonObject())
         }.toString()
         return VtopLibraryScraper.parsePayload(payload)
     }

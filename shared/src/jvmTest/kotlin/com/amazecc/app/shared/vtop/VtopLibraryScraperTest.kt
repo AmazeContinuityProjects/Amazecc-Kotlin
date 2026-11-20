@@ -151,6 +151,22 @@ class VtopLibraryScraperTest {
     }
 
     @Test
+    fun `Due Date column is not mistaken for a fine`() {
+        val res = VtopLibraryScraper.parsePayload(
+            payload(
+                tables = """
+                [{"headers":["Title","Due Date","Days Overdue"],
+                  "rows":[{"Title":"Engineering Mechanics","Due Date":"12-Nov-2026","Days Overdue":"3"}]}]
+                """.trimIndent()
+            )
+        )
+        assertNotNull(res)
+        val book = res.booksIssued.single()
+        assertEquals(null, book.fineAmount, "a date must never land in fineAmount")
+        assertEquals("3", book.daysOverdue)
+    }
+
+    @Test
     fun `transport GPS helper extracts busUrl and fails closed`() {
         val ds = VtopDataSource
         assertEquals(

@@ -396,17 +396,23 @@ object IdentityExtractor {
      */
     fun deriveResidenceStatus(isHosteller: Boolean, dayboarderRows: List<KeyValueRow>): String? {
         if (isHosteller) return RESIDENCE_HOSTELLER
-        val staying = dayboarderRows.firstOrNull {
+        // Ignore placeholder rows ("Please select...") — they are not evidence of residence.
+        val meaningful = dayboarderRows.filterNot { isPlaceholderLabel(it.value) }
+        val staying = meaningful.firstOrNull {
             it.label.contains("staying", true) && it.label.contains("type", true)
         }?.value.orEmpty()
         if (staying.contains("DAYBOARDER", true) ||
             staying.contains("DAY BOARDER", true) ||
             staying.contains("DAY BOARDING", true) ||
             staying.contains("DAYSCHOLAR", true) ||
-            staying.contains("DAY SCHOLAR", true)
+            staying.contains("DAY SCHOLAR", true) ||
+            // Real VTOP option texts for the dayboarder staying-type select.
+            staying.contains("staying with parents", true) ||
+            staying.contains("staying with self", true) ||
+            staying.contains("with friends", true)
         ) return RESIDENCE_DAYSCHOLAR
         if (staying.contains("HOSTELLER", true) || staying.contains("HOSTEL", true)) return RESIDENCE_HOSTELLER
-        if (dayboarderRows.isNotEmpty()) return RESIDENCE_DAYSCHOLAR
+        if (meaningful.isNotEmpty()) return RESIDENCE_DAYSCHOLAR
         return null
     }
 
@@ -559,8 +565,11 @@ object IdentityExtractor {
         val normalized = JsonObject(fieldsObj.entries.associate { (key, value) ->
             val rewritten = if (value is JsonObject) {
                 val selectedText = str(value, "selectedText")
-                if (selectedText != null) JsonObject(value.toMap() + ("value" to JsonPrimitive(selectedText)))
-                else value
+                // VTOP emits placeholder selections like "0" -> "Please select...". Promoting
+                // those to the value made a blank form look like evidence of a dayscholar.
+                if (selectedText != null && !isPlaceholderLabel(selectedText)) {
+                    JsonObject(value.toMap() + ("value" to JsonPrimitive(selectedText)))
+                } else value
             } else value
             key to rewritten
         })

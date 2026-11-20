@@ -45,6 +45,63 @@ import com.amazecc.app.shared.config.SlotMap
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
+/** Legacy Next.js API host. The Hono host does not mount the Koha routes, so Koha calls
+ * probe this host as a failover when the primary returns a non-2xx status or a
+ * `success: false` body (the classic `{"success":false,"error":"Not found"}` 404). */
+private const val LEGACY_API_BASE_URL = "https://api.amazecc.com"
+
+/** One host's outcome for a Koha probe. Kept public to the module so headless JVM tests can
+ * drive the failover ordering without touching the network. */
+internal data class KohaProbe<T>(val httpStatus: Int, val value: T?, val error: String?)
+
+/** Pure gate: a response is only usable on a 2xx status AND a success-looking payload. */
+internal fun kohaShouldFailOver(httpStatus: Int, reportedSuccess: Boolean): Boolean =
+    httpStatus !in 200..299 || !reportedSuccess
+
+/** Prefer the server's `error`, then its `message`, then a stable local fallback. */
+internal fun kohaErrorMessage(error: String?, message: String?): String =
+    error?.takeIf { it.isNotBlank() }
+        ?: message?.takeIf { it.isNotBlank() }
+        ?: "Koha request failed"
+
+/**
+ * Resolve the semester a calendar fetch should use. A blank-but-non-null requested id must
+ * NOT win the chain — that was why LOCAL calendars looked permanently empty. Pure so the
+ * precedence can be pinned by a headless test.
+ */
+internal fun effectiveSemester(
+    requested: String?,
+    session: String?,
+    selected: String?,
+    firstAcademic: String?
+): String? =
+    requested?.takeIf { it.isNotBlank() }
+        ?: session?.takeIf { it.isNotBlank() }
+        ?: selected?.takeIf { it.isNotBlank() }
+        ?: firstAcademic?.takeIf { it.isNotBlank() }
+
+/**
+ * Try each host in order and return the first usable decoded value. A transport exception on
+ * one host only moves us to the next. When every host fails, [fallback] receives the last real
+ * error message so the UI can render why the request failed instead of a blank screen.
+ */
+internal suspend fun <T> kohaWithFailover(
+    hosts: List<String>,
+    fetch: suspend (String) -> KohaProbe<T>,
+    isUsable: (T) -> Boolean,
+    fallback: (String?) -> T
+): T {
+    var lastError: String? = null
+    for (host in hosts) {
+        val probe = try { fetch(host) } catch (_: Exception) { null }
+        if (probe == null) continue
+        val value = probe.value
+        if (value != null && !kohaShouldFailOver(probe.httpStatus, isUsable(value))) return value
+        lastError = kohaErrorMessage(probe.error, null)
+    }
+    return fallback(lastError)
+}
+
 @Serializable
 data class LoginRequest(val username: String, val password: String)
 
@@ -319,6 +376,64 @@ object AmazeClient {
             null
         }
     }
+
+    /** GET a Koha route from the primary host, then the legacy host. HTTP status is checked
+     * before decoding so a 404 body can never be mistaken for a successful payload. */
+    private suspend inline fun <reified T> kohaGet(
+        relativeUrl: String,
+        noinline isUsable: (T) -> Boolean,
+        crossinline errorOf: (T) -> String?,
+        noinline fallback: (String?) -> T
+    ): T = kohaWithFailover(
+        hosts = listOf(baseUrl, LEGACY_API_BASE_URL),
+        fetch = { host ->
+            try {
+                val response: HttpResponse = httpClient.get(host + relativeUrl)
+                val status = response.status.value
+                if (status !in 200..299) {
+                    KohaProbe(status, null, "HTTP $status")
+                } else {
+                    val decoded = runCatching { jsonConfig.decodeFromString<T>(response.bodyAsText()) }.getOrNull()
+                    KohaProbe(status, decoded, decoded?.let(errorOf))
+                }
+            } catch (e: Exception) {
+                KohaProbe(0, null, e.message)
+            }
+        },
+        isUsable = isUsable,
+        fallback = fallback
+    )
+
+    /** POST variant of [kohaGet] used by the renew route. The body is encoded eagerly so Ktor's
+     * content negotiation does not have to guess a serializer for an erased map type. */
+    private suspend inline fun <reified T> kohaPost(
+        relativePath: String,
+        bodyJson: String,
+        noinline isUsable: (T) -> Boolean,
+        crossinline errorOf: (T) -> String?,
+        noinline fallback: (String?) -> T
+    ): T = kohaWithFailover(
+        hosts = listOf(baseUrl, LEGACY_API_BASE_URL),
+        fetch = { host ->
+            try {
+                val response: HttpResponse = httpClient.post(host + relativePath) {
+                    contentType(ContentType.Application.Json)
+                    setBody(bodyJson)
+                }
+                val status = response.status.value
+                if (status !in 200..299) {
+                    KohaProbe(status, null, "HTTP $status")
+                } else {
+                    val decoded = runCatching { jsonConfig.decodeFromString<T>(response.bodyAsText()) }.getOrNull()
+                    KohaProbe(status, decoded, decoded?.let(errorOf))
+                }
+            } catch (e: Exception) {
+                KohaProbe(0, null, e.message)
+            }
+        },
+        isUsable = isUsable,
+        fallback = fallback
+    )
 
 
     // ── Wired M3E data paths ─────────────────────────────────────────────────
@@ -664,9 +779,15 @@ object AmazeClient {
             )
         }.orEmpty()
         com.amazecc.app.shared.state.AppState.markServedFromCache("Grade History")
+        val cachedAll = com.amazecc.app.shared.state.AppDataStore.allGrades.value
         return AllGradesRes(
             success = true,
-            grades = mapOf(semesterId to com.amazecc.app.shared.model.SemesterGradeResult(grades = gradeRows)),
+            grades = cachedAll?.grades?.takeIf { it.isNotEmpty() }
+                ?: mapOf(semesterId to com.amazecc.app.shared.model.SemesterGradeResult(grades = gradeRows)),
+            // Preserve the published CGPA through the cache fallback; otherwise the UI silently
+            // drops back to semester SGPA after a transient fetch failure.
+            overall = cachedAll?.overall
+                ?: academic.publishedCgpa?.let { com.amazecc.app.shared.model.OverallGrades(cgpa = it) },
             message = "Served from local cache"
         )
     }
@@ -1058,13 +1179,16 @@ if (useMockData) return DemoData.get("curriculum", CurriculumRes.serializer()) ?
 
     suspend fun getCalendar(type: String = "ALL", semesterId: String? = null): CalendarRes {
 if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: CalendarRes()
-        // A blank semester id used to make every LOCAL fetch fall through to postAuthorized,
-        // which is a no-op outside REMOTE — the calendar then looked permanently empty.
-        val sem = semesterId
-            ?: com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value?.takeIf { it.isNotBlank() }
-            ?: com.amazecc.app.shared.state.AppState.selectedSemester.value.takeIf { it.isNotBlank() }
-            ?: com.amazecc.app.shared.state.AppDataStore.academic.value.semesters.keys
-                .firstOrNull { it.isNotBlank() }
+        // A blank-but-non-null semester id wins the Elvis chain and bypasses every fallback,
+        // making every LOCAL fetch fall through to postAuthorized (a no-op outside REMOTE).
+        // Treat blanks as absent so the session / selected-semester fallbacks can run.
+        val sem = effectiveSemester(
+            requested = semesterId,
+            session = com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value,
+            selected = com.amazecc.app.shared.state.AppState.selectedSemester.value,
+            firstAcademic = com.amazecc.app.shared.state.AppDataStore.academic.value.semesters.keys
+                .firstOrNull()
+        )
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
             return com.amazecc.app.shared.state.AppDataStore.calendar.value
                 ?: CalendarRes(success = true, message = "Served from local cache")
@@ -1282,41 +1406,49 @@ if (useMockData) return DemoData.get("librarySearch", LibraryRes.serializer())?.
                 message = mock.message
             )
         } ?: KohaSearchRes()
-        return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/koha/search?q=${query.encodeURLParameter()}&idx=${index.encodeURLParameter()}&offset=$offset&count=20")
-            jsonConfig.decodeFromString(response.bodyAsText())
-        } catch (e: Exception) {
-            KohaSearchRes(success = false, message = e.message, error = e.toString())
-        }
+        return kohaGet<KohaSearchRes>(
+            relativeUrl = "/api/koha/search?q=${query.encodeURLParameter()}&idx=${index.encodeURLParameter()}&offset=$offset&count=20",
+            isUsable = { it.success },
+            errorOf = { it.error ?: it.message },
+            fallback = { err ->
+                val message = kohaErrorMessage(err, null)
+                KohaSearchRes(success = false, message = message, error = err)
+            }
+        )
     }
 
     suspend fun getKohaDetail(biblionumber: String): KohaDetailRes {
         if (useMockData) return KohaDetailRes(success = false, error = "No mock data for detail")
-        return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/koha/detail?biblionumber=${biblionumber.encodeURLParameter()}")
-            jsonConfig.decodeFromString(response.bodyAsText())
-        } catch (e: Exception) {
-            KohaDetailRes(success = false, message = e.message, error = e.toString())
-        }
+        return kohaGet<KohaDetailRes>(
+            relativeUrl = "/api/koha/detail?biblionumber=${biblionumber.encodeURLParameter()}",
+            isUsable = { it.success && it.book != null },
+            errorOf = { it.error ?: it.message },
+            fallback = { err ->
+                val message = kohaErrorMessage(err, null)
+                KohaDetailRes(success = false, message = message, error = err)
+            }
+        )
     }
     
     suspend fun renewLibraryBook(bookId: String): BasicRes {
 if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: BasicRes(success = true, message = "Book renewed successfully")
-        return try {
-            val creds = com.amazecc.app.shared.repository.SettingsManager.getLibraryCredentials()
-            if (creds == null) return BasicRes(success = false, message = "Library credentials not found.")
-            val response: HttpResponse = httpClient.post("$baseUrl/api/koha/renew") {
-                contentType(io.ktor.http.ContentType.Application.Json)
-                setBody(mapOf("username" to creds.first, "password" to creds.second, "bookId" to bookId))
+        val creds = com.amazecc.app.shared.repository.SettingsManager.getLibraryCredentials()
+            ?: return BasicRes(success = false, message = "Library credentials not found.")
+        val body = jsonConfig.encodeToString(
+            JsonObject.serializer(),
+            buildJsonObject {
+                put("username", creds.first)
+                put("password", creds.second)
+                put("bookId", bookId)
             }
-            if (response.status.value in 200..299) {
-                jsonConfig.decodeFromString(response.bodyAsText())
-            } else {
-                BasicRes(success = false, message = "HTTP ${response.status}")
-            }
-        } catch (e: Exception) {
-            BasicRes(success = false, message = e.message)
-        }
+        )
+        return kohaPost<BasicRes>(
+            relativePath = "/api/koha/renew",
+            bodyJson = body,
+            isUsable = { it.success },
+            errorOf = { it.message },
+            fallback = { err -> BasicRes(success = false, message = kohaErrorMessage(err, null)) }
+        )
     }
     suspend fun getTransportData(): TransportDataRes {
         if (useMockData) return DemoData.get("transport", TransportDataRes.serializer()) ?: TransportDataRes()
@@ -2093,12 +2225,26 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
         ) return null
         try { com.amazecc.app.shared.vtop.VtopDataSource.fetchWhoami() } catch (_: Exception) {}
 
+        val ex = com.amazecc.app.shared.state.IdentityExtractor
         val sources = mutableMapOf<String, Int>()
-        var acc = StudentIdentity()
+        // Seed the accumulator with the identity we already know (store + session) so a
+        // partial local scrape keeps previously known fields instead of sealing a thin
+        // regNo-only identity at the ME tier. Fresh scraped fields still overwrite: the
+        // per-path source bookkeeping starts empty, so every scraper tier can write.
+        var acc = com.amazecc.app.shared.state.UserStore.identity.value
+        com.amazecc.app.shared.vtop.VtopSession.authorizedID.value
+            ?.takeIf { it.isNotBlank() }
+            ?.let { id ->
+                acc = com.amazecc.app.shared.state.mergeIdentity(
+                    acc,
+                    ex.fromSession(id),
+                    com.amazecc.app.shared.state.IdentitySource.SESSION.order,
+                    sources
+                )
+            }
         fun absorb(fragment: StudentIdentity, order: Int) {
             acc = com.amazecc.app.shared.state.mergeIdentity(acc, fragment, order, sources)
         }
-        val ex = com.amazecc.app.shared.state.IdentityExtractor
         try {
             com.amazecc.app.shared.vtop.VtopDataSource.fetchStudentProfile()
                 ?.let { absorb(ex.fromStudentProfile(it), com.amazecc.app.shared.state.IdentitySource.STUDENT.order) }

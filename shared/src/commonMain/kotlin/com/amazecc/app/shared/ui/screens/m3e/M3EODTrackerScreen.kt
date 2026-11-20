@@ -380,30 +380,53 @@ internal fun odDateEpochDay(raw: String): Long? =
 
 /**
  * Map the real `OdDetailsRes.records` into the stateless day/entry list, preserving the persisted
- * wasted/recovered annotations keyed by `date|code`. On an error or empty payload this returns an
- * empty list - the screen's existing empty state - instead of fabricating OD rows.
+ * wasted/recovered annotations keyed by `date|code`, and UNION it with [derivedOdRows] - the
+ * on-duty rows derived locally from synced attendance by [deriveOdRowsFromAttendance].
+ *
+ * The two sources are de-duplicated by (date, course, hours), with the real VTOP record winning
+ * when both describe the same row (it is added first). A null/failed/empty VTOP payload no longer
+ * hides locally derived On Duty days; neither source ever produces a fabricated row.
  */
 internal fun mapOdRecordsToDays(
     res: OdDetailsRes?,
-    tracker: Map<String, M3EODStatus>
+    tracker: Map<String, M3EODStatus>,
+    derivedOdRows: List<DerivedOdRow> = emptyList(),
 ): List<M3EODDay> {
-    if (res == null || !res.success || res.error != null) return emptyList()
-    return res.records.map { record ->
-        // The scraper has no explicit course-code column; `reason` (then slNo) is the stable, real
-        // identity the annotation persistence keys off of.
-        val code = record.reason.ifBlank { record.slNo }.ifBlank { record.type }
-        val title = record.reason.ifBlank { record.type }
-        val entry = M3EODEntry(
-            courseCode = code,
-            title = title,
-            type = odTypeFor(record.type, record.basis),
-            hours = odHoursFrom(record.time),
-            status = tracker["${record.date}|$code"] ?: M3EODStatus.NONE
+    val vtopPairs: List<Pair<String, M3EODEntry>> = if (res != null && res.success && res.error == null) {
+        res.records.map { record ->
+            // The scraper has no explicit course-code column; `reason` (then slNo) is the stable, real
+            // identity the annotation persistence keys off of.
+            val code = record.reason.ifBlank { record.slNo }.ifBlank { record.type }
+            val title = record.reason.ifBlank { record.type }
+            val entry = M3EODEntry(
+                courseCode = code,
+                title = title,
+                type = odTypeFor(record.type, record.basis),
+                hours = odHoursFrom(record.time),
+                status = tracker["${record.date}|$code"] ?: M3EODStatus.NONE
+            )
+            record.date to entry
+        }
+    } else emptyList()
+
+    val derivedPairs: List<Pair<String, M3EODEntry>> = derivedOdRows.map { row ->
+        row.date to M3EODEntry(
+            courseCode = row.courseCode,
+            title = row.title,
+            type = row.type,
+            hours = row.hours,
+            status = tracker["${row.date}|${row.courseCode}"] ?: M3EODStatus.NONE
         )
-        record.date to entry
     }
-        .groupBy({ it.first }, { it.second })
-        .map { (date, entries) -> M3EODDay(date, entries) }
+
+    val seen = HashSet<Triple<String, String, Int>>()
+    val byDate = LinkedHashMap<String, MutableList<M3EODEntry>>()
+    // VTOP first so its real record wins the de-duplication over a locally derived row.
+    for ((date, entry) in vtopPairs + derivedPairs) {
+        if (!seen.add(Triple(date, entry.courseCode, entry.hours))) continue
+        byDate.getOrPut(date) { mutableListOf() } += entry
+    }
+    return byDate.map { (date, entries) -> M3EODDay(date, entries) }
         .sortedByDescending { odDateEpochDay(it.date) ?: Long.MIN_VALUE }
 }
 

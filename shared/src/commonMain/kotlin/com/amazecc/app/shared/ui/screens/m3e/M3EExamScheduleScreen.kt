@@ -649,6 +649,9 @@ internal fun examSeriesFor(rawType: String): ExamSeries {
     return when {
         canonical.contains("cat2") -> ExamSeries.CAT2
         canonical.contains("cat1") -> ExamSeries.CAT1
+        // VTOP emits "MT" as a real exam-type key (mid-term); keep it out of ALL.
+        canonical.contains("midsem") || canonical.contains("midterm") || canonical == "mt" ||
+            rawType.trim().equals("MT", ignoreCase = true) -> ExamSeries.CAT2
         canonical.contains("fat") || canonical.contains("final") || canonical.contains("end") -> ExamSeries.FAT
         canonical.contains("cat") -> ExamSeries.CAT1
         else -> ExamSeries.ALL

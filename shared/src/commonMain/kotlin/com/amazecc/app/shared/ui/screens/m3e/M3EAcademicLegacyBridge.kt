@@ -230,9 +230,12 @@ fun M3ECourseDashboardScreenHost(modifier: Modifier = Modifier) {
 @Composable
 fun M3EODTrackerScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
-    // Real OD data now flows from the VTOP OD details endpoint through AppState instead of being
-    // inferred from attendance-log statuses with a lab/theory hour heuristic.
+    // VTOP OD records flow from the OD-details endpoint through AppState (SyncModule.OD_DETAILS).
+    // On-duty days also survive in the synced attendance logs, so derive those locally (pure, no
+    // extra fetch) and UNION them with the VTOP payload - a failed/empty OD call must not hide
+    // real On Duty days that attendance already knows about.
     val odDetails by AppState.odDetails.collectAsState()
+    val domain by AppState.domain.collectAsState()
     val selectedSemester by AppState.selectedSemester.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
 
@@ -249,13 +252,22 @@ fun M3EODTrackerScreenHost(modifier: Modifier = Modifier) {
         }
     }
 
-    LaunchedEffect(selectedSemester, refreshTick) {
-        if (selectedSemester.isNotBlank()) {
+    // Entry reads what the central Sync All sweep (SyncModule.OD_DETAILS) cached; only an
+    // explicit Refresh triggers a network fetch.
+    LaunchedEffect(refreshTick) {
+        if (refreshTick > 0 && selectedSemester.isNotBlank()) {
             AppState.refreshOdDetails(selectedSemester)
         }
     }
 
-    val days = remember(odDetails, tracker) { mapOdRecordsToDays(odDetails, tracker) }
+    // Pure/local derivation from the attendance flow already synced into the domain snapshot;
+    // no page-local network fetch is introduced - OD network data stays on the OD_DETAILS path.
+    val derivedOdRows = remember(domain) {
+        deriveOdRowsFromAttendance(Projections.currentSemesterAttendance(domain))
+    }
+    val days = remember(odDetails, tracker, derivedOdRows) {
+        mapOdRecordsToDays(odDetails, tracker, derivedOdRows)
+    }
 
     val state = M3EODTrackerState(activeTab = activeTab, days = days, isLoading = isLoading)
 
@@ -653,17 +665,8 @@ fun M3EFeedbackStatusScreenHost(modifier: Modifier = Modifier) {
         }
     }
 
-    // Always pass a real semesterId - the FFCS-section call requires one. A selection is seeded
-    // above from cache; when the cache is cold, fall back to the app's selected semester id.
-    LaunchedEffect(Unit) {
-        if (selectedSemester == null && selectedAppSemester.isNotBlank()) {
-            AppState.refreshFeedbackStatus(selectedAppSemester)
-        }
-    }
-    LaunchedEffect(selectedSemester) {
-        val sem = selectedSemester ?: return@LaunchedEffect
-        AppState.refreshFeedbackStatus(sem)
-    }
+    // Feedback status is synced centrally (SyncModule.FEEDBACK_STATUS). Page entry only reads
+    // the cached flow; the Refresh action below is the sole user-initiated fetch.
 
     val rows = remember(feedbackRes) {
         feedbackRes?.feedbackTable.orEmpty().map {

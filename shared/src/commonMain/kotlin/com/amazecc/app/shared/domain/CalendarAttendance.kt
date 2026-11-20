@@ -332,10 +332,12 @@ fun summariseOd(
 /**
  * Build the OD list from the same `viewLink` history the calendar reads.
  *
- * Kotlin has no VTOP on-duty payload - the OD screen derives its days from attendance, so this
- * derives them the same way to keep the two surfaces agreeing. The lab split matches
- * `ODTrackerScreen`'s rule (a slot beginning with `L`) rather than Node's, because that is the
- * rule the hours on the OD screen are already computed with; unifying the two is Wave 3's job.
+ * This is the attendance-side source only, not a network fetch. The M3E OD tracker now unions
+ * these rows with the real VTOP OD-details payload (`SyncModule.OD_DETAILS`) via
+ * `M3EODDerivation.deriveOdRowsFromAttendance`, de-duplicating by (date, course, hours), so a
+ * failed/empty OD-details call still shows the On Duty days attendance actually recorded. The lab
+ * split keeps the legacy `ODTrackerScreen` rule (a slot beginning with `L`) and reuses [odWeight]
+ * (lab/ELA/PBL = 2h, otherwise 1h) so both surfaces agree on hours.
  */
 fun odRecordsFrom(attendance: List<CourseAttendance>): List<OdRecord> {
     val raw = mutableListOf<Pair<String, OdCourse>>()

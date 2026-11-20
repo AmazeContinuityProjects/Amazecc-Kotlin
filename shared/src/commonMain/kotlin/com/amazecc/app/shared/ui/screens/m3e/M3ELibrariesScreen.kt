@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
@@ -30,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
@@ -40,6 +42,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.overhaul.M3EKohaBookDetail
+import com.amazecc.app.shared.domain.overhaul.M3EKohaHolding
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
@@ -75,7 +79,12 @@ data class M3ELibrariesState(
     val username: String = "",
     val password: String = "",
     val isBusy: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    // Additive Koha detail / renewal status fields (all default to "absent").
+    val bookDetail: M3EKohaBookDetail? = null,
+    val isDetailLoading: Boolean = false,
+    val detailErrorMessage: String? = null,
+    val renewNotice: String? = null
 )
 
 /** The two library surfaces: the loan account and the Koha catalog. */
@@ -96,8 +105,23 @@ sealed interface M3ELibrariesAction {
     data object ClearCredentials : M3ELibrariesAction
     data class RenewBook(val bookId: String) : M3ELibrariesAction
     data class OpenBookDetail(val biblionumber: String) : M3ELibrariesAction
+    data object DismissBookDetail : M3ELibrariesAction
     data object Refresh : M3ELibrariesAction
 }
+
+/**
+ * Pure success/failure mapping for a renewal response. The host must consult `success` (a 404
+ * can carry a message but `success = false`); keeping the mapping here makes that branch testable
+ * on the headless JVM without calling AmazeClient.
+ *
+ * Returns `Pair<renewNotice, errorMessage>` — exactly one side is non-null.
+ */
+internal fun renewLibraryOutcome(result: com.amazecc.app.shared.model.BasicRes): Pair<String?, String?> =
+    if (result.success) {
+        (result.message?.takeIf { it.isNotBlank() } ?: "Book renewed successfully") to null
+    } else {
+        null to (result.message?.takeIf { it.isNotBlank() } ?: "Renewal failed")
+    }
 
 /**
  * Material 3 Expressive Library screen.
@@ -112,14 +136,14 @@ fun M3ELibrariesScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    val showBookDetail = state.bookDetail != null || state.isDetailLoading || state.detailErrorMessage != null
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.surface),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+    Box(modifier = modifier.fillMaxSize().background(colors.surface)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
         item(key = "header") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -181,7 +205,36 @@ fun M3ELibrariesScreen(
                     item(key = "library_login") {
                         LibraryLoginCard(state = state, onAction = onAction)
                     }
-                } else if (state.issuedBooks.isEmpty()) {
+                } else {
+                    // Renewal outcome / sync error status. Only real host results populate these.
+                    if (state.errorMessage != null || state.renewNotice != null) {
+                        item(key = "library_status") {
+                            M3ESurfaceCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                containerLevel = SurfaceContainerLevel.LOW,
+                                borderColor = if (state.errorMessage != null) colors.error else colors.success
+                            ) {
+                                if (state.errorMessage != null) {
+                                    Text(
+                                        text = state.errorMessage,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = colors.error
+                                    )
+                                }
+                                if (state.renewNotice != null) {
+                                    Text(
+                                        text = state.renewNotice,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = colors.success
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!state.loginRequired && state.hasCredentials && state.issuedBooks.isEmpty() &&
+                    state.errorMessage == null) {
                     item(key = "no_books") {
                         M3ESurfaceCard(
                             modifier = Modifier.fillMaxWidth(),
@@ -211,7 +264,7 @@ fun M3ELibrariesScreen(
                             }
                         }
                     }
-                } else {
+                } else if (!state.loginRequired && state.hasCredentials) {
                     items(state.issuedBooks, key = { "issued_${it.id}" }) { book ->
                         IssuedBookCard(
                             book = book,
@@ -222,8 +275,45 @@ fun M3ELibrariesScreen(
             }
 
             M3ELibraryTab.CATALOG -> {
+                // The search field/button are emitted first and are never replaced by the error.
                 item(key = "catalog_search") {
                     CatalogSearchCard(state = state, onAction = onAction)
+                }
+
+                if (state.errorMessage != null) {
+                    item(key = "catalog_error") {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.LOW,
+                            borderColor = colors.error
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text(
+                                    text = state.errorMessage,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.error
+                                )
+                                if (state.searchQuery.isNotBlank() && !state.isBusy) {
+                                    ElevatedButton(
+                                        onClick = { onAction(M3ELibrariesAction.SearchCatalog) },
+                                        shape = CircleShape,
+                                        colors = ButtonDefaults.elevatedButtonColors(
+                                            containerColor = colors.error,
+                                            contentColor = colors.onError
+                                        )
+                                    ) {
+                                        Text(
+                                            text = "Retry Search",
+                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if (state.isBusy) {
@@ -232,7 +322,9 @@ fun M3ELibrariesScreen(
                     }
                 }
 
-                if (state.hasSearched && state.searchResults.isEmpty() && !state.isBusy) {
+                // "No matches" means the request succeeded with zero rows — never an error.
+                if (state.hasSearched && state.searchResults.isEmpty() && !state.isBusy &&
+                    state.errorMessage == null) {
                     item(key = "catalog_empty") {
                         M3ESurfaceCard(
                             modifier = Modifier.fillMaxWidth(),
@@ -259,6 +351,16 @@ fun M3ELibrariesScreen(
         item(key = "bottom_spacer") {
             Spacer(Modifier.height(BOTTOM_NAV_PADDING))
         }
+        }
+    }
+
+    if (showBookDetail) {
+        BookDetailDialog(
+            detail = state.bookDetail,
+            isLoading = state.isDetailLoading,
+            errorMessage = state.detailErrorMessage,
+            onDismiss = { onAction(M3ELibrariesAction.DismissBookDetail) }
+        )
     }
 }
 
@@ -577,6 +679,107 @@ private fun CatalogBookCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
+        }
+    }
+}
+
+/** Detail sheet for a catalog hit. Every value comes from the real Koha detail response. */
+@Composable
+private fun BookDetailDialog(
+    detail: M3EKohaBookDetail?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+
+    AlertDialog(
+        modifier = modifier,
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = detail?.title ?: "Book details",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (isLoading) {
+                    Text(
+                        text = "Loading book details...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.error
+                    )
+                }
+                if (detail != null) {
+                    val byline = listOfNotNull(
+                        detail.author.takeIf { it.isNotBlank() }?.let { "by $it" },
+                        detail.publisher.takeIf { it.isNotBlank() }
+                    ).joinToString(" · ")
+                    if (byline.isNotBlank()) {
+                        Text(text = byline, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    }
+                    val meta = listOfNotNull(
+                        detail.edition.takeIf { it.isNotBlank() }?.let { "Edition: $it" },
+                        detail.isbn.takeIf { it.isNotBlank() }?.let { "ISBN: $it" },
+                        detail.ddc.takeIf { it.isNotBlank() }?.let { "DDC: $it" }
+                    )
+                    meta.forEach {
+                        Text(text = it, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                    }
+                    val description = detail.description.takeIf { it.isNotBlank() }
+                        ?: detail.summary.takeIf { it.isNotBlank() }
+                    if (description != null) {
+                        Text(text = description, style = MaterialTheme.typography.bodyMedium, color = colors.onSurface)
+                    }
+                    if (detail.subjects.isNotEmpty()) {
+                        Text(
+                            text = "Subjects: ${detail.subjects.joinToString(", ")}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                    detail.holdings.forEach { holding -> HoldingRow(holding = holding) }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close", color = colors.primary) }
+        }
+    )
+}
+
+@Composable
+private fun HoldingRow(holding: M3EKohaHolding, modifier: Modifier = Modifier) {
+    val colors = M3ETheme.colors
+    val label = listOfNotNull(
+        holding.barcode.takeIf { it.isNotBlank() },
+        holding.location.takeIf { it.isNotBlank() },
+        holding.callNumber.takeIf { it.isNotBlank() }
+    ).joinToString(" · ")
+    Column(modifier = modifier.fillMaxWidth()) {
+        if (label.isNotBlank()) {
+            Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.onSurface)
+        }
+        val status = listOfNotNull(
+            holding.status.takeIf { it.isNotBlank() },
+            holding.dueDate?.takeIf { it.isNotBlank() }?.let { "Due: $it" },
+            holding.notes.takeIf { it.isNotBlank() }
+        ).joinToString(" · ")
+        if (status.isNotBlank()) {
+            Text(text = status, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
         }
     }
 }

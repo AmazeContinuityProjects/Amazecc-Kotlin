@@ -861,7 +861,9 @@ data class M3ETransportRegistration(
     val branch: String? = null,
     val routeSelected: String? = null,
     val busRouteId: String? = null,
-    val qrCode: String? = null
+    val qrCode: String? = null,
+    /** Live GPS share link from `/vtop/transport/trackMyBus`; null when unavailable. */
+    val busUrl: String? = null
 )
 
 data class M3ETransportState(
@@ -881,6 +883,7 @@ sealed interface M3ETransportAction {
     data class ToggleExpandRoute(val routeId: Int) : M3ETransportAction
     data class CallDriver(val phoneNumber: String) : M3ETransportAction
     data class OpenWhatsappGroup(val link: String) : M3ETransportAction
+    data class OpenBusTracking(val url: String) : M3ETransportAction
     data object Refresh : M3ETransportAction
 }
 
@@ -1393,3 +1396,32 @@ sealed interface M3EMoreHubAction {
     data class OpenSubScreen(val screen: M3ESubScreen) : M3EMoreHubAction
     data object BackToHub : M3EMoreHubAction
 }
+
+// ==========================================
+// 23. LIBRARY (KOHA CATALOG DETAIL) IMMUTABLE MODELS
+// ==========================================
+
+/** One real Koha holding row, mapped from `KohaHolding` by the library host. */
+data class M3EKohaHolding(
+    val barcode: String = "",
+    val location: String = "",
+    val callNumber: String = "",
+    val status: String = "",
+    val dueDate: String? = null,
+    val notes: String = ""
+)
+
+/** Immutable Koha detail projection consumed by the library detail dialog. */
+data class M3EKohaBookDetail(
+    val biblionumber: String,
+    val title: String,
+    val author: String = "",
+    val publisher: String = "",
+    val edition: String = "",
+    val isbn: String = "",
+    val description: String = "",
+    val summary: String = "",
+    val subjects: List<String> = emptyList(),
+    val ddc: String = "",
+    val holdings: List<M3EKohaHolding> = emptyList()
+)

@@ -149,7 +149,10 @@ object VtopIngestor {
 
         return AppDataSnapshot(
             schemaVersion = AppDataSnapshot.SCHEMA_VERSION,
-            academic = AcademicData(semesters = semesters),
+            academic = AcademicData(
+                semesters = semesters,
+                publishedCgpa = domain.academics.publishedCgpa,
+            ),
             hostelDetails = domain.campus.hostel,
             messMenu = domain.campus.messMenu,
             laundrySchedule = domain.campus.laundry,
@@ -206,6 +209,7 @@ object VtopIngestor {
         }
         return Academics(
             semesters = semesters,
+            publishedCgpa = snapshot.academic.publishedCgpa,
             selectedSemesterId = selectedSemesterId?.takeIf { it in semesters }
                 ?: resolveCurrentSemesterId(semesters.keys),
             curriculum = snapshot.curriculum,
@@ -416,6 +420,7 @@ object VtopIngestor {
                 academics = Academics(
                     // Incoming semesters win; anything it lacks is carried forward.
                     semesters = current.academics.semesters + incoming.academics.semesters,
+                    publishedCgpa = incoming.academics.publishedCgpa ?: current.academics.publishedCgpa,
                     selectedSemesterId = incoming.academics.selectedSemesterId
                         ?: current.academics.selectedSemesterId,
                 ),

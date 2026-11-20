@@ -192,29 +192,36 @@ fun App() {
                     }
                     }
 
-                    // Floating M3E nav bar overlay
-                    if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH && currentScreen != Screen.ONBOARDING) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .align(Alignment.BottomCenter)
-                                .navigationBarsPadding()
-                                .padding(bottom = 12.dp)
-                        ) {
-                            M3ENavigationBar()
-                        }
-                    }
-
-                    // Material 3 Expressive Sync Notification & Modal (replaces legacy popup)
-                    if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) {
-                        com.amazecc.app.shared.ui.m3e.components.M3ESyncNotification(
-                            onDismiss = { SyncEngine.setShowSyncDialog(false) },
-                            onSaveOffline = { AppState.saveOffline() },
-                            onSyncAll = {
-                                SyncEngine.resetAllStates()
-                                AppState.loadAllData()
+                    // These overlays are composed outside every per-screen AmazeM3ETheme wrapper.
+                    // Provide the M3E palette at the root so they follow light/dark instead of
+                    // falling back to M3ETheme's dark-only default palette.
+                    com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme(
+                        isDark = com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge.isDarkThemeActive()
+                    ) {
+                        // Floating M3E nav bar overlay
+                        if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH && currentScreen != Screen.ONBOARDING) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .align(Alignment.BottomCenter)
+                                    .navigationBarsPadding()
+                                    .padding(bottom = 12.dp)
+                            ) {
+                                M3ENavigationBar()
                             }
-                        )
+                        }
+
+                        // Material 3 Expressive Sync Notification & Modal (replaces legacy popup)
+                        if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) {
+                            com.amazecc.app.shared.ui.m3e.components.M3ESyncNotification(
+                                onDismiss = { SyncEngine.setShowSyncDialog(false) },
+                                onSaveOffline = { AppState.saveOffline() },
+                                onSyncAll = {
+                                    SyncEngine.resetAllStates()
+                                    AppState.loadAllData()
+                                }
+                            )
+                        }
                     }
 
                     // One-time alert for newly added exam venue/seat entries from credentials

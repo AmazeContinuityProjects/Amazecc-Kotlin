@@ -80,6 +80,18 @@ class WhoamiProfileResidenceTest {
     }
 
     @Test
+    fun `placeholder staying type is not evidence of residence`() {
+        val rows = listOf(KeyValueRow("Staying Type", "Please select..."))
+        assertNull(IdentityExtractor.deriveResidenceStatus(false, rows))
+    }
+
+    @Test
+    fun `real VTOP staying type option text derives dayscholar`() {
+        val rows = listOf(KeyValueRow("Staying Type", "Staying with parents/Guardian"))
+        assertEquals(RESIDENCE_DAYSCHOLAR, IdentityExtractor.deriveResidenceStatus(false, rows))
+    }
+
+    @Test
     fun `unknown residence stays null so onboarding choice is the fallback`() {
         val identity = extract("""{"isHosteller": false}""".trimIndent())
         assertNull(identity.residenceStatus)
