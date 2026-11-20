@@ -46,45 +46,16 @@ object FfcsViewModel {
 
     private val _maxResults = MutableStateFlow(50)
 
+    private val _generateOptions = MutableStateFlow(FfcsEngine.GenerateOptions())
+    val generateOptions: StateFlow<FfcsEngine.GenerateOptions> = _generateOptions.asStateFlow()
+
     fun initFromCsv() {
         scope.launch {
             _isLoading.value = true
             try {
                 val csvText = FfcsReportData.CSV_DATA
                 val parsed = FfcsCourseProcessor.parseFFCSCSV(csvText)
-                val processed = FfcsCourseProcessor.processCourses(parsed)
-                _allCourses.value = processed
-
-                val offerings = processed
-                    .groupBy { it.code.uppercase() }
-                    .map { (code, courseList) ->
-                        val first = courseList.first()
-                        val offs = courseList.map { c ->
-                            CourseOffering(
-                                faculty = c.faculty,
-                                slot = c.slot,
-                                room = c.room,
-                                code = code,
-                                title = c.title,
-                                type = c.type,
-                                credits = c.credits
-                            )
-                        }
-                        code to offs
-                    }
-                    .sortedBy { it.first }
-
-                _courseOfferings.value = offerings
-
-                _locks.value = offerings.map { (code, offs) ->
-                    CourseLock(
-                        code = code,
-                        title = offs.firstOrNull()?.title ?: "",
-                        allowedOfferings = emptyList()
-                    )
-                }
-
-                _errorMsg.value = null
+                applyProcessedCourses(FfcsCourseProcessor.processCourses(parsed))
             } catch (e: Exception) {
                 _errorMsg.value = "Failed to load courses: ${e.message}"
             }
@@ -92,10 +63,72 @@ object FfcsViewModel {
         }
     }
 
+    /**
+     * Real-data entry point for the M3E bridge: processes real [courses] (e.g. the domain
+     * academic snapshot, via the host's mapping) and publishes them as the catalog.
+     */
+    fun initFromCourses(courses: List<ParsedCourse>) {
+        scope.launch {
+            _isLoading.value = true
+            try {
+                applyProcessedCourses(FfcsCourseProcessor.processCourses(courses))
+            } catch (e: Exception) {
+                _errorMsg.value = "Failed to load courses: ${e.message}"
+            }
+            _isLoading.value = false
+        }
+    }
+
+    private fun applyProcessedCourses(processed: List<ParsedCourse>) {
+        _allCourses.value = processed
+
+        val offerings = processed
+            .groupBy { it.code.uppercase() }
+            .map { (code, courseList) ->
+                val first = courseList.first()
+                val offs = courseList.map { c ->
+                    CourseOffering(
+                        faculty = c.faculty,
+                        slot = c.slot,
+                        room = c.room,
+                        code = code,
+                        title = c.title,
+                        type = c.type,
+                        credits = c.credits
+                    )
+                }
+                code to offs
+            }
+            .sortedBy { it.first }
+
+        _courseOfferings.value = offerings
+
+        _locks.value = offerings.map { (code, offs) ->
+            CourseLock(
+                code = code,
+                title = offs.firstOrNull()?.title ?: "",
+                allowedOfferings = emptyList()
+            )
+        }
+
+        _errorMsg.value = null
+    }
+
         fun toggleCourse(code: String) {
         val current = _selectedCodes.value.toMutableSet()
         if (current.contains(code)) current.remove(code) else current.add(code)
         _selectedCodes.value = current
+    }
+
+    /**
+     * Explicit programmatic selection for the modern bridge: [selected] selects the code,
+     * deselecting it otherwise. Distinct from the web's default-on behavior — callers that
+     * want a toggle use [toggleCourse].
+     */
+    fun selectCourse(code: String, selected: Boolean) {
+        val current = _selectedCodes.value
+        val next = if (selected) current + code else current - code
+        if (next != current) _selectedCodes.value = next
     }
 
     fun selectOffering(code: String, offering: CourseOffering) {
@@ -132,6 +165,18 @@ object FfcsViewModel {
 
     fun setMaxResults(value: Int) {
         _maxResults.value = value.coerceIn(1, 500)
+    }
+
+    fun setCloseGaps(value: Boolean) {
+        _generateOptions.value = _generateOptions.value.copy(closeGaps = value)
+    }
+
+    fun setLateStart(value: Boolean) {
+        _generateOptions.value = _generateOptions.value.copy(lateStart = value)
+    }
+
+    fun setEarlyFinish(value: Boolean) {
+        _generateOptions.value = _generateOptions.value.copy(earlyFinish = value)
     }
 
     fun generate() {
@@ -191,7 +236,8 @@ object FfcsViewModel {
                     blockedSlots = blockedSnapshot,
                     maxResults = maxResultsSnapshot,
                     uniqueFaculty = uniqueFacultySnapshot,
-                    morningPreference = morningPrefSnapshot
+                    morningPreference = morningPrefSnapshot,
+                    options = _generateOptions.value
                 )
 
                 _generatedTimetables.value = results
@@ -202,6 +248,10 @@ object FfcsViewModel {
             _isGenerating.value = false
         }
     }
+
+    /** RFC 5545 ICS text of the first generated timetable, for export parity with the web app. */
+    fun exportIcs(): String? =
+        FfcsEngine.buildFfcsIcs(_generatedTimetables.value.firstOrNull()?.courses ?: emptyList())
 
     fun clearResults() {
         _generatedTimetables.value = emptyList()

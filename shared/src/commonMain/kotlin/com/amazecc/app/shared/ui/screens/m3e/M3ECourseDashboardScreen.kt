@@ -229,8 +229,8 @@ private fun M3EDashboardCourseCard(course: M3EDashboardCourse, onClick: () -> Un
     val badgeColor = when (course.typeBadge.uppercase()) {
         "PJ" -> colors.tertiary
         "OC" -> colors.secondary
-        "LO" -> colors.success
-        "EMB" -> colors.primary
+        "LAB" -> colors.success
+        "EMBEDDED" -> colors.primary
         else -> colors.primary
     }
     val pct = course.attendancePct
@@ -277,8 +277,8 @@ private fun mockCourseDashboardState() = M3ECourseDashboardState(
             id = "CH20262701",
             label = "Fall Semester 2026-27",
             courses = listOf(
-                M3EDashboardCourse("CSE3002", "Internet and Web Programming", "EMB", 93.3, "Prof. Sundar", "CH20262701"),
-                M3EDashboardCourse("MAT2001", "Complex Variables & Linear Algebra", "TH", 73.3, "Dr. Anita", "CH20262701")
+                M3EDashboardCourse("CSE3002", "Internet and Web Programming", "Embedded", 93.3, "Prof. Sundar", "CH20262701"),
+                M3EDashboardCourse("MAT2001", "Complex Variables & Linear Algebra", "Theory", 73.3, "Dr. Anita", "CH20262701")
             )
         )
     ),

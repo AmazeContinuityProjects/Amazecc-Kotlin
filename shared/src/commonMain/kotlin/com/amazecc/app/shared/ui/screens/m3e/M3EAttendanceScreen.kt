@@ -19,8 +19,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -84,7 +89,55 @@ fun M3EAttendanceScreen(
                 }
             }
 
-            // 2. Bunk Summary Banner
+            // 2. Search — the host already filters on this query; emit it so the field works.
+            item(key = "attendance_search") {
+                OutlinedTextField(
+                    value = state.searchQuery,
+                    onValueChange = { onAction(M3EAttendanceAction.UpdateSearch(it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = {
+                        Text(
+                            text = "Search course code, title or faculty",
+                            fontSize = 14.sp,
+                            color = colors.onSurfaceVariant
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = null,
+                            tint = colors.primary
+                        )
+                    },
+                    trailingIcon = if (state.searchQuery.isBlank()) null else {
+                        {
+                            IconButton(
+                                onClick = { onAction(M3EAttendanceAction.UpdateSearch("")) }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Clear search",
+                                    tint = colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = CircleShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = colors.onSurface,
+                        unfocusedTextColor = colors.onSurface,
+                        focusedContainerColor = colors.surfaceContainerLow,
+                        unfocusedContainerColor = colors.surfaceContainerLowest,
+                        focusedBorderColor = colors.primary,
+                        unfocusedBorderColor = colors.outlineVariant,
+                        focusedPlaceholderColor = colors.onSurfaceVariant,
+                        unfocusedPlaceholderColor = colors.onSurfaceVariant
+                    )
+                )
+            }
+
+            // 3. Bunk Summary Banner
             item(key = "bunk_summary") {
                 M3EBunkSummaryCard(summary = state.bunkSummary)
             }
@@ -304,7 +357,7 @@ private fun createMockAttendanceState() = M3EAttendanceState(
         M3ECourseAttendanceCardState(
             courseCode = "CSE3002",
             courseTitle = "Internet and Web Programming",
-            badge = "EMB",
+            badge = "Embedded",
             attendedClasses = 28,
             totalClasses = 30,
             percentage = 93.3,
@@ -317,7 +370,7 @@ private fun createMockAttendanceState() = M3EAttendanceState(
         M3ECourseAttendanceCardState(
             courseCode = "MAT2001",
             courseTitle = "Complex Variables & Linear Algebra",
-            badge = "TH",
+            badge = "Theory",
             attendedClasses = 22,
             totalClasses = 30,
             percentage = 73.3,

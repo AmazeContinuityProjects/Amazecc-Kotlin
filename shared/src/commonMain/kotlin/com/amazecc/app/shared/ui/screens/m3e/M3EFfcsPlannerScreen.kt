@@ -17,9 +17,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -71,7 +73,15 @@ data class M3EFfcsPlannerState(
     val selectedResultId: String? = null,
     val isGenerating: Boolean = false,
     val errorMessage: String? = null,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    /** Close Gaps / Late Start / Early Finish generator filters (web parity: FFCS preferences). */
+    val closeGaps: Boolean = false,
+    val lateStart: Boolean = false,
+    val earlyFinish: Boolean = false,
+    /** Search text over generated variant results (web parity: variantSearchQuery). */
+    val resultsSearchQuery: String = "",
+    /** Host-owned notice shown under the export control. */
+    val exportNotice: String? = null
 )
 
 /** User intents emitted by [M3EFfcsPlannerScreen]. */
@@ -81,6 +91,11 @@ sealed interface M3EFfcsPlannerAction {
     data class ToggleCourse(val code: String) : M3EFfcsPlannerAction
     data object Generate : M3EFfcsPlannerAction
     data class SelectResult(val id: String) : M3EFfcsPlannerAction
+    data class SetCloseGaps(val enabled: Boolean) : M3EFfcsPlannerAction
+    data class SetLateStart(val enabled: Boolean) : M3EFfcsPlannerAction
+    data class SetEarlyFinish(val enabled: Boolean) : M3EFfcsPlannerAction
+    data class SetResultsSearchQuery(val query: String) : M3EFfcsPlannerAction
+    data object ExportIcs : M3EFfcsPlannerAction
     data object Refresh : M3EFfcsPlannerAction
     data object Back : M3EFfcsPlannerAction
 }
@@ -154,6 +169,14 @@ fun M3EFfcsPlannerScreen(
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
+                    item(key = "filters") {
+                        M3EFfcsFilterChips(
+                            closeGaps = state.closeGaps,
+                            lateStart = state.lateStart,
+                            earlyFinish = state.earlyFinish,
+                            onAction = onAction
+                        )
+                    }
                     if (state.isLoading) {
                         item(key = "loading") {
                             M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.LOW) {
@@ -220,6 +243,52 @@ fun M3EFfcsPlannerScreen(
                             }
                         }
                     }
+                    item(key = "results_search") {
+                        OutlinedTextField(
+                            value = state.resultsSearchQuery,
+                            onValueChange = { onAction(M3EFfcsPlannerAction.SetResultsSearchQuery(it)) },
+                            placeholder = { Text("Search variants") },
+                            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    item(key = "export_ics") {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.STANDARD,
+                            onClick = { onAction(M3EFfcsPlannerAction.ExportIcs) }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.FileDownload,
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    "Export ICS",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.onSurface
+                                )
+                            }
+                        }
+                    }
+                    state.exportNotice?.let { notice ->
+                        item(key = "export_notice") {
+                            M3ESurfaceCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                containerLevel = SurfaceContainerLevel.LOW
+                            ) {
+                                Text(notice, fontSize = 12.sp, color = colors.onSurfaceVariant)
+                            }
+                        }
+                    }
                     if (state.errorMessage != null) {
                         item(key = "error") {
                             M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.LOW, borderColor = colors.error) {
@@ -256,6 +325,44 @@ fun M3EFfcsPlannerScreen(
                 Spacer(Modifier.height(BOTTOM_NAV_PADDING))
             }
         }
+    }
+}
+
+/** Close Gaps / Late Start / Early Finish generator filter toggles (web parity). */
+@Composable
+private fun M3EFfcsFilterChips(
+    closeGaps: Boolean,
+    lateStart: Boolean,
+    earlyFinish: Boolean,
+    onAction: (M3EFfcsPlannerAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "Filters",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onSurfaceVariant
+        )
+        FilterChip(
+            selected = closeGaps,
+            onClick = { onAction(M3EFfcsPlannerAction.SetCloseGaps(!closeGaps)) },
+            label = { Text("Close Gaps", fontSize = 11.sp) }
+        )
+        FilterChip(
+            selected = lateStart,
+            onClick = { onAction(M3EFfcsPlannerAction.SetLateStart(!lateStart)) },
+            label = { Text("Late Start", fontSize = 11.sp) }
+        )
+        FilterChip(
+            selected = earlyFinish,
+            onClick = { onAction(M3EFfcsPlannerAction.SetEarlyFinish(!earlyFinish)) },
+            label = { Text("Early Finish", fontSize = 11.sp) }
+        )
     }
 }
 

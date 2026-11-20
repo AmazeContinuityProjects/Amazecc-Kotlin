@@ -5,12 +5,29 @@ import com.amazecc.app.shared.utils.TimeMath
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.yield
+import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.isoDayNumber
+import kotlinx.datetime.toLocalDateTime
 import kotlin.math.max
 import kotlin.math.min
 
 object FfcsEngine {
 
     data class Period(val day: String, val startMin: Int, val endMin: Int)
+
+    /**
+     * Generation filters, mirroring the web app's FFCS generator preferences
+     * (FFCSTimetableTab): [closeGaps] ranks gap-free timetables first, [lateStart]
+     * prefers timetables whose first class starts later in the day, and
+     * [earlyFinish] prefers timetables whose last class ends earlier.
+     */
+    data class GenerateOptions(
+        val closeGaps: Boolean = false,
+        val lateStart: Boolean = false,
+        val earlyFinish: Boolean = false
+    )
 
     private val colors = listOf(
         "#2563EB", "#9333EA", "#10B981", "#DC2626", "#F59E0B",
@@ -62,11 +79,13 @@ object FfcsEngine {
         blockedSlots: Set<String> = emptySet(),
         maxResults: Int = 50,
         uniqueFaculty: Boolean = false,
-        morningPreference: Boolean = false
+        morningPreference: Boolean = false,
+        options: GenerateOptions = GenerateOptions()
     ): List<TimetableState> = withContext(Dispatchers.Default) {
         if (optionsPerCourse.isEmpty()) throw Exception("No courses selected for generation.")
 
         val results = mutableListOf<List<ParsedCourse>>()
+        val resultsPeriods = mutableListOf<List<Period>>()
         val lockMap = locks.associateBy { it.code.uppercase() }
 
         val filteredOptions = optionsPerCourse.map { courseOptions ->
@@ -106,6 +125,7 @@ object FfcsEngine {
                     if (faculties.toSet().size != faculties.size) return
                 }
                 results.add(currentCombo.toList())
+                resultsPeriods.add(currentPeriods.toList())
                 return
             }
 
@@ -132,7 +152,7 @@ object FfcsEngine {
             throw Exception("No conflict-free timetables found. Try removing some constraints.")
         }
 
-        results.mapIndexed { idx, combo ->
+        val timetableStates = results.mapIndexed { idx, combo ->
             val mappedCourses = combo.mapIndexed { i, c ->
                 AddedCourse(
                     id = "tt${idx}_${c.code}_$i",
@@ -148,12 +168,83 @@ object FfcsEngine {
             }
 
             val metrics = FfcsMetrics.calculateTimetableMetrics(mappedCourses)
+            val periodsAll = resultsPeriods[idx]
             TimetableState(
                 id = "tt_$idx",
                 name = "TT ${idx + 1}",
                 courses = mappedCourses,
-                metrics = metrics
+                metrics = metrics,
+                firstStartMin = periodsAll.minOfOrNull { it.startMin } ?: 0,
+                lastEndMin = periodsAll.maxOfOrNull { it.endMin } ?: 0
             )
-        }.sortedByDescending { (it.metrics.halfDays * 10) + ((20 - it.metrics.gaps) * 5) }
+        }
+
+        timetableStates.sortedWith(
+            compareByDescending<TimetableState> { if (options.closeGaps) it.metrics.gaps == 0 else false }
+                .thenByDescending { (it.metrics.halfDays * 10) + ((20 - it.metrics.gaps) * 5) }
+                .thenByDescending { if (options.lateStart) it.firstStartMin else 0 }
+                .thenBy { if (options.earlyFinish) it.lastEndMin else Int.MAX_VALUE }
+        )
+    }
+
+    /**
+     * Builds an RFC 5545 ICS calendar covering the week containing the first class of the
+     * timetable, one event per unique class period. Returns null when there is nothing to export.
+     */
+    fun buildFfcsIcs(courses: List<AddedCourse>): String? {
+        if (courses.isEmpty()) return null
+        val tz = TimeZone.currentSystemDefault()
+        val now = Clock.System.now().toLocalDateTime(tz).date
+        // kotlinx.datetime LocalDate here exposes plus(DatePeriod) (see AnalyzeCalendar.kt);
+        // use a negative offset rather than minus(DatePeriod), which is not available.
+        val daysSinceMonday = now.dayOfWeek.isoDayNumber - 1
+        val monday = LocalDate.fromEpochDays(now.toEpochDays() - daysSinceMonday)
+
+        fun dayStr(d: LocalDate): String =
+            "${d.year}${d.monthNumber.toString().padStart(2, '0')}${d.dayOfMonth.toString().padStart(2, '0')}"
+        fun stamp(m: Int): String = "${(m / 60).toString().padStart(2, '0')}${(m % 60).toString().padStart(2, '0')}00"
+        fun escape(value: String): String =
+            value.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+        // RFC 5545 DTSTAMP is the UTC creation time, not the event's local start time.
+        val utcNow = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val dtstamp = "${dayStr(utcNow.date)}T" +
+            "${utcNow.hour.toString().padStart(2, '0')}" +
+            "${utcNow.minute.toString().padStart(2, '0')}" +
+            "${utcNow.second.toString().padStart(2, '0')}Z"
+
+        val events = mutableListOf<String>()
+        val seen = mutableSetOf<String>()
+        for (course in courses) {
+            for (slot in course.slots) {
+                for (period in getPeriodsForSlot(slot)) {
+                    val eventDate = LocalDate.fromEpochDays(
+                        monday.toEpochDays() + SlotMap.days.indexOf(period.day).coerceIn(0, SlotMap.days.size - 1)
+                    )
+                    val start = period.startMin.coerceIn(0, 1439)
+                    val end = period.endMin.coerceAtLeast(start + 1).coerceAtMost(1439)
+                    if (!seen.add("${course.id}|${period.day}|$start")) continue
+                    events.add(
+                        listOf(
+                            "BEGIN:VEVENT",
+                            "UID:${course.id}-${period.day}-$start@amazecc",
+                            "DTSTAMP:$dtstamp",
+                            "DTSTART:${dayStr(eventDate)}T${stamp(start)}",
+                            "DTEND:${dayStr(eventDate)}T${stamp(end)}",
+                            // Web parity: exportIcal.ts uses `${code} - ${title}` for SUMMARY.
+                            "SUMMARY:${escape("${course.code} - ${course.title}")}",
+                            "LOCATION:${escape(course.venue)}",
+                            "DESCRIPTION:${escape(course.faculty)}",
+                            "END:VEVENT"
+                        ).joinToString("\r\n")
+                    )
+                }
+            }
+        }
+        if (events.isEmpty()) return null
+        return listOf("BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//AmazeCC//FFCS Timetable//EN")
+            .plus(events)
+            .plus("END:VCALENDAR")
+            .joinToString("\r\n")
     }
 }

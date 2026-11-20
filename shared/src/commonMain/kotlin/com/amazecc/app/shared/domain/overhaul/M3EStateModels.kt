@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.domain.overhaul
 
+import androidx.compose.runtime.Immutable
 import kotlinx.datetime.LocalDate
 
 /**
@@ -93,7 +94,7 @@ enum class M3EStatTone { PRIMARY, SECONDARY, TERTIARY, GOOD, WARNING, CRITICAL, 
 data class M3ECourseAttendanceCardState(
     val courseCode: String,
     val courseTitle: String,
-    val badge: String, // "TH", "LO", "EMB"
+    val badge: String, // Web parity: "Theory" / "Lab" / "Embedded" (TH/LO/EMB were the old tokens)
     val attendedClasses: Int,
     val totalClasses: Int,
     val percentage: Double,
@@ -1354,6 +1355,73 @@ enum class M3EPalettePreset(val label: String) {
     PURPLE_DUSK("Purple Dusk")
 }
 
+@Immutable
+data class M3ESettingsSection(
+    val id: String,
+    val title: String,
+    val subtitle: String = "",
+    val searchHints: List<String> = emptyList()
+) {
+    fun matchesQuery(query: String): Boolean {
+        if (query.isBlank()) return true
+        val q = query.lowercase()
+        return title.lowercase().contains(q) ||
+            subtitle.lowercase().contains(q) ||
+            searchHints.any { it.lowercase().contains(q) }
+    }
+}
+
+fun allSettingsSections(): List<M3ESettingsSection> = listOf(
+    M3ESettingsSection(
+        id = "privacy", title = "Privacy",
+        subtitle = "Privacy mode blurs grades, attendance, marks and fees",
+        searchHints = listOf("privacy mode", "blur", "mask", "grades attendance marks fees")
+    ),
+    M3ESettingsSection(
+        id = "pomodoro", title = "Pomodoro",
+        subtitle = "Pomodoro focus & study session defaults",
+        searchHints = listOf("pomodoro", "focus", "break", "rounds", "study session")
+    ),
+    M3ESettingsSection(
+        id = "theme", title = "Appearance & Theme",
+        subtitle = "Theme mode, palette, timetable pill style, privacy mode",
+        searchHints = listOf("theme", "palette", "accent", "pill style", "timetable density", "classic zinc glass")
+    ),
+    M3ESettingsSection(
+        id = "storage", title = "Storage & Cache",
+        subtitle = "Clear caches, purge data, cache size",
+        searchHints = listOf("cache", "storage", "purge", "clear")
+    ),
+    M3ESettingsSection(
+        id = "api_target", title = "API Target",
+        subtitle = "Primary, Backup or Custom API endpoint",
+        searchHints = listOf("api", "backend", "endpoint", "url", "target", "mount")
+    ),
+    M3ESettingsSection(
+        id = "notifications", title = "Notifications & Reminders",
+        subtitle = "Class schedule alerts, class-reminder lead, quiet hours",
+        searchHints = listOf("notification", "class reminder", "lead", "quiet hours", "test notification")
+    ),
+    M3ESettingsSection(
+        id = "app_icon", title = "Application Icon",
+        subtitle = "Choose the launcher icon displayed on this device",
+        searchHints = listOf("app icon", "launcher", "theme", "default", "fire")
+    ),
+    M3ESettingsSection(
+        id = "export_import", title = "Backup / Export Settings",
+        subtitle = "Save application preferences to a backup file; restore with “Restore / Import Settings”",
+        searchHints = listOf("backup", "export", "import", "restore", "settings file", "json")
+    ),
+    M3ESettingsSection(
+        id = "keyboard", title = "Keyboard Shortcuts",
+        subtitle = "Physical-keyboard shortcuts bound in the app",
+        searchHints = listOf("keyboard", "shortcuts", "hotkey", "command palette")
+    )
+)
+
+fun settingsSectionsForQuery(query: String): List<M3ESettingsSection> =
+    allSettingsSections().filter { it.matchesQuery(query) }
+
 data class M3ESettingsState(
     val selectedThemeMode: M3EThemeMode = M3EThemeMode.DARK_OLED,
     val selectedPalettePreset: M3EPalettePreset = M3EPalettePreset.OCEAN_MIDNIGHT,
@@ -1366,7 +1434,23 @@ data class M3ESettingsState(
     val attendanceAlertsEnabled: Boolean = true,
     val examRemindersEnabled: Boolean = true,
     val vtopSource: com.amazecc.app.shared.vtop.VtopSource = com.amazecc.app.shared.vtop.VtopSource.REMOTE,
-    val selectedSyncMode: String = "balanced"
+    val selectedSyncMode: String = "balanced",
+    // D-059 — settings depth, migrated from onboarding / web ProfilePage.
+    val settingsSearchQuery: String = "",
+    val visibleSettingsSections: List<M3ESettingsSection> = emptyList(),
+    val privacyModeEnabled: Boolean = false,
+    val pomodoroFocusMinutes: Int = 25,
+    val pomodoroBreakMinutes: Int = 5,
+    val pomodoroRounds: Int = 4,
+    val classReminderLeadMinutes: Int = 15,
+    val quietHoursEnabled: Boolean = false,
+    val quietHoursStart: String = "22:00",
+    val quietHoursEnd: String = "07:00",
+    val apiTargetName: String = "PRIMARY",
+    val appIconTheme: com.amazecc.app.shared.utils.AppIconTheme =
+        com.amazecc.app.shared.utils.AppIconTheme.DEFAULT,
+    val homePillStyle: com.amazecc.app.shared.state.HomePillStyle =
+        com.amazecc.app.shared.state.HomePillStyle.COMPACT
 )
 
 sealed interface M3ESettingsAction {
@@ -1383,6 +1467,23 @@ sealed interface M3ESettingsAction {
     data class SetVtopSource(val source: com.amazecc.app.shared.vtop.VtopSource) : M3ESettingsAction
     data class SelectSyncMode(val mode: String) : M3ESettingsAction
     data class TriggerManualSync(val mode: String) : M3ESettingsAction
+    // D-059 — migrated settings depth.
+    data class UpdateSettingsSearch(val query: String) : M3ESettingsAction
+    data class TogglePrivacyMode(val enabled: Boolean) : M3ESettingsAction
+    data class UpdatePomodoroFocusMinutes(val minutes: Int) : M3ESettingsAction
+    data class UpdatePomodoroBreakMinutes(val minutes: Int) : M3ESettingsAction
+    data class UpdatePomodoroRounds(val rounds: Int) : M3ESettingsAction
+    data class UpdateClassReminderLeadMinutes(val minutes: Int) : M3ESettingsAction
+    data class ToggleQuietHours(val enabled: Boolean) : M3ESettingsAction
+    data class UpdateQuietHoursStart(val time: String) : M3ESettingsAction
+    data class UpdateQuietHoursEnd(val time: String) : M3ESettingsAction
+    data class SelectApiTarget(val target: com.amazecc.app.shared.domain.ApiTarget) : M3ESettingsAction
+    data class SelectAppIconTheme(val theme: com.amazecc.app.shared.utils.AppIconTheme) : M3ESettingsAction
+    data class SelectHomePillStyle(val style: com.amazecc.app.shared.state.HomePillStyle) : M3ESettingsAction
+    data object ExportSettings : M3ESettingsAction
+    data object ImportSettings : M3ESettingsAction
+    /** Opens the app's existing ShortcutsHelpSheet (same sheet as the `?` shortcut). */
+    data object OpenShortcutsHelp : M3ESettingsAction
 }
 
 // ==========================================

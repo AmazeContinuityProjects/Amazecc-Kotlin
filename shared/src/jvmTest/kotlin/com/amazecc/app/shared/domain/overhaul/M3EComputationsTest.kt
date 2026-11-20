@@ -29,7 +29,7 @@ class M3EComputationsTest {
             M3ECourseAttendanceCardState(
                 courseCode = "CSE1001",
                 courseTitle = "Problem Solving",
-                badge = "TH",
+                badge = "Theory",
                 attendedClasses = 18,
                 totalClasses = 20,
                 percentage = 90.0,
@@ -41,7 +41,7 @@ class M3EComputationsTest {
             M3ECourseAttendanceCardState(
                 courseCode = "MAT2001",
                 courseTitle = "Differential Equations",
-                badge = "TH",
+                badge = "Theory",
                 attendedClasses = 12,
                 totalClasses = 20,
                 percentage = 60.0,

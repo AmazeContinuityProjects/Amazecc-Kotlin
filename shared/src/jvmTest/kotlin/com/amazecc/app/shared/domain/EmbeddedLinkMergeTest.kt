@@ -182,7 +182,7 @@ class EmbeddedLinkMergeTest {
         fun card(code: String) = M3ECourseAttendanceCardState(
             courseCode = code,
             courseTitle = "Database Systems",
-            badge = "EMB",
+            badge = "Embedded",
             attendedClasses = 24,
             totalClasses = 27,
             percentage = 88.9,

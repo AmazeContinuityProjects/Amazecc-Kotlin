@@ -68,7 +68,11 @@ data class TimetableState(
     val id: String,
     val name: String,
     val courses: List<AddedCourse>,
-    val metrics: TimetableMetrics = TimetableMetrics(halfDays = 0, gaps = 0)
+    val metrics: TimetableMetrics = TimetableMetrics(halfDays = 0, gaps = 0),
+    /** Earliest class start (minutes of day) across the timetable — feeds the Late Start filter. */
+    val firstStartMin: Int = 0,
+    /** Latest class end (minutes of day) across the timetable — feeds the Early Finish filter. */
+    val lastEndMin: Int = 0
 )
 
 @Immutable
