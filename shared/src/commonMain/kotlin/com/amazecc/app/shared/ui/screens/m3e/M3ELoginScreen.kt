@@ -142,7 +142,7 @@ fun M3ELoginScreen(
         }
         if (creds != null && AppState.restoreSession()) {
             val target = if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING
-            AppState.navigateTo(target)
+            SignInReturn.completeSignIn(target)
         } else if (creds != null && SessionManager.authorizedID.value != null) {
             scope.launch {
                 isSubmitting = true
@@ -154,7 +154,7 @@ fun M3ELoginScreen(
                     SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
                     response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
                     val target = if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING
-                    AppState.navigateTo(target)
+                    SignInReturn.completeSignIn(target)
                 }
                 isSubmitting = false
             }
@@ -543,7 +543,7 @@ fun M3ELoginScreen(
                                             SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
                                             response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
                                             SettingsManager.saveCredentials(normalizedUsername, password)
-                                            AppState.navigateTo(if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING)
+                                            SignInReturn.completeSignIn(if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING)
                                         } else {
                                             errorMessage = if (response.message.contains("401") || response.message.contains("Unauthorized", ignoreCase = true)) {
                                                 "Invalid credentials. Please check your Registration Number and Password."

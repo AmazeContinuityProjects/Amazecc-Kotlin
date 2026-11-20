@@ -51,6 +51,30 @@ fun M3ESplashScreen(modifier: Modifier = Modifier) {
     var revealed by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        // D-073: `/?signin=1` is represented by the entry intent already parked by App/AppState.
+        // Honour it before the timed reveal so a return trip reaches the login form immediately;
+        // "Try demo" enters the demo workspace instead of sitting behind the splash.
+        when (AppState.pendingEntryIntent.value) {
+            AppState.EntryIntent.LOGIN -> {
+                AppState.closeGuestLanding()
+                AppState.clearPendingEntryIntent()
+                AppState.navigateTo(Screen.LOGIN)
+                return@LaunchedEffect
+            }
+            AppState.EntryIntent.DEMO -> {
+                AppState.closeGuestLanding()
+                AppState.clearPendingEntryIntent()
+                AppState.enterDemoMode()
+                return@LaunchedEffect
+            }
+            null -> Unit
+        }
+        // A parked sign-in return from a previous session also opens the login form first.
+        if (SignInReturn.peek() != null) {
+            AppState.closeGuestLanding()
+            AppState.navigateTo(Screen.LOGIN)
+            return@LaunchedEffect
+        }
         delay(300.milliseconds)
         revealed = true
         delay(1200.milliseconds)

@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Call
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Flight
 import androidx.compose.material.icons.rounded.Groups
@@ -79,7 +80,11 @@ fun M3ECabShareScreen(
     onAction: (M3ECabShareAction) -> Unit,
     modifier: Modifier = Modifier,
     /** Receives a validated ride draft; the host performs the real create request. */
-    onCreateRide: (M3ECabRideDraft) -> Unit = {}
+    onCreateRide: (M3ECabRideDraft) -> Unit = {},
+    /** Pending join requests on the current user's trips (from the real `requests` payload). */
+    pendingMatches: List<M3ECabMatchUi> = emptyList(),
+    /** D-039: accept/reject a match through `AppState.cabHandleMatchAction`. */
+    onMatchAction: (matchId: Long, action: String) -> Unit = { _, _ -> }
 ) {
     val colors = M3ETheme.colors
 
@@ -163,6 +168,62 @@ fun M3ECabShareScreen(
                     containerLevel = SurfaceContainerLevel.LOW
                 ) {
                     Text(text = message, color = colors.onSurface, fontSize = 13.sp)
+                }
+            }
+        }
+
+        // 1b. Pending match requests on the student's own trips (D-039).
+        if (pendingMatches.isNotEmpty()) {
+            item {
+                M3ESurfaceCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    containerLevel = SurfaceContainerLevel.HIGH,
+                    cornerRadius = 20.dp
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            "Match requests (${pendingMatches.size})",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = colors.onSurface
+                        )
+                        pendingMatches.forEach { match ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        match.requesterName.ifBlank { "A student" },
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = colors.onSurface
+                                    )
+                                    Text(
+                                        "wants to join trip ${match.tripId}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = colors.onSurfaceVariant
+                                    )
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    IconButton(
+                                        onClick = { onMatchAction(match.matchId, "accept") },
+                                        modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.primaryContainer)
+                                    ) {
+                                        Icon(Icons.Rounded.Check, contentDescription = "Accept match", tint = colors.onPrimaryContainer, modifier = Modifier.size(18.dp))
+                                    }
+                                    IconButton(
+                                        onClick = { onMatchAction(match.matchId, "reject") },
+                                        modifier = Modifier.size(36.dp).clip(CircleShape).background(colors.surfaceContainerHigh)
+                                    ) {
+                                        Icon(Icons.Rounded.Close, contentDescription = "Reject match", tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -308,6 +369,13 @@ fun M3ECabShareScreen(
         }
     }
 }
+
+/** One pending join request on a trip the student owns. */
+data class M3ECabMatchUi(
+    val matchId: Long,
+    val requesterName: String,
+    val tripId: String
+)
 
 /** Draft carrying only values the real `cabCreateTripNew` endpoint accepts. */
 data class M3ECabRideDraft(

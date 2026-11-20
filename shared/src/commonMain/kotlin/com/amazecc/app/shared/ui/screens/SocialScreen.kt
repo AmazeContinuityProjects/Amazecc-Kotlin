@@ -256,17 +256,45 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         Spacer(Modifier.height(AmazeTheme.spacing.sm))
 
         var showScanDialog by remember { mutableStateOf(false) }
+        var scannedCode by remember { mutableStateOf("") }
+        var importError by remember { mutableStateOf<String?>(null) }
         if (showScanDialog) {
             AlertDialog(
                 onDismissRequest = { showScanDialog = false },
-                title = { Text("Scan Friend's Code", fontWeight = FontWeight.Bold) },
+                title = { Text("Import Friend's Code", fontWeight = FontWeight.Bold) },
                 text = {
-                    Text("Camera scanning is not available on this platform. Go to the Friends tab and use 'Add Friend via Code' to paste your friend's schedule code manually.")
+                    Column {
+                        Text(
+                            "Camera scanning is not available on this platform. Paste the code your friend shared (v5/v6 code or amazecc://share link) to add them to your comparison list.",
+                            style = AmazeTheme.typography.caption
+                        )
+                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
+                        OutlinedTextField(
+                            value = scannedCode,
+                            onValueChange = { scannedCode = it; importError = null },
+                            label = { Text("Friend's schedule code") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        if (importError != null) {
+                            Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                            Text(importError!!, color = colors.dangerText, style = AmazeTheme.typography.caption)
+                        }
+                    }
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        showScanDialog = false
-                    }) { Text(Strings.ok, color = colors.accent) }
+                        if (com.amazecc.app.shared.state.FriendsViewModel.addFriendFromCode(scannedCode.trim())) {
+                            showScanDialog = false
+                            scannedCode = ""
+                            importError = null
+                        } else {
+                            importError = "Could not read that code. Check it and try again."
+                        }
+                    }) { Text(Strings.save, color = colors.accent) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showScanDialog = false }) { Text(Strings.cancel, color = colors.textSecondary) }
                 },
                 containerColor = colors.surface,
                 titleContentColor = colors.textPrimary,
@@ -284,8 +312,8 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 }
                 Spacer(Modifier.width(AmazeTheme.spacing.sm))
                 Column(Modifier.weight(1f)) {
-                    Text("Scan Friend's Code", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    Text("Enter a friend's schedule code manually", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
+                    Text("Import Friend's Code", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                    Text("Paste a shared code — no camera needed", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
                 }
                 Icon(Icons.Rounded.ChevronRight, null, tint = colors.textMuted)
             }

@@ -160,6 +160,11 @@ fun M3ESettingsScreen(
             }
         }
 
+        // D-037 / D-002 / D-009: consolidated advanced settings, Amaze ID sign-in and scanner.
+        item(key = "advanced_settings") {
+            com.amazecc.app.shared.ui.screens.settings.AdvancedSettingsHub()
+        }
+
         // Bottom Spacing for floating navigation bar clearance (140dp)
         item(key = "bottom_spacer") {
             Spacer(Modifier.height(140.dp))
