@@ -33,6 +33,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,6 +57,18 @@ enum class M3ECourseAttendanceTab(val label: String) {
 /** Attendance projection cutoff modes. */
 enum class M3ECutoffMode(val label: String) {
     LID("LID"), CAT1("CAT 1"), CAT2("CAT 2"), END("End of Sem")
+}
+
+/**
+ * One threshold band drives the hero word, the headline colour, the wavy bar and the card
+ * border. Deriving them separately made 75-79% read "SAFE" in green next to an amber bar.
+ */
+private enum class M3EAttendanceBand { SAFE, NEAR_TARGET, AT_RISK }
+
+private fun attendanceBand(percentage: Double, target: Int): M3EAttendanceBand = when {
+    percentage >= target + 5 -> M3EAttendanceBand.SAFE
+    percentage >= target -> M3EAttendanceBand.NEAR_TARGET
+    else -> M3EAttendanceBand.AT_RISK
 }
 
 /** A single future class session the student may mark as skipped. */
@@ -115,11 +130,15 @@ fun M3ECourseAttendanceScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
-    val toneColor = when {
-        state.currentPercentage >= state.targetPercentage + 5 -> colors.success
-        state.currentPercentage >= state.targetPercentage -> colors.warning
-        else -> colors.error
+    val band = attendanceBand(state.currentPercentage, state.targetPercentage)
+
+    // Single band -> single tone, reused by the value, bar, border and simulated outcome.
+    fun toneFor(percentage: Double): Color = when (attendanceBand(percentage, state.targetPercentage)) {
+        M3EAttendanceBand.SAFE -> colors.success
+        M3EAttendanceBand.NEAR_TARGET -> colors.warning
+        M3EAttendanceBand.AT_RISK -> colors.error
     }
+    val toneColor = toneFor(state.currentPercentage)
 
     Box(modifier = modifier.fillMaxSize().background(colors.background)) {
         LazyColumn(
@@ -150,7 +169,7 @@ fun M3ECourseAttendanceScreen(
                     }
                     IconButton(
                         onClick = { onAction(M3ECourseAttendanceAction.Refresh) },
-                        modifier = Modifier.size(42.dp).clip(CircleShape).background(colors.surfaceContainerHigh)
+                        modifier = Modifier.size(48.dp).clip(CircleShape).background(colors.surfaceContainerHigh)
                     ) {
                         Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = colors.onSurface)
                     }
@@ -176,10 +195,17 @@ fun M3ECourseAttendanceScreen(
                             color = toneColor
                         )
                         Text(
-                            text = if (state.isSafe) "SAFE · Above ${state.targetPercentage}% target" else "AT RISK · Below ${state.targetPercentage}% target",
+                            text = when (band) {
+                                M3EAttendanceBand.SAFE ->
+                                    "SAFE · Above ${state.targetPercentage}% target"
+                                M3EAttendanceBand.NEAR_TARGET ->
+                                    "NEAR TARGET · Above ${state.targetPercentage}% but below ${state.targetPercentage + 5}%"
+                                M3EAttendanceBand.AT_RISK ->
+                                    "AT RISK · Below ${state.targetPercentage}% target"
+                            },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (state.isSafe) colors.success else colors.error
+                            color = toneColor
                         )
                         M3EWavyLinearProgress(
                             progress = (state.currentPercentage / 100.0).toFloat(),
@@ -227,26 +253,47 @@ fun M3ECourseAttendanceScreen(
                                     fontWeight = FontWeight.Medium,
                                     color = colors.onSurfaceVariant
                                 )
-                                Slider(
-                                    value = state.whatIfAttend.toFloat(),
-                                    onValueChange = { onAction(M3ECourseAttendanceAction.SetWhatIfAttend(it.toInt())) },
-                                    valueRange = 0f..20f,
-                                    steps = 19
-                                )
+                                // Material3 Slider bakes its own numeric stateDescription into
+                                // its semantics, so merge on an outer node to supply a real
+                                // label + current value without stripping its progress action.
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .semantics(mergeDescendants = true) {
+                                            contentDescription = "Attend future classes"
+                                            stateDescription = "Attend future classes: ${state.whatIfAttend} selected"
+                                        }
+                                ) {
+                                    Slider(
+                                        value = state.whatIfAttend.toFloat(),
+                                        onValueChange = { onAction(M3ECourseAttendanceAction.SetWhatIfAttend(it.toInt())) },
+                                        valueRange = 0f..20f,
+                                        steps = 19
+                                    )
+                                }
                                 Text(
                                     "Miss future classes: ${state.whatIfMiss}",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = colors.onSurfaceVariant
                                 )
-                                Slider(
-                                    value = state.whatIfMiss.toFloat(),
-                                    onValueChange = { onAction(M3ECourseAttendanceAction.SetWhatIfMiss(it.toInt())) },
-                                    valueRange = 0f..20f,
-                                    steps = 19
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .semantics(mergeDescendants = true) {
+                                            contentDescription = "Miss future classes"
+                                            stateDescription = "Miss future classes: ${state.whatIfMiss} selected"
+                                        }
+                                ) {
+                                    Slider(
+                                        value = state.whatIfMiss.toFloat(),
+                                        onValueChange = { onAction(M3ECourseAttendanceAction.SetWhatIfMiss(it.toInt())) },
+                                        valueRange = 0f..20f,
+                                        steps = 19
+                                    )
+                                }
                                 val simulatedPct = simulatedPercentage(state)
-                                val simulatedTone = if (simulatedPct >= state.targetPercentage) colors.success else colors.error
+                                val simulatedTone = toneFor(simulatedPct)
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -298,10 +345,16 @@ fun M3ECourseAttendanceScreen(
                                                     Box(
                                                         modifier = Modifier
                                                             .weight(1f)
-                                                            .clip(RoundedCornerShape(10.dp))
+                                                            .heightIn(min = 48.dp)
+                                                            .clip(RoundedCornerShape(12.dp))
                                                             .background(bg)
                                                             .clickable { onAction(M3ECourseAttendanceAction.ToggleSkip(date.key)) }
-                                                            .padding(vertical = 8.dp),
+                                                            .padding(vertical = 8.dp)
+                                                            .semantics {
+                                                                contentDescription = "Future session ${date.label}: ${
+                                                                    if (date.isSkipped) "marked bunked" else "planned to attend"
+                                                                }"
+                                                            },
                                                         contentAlignment = Alignment.Center
                                                     ) {
                                                         Column(horizontalAlignment = Alignment.CenterHorizontally) {

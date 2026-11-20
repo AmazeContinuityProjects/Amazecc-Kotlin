@@ -1,7 +1,6 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,11 +40,10 @@ import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EStatCard
 import com.amazecc.app.shared.ui.m3e.components.M3EStatItem
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
-import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
+import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
-import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /** Tabs of the OD Tracker. */
@@ -67,9 +65,18 @@ data class M3EODEntry(
     val status: M3EODStatus = M3EODStatus.NONE
 )
 
+/** A VTOP OD-details record matched to an attendance day - explains *why*, never adds hours. */
+@Immutable
+data class M3EODOfficialReason(val reason: String, val remarks: String)
+
 /** All OD entries for one date. */
 @Immutable
-data class M3EODDay(val date: String, val entries: List<M3EODEntry>) {
+data class M3EODDay(
+    val date: String,
+    val entries: List<M3EODEntry>,
+    /** VTOP's "why" text for this day, matched by date range. Informational only. */
+    val officialReasons: List<M3EODOfficialReason> = emptyList(),
+) {
     val totalHours: Int get() = entries.sumOf { it.hours }
 }
 
@@ -89,6 +96,10 @@ data class M3EODMetrics(
 /** Immutable, stateless state for [M3EODTrackerScreen]. */
 @Immutable
 data class M3EODTrackerState(
+    /**
+     * Legacy allowance hint, retained for state compatibility only. The web OD Hours History page
+     * has no allowance and no cap, so D-120 stops presenting this number as if it were real data.
+     */
     val totalHoursAllowed: Int = 40,
     val activeTab: M3EODTab = M3EODTab.OVERVIEW,
     val days: List<M3EODDay> = emptyList(),
@@ -127,14 +138,7 @@ fun M3EODTrackerScreen(
 ) {
     val colors = M3ETheme.colors
     val metrics = state.metrics
-    val usage = if (state.totalHoursAllowed > 0) {
-        (metrics.usedHours.toFloat() / state.totalHoursAllowed).coerceIn(0f, 1f)
-    } else 0f
-    val tone = when {
-        usage >= 0.9f -> colors.error
-        usage >= 0.7f -> colors.warning
-        else -> colors.primary
-    }
+    // D-120: no invented 40h allowance / percentage — the web page reports only real OD hours.
 
     Box(modifier = modifier.fillMaxSize().background(colors.background)) {
         LazyColumn(
@@ -162,21 +166,15 @@ fun M3EODTrackerScreen(
             }
 
             item(key = "hero") {
-                M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.HIGH, cornerRadius = 24.dp, borderColor = tone) {
-                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column {
-                                Text("OD Hours Used", fontSize = 12.sp, color = colors.onSurfaceVariant)
-                                Text("${metrics.usedHours} / ${state.totalHoursAllowed}", fontSize = 32.sp, fontWeight = FontWeight.Black, color = colors.onSurface)
-                            }
-                            Box(
-                                modifier = Modifier.size(72.dp).clip(RoundedCornerShape(16.dp)).background(tone.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text((usage * 100).toFixed(2, "%"), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = tone)
-                            }
-                        }
-                        M3EWavyLinearProgress(progress = usage, activeColor = tone, trackColor = colors.surfaceContainerHighest)
+                M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.HIGH, cornerRadius = 24.dp) {
+                    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Total OD", fontSize = 12.sp, color = colors.onSurfaceVariant)
+                        Text("${metrics.usedHours} hrs", fontSize = 32.sp, fontWeight = FontWeight.Black, color = colors.onSurface)
+                        Text(
+                            "Across ${metrics.totalODDays} ${if (metrics.totalODDays == 1) "day" else "days"} on duty",
+                            fontSize = 13.sp,
+                            color = colors.onSurfaceVariant,
+                        )
                     }
                 }
             }
@@ -200,13 +198,13 @@ fun M3EODTrackerScreen(
                                     modifier = Modifier.weight(1f)
                                 )
                                 M3EStatCard(
-                                    stat = M3EStatItem("lab_hours", "Lab Hours", "${metrics.labHours}h", "From OD details", M3EStatTone.SECONDARY),
+                                    stat = M3EStatItem("lab_hours", "Lab Hours", "${metrics.labHours}h", "From attendance logs", M3EStatTone.SECONDARY),
                                     modifier = Modifier.weight(1f)
                                 )
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 M3EStatCard(
-                                    stat = M3EStatItem("theory_hours", "Theory Hours", "${metrics.theoryHours}h", "From OD details", M3EStatTone.TERTIARY),
+                                    stat = M3EStatItem("theory_hours", "Theory Hours", "${metrics.theoryHours}h", "From attendance logs", M3EStatTone.TERTIARY),
                                     modifier = Modifier.weight(1f)
                                 )
                                 M3EStatCard(
@@ -230,13 +228,12 @@ fun M3EODTrackerScreen(
                         M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.STANDARD) {
                             Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("OD Summary", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
-                                SummaryRow("Total OD Hours", "${metrics.usedHours}h / ${state.totalHoursAllowed}h", false)
+                                SummaryRow("Total OD Hours", "${metrics.usedHours}h", false)
                                 SummaryRow("Valid Hours", "${metrics.validHours}h", false)
                                 SummaryRow("Wasted Hours", "${metrics.wastedHours}h", false)
                                 SummaryRow("Recovered Hours", "${metrics.recoveredHours}h", false)
                                 HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
                                 SummaryRow("Net Impact", "${metrics.validHours}h", true)
-                                SummaryRow("Remaining", "${(state.totalHoursAllowed - metrics.usedHours).coerceAtLeast(0)}h", true)
                             }
                         }
                     }
@@ -271,6 +268,14 @@ fun M3EODTrackerScreen(
                                             }
                                         }
                                         HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
+                                        day.officialReasons.forEach { official ->
+                                            Text(
+                                                official.remarks.takeIf { it.isNotBlank() }
+                                                    ?.let { "${official.reason} — $it" } ?: official.reason,
+                                                fontSize = 11.sp,
+                                                color = colors.onSurfaceVariant,
+                                            )
+                                        }
                                         day.entries.forEach { entry ->
                                             M3EODEntryRow(
                                                 entry = entry,
@@ -300,8 +305,19 @@ private fun M3EODEntryRow(entry: M3EODEntry, onClick: () -> Unit) {
         M3EODStatus.RECOVERED -> "Recovered" to colors.tertiary
         M3EODStatus.NONE -> entry.type to if (entry.type == "LAB") colors.secondary else colors.warning
     }
+    // D-122: the whole row is one merged button with a role, a spoken label and the
+    // current tracking state (the row cycles that state on tap).
+    val statusSpoken = when (entry.status) {
+        M3EODStatus.WASTED -> "wasted"
+        M3EODStatus.RECOVERED -> "recovered"
+        M3EODStatus.NONE -> "not reviewed"
+    }
+    val rowLabel = "${entry.title.ifBlank { entry.courseCode }}, ${entry.hours} hours, " +
+        "$statusSpoken. Tap to change tracking status"
     Row(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickableA11y(onClickLabel = rowLabel, onClick = onClick),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -331,9 +347,9 @@ private fun SummaryRow(label: String, value: String, isHighlight: Boolean) {
 }
 
 /**
- * Parse the hours a real OD record covers from VTOP's `time` cell. Accepts both an explicit
- * `"2 hours"` and a clock range (`"09:00 AM - 11:00 AM"` / `"09:00-11:00"`). An unparseable cell
- * yields 0 - never the old lab=2h / theory=1h guess.
+ * Parse the hours a real OD record *claims* from VTOP's `time` cell. Retained only as an
+ * inspection helper: D-120 moved OD counting to the attendance slot rule in
+ * `domain/OdHoursDerivation.kt`, so this value never feeds a counter on the OD Tracker page.
  */
 internal fun odHoursFrom(raw: String): Int {
     val value = raw.trim()
@@ -379,55 +395,51 @@ internal fun odDateEpochDay(raw: String): Long? =
     ExamUtils.parseExamDateToLocalDate(raw)?.toEpochDays()?.toLong()
 
 /**
- * Map the real `OdDetailsRes.records` into the stateless day/entry list, preserving the persisted
- * wasted/recovered annotations keyed by `date|code`, and UNION it with [derivedOdRows] - the
- * on-duty rows derived locally from synced attendance by [deriveOdRowsFromAttendance].
+ * Build the stateless day/entry list the way the web OD Hours History page does (D-120).
  *
- * The two sources are de-duplicated by (date, course, hours), with the real VTOP record winning
- * when both describe the same row (it is added first). A null/failed/empty VTOP payload no longer
- * hides locally derived On Duty days; neither source ever produces a fabricated row.
+ * Counts come *only* from [derivedOdRows] - the real attendance logs filtered by
+ * `deriveOdHoursDays`. VTOP OD-details records are never turned into hour-bearing entries: the web
+ * page uses them solely to answer "why was this day an OD?" That union was the overshoot - a VTOP
+ * "09:00 - 11:00" cell became two hours on top of the one hour the attendance slot already gave,
+ * and the old (date, course, hours) de-dup key let both through whenever the hours disagreed.
+ *
+ * Persisted wasted/recovered annotations still apply, keyed by `date|code`.
  */
 internal fun mapOdRecordsToDays(
     res: OdDetailsRes?,
     tracker: Map<String, M3EODStatus>,
     derivedOdRows: List<DerivedOdRow> = emptyList(),
 ): List<M3EODDay> {
-    val vtopPairs: List<Pair<String, M3EODEntry>> = if (res != null && res.success && res.error == null) {
-        res.records.map { record ->
-            // The scraper has no explicit course-code column; `reason` (then slNo) is the stable, real
-            // identity the annotation persistence keys off of.
-            val code = record.reason.ifBlank { record.slNo }.ifBlank { record.type }
-            val title = record.reason.ifBlank { record.type }
-            val entry = M3EODEntry(
-                courseCode = code,
-                title = title,
-                type = odTypeFor(record.type, record.basis),
-                hours = odHoursFrom(record.time),
-                status = tracker["${record.date}|$code"] ?: M3EODStatus.NONE
-            )
-            record.date to entry
-        }
-    } else emptyList()
-
-    val derivedPairs: List<Pair<String, M3EODEntry>> = derivedOdRows.map { row ->
-        row.date to M3EODEntry(
+    val officialRecords = if (res != null && res.success && res.error == null) res.records else emptyList()
+    val byDate = LinkedHashMap<String, MutableList<M3EODEntry>>()
+    for (row in derivedOdRows) {
+        byDate.getOrPut(row.date) { mutableListOf() } += M3EODEntry(
             courseCode = row.courseCode,
             title = row.title,
             type = row.type,
             hours = row.hours,
-            status = tracker["${row.date}|${row.courseCode}"] ?: M3EODStatus.NONE
+            status = tracker["${row.date}|${row.courseCode}"] ?: M3EODStatus.NONE,
         )
     }
+    return byDate.map { (date, entries) ->
+        M3EODDay(date, entries, officialReasons = matchOfficialOdReasons(date, officialRecords))
+    }.sortedByDescending { odDateEpochDay(it.date) ?: Long.MIN_VALUE }
+}
 
-    val seen = HashSet<Triple<String, String, Int>>()
-    val byDate = LinkedHashMap<String, MutableList<M3EODEntry>>()
-    // VTOP first so its real record wins the de-duplication over a locally derived row.
-    for ((date, entry) in vtopPairs + derivedPairs) {
-        if (!seen.add(Triple(date, entry.courseCode, entry.hours))) continue
-        byDate.getOrPut(date) { mutableListOf() } += entry
+/** Web `matchOfficialOdForDate`: a record explains a day when its range contains that day. */
+internal fun matchOfficialOdReasons(
+    dayDate: String,
+    records: List<com.amazecc.app.shared.model.OdRecordItem>,
+): List<M3EODOfficialReason> {
+    val day = odDateEpochDay(dayDate) ?: return emptyList()
+    return records.mapNotNull { record ->
+        val parts = record.date.split(Regex("\\s+to\\s+", RegexOption.IGNORE_CASE))
+        val from = odDateEpochDay(parts.firstOrNull().orEmpty())
+        val to = odDateEpochDay(parts.getOrNull(1) ?: parts.firstOrNull().orEmpty())
+        if (from == null || to == null || day < from || day > to) return@mapNotNull null
+        val reason = record.reason.ifBlank { record.type }
+        reason.takeIf { it.isNotBlank() }?.let { M3EODOfficialReason(it, record.remarks) }
     }
-    return byDate.map { (date, entries) -> M3EODDay(date, entries) }
-        .sortedByDescending { odDateEpochDay(it.date) ?: Long.MIN_VALUE }
 }
 
 private fun mockODTrackerState() = M3EODTrackerState(

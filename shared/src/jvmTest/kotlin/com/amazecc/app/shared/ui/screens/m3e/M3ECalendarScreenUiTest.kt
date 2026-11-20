@@ -1,9 +1,12 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
-import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -38,10 +41,12 @@ class M3ECalendarScreenUiTest {
             AmazeM3ETheme { M3ECalendarScreen(state = sampleState(), onAction = {}) }
         }
 
-        onNodeWithText("Academic Calendar").assertExists()
+        onNodeWithText("Super Calendar").assertExists()
         onNodeWithText("November 2026").assertExists()
         onNodeWithText("16").assertExists()
-        onNodeWithText("Events on day 16 · 1").assertExists()
+        // Match the day header without coupling to the separator glyph / event
+        // count, which changes as the super calendar merges more sources.
+        onNodeWithText("Events on day 16", substring = true).assertExists()
         onNodeWithText("CAT-1").assertExists()
     }
 
@@ -54,7 +59,10 @@ class M3ECalendarScreenUiTest {
             }
         }
 
-        onNodeWithContentDescription("Refresh calendar").performClick()
+        // D-116: the five header controls now live behind one M3E page-actions FAB.
+        onNodeWithContentDescription("More calendar actions").performClick()
+        waitForIdle()
+        onNodeWithText("Refresh calendar").performSemanticsAction(SemanticsActions.OnClick)
         assertTrue(actions.contains(M3ECalendarAction.Refresh))
         assertEquals(1, actions.size)
     }
@@ -64,13 +72,13 @@ class M3ECalendarScreenUiTest {
         setContent {
             AmazeM3ETheme {
                 M3ECalendarScreen(
-                    state = M3ECalendarState(errorMessage = "No calendar entries available — pull to retry"),
+                    state = M3ECalendarState(errorMessage = "No calendar entries available \u2014 pull to retry"),
                     onAction = {}
                 )
             }
         }
 
-        onNodeWithText("No calendar entries available — pull to retry").assertExists()
+        onNodeWithText("No calendar entries available \u2014 pull to retry").assertExists()
     }
 
     // --- D-113: grid geometry ---
@@ -175,6 +183,93 @@ class M3ECalendarScreenUiTest {
                     M3ECalendarEvent("Holiday", "Holiday")
                 )
             ).dayTone()
+        )
+    }
+
+    // --- D-115: merged sources stay distinguishable ---
+
+    @Test
+    fun domainDayTypeKeepsInstructionalTintWithOnlyNonDayTypeEvents() {
+        // The merged day holds a deadline, not a scraped "Instructional Day" string. The tint must
+        // still follow the college's published day type rather than sniffing the event text.
+        val day = M3ECalendarDay(
+            9,
+            listOf(M3ECalendarEvent("Moodle quiz", "Moodle", source = M3ECalendarSource.DEADLINE)),
+            dayType = M3ECalendarDayType.INSTRUCTIONAL
+        )
+        assertEquals(M3ECalendarDayTone.INSTRUCTIONAL, day.dayTone())
+    }
+
+    @Test
+    fun mergedTintAndLegendRenderFromProjectedState() = runComposeUiTest {
+        val state = M3ECalendarState(
+            months = listOf(
+                M3ECalendarMonth(
+                    name = "November 2026",
+                    days = listOf(
+                        M3ECalendarDay(
+                            12,
+                            listOf(
+                                M3ECalendarEvent("Biology", "Exam", source = M3ECalendarSource.EXAM),
+                                M3ECalendarEvent("Moodle quiz", "Moodle", source = M3ECalendarSource.DEADLINE),
+                                M3ECalendarEvent("Theory class", "Class", source = M3ECalendarSource.CLASS)
+                            ),
+                            dayType = M3ECalendarDayType.INSTRUCTIONAL
+                        )
+                    )
+                )
+            ),
+            selectedDay = 12
+        )
+        setContent {
+            AmazeM3ETheme { M3ECalendarScreen(state = state, onAction = {}) }
+        }
+
+        onNodeWithContentDescription("Day 12, instructional", useUnmergedTree = true).assertExists()
+        onNodeWithTag(M3ECalendarTestTags.SOURCE_LEGEND).assertExists()
+        onAllNodesWithTag(M3ECalendarTestTags.EVENT_ROW, useUnmergedTree = true).assertCountEquals(3)
+    }
+
+    @Test
+    fun sourceFilterShowsOnlyTheChosenSources() = runComposeUiTest {
+        val state = M3ECalendarState(
+            months = listOf(
+                M3ECalendarMonth(
+                    name = "November 2026",
+                    days = listOf(
+                        M3ECalendarDay(
+                            12,
+                            listOf(
+                                M3ECalendarEvent("Biology", "Exam", source = M3ECalendarSource.EXAM),
+                                M3ECalendarEvent("Moodle quiz", "Moodle", source = M3ECalendarSource.DEADLINE)
+                            ),
+                            dayType = M3ECalendarDayType.SEMIHOLIDAY
+                        )
+                    )
+                )
+            ),
+            selectedDay = 12,
+            eventFilter = M3ECalendarFilter.DEADLINES
+        )
+        setContent {
+            AmazeM3ETheme { M3ECalendarScreen(state = state, onAction = {}) }
+        }
+
+        onNodeWithText("Moodle quiz").assertExists()
+        onNodeWithText("Biology").assertDoesNotExist()
+        onAllNodesWithTag(M3ECalendarTestTags.EVENT_ROW, useUnmergedTree = true).assertCountEquals(1)
+    }
+
+    @Test
+    fun rawEntriesStillInferTheirSource() {
+        assertEquals(M3ECalendarSource.EXAM, M3ECalendarEvent("CAT-1", "Exam").effectiveSource())
+        assertEquals(
+            M3ECalendarSource.HOLIDAY,
+            M3ECalendarEvent("Gandhi Jayanthi", "Holiday").effectiveSource()
+        )
+        assertEquals(
+            M3ECalendarSource.DEADLINE,
+            M3ECalendarEvent("Assignment 1", "Assignment").effectiveSource()
         )
     }
 }

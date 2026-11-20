@@ -32,7 +32,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -59,6 +58,8 @@ import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleState
 import com.amazecc.app.shared.domain.overhaul.M3EExamSeriesGroup
 import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenu
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -194,89 +195,54 @@ fun M3EExamScheduleScreen(
                         }
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        IconButton(
-                            onClick = { onAction(M3EExamScheduleAction.Refresh) },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(colors.surfaceContainerHigh)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Refresh,
-                                contentDescription = "Refresh exam schedule",
-                                tint = colors.onSurfaceVariant,
-                                modifier = Modifier.size(20.dp)
+                    // D-116: five crowded header controls collapse into one M3E action-menu FAB.
+                    // Every real onClick (including the clipboard side effect and both exports)
+                    // is preserved verbatim; only the trigger changed.
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        M3EPageActionsMenu(
+                            actions = listOf(
+                                M3EPageAction(
+                                    label = "Refresh exam schedule",
+                                    icon = Icons.Rounded.Refresh,
+                                    onClick = { onAction(M3EExamScheduleAction.Refresh) }
+                                ),
+                                // D-062: real clipboard copy of every course code currently on screen.
+                                M3EPageAction(
+                                    label = "Copy course codes",
+                                    icon = Icons.Rounded.ContentCopy,
+                                    enabled = visibleExams.isNotEmpty(),
+                                    onClick = {
+                                        val codes = visibleExams.map { it.courseCode }.distinct()
+                                        clipboard.setText(AnnotatedString(codes.joinToString("\n")))
+                                        copyNotice = "Copied ${codes.size} course code${if (codes.size == 1) "" else "s"}"
+                                    }
+                                ),
+                                M3EPageAction(
+                                    label = "Download exam schedule as PNG",
+                                    icon = Icons.Rounded.Download,
+                                    enabled = !isExporting && visibleExams.isNotEmpty(),
+                                    onClick = {
+                                        onExport(ExamExportRequest(ExamExportFormat.PNG, null, visibleExams))
+                                    }
+                                ),
+                                M3EPageAction(
+                                    label = "Download exam schedule as PDF",
+                                    icon = Icons.Rounded.PictureAsPdf,
+                                    enabled = !isExporting && visibleExams.isNotEmpty(),
+                                    onClick = {
+                                        onExport(ExamExportRequest(ExamExportFormat.PDF, null, visibleExams))
+                                    }
+                                ),
+                                M3EPageAction(
+                                    label = "Export to Calendar",
+                                    icon = Icons.Rounded.EventAvailable,
+                                    onClick = { onAction(M3EExamScheduleAction.ExportCalendar) }
+                                )
                             )
-                        }
-                        // D-062: real clipboard copy of every course code currently on screen.
-                        IconButton(
-                            onClick = {
-                                val codes = visibleExams.map { it.courseCode }.distinct()
-                                clipboard.setText(AnnotatedString(codes.joinToString("\n")))
-                                copyNotice = "Copied ${codes.size} course code${if (codes.size == 1) "" else "s"}"
-                            },
-                            enabled = visibleExams.isNotEmpty(),
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(colors.surfaceContainerHigh)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.ContentCopy,
-                                contentDescription = "Copy course codes",
-                                tint = colors.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                onExport(ExamExportRequest(ExamExportFormat.PNG, null, visibleExams))
-                            },
-                            enabled = !isExporting && visibleExams.isNotEmpty(),
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(colors.surfaceContainerHigh)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Download,
-                                contentDescription = "Download exam schedule as PNG",
-                                tint = colors.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        IconButton(
-                            onClick = {
-                                onExport(ExamExportRequest(ExamExportFormat.PDF, null, visibleExams))
-                            },
-                            enabled = !isExporting && visibleExams.isNotEmpty(),
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(colors.surfaceContainerHigh)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.PictureAsPdf,
-                                contentDescription = "Download exam schedule as PDF",
-                                tint = colors.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        IconButton(
-                            onClick = { onAction(M3EExamScheduleAction.ExportCalendar) },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(colors.primaryContainer)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.EventAvailable,
-                                contentDescription = "Export to Calendar",
-                                tint = colors.onPrimaryContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                        )
                         if (isExporting) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
@@ -303,7 +269,7 @@ fun M3EExamScheduleScreen(
                             )
                             // M3E's signature wavy determinate indicator. No real fraction exists
                             // during a fetch, so this is a gentle moving sweep, not a false percent.
-                            M3EWavyLinearProgress(progress = 0.35f)
+                            M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
                             Text(
                                 text = "Pulling the latest CAT / FAT timetable from VTOP.",
                                 style = MaterialTheme.typography.bodySmall,

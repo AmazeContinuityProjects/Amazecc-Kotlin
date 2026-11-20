@@ -1,7 +1,9 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -135,7 +137,10 @@ class M3EExamScheduleUiStateTest {
             }
         }
 
-        onNodeWithContentDescription("Refresh exam schedule").performClick()
+        // D-116: the header controls now live behind one M3E page-actions FAB.
+        onNodeWithContentDescription("More actions").performClick()
+        waitForIdle()
+        onNodeWithText("Refresh exam schedule").performSemanticsAction(SemanticsActions.OnClick)
 
         assertTrue(actions.contains(M3EExamScheduleAction.Refresh))
     }

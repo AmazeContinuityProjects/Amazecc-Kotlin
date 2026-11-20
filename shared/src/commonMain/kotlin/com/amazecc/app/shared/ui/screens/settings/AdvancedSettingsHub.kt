@@ -18,12 +18,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.DashboardCustomize
+import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Login
+import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Navigation
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Sync
@@ -112,7 +116,10 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
             }
         }
 
-        val uiScale by AppState.uiScale.collectAsState()
+        // D-121: a corrupt/legacy persisted scale must never reach Slider, which requires
+        // finite values. Coerce at the read site so the control cannot crash composition.
+        val rawUiScale by AppState.uiScale.collectAsState()
+        val uiScale = if (rawUiScale.isFinite()) rawUiScale.coerceIn(0.75f, 1.4f) else 1.0f
         val cgpaHidden by AppState.cgpaHidden.collectAsState()
         val gpaGoal by AppState.gpaGoal.collectAsState()
         val customTarget by AppState.customAttendanceTarget.collectAsState()
@@ -124,15 +131,18 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
         val animationsEnabled by AppState.animationsEnabled.collectAsState()
         val hapticEnabled by AppState.hapticEnabled.collectAsState()
         val privacyMode by AppState.privacyMode.collectAsState()
+        val residentialStatus by AppState.residentialStatus.collectAsState()
         val selectedSemester by AppState.selectedSemester.collectAsState()
         val semesterMap by AppState.semesterMap.collectAsState()
         var apiTargetName by remember { mutableStateOf(SettingsManager.getApiTargetName()) }
         var vtopSource by remember { mutableStateOf(AmazeClient.vtopSource) }
 
+        // D-121: M3ESettingsScreen mounts this hub as a LazyColumn item, which measures
+        // children with an unbounded height. A nested verticalScroll here is redundant
+        // (the parent already scrolls) and is a known source of nested-scroll /
+        // intrinsic-measurement failures inside a lazily composed item.
         Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+            modifier = modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             HubCard("Display & Layout", Icons.Rounded.Visibility, colors) {
@@ -191,6 +201,57 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                         )
                     }
                 }
+                // D-122: web "Academic Calendar" (settings.calendarType). The
+                // id/name pairs are the same eight the web ProfilePage offers.
+                SectionLabel("Default academic calendar")
+                val calendars = com.amazecc.app.shared.api.AmazeClient.calendarTypes
+                var selectedCalendar by remember {
+                    mutableStateOf(SettingsManager.getPreferredCalendar() ?: calendars.first().second)
+                }
+                M3EConnectedButtonGroup(
+                    items = calendars.map { it.second },
+                    selectedItem = selectedCalendar,
+                    onItemSelected = { name ->
+                        val id = calendars.first { it.second == name }.first
+                        SettingsManager.savePreferredCalendar(name)
+                        SettingsManager.updateWebSetting { it.copy(calendarType = id) }
+                        selectedCalendar = name
+                    },
+                    labelProvider = { it },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // D-122: web "Target Attendance Goal" (75/80/85/90). Writes the
+                // same AppState target the attendance derivers read, so the bunk
+                // margin and safe/critical badges change immediately.
+                SectionLabel("Attendance target")
+                val targetOptions = listOf(75, 80, 85, 90)
+                val activeTarget = AppState.effectiveAttendanceTarget(busSubscriber).toInt()
+                M3EConnectedButtonGroup(
+                    items = targetOptions,
+                    selectedItem = activeTarget,
+                    onItemSelected = { pct ->
+                        AppState.setBusSubscriber(false)
+                        AppState.setCustomAttendanceTarget(pct.toFloat())
+                        SettingsManager.updateWebSetting { it.copy(targetAttendance = pct) }
+                    },
+                    labelProvider = { "$it%" },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
+                // D-122: web "Hostel vs Day Scholar" (settings.residentialStatus).
+                SectionLabel("Residential status")
+                M3EConnectedButtonGroup(
+                    items = listOf("hosteller", "dayscholar"),
+                    selectedItem = residentialStatus.lowercase(),
+                    onItemSelected = { status ->
+                        AppState.setResidentialStatus(status)
+                        SettingsManager.updateWebSetting { it.copy(residentialStatus = status) }
+                    },
+                    labelProvider = { it.replaceFirstChar { c -> c.uppercase() } },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+
                 ToggleRow("Hide CGPA", "Mask the CGPA on grades and home", cgpaHidden) { AppState.setCgpaHidden(it) }
                 var goalDraft by remember(gpaGoal) { mutableStateOf(gpaGoal) }
                 OutlinedTextField(
@@ -264,6 +325,23 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                     "Type the VTOP captcha yourself instead of auto-solving",
                     SettingsManager.isVtopManualCaptcha(),
                 ) { SettingsManager.setVtopManualCaptcha(it) }
+                // D-122: the web exposes eleven push categories; Kotlin only
+                // schedules local alarms for the four it can act on. These two
+                // are the ones missing from the M3E surface; the rest are reported
+                // as unported rather than rendered as inert switches.
+                ToggleRow(
+                    "Assignment reminders",
+                    "Local alarm for pending Moodle / VTOP assignments",
+                    SettingsManager.isNotifAssignmentRemindersEnabled(),
+                ) { enabled ->
+                    SettingsManager.setNotifAssignmentRemindersEnabled(enabled)
+                    SettingsManager.updateWebSetting { it.copy(notifyAssignments = enabled) }
+                }
+                ToggleRow(
+                    "Task reminders",
+                    "Local alarm for tasks due today",
+                    SettingsManager.isNotifTaskRemindersEnabled(),
+                ) { enabled -> SettingsManager.setNotifTaskRemindersEnabled(enabled) }
                 SectionLabel("VTOP source")
                 M3EConnectedButtonGroup(
                     items = VtopSource.entries.toList(),

@@ -1,7 +1,9 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -78,10 +80,21 @@ class M3EOutstandingActionsUiTest {
             }
         }
 
-        onNodeWithContentDescription("Download exam schedule as PNG").performClick()
-        onNodeWithContentDescription("Download exam schedule as PDF").performClick()
-        onNodeWithContentDescription("Export to Calendar").assertExists()
-        onNodeWithContentDescription("Copy course codes").assertExists()
+        // D-116: the menu collapses after every selection, so reopen it for each
+        // item. The two export lambdas themselves are untouched. Menu items are
+        // labelled by Text, not a contentDescription on their root Row.
+        onNodeWithContentDescription("More actions").performClick()
+        waitForIdle()
+        onNodeWithText("Download exam schedule as PNG").performSemanticsAction(SemanticsActions.OnClick)
+        waitForIdle()
+        onNodeWithContentDescription("More actions").performClick()
+        waitForIdle()
+        onNodeWithText("Download exam schedule as PDF").performSemanticsAction(SemanticsActions.OnClick)
+        waitForIdle()
+        onNodeWithContentDescription("More actions").performClick()
+        waitForIdle()
+        onNodeWithText("Export to Calendar").assertExists()
+        onNodeWithText("Copy course codes").assertExists()
 
         assertEquals(2, requests.size)
         assertEquals(ExamExportFormat.PNG, requests[0].format)

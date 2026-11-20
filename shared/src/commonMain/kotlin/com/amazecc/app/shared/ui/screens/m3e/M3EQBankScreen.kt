@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
@@ -168,7 +169,37 @@ fun M3EQBankScreen(
                 state.filteredCourses.isEmpty() -> {
                     item(key = "empty") {
                         M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.LOW) {
-                            Text("No courses match your search.", fontSize = 14.sp, color = colors.onSurfaceVariant)
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = null,
+                                    tint = colors.onSurfaceVariant,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Text(
+                                    text = if (state.searchQuery.isNotBlank()) {
+                                        "No courses match “${state.searchQuery}”."
+                                    } else {
+                                        "No courses are available in the catalog yet."
+                                    },
+                                    fontSize = 14.sp,
+                                    color = colors.onSurfaceVariant
+                                )
+                                // One-tap recovery: clear an active filter, or retry an empty catalog.
+                                if (state.searchQuery.isNotBlank()) {
+                                    TextButton(onClick = { onAction(M3EQBankAction.SearchQueryChanged("")) }) {
+                                        Text("Clear search", color = colors.primary)
+                                    }
+                                } else {
+                                    TextButton(onClick = { onAction(M3EQBankAction.Refresh) }) {
+                                        Text("Refresh catalog", color = colors.primary)
+                                    }
+                                }
+                            }
                         }
                     }
                 }

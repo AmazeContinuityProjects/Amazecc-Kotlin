@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -38,6 +39,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +48,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EClassroomBuilding
 import com.amazecc.app.shared.domain.overhaul.M3EClassroomSlot
 import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomsAction
 import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomsState
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
@@ -54,9 +58,26 @@ import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
+ * Material 3 width classes, matching the scaffold's thresholds without adding a
+ * `material3-window-size-class` dependency to commonMain.
+ */
+private enum class FreeClassroomsWidthClass { COMPACT, MEDIUM, EXPANDED }
+
+@Composable
+private fun rememberFreeClassroomsWidthClass(): FreeClassroomsWidthClass {
+    val widthDp = LocalWindowInfo.current.containerSize.width / LocalDensity.current.density
+    return when {
+        widthDp < 600f -> FreeClassroomsWidthClass.COMPACT
+        widthDp < 840f -> FreeClassroomsWidthClass.MEDIUM
+        else -> FreeClassroomsWidthClass.EXPANDED
+    }
+}
+
+/**
  * Material 3 Expressive Campus Free Classrooms Finder.
  * 100% Stateless: accepts [M3EFreeClassroomsState] and emits [M3EFreeClassroomsAction].
- * Features building filters (SJT, TT, MB, etc.), instant study spot search, and live occupancy status.
+ * Compact windows keep the single list; medium/expanded windows split controls from
+ * results so a wide screen is not one full-width column.
  */
 @Composable
 fun M3EFreeClassroomsScreen(
@@ -65,215 +86,452 @@ fun M3EFreeClassroomsScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
-
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.surface),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // 1. Header Bar
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+    val widthClass = rememberFreeClassroomsWidthClass()
+    when (widthClass) {
+        FreeClassroomsWidthClass.COMPACT -> {
+            LazyColumn(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(colors.surface),
+                contentPadding = PaddingValues(
+                    start = 16.dp,
+                    end = 16.dp,
+                    top = 20.dp,
+                    bottom = BOTTOM_NAV_PADDING
+                ),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column {
-                    Text(
-                        text = "Free Classrooms",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 24.sp
-                        ),
-                        color = colors.onSurface
-                    )
-                    Text(
-                        text = "Find quiet study spots & empty halls",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant
-                    )
-                }
-
-                IconButton(
-                    onClick = { onAction(M3EFreeClassroomsAction.Refresh) },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(colors.surfaceContainerHigh)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = "Refresh",
-                        tint = colors.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
-
-        // 2. Search Field
-        item {
-            OutlinedTextField(
-                value = state.searchQuery,
-                onValueChange = { onAction(M3EFreeClassroomsAction.SearchQueryChanged(it)) },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        text = "Search room (e.g. SJT-401, TT-712)...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Rounded.Search,
-                        contentDescription = null,
-                        tint = colors.primary
-                    )
-                },
-                singleLine = true,
-                shape = CircleShape,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = colors.onSurface,
-                    unfocusedTextColor = colors.onSurface,
-                    focusedContainerColor = colors.surfaceContainerHigh,
-                    unfocusedContainerColor = colors.surfaceContainerLow,
-                    focusedBorderColor = colors.primary,
-                    unfocusedBorderColor = colors.outlineVariant,
-                    focusedPlaceholderColor = colors.onSurfaceVariant,
-                    unfocusedPlaceholderColor = colors.onSurfaceVariant
-                )
-            )
-        }
-
-        // 3. Building Filter Segment
-        item {
-            M3EConnectedButtonGroup(
-                items = M3EClassroomBuilding.entries,
-                selectedItem = state.selectedBuilding,
-                onItemSelected = { onAction(M3EFreeClassroomsAction.SelectBuilding(it)) },
-                labelProvider = { it.code },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-
-        // 4. Quick Availability Filter Chip
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FilterChip(
-                    selected = state.onlyAvailableNow,
-                    onClick = { onAction(M3EFreeClassroomsAction.ToggleOnlyAvailable(!state.onlyAvailableNow)) },
-                    label = {
-                        Text(
-                            text = "Only Free Right Now",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
-                        )
-                    },
-                    leadingIcon = {
-                        if (state.onlyAvailableNow) {
-                            Icon(
-                                imageVector = Icons.Rounded.CheckCircle,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                // 1. Header Bar
+                item(key = "header") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Free Classrooms",
+                                style = MaterialTheme.typography.titleLarge.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 24.sp
+                                ),
+                                color = colors.onSurface
+                            )
+                            Text(
+                                text = "Find quiet study spots & empty halls",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.onSurfaceVariant
                             )
                         }
-                    },
-                    shape = CircleShape,
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = colors.primaryContainer,
-                        selectedLabelColor = colors.onPrimaryContainer,
-                        selectedLeadingIconColor = colors.onPrimaryContainer
+
+                        IconButton(
+                            onClick = { onAction(M3EFreeClassroomsAction.Refresh) },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(colors.surfaceContainerHigh)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Refresh,
+                                contentDescription = "Refresh",
+                                tint = colors.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                }
+
+                // 2. Search Field
+                item {
+                    OutlinedTextField(
+                        value = state.searchQuery,
+                        onValueChange = { onAction(M3EFreeClassroomsAction.SearchQueryChanged(it)) },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text(
+                                text = "Search room (e.g. SJT-401, TT-712)...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.onSurfaceVariant
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Rounded.Search,
+                                contentDescription = null,
+                                tint = colors.primary
+                            )
+                        },
+                        singleLine = true,
+                        shape = CircleShape,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = colors.onSurface,
+                            unfocusedTextColor = colors.onSurface,
+                            focusedContainerColor = colors.surfaceContainerHigh,
+                            unfocusedContainerColor = colors.surfaceContainerLow,
+                            focusedBorderColor = colors.primary,
+                            unfocusedBorderColor = colors.outlineVariant,
+                            focusedPlaceholderColor = colors.onSurfaceVariant,
+                            unfocusedPlaceholderColor = colors.onSurfaceVariant
+                        )
                     )
-                )
-
-                Text(
-                    text = "${state.filteredClassrooms.size} rooms found",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.primary
-                )
-            }
-        }
-
-        // 5. Loading / error feedback (driven by the host's AppState flows)
-        if (state.isLoading) {
-            item(key = "progress") {
-                M3EWavyLinearProgress(progress = 0.5f)
-            }
-        }
-
-        if (!state.errorMessage.isNullOrBlank()) {
-            item(key = "error") {
-                M3ESurfaceCard(
-                    containerLevel = SurfaceContainerLevel.LOW,
-                    cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Rounded.Info,
-                            contentDescription = null,
-                            tint = colors.error,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = state.errorMessage,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.error
-                        )
-                    }
                 }
-            }
-        }
 
-        // 6. Classrooms Listing
-        if (state.filteredClassrooms.isEmpty()) {
-            item {
-                M3ESurfaceCard(
-                    containerLevel = SurfaceContainerLevel.LOW,
-                    cornerRadius = 20.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                // 3. Building Filter Segment
+                item {
+                    M3EConnectedButtonGroup(
+                        items = M3EClassroomBuilding.entries,
+                        selectedItem = state.selectedBuilding,
+                        onItemSelected = { onAction(M3EFreeClassroomsAction.SelectBuilding(it)) },
+                        labelProvider = { it.code },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                // 4. Quick Availability Filter Chip
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Rounded.MeetingRoom,
-                            contentDescription = null,
-                            tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.size(44.dp)
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = if (state.classrooms.isEmpty()) {
-                                "No classrooms available right now"
-                            } else {
-                                "No classrooms match the selected filters"
+                        FilterChip(
+                            selected = state.onlyAvailableNow,
+                            onClick = { onAction(M3EFreeClassroomsAction.ToggleOnlyAvailable(!state.onlyAvailableNow)) },
+                            label = {
+                                Text(
+                                    text = "Only Free Right Now",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                )
                             },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.onSurfaceVariant
+                            leadingIcon = {
+                                if (state.onlyAvailableNow) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.CheckCircle,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            },
+                            shape = CircleShape,
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = colors.primaryContainer,
+                                selectedLabelColor = colors.onPrimaryContainer,
+                                selectedLeadingIconColor = colors.onPrimaryContainer
+                            )
+                        )
+
+                        Text(
+                            text = "${state.filteredClassrooms.size} rooms found",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.primary
                         )
                     }
                 }
-            }
-        } else {
-            items(state.filteredClassrooms) { room ->
-                ClassroomSlotCard(room = room)
+
+                // 5. Loading / error feedback (driven by the host's AppState flows)
+                if (state.isLoading) {
+                    item(key = "progress") {
+                        M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
+                    }
+                }
+
+                if (!state.errorMessage.isNullOrBlank()) {
+                    item(key = "error") {
+                        M3ESurfaceCard(
+                            containerLevel = SurfaceContainerLevel.LOW,
+                            cornerRadius = 20.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Info,
+                                    contentDescription = null,
+                                    tint = colors.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = state.errorMessage,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.error
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // 6. Classrooms Listing — one full-width column on compact windows.
+                if (state.filteredClassrooms.isEmpty()) {
+                    item {
+                        M3ESurfaceCard(
+                            containerLevel = SurfaceContainerLevel.LOW,
+                            cornerRadius = 20.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.MeetingRoom,
+                                    contentDescription = null,
+                                    tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(44.dp)
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = if (state.classrooms.isEmpty()) {
+                                        "No classrooms available right now"
+                                    } else {
+                                        "No classrooms match the selected filters"
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(state.filteredClassrooms) { room ->
+                        ClassroomSlotCard(room = room)
+                    }
+                }
             }
         }
 
-        // Bottom Spacing for floating navigation bar clearance (140dp)
-        item(key = "bottom_spacer") {
-            Spacer(Modifier.height(140.dp))
+        else -> {
+            val expanded = widthClass == FreeClassroomsWidthClass.EXPANDED
+            val columnCount = if (expanded) 2 else 1
+            Row(modifier = modifier.fillMaxSize().background(colors.surface)) {
+                // Controls pane
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(0.34f)
+                        .fillMaxHeight(),
+                    contentPadding = PaddingValues(
+                        start = 20.dp,
+                        end = 20.dp,
+                        top = 20.dp,
+                        bottom = BOTTOM_NAV_PADDING
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    item(key = "header") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Free Classrooms",
+                                    style = MaterialTheme.typography.titleLarge.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 24.sp
+                                    ),
+                                    color = colors.onSurface
+                                )
+                                Text(
+                                    text = "Find quiet study spots & empty halls",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+
+                            IconButton(
+                                onClick = { onAction(M3EFreeClassroomsAction.Refresh) },
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.surfaceContainerHigh)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Refresh,
+                                    contentDescription = "Refresh",
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    item(key = "search") {
+                        OutlinedTextField(
+                            value = state.searchQuery,
+                            onValueChange = { onAction(M3EFreeClassroomsAction.SearchQueryChanged(it)) },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = {
+                                Text(
+                                    text = "Search room (e.g. SJT-401, TT-712)...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.onSurfaceVariant
+                                )
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Rounded.Search,
+                                    contentDescription = null,
+                                    tint = colors.primary
+                                )
+                            },
+                            singleLine = true,
+                            shape = CircleShape,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = colors.onSurface,
+                                unfocusedTextColor = colors.onSurface,
+                                focusedContainerColor = colors.surfaceContainerHigh,
+                                unfocusedContainerColor = colors.surfaceContainerLow,
+                                focusedBorderColor = colors.primary,
+                                unfocusedBorderColor = colors.outlineVariant,
+                                focusedPlaceholderColor = colors.onSurfaceVariant,
+                                unfocusedPlaceholderColor = colors.onSurfaceVariant
+                            )
+                        )
+                    }
+
+                    item(key = "building_filter") {
+                        M3EConnectedButtonGroup(
+                            items = M3EClassroomBuilding.entries,
+                            selectedItem = state.selectedBuilding,
+                            onItemSelected = { onAction(M3EFreeClassroomsAction.SelectBuilding(it)) },
+                            labelProvider = { it.code },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    item(key = "availability") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            FilterChip(
+                                selected = state.onlyAvailableNow,
+                                onClick = { onAction(M3EFreeClassroomsAction.ToggleOnlyAvailable(!state.onlyAvailableNow)) },
+                                label = {
+                                    Text(
+                                        text = "Only Free Right Now",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold)
+                                    )
+                                },
+                                leadingIcon = {
+                                    if (state.onlyAvailableNow) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.CheckCircle,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                },
+                                shape = CircleShape,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = colors.primaryContainer,
+                                    selectedLabelColor = colors.onPrimaryContainer,
+                                    selectedLeadingIconColor = colors.onPrimaryContainer
+                                )
+                            )
+
+                            Text(
+                                text = "${state.filteredClassrooms.size} rooms found",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.primary
+                            )
+                        }
+                    }
+                }
+
+                // Results pane
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(0.66f)
+                        .fillMaxHeight(),
+                    contentPadding = PaddingValues(
+                        start = 8.dp,
+                        end = 20.dp,
+                        top = 20.dp,
+                        bottom = BOTTOM_NAV_PADDING
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (state.isLoading) {
+                        item(key = "progress") {
+                            M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
+                        }
+                    }
+
+                    if (!state.errorMessage.isNullOrBlank()) {
+                        item(key = "error") {
+                            M3ESurfaceCard(
+                                containerLevel = SurfaceContainerLevel.LOW,
+                                cornerRadius = 20.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Info,
+                                        contentDescription = null,
+                                        tint = colors.error,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = state.errorMessage,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = colors.error
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (state.filteredClassrooms.isEmpty()) {
+                        item(key = "empty") {
+                            M3ESurfaceCard(
+                                containerLevel = SurfaceContainerLevel.LOW,
+                                cornerRadius = 20.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 16.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.MeetingRoom,
+                                        contentDescription = null,
+                                        tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
+                                        modifier = Modifier.size(44.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    Text(
+                                        text = if (state.classrooms.isEmpty()) {
+                                            "No classrooms available right now"
+                                        } else {
+                                            "No classrooms match the selected filters"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = colors.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(state.filteredClassrooms.chunked(columnCount)) { row ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                row.forEach { room ->
+                                    ClassroomSlotCard(room = room, modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

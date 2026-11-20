@@ -150,37 +150,80 @@ fun M3EMoodleScreen(
 
             if (state.isLoading) {
                 item(key = "progress") {
-                    M3EWavyLinearProgress(progress = 0.5f)
+                    M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
+                }
+            }
+
+            // A failed sync must surface the real error first — never the cheerful
+            // "all caught up" empty state as though the sync succeeded.
+            state.errorMessage?.let { message ->
+                item(key = "sync_error") {
+                    M3ESurfaceCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        borderColor = colors.error.copy(alpha = 0.5f)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Warning,
+                                    contentDescription = null,
+                                    tint = colors.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "Moodle sync failed",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.error
+                                )
+                            }
+                            Text(
+                                text = message,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                            TextButton(onClick = { onAction(M3EMoodleAction.Refresh) }) {
+                                Text("Retry sync", color = colors.primary)
+                            }
+                        }
+                    }
                 }
             }
 
             if (state.assignments.isEmpty()) {
-                item(key = "empty") {
-                    M3ESurfaceCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        containerLevel = SurfaceContainerLevel.LOW
-                    ) {
-                        Column(
+                // Only celebrate an empty inbox when we actually know the sync succeeded.
+                if (state.errorMessage == null) {
+                    item(key = "empty") {
+                        M3ESurfaceCard(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            containerLevel = SurfaceContainerLevel.LOW
                         ) {
-                            Icon(
-                                imageVector = Icons.Rounded.CheckCircle,
-                                contentDescription = null,
-                                tint = colors.primary,
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = "No pending assignments",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colors.onSurface
-                            )
-                            Text(
-                                text = "You're all caught up!",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant
-                            )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.CheckCircle,
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(44.dp)
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = "No pending assignments",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = colors.onSurface
+                                )
+                                Text(
+                                    text = "You're all caught up!",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -297,7 +340,7 @@ private fun MoodleLoginContent(
                     }
 
                     if (state.isAuthenticating) {
-                        M3EWavyLinearProgress(progress = 0.6f)
+                        M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
                     } else {
                         ElevatedButton(
                             onClick = { onAction(M3EMoodleAction.SubmitCredentials) },

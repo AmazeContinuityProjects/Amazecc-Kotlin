@@ -251,6 +251,9 @@ fun M3EProfileHost(modifier: Modifier = Modifier) {
                             try { uriHandler.openUri("mailto:${state.proctorEmail}") } catch (_: Exception) {}
                         }
                     }
+                    // D-118: the profile screen emits SignOut only after its confirmation
+                    // sheet is accepted. This stays the single AppState.logout() call site;
+                    // cancelling/dismissing the sheet never reaches it.
                     is M3EProfileAction.SignOut -> AppState.logout()
                     is M3EProfileAction.Refresh -> AppState.refreshProfile()
                     is M3EProfileAction.SaveFriendlyName -> {

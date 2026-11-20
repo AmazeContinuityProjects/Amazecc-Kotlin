@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -32,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
-import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -119,8 +119,19 @@ fun M3EChangelogScreen(
         }
 
         if (state.isRefreshing) {
+            // Indeterminate: the host has no real percentage for a refresh, so do not
+            // invent one. The indicator is driven solely by the real loading state.
             item(key = "progress") {
-                M3EWavyLinearProgress(progress = 0.65f)
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = colors.primary,
+                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
 

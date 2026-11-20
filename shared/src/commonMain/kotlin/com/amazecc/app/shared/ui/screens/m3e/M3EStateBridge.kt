@@ -20,6 +20,7 @@ import com.amazecc.app.shared.api.SyllabusResult
 import com.amazecc.app.shared.domain.ClassStats
 import com.amazecc.app.shared.domain.asCurveStats
 import com.amazecc.app.shared.model.batchClassStats
+import com.amazecc.app.shared.model.singleClassStats
 import com.amazecc.app.shared.utils.ExportImportManager
 import com.amazecc.app.shared.utils.currentAppIconTheme
 import com.amazecc.app.shared.utils.rememberFileImporter
@@ -608,7 +609,9 @@ fun M3ECourseDetailScreen(
     val attendanceTarget = rememberEffectiveAttendanceTarget()
     val scope = rememberCoroutineScope()
     val saveFile = rememberFileSaver()
-    var syllabusError by remember { mutableStateOf<String?>(null) }
+    // One nullable status line feeds the syllabus section. It carries both download failures and
+    // the honest post-save note; the stateless screen presents it neutrally.
+    var syllabusStatus by remember { mutableStateOf<String?>(null) }
 
     var activeTab by remember { mutableStateOf(CourseDetailTab.OVERVIEW) }
     var targetGrade by remember { mutableStateOf("A") }
@@ -616,6 +619,20 @@ fun M3ECourseDetailScreen(
     val course = remember(domain, selectedSemId, selectedCode) {
         val sem = domain.academics.semesters[selectedSemId]
         sem?.courses?.get(selectedCode ?: "") ?: sem?.courses?.values?.firstOrNull()
+    }
+
+    // Real cohort curve for this one class when the service has one. With no curve the predictor
+    // derivation falls back to the published absolute grade ladder; it never invents a cohort.
+    val curveClassId = remember(course) { course?.marks?.classNbr ?: course?.classId }
+    var courseCurve by remember { mutableStateOf<ClassStats?>(null) }
+    LaunchedEffect(curveClassId) {
+        courseCurve = null
+        if (curveClassId.isNullOrBlank()) return@LaunchedEffect
+        courseCurve = runCatching { AmazeClient.getServiceCurvesByClassIds(listOf(curveClassId)) }
+            .getOrNull()
+            ?.let { envelope ->
+                (envelope.batchClassStats()[curveClassId] ?: envelope.singleClassStats())?.asCurveStats()
+            }
     }
 
     val att = course?.attendance
@@ -628,13 +645,37 @@ fun M3ECourseDetailScreen(
         course?.marks?.assessments?.map { m ->
             M3EAssessmentItem(
                 title = m.name,
-                maxMarks = m.maxMark.toDoubleOrNull() ?: 50.0,
+                // 0.0 (rather than a guessed 50) when VTOP omitted the maximum: the derivation
+                // then skips that component instead of inventing a denominator.
+                maxMarks = m.maxMark.toDoubleOrNull() ?: 0.0,
                 scoredMarks = m.score.toDoubleOrNull() ?: 0.0,
                 weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0,
                 weightageMarks = m.weightage.toDoubleOrNull() ?: 0.0,
                 status = m.status
             )
         }.orEmpty()
+    }
+
+    // Real internal marks from the published assessment weightages; null when no component has
+    // usable numbers, so the UI says "Not available" instead of a confident-looking 0.
+    val internalMarks = remember(internalAssessments) {
+        M3EPredictorDerivation.internalMarks(internalAssessments)
+    }
+    val internalScoredForPrediction = internalMarks?.first ?: 0.0
+    val internalMaxForPrediction = internalMarks?.second ?: 0.0
+
+    // Recomputed whenever the target grade changes (D-117): the grade selector is a real control.
+    val requiredFinalScore = remember(
+        internalScoredForPrediction, internalMaxForPrediction, targetGrade, courseCurve
+    ) {
+        if (internalMarks != null && internalMaxForPrediction > 0.0) {
+            M3EPredictorDerivation.requiredFatPercentage(
+                internalScored = internalScoredForPrediction,
+                internalMax = internalMaxForPrediction,
+                targetGrade = targetGrade,
+                classStats = courseCurve
+            )
+        } else null
     }
 
     val syllabusCourseCode = course?.code ?: selectedCode.orEmpty()
@@ -667,11 +708,15 @@ fun M3ECourseDetailScreen(
         },
         tone = if (hasAttendance) M3EComputations.toneForPercentage(pct, attendanceTarget) else M3ECardTone.NEUTRAL,
         activeTab = activeTab,
-        internalScored = internalAssessments.sumOf { it.weightageMarks },
-        internalMax = 60.0,
+        internalScored = internalScoredForPrediction,
+        internalMax = internalMaxForPrediction,
         assessments = internalAssessments,
         targetGrade = targetGrade,
-        errorMessage = syllabusError
+        requiredFinalScore = requiredFinalScore,
+        // No structured per-course syllabus-unit payload exists in the app state: the syllabus
+        // endpoint streams a PDF only. Never fabricate modules — the screen shows "Not available".
+        syllabusUnits = emptyList(),
+        errorMessage = syllabusStatus
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -682,17 +727,17 @@ fun M3ECourseDetailScreen(
                     is M3ECourseDetailAction.SelectTab -> activeTab = action.tab
                     is M3ECourseDetailAction.SetTargetGrade -> targetGrade = action.grade
                     is M3ECourseDetailAction.DownloadSyllabus -> scope.launch {
-                        syllabusError = null
+                        syllabusStatus = null
                         val result = AmazeClient.getSyllabusPdf(syllabusCourseCode)
                         val file = result.download
-                        syllabusError = when {
+                        syllabusStatus = when {
                             file == null -> result.error ?: "No syllabus is available for this course"
                             file.bytes.isEmpty() -> "The syllabus file is empty"
                             !saveFile(
                                 "${syllabusCourseCode}_syllabus.${file.extension.ifBlank { "pdf" }}",
                                 file.bytes
                             ) -> "Could not save the syllabus file"
-                            else -> null
+                            else -> "Syllabus PDF saved. Structured module data is not published for this course."
                         }
                     }
                     is M3ECourseDetailAction.Refresh -> AppState.loadAllData()

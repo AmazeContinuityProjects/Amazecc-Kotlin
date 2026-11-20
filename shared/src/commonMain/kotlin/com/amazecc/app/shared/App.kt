@@ -186,14 +186,17 @@ fun App() {
                         )
                     }
 
-                    // Crossfade screen transitions
+                    // Crossfade screen transitions. Resolve the transform in a composable
+                    // context so it reads the current LocalMotionReduced (D-114/D-117).
+                    val tabSwitchSpec =
+                        com.amazecc.app.shared.ui.m3e.theme.M3ETheme.motion.tabSwitchTransform()
                     Box(modifier = Modifier.fillMaxSize()) {
                         val tabList = AppState.tabScreens
                         AnimatedContent(
                             targetState = currentScreen,
                             transitionSpec = {
                                 if (targetState in tabList && initialState in tabList) {
-                                    com.amazecc.app.shared.ui.m3e.theme.M3EMotion.tabSwitchTransform()
+                                    tabSwitchSpec
                                 } else {
                                     fadeIn() togetherWith fadeOut()
                                 }
@@ -292,7 +295,8 @@ fun App() {
                     // Provide the M3E palette at the root so they follow light/dark instead of
                     // falling back to M3ETheme's dark-only default palette.
                     com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme(
-                        isDark = com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge.isDarkThemeActive()
+                        isDark = com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge.isDarkThemeActive(),
+                        palettePreset = com.amazecc.app.shared.ui.m3e.theme.palettePresetForAccent(currentAccent)
                     ) {
                         // Floating M3E nav bar overlay
                         if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH && currentScreen != Screen.ONBOARDING) {

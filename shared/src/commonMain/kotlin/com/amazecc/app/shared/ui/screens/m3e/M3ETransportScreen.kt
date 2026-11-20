@@ -1,7 +1,6 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,9 +50,11 @@ import com.amazecc.app.shared.domain.overhaul.M3ETransportRegistration
 import com.amazecc.app.shared.domain.overhaul.M3ETransportState
 import com.amazecc.app.shared.model.BusesRes
 import com.amazecc.app.shared.model.TransportDataRes
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
+import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -104,7 +105,7 @@ fun M3ETransportScreen(
                 IconButton(
                     onClick = { onAction(M3ETransportAction.Refresh) },
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(colors.surfaceContainerHigh)
                 ) {
@@ -112,7 +113,7 @@ fun M3ETransportScreen(
                         imageVector = Icons.Rounded.Refresh,
                         contentDescription = "Refresh",
                         tint = colors.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
@@ -302,9 +303,9 @@ fun M3ETransportScreen(
             }
         }
 
-        // Bottom Spacing for floating navigation bar clearance (140dp)
+        // Bottom spacing for the floating navigation bar / system gestures.
         item(key = "bottom_spacer") {
-            Spacer(Modifier.height(140.dp))
+            Spacer(Modifier.height(BOTTOM_NAV_PADDING))
         }
     }
 }
@@ -325,7 +326,16 @@ private fun BusRouteCard(
         cornerRadius = 22.dp,
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggleExpand)
+            .clickableA11y(
+                onClickLabel = if (isExpanded) {
+                    "Collapse route ${route.routeNumber}"
+                } else {
+                    "Expand route ${route.routeNumber}"
+                },
+                // Keep the call/chat buttons individually reachable by a11y tests.
+                mergeDescendants = false,
+                onClick = onToggleExpand
+            )
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()

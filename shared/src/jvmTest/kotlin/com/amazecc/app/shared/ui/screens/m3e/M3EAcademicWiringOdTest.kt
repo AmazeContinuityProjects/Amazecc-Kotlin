@@ -1,12 +1,17 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import com.amazecc.app.shared.domain.AttendanceDay
+import com.amazecc.app.shared.domain.CourseAttendance
 import com.amazecc.app.shared.model.OdDetailsRes
 import com.amazecc.app.shared.model.OdRecordItem
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** Headless checks that OD entries come from the real OD-details payload, not an hour heuristic. */
+/**
+ * D-120: VTOP OD-details are real data but they explain a day; they are not a second hour source.
+ * The web OD Hours History page counts only attendance logs, so this test locks that boundary down.
+ */
 class M3EAcademicWiringOdTest {
 
     private fun odRes() = OdDetailsRes(
@@ -21,77 +26,73 @@ class M3EAcademicWiringOdTest {
                 basis = "Practical",
                 date = "12-Sep-2026",
                 time = "09:00 AM - 11:00 AM",
-                remarks = "On duty"
+                remarks = "On duty",
             ),
             OdRecordItem(
                 slNo = "2",
                 type = "OD",
                 reason = "MAT2001",
                 basis = "Theory",
-                date = "08-Sep-2026",
-                time = "2 hours"
+                date = "08-Sep-2026 to 12-Sep-2026",
+                time = "2 hours",
             ),
-            OdRecordItem(
-                slNo = "3",
-                type = "OD",
-                reason = "PHY1001",
-                basis = "Theory",
-                date = "not a date",
-                time = "unparseable"
-            )
+        )
+    )
+
+    private fun attendance() = listOf(
+        CourseAttendance(
+            courseCode = "CSE3002",
+            courseTitle = "Internet and Web Programming",
+            courseType = "Theory",
+            slotName = "L31+L32",
+            slotVenue = null,
+            faculty = "",
+            credits = null,
+            category = null,
+            attendedClasses = 0,
+            totalClasses = 0,
+            attendancePercentage = "0",
+            logs = listOf(AttendanceDay("12-Sep-2026", "On Duty")),
         )
     )
 
     @Test
-    fun odHoursAreParsedFromRealTimeNotGuessed() {
+    fun vtopTimeHelpersAreInspectionOnly() {
         assertEquals(2, odHoursFrom("09:00 AM - 11:00 AM"))
-        assertEquals(2, odHoursFrom("2 hours"))
-        assertEquals(1, odHoursFrom("09:00-10:00"))
-        assertEquals(2, odHoursFrom("09:00-10:30"))
         assertEquals(0, odHoursFrom("unparseable"))
-        assertEquals(0, odHoursFrom(""))
-    }
-
-    @Test
-    fun odTypeComesFromRealTypeAndBasis() {
         assertEquals("LAB", odTypeFor("Lab", "Practical"))
-        assertEquals("LAB", odTypeFor("OD", "Lab session"))
         assertEquals("TH", odTypeFor("OD", "Theory"))
     }
 
     @Test
-    fun odDaysUseRealRecordsAndPreserveAnnotations() {
-        val tracker = mapOf("12-Sep-2026|CSE3002" to M3EODStatus.WASTED)
-        val days = mapOdRecordsToDays(odRes(), tracker)
-
-        assertEquals(3, days.size)
-        // Real date parsing puts the two Sep dates ahead of the unparseable one.
-        assertEquals("12-Sep-2026", days.first().date)
-        assertEquals("not a date", days.last().date)
-
-        val labDay = days.first { it.date == "12-Sep-2026" }
-        val entry = labDay.entries.single()
-        assertEquals("CSE3002", entry.courseCode)
-        assertEquals("LAB", entry.type)
-        assertEquals(2, entry.hours)
-        assertEquals(M3EODStatus.WASTED, entry.status)
-
-        val theoryDay = days.first { it.date == "08-Sep-2026" }
-        assertEquals(2, theoryDay.entries.single().hours)
-        assertEquals("TH", theoryDay.entries.single().type)
-        assertEquals(M3EODStatus.NONE, theoryDay.entries.single().status)
-
-        val broken = days.last()
-        assertEquals(0, broken.entries.single().hours)
+    fun vtopOnlyPayloadProducesNoCountedDays() {
+        val days = mapOdRecordsToDays(odRes(), emptyMap())
+        assertTrue(days.isEmpty())
     }
 
     @Test
-    fun odFailureOrEmptyPayloadYieldsNoFabricatedRows() {
+    fun vtopRecordsAnnotateAttendanceDaysWithoutChangingHours() {
+        val tracker = mapOf("12-Sep-2026|CSE3002" to M3EODStatus.WASTED)
+        val derived = deriveOdRowsFromAttendance(attendance())
+        val days = mapOdRecordsToDays(odRes(), tracker, derived)
+
+        val day = days.single()
+        assertEquals("12-Sep-2026", day.date)
+        assertEquals(2, day.totalHours)
+        assertEquals("LAB", day.entries.single().type)
+        assertEquals(M3EODStatus.WASTED, day.entries.single().status)
+        // Both VTOP records cover the day: one exact, one date range. Neither adds hours.
+        assertEquals(2, day.officialReasons.size)
+        assertTrue(day.officialReasons.any { it.reason == "CSE3002" && it.remarks == "On duty" })
+    }
+
+    @Test
+    fun failureOrEmptyPayloadYieldsNoFabricatedRows() {
         assertTrue(mapOdRecordsToDays(null, emptyMap()).isEmpty())
         assertTrue(
             mapOdRecordsToDays(
-                OdDetailsRes(success = false, error = "offline", records = emptyList()),
-                emptyMap()
+                OdDetailsRes(success = false, error = "offline"),
+                emptyMap(),
             ).isEmpty()
         )
         assertTrue(mapOdRecordsToDays(OdDetailsRes(success = true), emptyMap()).isEmpty())

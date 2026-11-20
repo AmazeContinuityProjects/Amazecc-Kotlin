@@ -1,5 +1,10 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -7,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -80,6 +86,9 @@ fun M3EAmazeIdSignInScreen(modifier: Modifier = Modifier) {
         var baseUrlText by remember { mutableStateOf(AmazeIdAuth.baseUrl()) }
         var clientIdText by remember { mutableStateOf(AmazeIdAuth.clientId()) }
         var redirectUriText by remember { mutableStateOf(AmazeIdAuth.redirectUri()) }
+        // D-120: server/client/redirect values are administrator settings, not
+        // student-facing sign-in fields. Keep them behind one explicit expander.
+        var showAdvanced by remember { mutableStateOf(false) }
         var mode by remember { mutableStateOf(AmazeIdMode.DEVICE) }
         var busy by remember { mutableStateOf(false) }
         var info by remember { mutableStateOf<String?>(null) }
@@ -134,9 +143,11 @@ fun M3EAmazeIdSignInScreen(modifier: Modifier = Modifier) {
         }
 
         Column(
+            // D-120: keep the callback/token fields reachable when the keyboard opens.
             modifier = modifier
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .imePadding(),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
@@ -179,10 +190,30 @@ fun M3EAmazeIdSignInScreen(modifier: Modifier = Modifier) {
                 }
             }
 
-            // Server / target picker
-            M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(16.dp)) {
-                    SectionLabel("TARGET SERVER", Icons.Rounded.OpenInNew)
+            // D-120: server / OAuth client / redirect / DPoP are administrator
+            // settings. Collapsed by default with plain-language defaults.
+            TextButton(onClick = { showAdvanced = !showAdvanced }, modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = if (showAdvanced) "Hide advanced settings" else "Advanced: server & OAuth settings",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = colors.primary,
+                )
+            }
+            AnimatedVisibility(
+                visible = showAdvanced,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Defaults work for most students. Only change these if an AmazeCC administrator gives you different values.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant,
+                    )
+                    // Server / target picker
+                    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(16.dp)) {
+                            SectionLabel("TARGET SERVER", Icons.Rounded.OpenInNew)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         AmazeIdAuth.SERVERS.forEach { server ->
                             FilterChip(
@@ -260,6 +291,8 @@ fun M3EAmazeIdSignInScreen(modifier: Modifier = Modifier) {
                     )
                 }
             }
+                } // advanced Column
+            } // advanced AnimatedVisibility
 
             M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(16.dp)) {
@@ -484,24 +517,47 @@ private fun TokenSection(
         shape = RoundedCornerShape(14.dp),
         colors = fieldColors(colors),
     )
-    OutlinedTextField(
-        value = dpopInput,
-        onValueChange = onDpopChange,
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("DPoP proof header (optional)") },
-        singleLine = true,
-        shape = RoundedCornerShape(14.dp),
-        colors = fieldColors(colors),
-    )
-    OutlinedTextField(
-        value = confirmationInput,
-        onValueChange = onConfirmationChange,
-        modifier = Modifier.fillMaxWidth(),
-        label = { Text("DPoP confirmation / cnf JSON (optional)") },
-        singleLine = true,
-        shape = RoundedCornerShape(14.dp),
-        colors = fieldColors(colors),
-    )
+    // D-120: DPoP details are an advanced, optional path — most students paste a
+    // normal token and never see these fields.
+    var showDpop by remember { mutableStateOf(false) }
+    TextButton(onClick = { showDpop = !showDpop }, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = if (showDpop) "Hide DPoP options" else "Advanced: DPoP options (optional)",
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = colors.primary,
+        )
+    }
+    AnimatedVisibility(
+        visible = showDpop,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut()
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                text = "Leave these empty for a normal token. Only a DPoP-bound token issued by your provider needs a proof header and its confirmation value.",
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant,
+            )
+            OutlinedTextField(
+                value = dpopInput,
+                onValueChange = onDpopChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("DPoP proof header (optional)") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = fieldColors(colors),
+            )
+            OutlinedTextField(
+                value = confirmationInput,
+                onValueChange = onConfirmationChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("DPoP confirmation / cnf JSON (optional)") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = fieldColors(colors),
+            )
+        }
+    }
     Text(
         "The token is validated with a live userinfo call before it is saved. A DPoP-bound token needs both the proof header and confirmation value.",
         style = MaterialTheme.typography.labelSmall,

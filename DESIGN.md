@@ -28,12 +28,15 @@ colors:
   mint-safe: "#6DD58C"
   mint-safe-on: "#003919"
   mint-safe-container: "#0F5228"
+  mint-safe-container-on: "#B9F0C8"
   amber-caution: "#FFBA28"
   amber-caution-on: "#422C00"
   amber-caution-container: "#5F4100"
+  amber-caution-container-on: "#FFE1A6"
   coral-alert: "#FFB4AB"
   coral-alert-on: "#690005"
   coral-alert-container: "#93000A"
+  coral-alert-container-on: "#FFDAD6"
   light-primary: "#0B57D0"
   light-on-primary: "#FFFFFF"
   light-primary-container: "#D3E3FD"
@@ -58,34 +61,43 @@ colors:
   light-highest: "#E1E3E8"
   light-outline: "#74777F"
   light-outline-variant: "#C4C7C5"
-  light-mint-safe: "#1E8E3E"
+  light-mint-safe: "#146C2E"
   light-mint-safe-on: "#FFFFFF"
   light-mint-safe-container: "#CEEAD6"
+  light-mint-safe-container-on: "#0A3D1B"
   light-amber-caution: "#E37400"
-  light-amber-caution-on: "#FFFFFF"
+  light-amber-caution-on: "#2E1C00"
   light-amber-caution-container: "#FEEFC3"
+  light-amber-caution-container-on: "#422C00"
   light-coral-alert: "#BA1A1A"
   light-coral-alert-on: "#FFFFFF"
   light-coral-alert-container: "#FFDAD6"
+  light-coral-alert-container-on: "#410002"
 typography:
+  # All sizes are scale-independent sp (never px) so system text scaling holds.
+  # `materialRole` is the source of truth; numeric values are the local override.
   headline:
     fontFamily: "Roboto, sans-serif"
-    fontSize: "24px"
+    materialRole: "displaySmall"
+    fontSize: "24sp"
     fontWeight: 900
-    letterSpacing: "-0.5px"
+    letterSpacing: "-0.5sp"
   title:
     fontFamily: "Roboto, sans-serif"
-    fontSize: "18px"
+    materialRole: "titleMedium"
+    fontSize: "18sp"
     fontWeight: 700
   body:
     fontFamily: "Roboto, sans-serif"
-    fontSize: "14px"
+    materialRole: "bodySmall"
+    fontSize: "14sp"
     fontWeight: 400
   label:
     fontFamily: "Roboto, sans-serif"
-    fontSize: "10px"
+    materialRole: "labelSmall"
+    fontSize: "10sp"
     fontWeight: 700
-    letterSpacing: "1px"
+    letterSpacing: "1sp"
 rounded:
   inner: "8px"
   chip: "12px"
@@ -202,9 +214,9 @@ A low-chroma ink ladder carries the structure; three cool signal accents and thr
 - **Outline** (`#8E9099`) and **Outline Variant** (`#33353E`): borders; the variant is used at 0.4–0.5 alpha on cards and navigation.
 
 ### Status
-- **Mint Safe** (`#6DD58C`): attendance ≥75% and successful states; container `#0F5228`.
-- **Amber Caution** (`#FFBA28`): warnings and near-threshold states; container `#5F4100`.
-- **Coral Alert** (`#FFB4AB`): critical attendance and errors; container `#93000A`.
+- **Mint Safe** (`#6DD58C`): attendance ≥75% and successful states; on-color `#003919` (7.22:1), container `#0F5228`, on-container `#B9F0C8` (7.25:1).
+- **Amber Caution** (`#FFBA28`): warnings and near-threshold states; on-color `#422C00` (7.73:1), container `#5F4100`, on-container `#FFE1A6` (7.39:1).
+- **Coral Alert** (`#FFB4AB`): critical attendance and errors; on-color `#690005` (7.72:1), container `#93000A`, on-container `#FFDAD6` (7.24:1).
 
 ### Classic Light (Parallel Scheme)
 
@@ -216,7 +228,7 @@ Classic Light keeps the same roles with their own values; it is not an inversion
 - **Neutral:** background `#F8F9FA`; on-background `#1F1F1F`; surface `#FFFFFF`; on-surface `#1F1F1F`; on-surface-variant `#444746`.
 - **Ink Tonal Tiers (light):** `#FFFFFF`, `#F3F4F6`, `#EDEEF2`, `#E7E8EC`, `#E1E3E8` from lowest to highest.
 - **Outline:** `#74777F`; outline variant `#C4C7C5`.
-- **Status:** Mint Safe `#1E8E3E` (container `#CEEAD6`); Amber Caution `#E37400` (container `#FEEFC3`); Coral Alert `#BA1A1A` (container `#FFDAD6`). Each status on-color is `#FFFFFF`.
+- **Status:** Mint Safe `#146C2E` — on-color `#FFFFFF` (6.53:1), container `#CEEAD6`, on-container `#0A3D1B` (9.65:1). Amber Caution `#E37400` — on-color `#2E1C00` (5.28:1), container `#FEEFC3`, on-container `#422C00` (11.53:1). Coral Alert `#BA1A1A` — on-color `#FFFFFF` (6.46:1), container `#FFDAD6`, on-container `#410002` (13.26:1). The old mint fill `#1E8E3E` and white-on-amber pair failed AA (4.21:1 and 3.10:1); the measured values above all meet WCAG AA.
 
 Init records Midnight as the incumbent identity, so the dark tokens remain the canonical set in frontmatter; the `light-*` keys are the complete parallel record.
 
@@ -235,10 +247,11 @@ Init records Midnight as the incumbent identity, so the dark tokens remain the c
 **Character:** Neutral and legible; personality comes from weight, tracking, and case rather than a bespoke typeface. Micro-labels are loud and wide; metrics are heavy and tight.
 
 ### Hierarchy
-- **Headline** (weight 900, 24px, line-height proportional, tracking -0.5px): the oversized stat value — often an attendance percentage or CGPA — in the tone's accent color.
-- **Title** (weight 700, ~18px): section and card titles via `titleMedium`.
-- **Body** (weight 400, ~14px): supporting copy via `bodySmall`, locally set to 11px with a 13px line-height inside stat cards.
-- **Label** (weight 700, 10px, tracking 1px, uppercase): category and stat labels via `labelSmall`; navigation labels use `labelLarge` at 14px.
+All type sizes are `sp` (scale-independent), never `px`; the Material role is authoritative and the numeric value is only the local override.
+- **Headline** (weight 900, 24sp / `displaySmall`, line-height proportional, tracking -0.5sp): the oversized stat value — often an attendance percentage or CGPA — in the tone's accent color.
+- **Title** (weight 700, 18sp / `titleMedium`): section and card titles.
+- **Body** (weight 400, 14sp / `bodySmall`): supporting copy, locally set to 11sp with a 13sp line-height inside stat cards.
+- **Label** (weight 700, 10sp / `labelSmall`, tracking 1sp, uppercase): category and stat labels; navigation labels use `labelLarge` at 14sp.
 
 **The Two-Voice Rule.** Give every number a Black-weight headline with tight tracking and every label an uppercase, wide-tracked micro-size. Everything in between stays quiet.
 
@@ -263,19 +276,19 @@ Large, soft containers are the default: 20px for surface cards, 24px for connect
 ## Components
 
 ### Connected Button Group
-A 24px pill of `ink-low` holding 4px-padded segments. Unselected segments keep asymmetric outer corners and `ink-on-variant` text; the selected segment becomes an 18px pill filled with `periwinkle-signal`, `periwinkle-on` text, and a 15dp check icon. Selection crossfades with `effectsDefault`; labels are 13px and never wrap.
+A 24px pill of `ink-low` holding 4px-padded segments. Unselected segments keep asymmetric outer corners and `ink-on-variant` text; the selected segment becomes an 18px pill filled with `periwinkle-signal`, `periwinkle-on` text, and a 15dp check icon. Selection crossfades with `effectsDefault`; labels are 13sp and never wrap.
 
 ### Surface Card
 A 20px, tonally-filled container with a 1px `outlineVariant` border at half alpha and 16px internal padding. Interactive cards scale to 0.97 on press with `spatialDefault` and expose an explicit button role, focus, and Enter/Space activation through `clickableA11y`.
 
 ### Stat Card
-A sculptural, asymmetric tile on `ink-low`. The tone sets the accent for a 24px Black-weight metric and a circular icon container; the label is a 10px uppercase micro-line, and the subtitle is 11px on `ink-on-variant`.
+A sculptural, asymmetric tile on `ink-low`. The tone sets the accent for a 24sp Black-weight metric and a circular icon container; the label is a 10sp uppercase micro-line, and the subtitle is 11sp on `ink-on-variant`.
 
 ### Wavy Linear Progress
 The signature component: a 14dp-high canvas with a 4dp round stroke, 3dp sine amplitude, 40dp wavelength, 4dp gap before the flat track, and a 4dp stop dot. The active wave is `periwinkle-signal`; the remaining track is `sky-container` at half alpha.
 
 ### Navigation
-A centered 8dp-elevation pill of `ink-highest` at 0.98 alpha with a 1.5px half-alpha border. The selected destination grows from a 16dp to a 22dp circular indicator; labels use `labelLarge` at 14px. The floating toolbar is the flatter sibling: same tonal base at 0.95 alpha, 1px border, no shadow.
+A centered 8dp-elevation pill of `ink-highest` at 0.98 alpha with a 1.5px half-alpha border. The selected destination grows from a 16dp to a 22dp circular indicator; labels use `labelLarge` at 14sp. The floating toolbar is the flatter sibling: same tonal base at 0.95 alpha, 1px border, no shadow.
 
 ### Bottom Sheet
 A 28px-top-corner surface with a short drag handle, 20px horizontal padding, and a 120dp swipe-to-dismiss threshold. Sync feedback uses a 16dp-elevation notification card above it.

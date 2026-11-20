@@ -7,12 +7,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
@@ -34,6 +38,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -111,6 +116,11 @@ fun M3EDismissibleSheet(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                // D-119: the sheet's backdrop owns system-bar and IME insets so
+                // the panel and its close control stay clear of status/nav bars
+                // and the keyboard while the scrim still paints edge to edge.
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .imePadding()
                 .background(Color.Black.copy(alpha = 0.5f))
                 .clickableA11y(
                     onClickLabel = "Dismiss sheet",
@@ -131,6 +141,12 @@ fun M3EDismissibleSheet(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
                     .background(colors.surfaceContainerLow)
+                    // D-119: the content column owns its own bottom breathing room so the last
+                    // row never crowds the floating nav pill / gesture bar. The backdrop above
+                    // already applies system-bar insets (including the nav bar), so we add only
+                    // the extra 16 dp from DESIGN.md's 16 px outer inset — no double-counting.
+                    .padding(bottom = 16.dp)
+                    .testTag("m3e_sheet_content")
                     .graphicsLayer { translationY = dragY }
             ) {
                 // Grabber owns the drag so vertical scrolling in content stays native.
@@ -189,7 +205,7 @@ fun M3EDismissibleSheet(
                         if (showClose && dismissable) {
                             Box(
                                 modifier = Modifier
-                                    .size(36.dp)
+                                    .size(48.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(colors.surfaceContainerHighest)
                                     .clickableA11y(onClickLabel = "Dismiss sheet") {

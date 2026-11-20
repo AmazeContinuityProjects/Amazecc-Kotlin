@@ -1,7 +1,6 @@
 package com.amazecc.app.shared.state
 
 import com.amazecc.app.shared.config.SlotMap
-import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.model.TimetableRes
 import com.amazecc.app.shared.utils.TimeMath
 import com.amazecc.app.shared.vtop.VtopComponent
@@ -245,19 +244,25 @@ object AcademicDerivers {
         )
 
     /**
-     * Total on-duty hours across a semester's courses (lab = 2h, theory = 1h).
+     * Total on-duty hours across a semester's courses, exactly as the web OD Hours History page
+     * counts them (D-120).
      *
-     * The OD Tracker screen counter, which is what every other OD-hours surface has to call.
-     * The status vocabulary and the multiplier live in [Projections]; the lab test is
-     * [isLabCourse] — both of which this used to re-derive with its own wording.
+     * Only an exact `"On Duty"` log counts, and a period is a 2-hour lab only when the raw slot
+     * string starts with `L`. Both rules live in `domain/OdHoursDerivation.kt`, the same source the
+     * OD Tracker screen uses. The previous broad lab test (a `(L)` code suffix or a "Lab Only"
+     * type) inflated theory periods on `18CSC301(L)`-style codes to two hours, which is why this
+     * counter overshot the web page.
      */
     fun computeODHours(sem: SemesterData): Int =
-        Projections.odHours(
-            sem.courses.values.map { course ->
-                val odCount = course.attendance?.logs.orEmpty().count { Projections.isOdStatus(it.status) }
-                odCount to course.isLabCourse()
+        sem.courses.values.sumOf { course ->
+            val hoursPerPeriod = com.amazecc.app.shared.domain.odHoursForSlot(
+                course.slots.joinToString("+")
+            )
+            val periods = course.attendance?.logs.orEmpty().count {
+                com.amazecc.app.shared.domain.isOdHoursStatus(it.status)
             }
-        )
+            periods * hoursPerPeriod
+        }
 
     /** Start minute of a `"9:00 - 9:50"` slot, for ordering. */
     private fun slotStartMinutes(time: String?): Int = TimeMath.toRange(time).first

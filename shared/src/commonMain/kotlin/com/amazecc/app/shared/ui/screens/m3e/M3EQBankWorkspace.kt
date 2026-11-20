@@ -259,7 +259,7 @@ fun M3EQBankWorkspaceScreen(
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     M3ESurfaceCard(modifier = Modifier.fillMaxWidth(0.7f), containerLevel = SurfaceContainerLevel.LOW) {
                         Text("Loading question bank…", fontSize = 14.sp, color = colors.onSurfaceVariant)
-                        M3EWavyLinearProgress(progress = 0.4f)
+                        M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
                     }
                 }
             }

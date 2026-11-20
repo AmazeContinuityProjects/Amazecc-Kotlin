@@ -10,7 +10,6 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -89,8 +89,12 @@ import com.amazecc.app.shared.vtop.AutoCaptchaHandler
 import com.amazecc.app.shared.vtop.UiCaptchaHandler
 import com.amazecc.app.shared.vtop.Vtop
 import com.amazecc.app.shared.vtop.VtopSource
+import com.amazecc.app.shared.utils.openExternalUrl
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
+
+/** The real VIT portal — used only by the recovery help link, never a fake reset endpoint. */
+private const val VTOP_PORTAL_URL = "https://vtopcc.vit.ac.in/vtop"
 
 /**
  * Material 3 Expressive Login Screen for AmazeCC.
@@ -115,6 +119,10 @@ fun M3ELoginScreen(
     var isSubmitting by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var vtopSource by remember { mutableStateOf(AmazeClient.vtopSource) }
+    // D-120: engine/captcha tuning and recovery guidance are opt-in so the primary
+    // sign-in task is not buried under student-facing infrastructure details.
+    var showAdvanced by remember { mutableStateOf(false) }
+    var showRecovery by remember { mutableStateOf(false) }
 
     val captchaRequest by Vtop.captchaRequest.collectAsState()
     val isLocalVtop = vtopSource == VtopSource.LOCAL
@@ -167,7 +175,9 @@ fun M3ELoginScreen(
             .background(colors.background)
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            // D-120: without imePadding the keyboard can cover the captcha field
+            // and the sign-in actions at the bottom of this form.
+            modifier = Modifier.fillMaxSize().imePadding(),
             contentPadding = PaddingValues(horizontal = 24.dp, vertical = 32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -383,6 +393,24 @@ fun M3ELoginScreen(
                             )
                         )
 
+                        // D-120: engine selection, manual captcha and the captcha
+                        // field are advanced tuning, not part of the primary task.
+                        TextButton(
+                            onClick = { showAdvanced = !showAdvanced },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (showAdvanced) "Hide advanced options" else "Advanced: engine & captcha",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
+                            )
+                        }
+                        AnimatedVisibility(
+                            visible = showAdvanced,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         // VTOP Engine Selector (On-Device Local Scraper vs Remote API Cloud)
                         Box(
                             modifier = Modifier
@@ -510,6 +538,8 @@ fun M3ELoginScreen(
                                 )
                             }
                         }
+                            } // advanced Column
+                        } // advanced AnimatedVisibility
 
                         Spacer(Modifier.height(4.dp))
 
@@ -596,7 +626,58 @@ fun M3ELoginScreen(
                 }
             }
 
-            // 4. Demo Mode Action Card
+            // 4. Sign-in recovery guidance. Real actions only: the portal link opens
+            // the official VIT site; the rest is honest guidance (no fake reset).
+            item(key = "sign_in_recovery") {
+                M3ESurfaceCard(
+                    containerLevel = SurfaceContainerLevel.LOWEST,
+                    cornerRadius = 20.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = { showRecovery = !showRecovery },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = if (showRecovery) "Hide sign-in help" else "Can't sign in? Recovery help",
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                color = colors.primary
+                            )
+                        }
+                        AnimatedVisibility(
+                            visible = showRecovery,
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text(
+                                    text = "Forgot your VTOP password? Reset it on the official VIT VTOP portal, then sign in here again. AmazeCC cannot reset VTOP passwords.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                                TextButton(
+                                    onClick = { openExternalUrl(VTOP_PORTAL_URL) },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Open official VTOP portal",
+                                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                                        color = colors.primary
+                                    )
+                                }
+                                Text(
+                                    text = "No registration number? VIT issues it at admission — check your VIT student app, fee receipt, or contact the university helpdesk. AmazeCC cannot issue one; you can explore the app in Demo Mode meanwhile.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5. Demo Mode Action Card
             item(key = "demo_mode_button") {
                 OutlinedButton(
                     onClick = {
@@ -630,7 +711,7 @@ fun M3ELoginScreen(
                 }
             }
 
-            // 5. Footer info
+            // 6. Footer info
             item(key = "footer") {
                 Text(
                     text = "AmazeCC • An unofficial community initiative",

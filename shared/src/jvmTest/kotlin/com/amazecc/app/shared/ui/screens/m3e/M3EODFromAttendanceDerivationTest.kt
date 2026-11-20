@@ -8,7 +8,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-/** On-duty OD rows must be derived locally from synced attendance and unioned with VTOP records. */
+/**
+ * D-120: OD rows must be derived exactly as ../AmazeCC's `useAttendanceState.ts` derives them —
+ * only exact "On Duty" logs, lab hours only from an `L`-prefixed slot, never from a VTOP record.
+ */
 class M3EODFromAttendanceDerivationTest {
 
     private fun course(
@@ -16,10 +19,11 @@ class M3EODFromAttendanceDerivationTest {
         title: String,
         slot: String,
         vararg logs: Pair<String, String>,
+        courseType: String = "Theory",
     ) = CourseAttendance(
         courseCode = code,
         courseTitle = title,
-        courseType = "Theory",
+        courseType = courseType,
         slotName = slot,
         slotVenue = null,
         faculty = "",
@@ -46,51 +50,57 @@ class M3EODFromAttendanceDerivationTest {
     )
 
     @Test
-    fun onDutyRowsDeriveCorrectly() {
+    fun onDutyRowsDeriveCorrectlyFromRealWebFixtureShape() {
         val attendance = listOf(
-            course("CSE3002", "Internet and Web Programming", "L31+L32", "12-Sep-2026" to "On Duty"),
-            course("MAT2001", "Complex Variables", "A1", "08-Sep-2026" to "od"),
-            course("PHY1001", "Physics", "B2", "01-Sep-2026" to "  ONDUTY  "),
-            course("CHE1001", "Chemistry", "C1", "02-Sep-2026" to "Present"),
+            course("CSE1001", "Algorithms", "A1", "2026-10-05" to "On Duty"),
+            course("CSE1002", "Systems Lab", "L1+L2", "2026-10-04" to "On Duty"),
+            course("CHE1001", "Chemistry", "C1", "2026-10-03" to "Present"),
         )
 
         val rows = deriveOdRowsFromAttendance(attendance)
 
-        assertEquals(3, rows.size)
-        val lab = rows.single { it.courseCode == "CSE3002" }
-        assertEquals("12-Sep-2026", lab.date)
+        assertEquals(2, rows.size)
+        val lab = rows.single { it.courseCode == "CSE1002" }
+        assertEquals("2026-10-04", lab.date)
         assertEquals("LAB", lab.type)
         assertEquals(2, lab.hours)
-        assertEquals("Internet and Web Programming", lab.title)
+        assertEquals("Systems Lab", lab.title)
 
-        val theory = rows.single { it.courseCode == "MAT2001" }
-        assertEquals("08-Sep-2026", theory.date)
+        val theory = rows.single { it.courseCode == "CSE1001" }
+        assertEquals("2026-10-05", theory.date)
         assertEquals("TH", theory.type)
         assertEquals(1, theory.hours)
-
-        val caseInsensitive = rows.single { it.courseCode == "PHY1001" }
-        assertEquals("01-Sep-2026", caseInsensitive.date)
-        assertEquals(1, caseInsensitive.hours)
         assertTrue(rows.none { it.courseCode == "CHE1001" })
     }
 
     @Test
-    fun derivedRowsDeDupeWithVtopRecords() {
+    fun labSuffixCodeOnATheorySlotIsStillOneHour() {
+        // The exact fixture that made Kotlin overshoot the web page: a `(L)` course code with a
+        // non-lab slot. The web reads only slotName, so this is a 1h theory period.
+        val rows = deriveOdRowsFromAttendance(
+            listOf(course("18CSC301(L)", "Data Structures Lab", "A1", "2026-10-06" to "On Duty"))
+        )
+        assertEquals(1, rows.size)
+        assertEquals("TH", rows.single().type)
+        assertEquals(1, rows.single().hours)
+    }
+
+    @Test
+    fun vtopRecordsNeverAddOrDeDupeHours() {
         val attendance = listOf(
             course("CSE3002", "Internet and Web Programming", "L31+L32", "12-Sep-2026" to "On Duty"),
             course("MAT2001", "Complex Variables", "A1", "08-Sep-2026" to "On Duty"),
         )
+        val derived = deriveOdRowsFromAttendance(attendance)
 
-        val days = mapOdRecordsToDays(vtopRes(), emptyMap(), deriveOdRowsFromAttendance(attendance))
+        val days = mapOdRecordsToDays(vtopRes(), emptyMap(), derived)
 
+        // Exactly the two attendance days. The VTOP record for 12-Sep claims 2h from its clock
+        // range; it must not create a second entry or change the slot-derived 2h.
         assertEquals(2, days.size)
-        val dupDay = days.single { it.date == "12-Sep-2026" }
-        assertEquals(1, dupDay.entries.size)
-        // The real VTOP record wins the de-duplication (its title is `reason`).
-        assertEquals("CSE3002", dupDay.entries.single().title)
-        assertEquals(2, dupDay.entries.single().hours)
-        // The non-duplicated derived row still shows up.
+        assertEquals(2, days.single { it.date == "12-Sep-2026" }.entries.single().hours)
         assertEquals(1, days.single { it.date == "08-Sep-2026" }.entries.single().hours)
+        assertEquals(1, days.single { it.date == "12-Sep-2026" }.officialReasons.size)
     }
 
     @Test
@@ -103,6 +113,7 @@ class M3EODFromAttendanceDerivationTest {
         val fromNull = mapOdRecordsToDays(null, emptyMap(), derived)
         assertEquals(1, fromNull.size)
         assertEquals("CSE3002", fromNull.single().entries.single().courseCode)
+        assertTrue(fromNull.single().officialReasons.isEmpty())
 
         val fromFailure = mapOdRecordsToDays(
             OdDetailsRes(success = false, error = "offline"),
@@ -125,7 +136,10 @@ class M3EODFromAttendanceDerivationTest {
                 "02-Sep-2026" to "Absent",
                 "03-Sep-2026" to "",
                 "04-Sep-2026" to "partial od",
-                "05-Sep-2026" to "p",
+                "05-Sep-2026" to "od",
+                "06-Sep-2026" to "onduty",
+                "07-Sep-2026" to "on duty",
+                "08-Sep-2026" to "ON DUTY",
             )
         )
         assertTrue(deriveOdRowsFromAttendance(attendance).isEmpty())

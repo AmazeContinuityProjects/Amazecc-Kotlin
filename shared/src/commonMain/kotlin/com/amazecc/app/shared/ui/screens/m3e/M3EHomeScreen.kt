@@ -1,16 +1,17 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,14 +21,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -69,6 +73,8 @@ fun M3EHomeScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    // Read once so the smart cast survives inside the LazyColumn's lambdas.
+    val errorMessage = state.errorMessage
 
     Box(
         modifier = modifier
@@ -90,6 +96,17 @@ fun M3EHomeScreen(
                 )
             }
 
+            // 1b. Backend failure banner — real error text, retry and dismiss both wired.
+            if (!errorMessage.isNullOrBlank()) {
+                item(key = "error_banner") {
+                    M3EHomeErrorBanner(
+                        message = errorMessage,
+                        onRetry = { onAction(M3EHomeAction.RefreshData) },
+                        onDismiss = { onAction(M3EHomeAction.DismissError) }
+                    )
+                }
+            }
+
             // 2. Expressive Dual Stat Cards: Constant Attendance Card + Insight Carousel Card (Exactly two cards side-by-side)
             item(key = "home_stat_cards") {
                 val attendanceStat = remember(state.quickStats) {
@@ -97,7 +114,12 @@ fun M3EHomeScreen(
                         id = "stat_attendance",
                         label = "Attendance",
                         value = state.quickStats.attendancePercentage.toFixed(2, "%"),
-                        sub = state.quickStats.attendanceStatusText.ifBlank { "Overall status" },
+                        // Always state the threshold next to the headline number so the
+                        // percentage has an explicit meaning instead of a bare value.
+                        sub = listOfNotNull(
+                            "75% safety target",
+                            state.quickStats.attendanceStatusText.takeIf { it.isNotBlank() }
+                        ).joinToString(" · "),
                         tone = if (state.quickStats.attendancePercentage >= 75.0) M3EStatTone.GOOD else M3EStatTone.CRITICAL,
                         icon = Icons.Rounded.CheckCircle,
                         onClick = { onAction(M3EHomeAction.OpenAttendanceHub) }
@@ -189,13 +211,17 @@ fun M3EHomeScreen(
                         fontWeight = FontWeight.Bold,
                         color = colors.onBackground
                     )
-                    Text(
-                        text = "View Timetable",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.primary,
-                        modifier = Modifier.clickable { onAction(M3EHomeAction.OpenTimetableHub) }
-                    )
+                    TextButton(
+                        onClick = { onAction(M3EHomeAction.OpenTimetableHub) },
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) {
+                        Text(
+                            text = "View Timetable",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.primary
+                        )
+                    }
                 }
             }
 
@@ -215,9 +241,9 @@ fun M3EHomeScreen(
                             val isSelectedToday = state.selectedDayDate == state.weekDays.firstOrNull { it.isToday }?.date
                             Text(
                                 text = if (isSelectedToday) {
-                                    "No classes scheduled for today! 🎉"
+                                    "No classes scheduled for today."
                                 } else {
-                                    "No classes scheduled for this day! 🎉"
+                                    "No classes scheduled for this day."
                                 },
                                 color = colors.onSurfaceVariant,
                                 fontSize = 14.sp,
@@ -238,9 +264,9 @@ fun M3EHomeScreen(
                 }
             }
 
-            // Bottom Spacing for floating toolbar (twice nav bar height: 140dp)
+            // Bottom spacing for the floating navigation (named, inset-aware token)
             item(key = "bottom_spacer") {
-                Spacer(Modifier.height(140.dp))
+                Spacer(Modifier.height(BOTTOM_NAV_PADDING))
             }
         }
     }
@@ -296,6 +322,57 @@ private fun M3EHomeHeader(
                 contentDescription = "Refresh",
                 tint = colors.onSurface
             )
+        }
+    }
+}
+
+@Composable
+private fun M3EHomeErrorBanner(
+    message: String,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val colors = M3ETheme.colors
+
+    M3ESurfaceCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerLevel = SurfaceContainerLevel.HIGH,
+        borderColor = colors.error
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Warning,
+                contentDescription = null,
+                tint = colors.error,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Couldn't load your latest data",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onSurface
+                )
+                Text(
+                    text = message,
+                    fontSize = 12.sp,
+                    color = colors.onSurfaceVariant
+                )
+            }
+            TextButton(onClick = onRetry) {
+                Text(text = "Retry", fontWeight = FontWeight.SemiBold, color = colors.error)
+            }
+            IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = "Dismiss error",
+                    tint = colors.onSurfaceVariant
+                )
+            }
         }
     }
 }

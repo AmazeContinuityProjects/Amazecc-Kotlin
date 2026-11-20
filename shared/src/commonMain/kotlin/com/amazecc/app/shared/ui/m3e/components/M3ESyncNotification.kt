@@ -1,10 +1,7 @@
 package com.amazecc.app.shared.ui.m3e.components
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -13,7 +10,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +63,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -80,7 +79,10 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -102,6 +104,7 @@ import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.m3e.theme.M3EMotion
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.utils.toFixed
 import com.amazecc.app.shared.vtop.VtopSource
@@ -290,8 +293,16 @@ fun M3ESyncNotification(
         // ==========================================
         AnimatedVisibility(
             visible = isMinimized,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = slideOutVertically { it } + fadeOut()
+            // D-119: all specs come from M3EMotion, so OS/in-app reduced motion
+            // collapses these slides to near-instant springs.
+            enter = slideInVertically(
+                animationSpec = M3EMotion.spatialSlow(),
+                initialOffsetY = { it }
+            ) + fadeIn(animationSpec = M3EMotion.effectsDefault()),
+            exit = slideOutVertically(
+                animationSpec = M3EMotion.spatialSlow(),
+                targetOffsetY = { it }
+            ) + fadeOut(animationSpec = M3EMotion.effectsDefault())
         ) {
             Box(
                 modifier = Modifier
@@ -303,16 +314,17 @@ fun M3ESyncNotification(
                     .clip(RoundedCornerShape(20.dp))
                     .background(colors.surfaceContainerHighest.copy(alpha = 0.95f))
                     .border(1.dp, colors.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
-                    .clickable(
+                    // D-119: labelled, role-bearing control (60 dp tall target).
+                    .clickableA11y(
+                        onClickLabel = "Expand sync details",
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
                         onClick = { isMinimized = false }
                     )
             ) {
                 // Energy bar progress track
                 val animatedWidthPercent by animateFloatAsState(
                     targetValue = progressPercent / 100f,
-                    animationSpec = tween(500),
+                    animationSpec = M3EMotion.effectsDefault(),
                     label = "EnergyBarWidth"
                 )
 
@@ -436,30 +448,41 @@ fun M3ESyncNotification(
         // ==========================================
         AnimatedVisibility(
             visible = !isMinimized,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = slideOutVertically { it } + fadeOut()
+            enter = slideInVertically(
+                animationSpec = M3EMotion.spatialSlow(),
+                initialOffsetY = { it }
+            ) + fadeIn(animationSpec = M3EMotion.effectsDefault()),
+            exit = slideOutVertically(
+                animationSpec = M3EMotion.spatialSlow(),
+                targetOffsetY = { it }
+            ) + fadeOut(animationSpec = M3EMotion.effectsDefault())
         ) {
             // Modal Backdrop Scrim
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(Color.Black.copy(alpha = 0.55f))
-                    .clickable(
+                    // mergeDescendants=false keeps the sheet's own a11y tree
+                    // readable instead of folding it into the backdrop button.
+                    .clickableA11y(
+                        onClickLabel = "Minimize sync sheet",
+                        mergeDescendants = false,
                         interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
                         onClick = { isMinimized = true }
                     ),
                 contentAlignment = Alignment.BottomCenter
             ) {
-                // Sheet Container
+                // Sheet Container. Consume the first down here so taps inside
+                // the sheet never reach the backdrop's minimize handler; unlike
+                // a no-op clickable this adds no phantom button to a11y.
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = {} // block dismissal when tapping inside
-                        ),
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(requireUnconsumed = false).consume()
+                            }
+                        },
                     shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                     color = colors.surfaceContainerHigh,
                     tonalElevation = 3.dp
@@ -916,8 +939,10 @@ fun M3ESyncNotification(
                         // Collapsible Console / Activity Logs
                         AnimatedVisibility(
                             visible = showConsole,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut()
+                            enter = expandVertically(animationSpec = M3EMotion.spatialSlow()) +
+                                fadeIn(animationSpec = M3EMotion.effectsDefault()),
+                            exit = shrinkVertically(animationSpec = M3EMotion.spatialSlow()) +
+                                fadeOut(animationSpec = M3EMotion.effectsDefault())
                         ) {
                             M3ESurfaceCard(
                                 containerLevel = SurfaceContainerLevel.LOWEST,
@@ -929,7 +954,16 @@ fun M3ESyncNotification(
                                 val logState = rememberLazyListState()
                                 LaunchedEffect(logLines.size) {
                                     if (logLines.isNotEmpty()) {
-                                        logState.animateScrollToItem(logLines.size - 1)
+                                        val target = logLines.size - 1
+                                        // D-119: this Compose version's animateScrollToItem has
+                                        // no animationSpec parameter. Honour reduced motion by
+                                        // jumping instead of animating; otherwise keep the
+                                        // default smooth follow-the-tail scroll.
+                                        if (M3EMotion.reducedMotionEnabled) {
+                                            logState.scrollToItem(target)
+                                        } else {
+                                            logState.animateScrollToItem(target)
+                                        }
                                     }
                                 }
 
@@ -951,11 +985,10 @@ fun M3ESyncNotification(
                                             ),
                                             color = colors.primary
                                         )
-                                        Text(
-                                            text = if (copiedLogsToast) "Copied!" else "Copy",
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                                            color = colors.onSurfaceVariant,
-                                            modifier = Modifier.clickable {
+                                        // D-119: a real labelled button with a 48 dp
+                                        // target, not a Text with a bare click listener.
+                                        TextButton(
+                                            onClick = {
                                                 val all = buildString {
                                                     appendLine("=== NETWORK ===")
                                                     NetworkGate.recentLines(200).forEach { appendLine(it) }
@@ -968,8 +1001,18 @@ fun M3ESyncNotification(
                                                     delay(com.amazecc.app.shared.ui.m3e.theme.M3EFeedbackDurations.COPY_TOAST_MS)
                                                     copiedLogsToast = false
                                                 }
-                                            }
-                                        )
+                                            },
+                                            modifier = Modifier
+                                                .height(48.dp)
+                                                .semantics { contentDescription = "Copy sync logs" },
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = if (copiedLogsToast) "Copied!" else "Copy",
+                                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                                color = colors.primary
+                                            )
+                                        }
                                     }
                                     Spacer(Modifier.height(6.dp))
                                     LazyColumn(
@@ -1208,8 +1251,14 @@ private fun M3EConnectionBanner(
     val colors = M3ETheme.colors
     AnimatedVisibility(
         visible = problem != null,
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut(),
+        enter = slideInVertically(
+            animationSpec = M3EMotion.spatialSlow(),
+            initialOffsetY = { -it }
+        ) + fadeIn(animationSpec = M3EMotion.effectsDefault()),
+        exit = slideOutVertically(
+            animationSpec = M3EMotion.spatialSlow(),
+            targetOffsetY = { -it }
+        ) + fadeOut(animationSpec = M3EMotion.effectsDefault()),
         modifier = modifier
     ) {
         val serverDown = problem == "vtop"
@@ -1276,8 +1325,9 @@ private fun M3EConnectionBanner(
                             onClick = onCheckNow,
                             enabled = !isChecking,
                             shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
-                            modifier = Modifier.height(34.dp)
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            // D-119: minimum 48 dp touch target.
+                            modifier = Modifier.height(48.dp)
                         ) {
                             if (isChecking) {
                                 CircularProgressIndicator(
@@ -1293,7 +1343,8 @@ private fun M3EConnectionBanner(
                             }
                         }
                     }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                    // D-119: minimum 48 dp touch target.
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = Icons.Rounded.Close,
                             contentDescription = "Dismiss connection notice",

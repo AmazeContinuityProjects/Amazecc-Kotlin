@@ -1,7 +1,6 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +57,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ERegisteredEventItem
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
+import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -574,17 +574,29 @@ private fun EventCard(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    val detailsLabel = listOfNotNull(
+        event.title.ifBlank { null },
+        event.date.takeIf { it.isNotBlank() },
+        event.venue.takeIf { it.isNotBlank() }
+    ).joinToString(", ").ifBlank { "this event" }
 
     M3ESurfaceCard(
         containerLevel = SurfaceContainerLevel.LOW,
         cornerRadius = 22.dp,
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
+        modifier = modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // D-122: only the informational region is the button. The Register control is a
+            // sibling below, so TalkBack announces two distinct controls instead of a button
+            // nested inside a button. clickableA11y supplies Role.Button + a spoken label.
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickableA11y(
+                        onClickLabel = "View details for $detailsLabel",
+                        onClick = onClick
+                    )
+            ) {
             // Fest & Category Tags Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -698,9 +710,12 @@ private fun EventCard(
                 )
             }
 
+            } // end of clickable event-details region
+
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Action Row: Register or Status
+            // Action Row: Register or Status — a sibling of the clickable region above,
+            // never a descendant of it.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,

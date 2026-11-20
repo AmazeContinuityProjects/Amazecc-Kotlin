@@ -1,7 +1,7 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
-import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -44,7 +44,7 @@ class M3EContactsScreenUiTest {
         onNodeWithText("Contacts").assertExists()
         onAllNodesWithTag(M3EContactsTestTags.CONTACT_CARD).assertCountEquals(2)
         onNodeWithText("Accommodation Office").assertExists()
-        // One description title above each body — the two are stacked, not side by side.
+        // One description title above each body ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â the two are stacked, not side by side.
         onAllNodesWithText("Description").assertCountEquals(2)
         onNodeWithText("Hostel allotment queries").assertExists()
         onNodeWithText("hostel@vit.ac.in").assertExists()

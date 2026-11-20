@@ -113,7 +113,7 @@ class AcademicDeriversTest {
                     slots = listOf("A1"),
                     attendance = StoredAttendance(
                         logs = listOf(
-                            AttendanceLog("2026-08-01", "on duty"),
+                            AttendanceLog("2026-08-01", "On Duty"),
                             AttendanceLog("2026-08-02", "present"),
                             AttendanceLog("2026-08-03", "absent")
                         )
@@ -124,15 +124,15 @@ class AcademicDeriversTest {
                     slots = listOf("L1"),
                     attendance = StoredAttendance(
                         logs = listOf(
-                            AttendanceLog("2026-08-01", "od"),
-                            AttendanceLog("2026-08-02", "on duty"),
-                            AttendanceLog("2026-08-03", "onduty")
+                            AttendanceLog("2026-08-01", "On Duty"),
+                            AttendanceLog("2026-08-02", "On Duty"),
+                            AttendanceLog("2026-08-03", "On Duty")
                         )
                     )
                 )
             )
         )
-        // theory: 1 on-duty log × 1h; lab: 3 od logs × 2h
+        // theory: 1 exact On Duty log × 1h; lab (slot L1): 3 exact On Duty logs × 2h
         assertEquals(7, AcademicDerivers.computeODHours(sem))
     }
 
@@ -291,10 +291,11 @@ class AcademicDeriversTest {
     // ── OD hours ──────────────────────────────────────────────────────────────
 
     @Test
-    fun odHoursCountsALabWhoseCodeEndsInSuffixEvenWhenTheSlotIsNotLabShaped() {
-        // The two OD counters used to disagree right here. The widget one read only `slotName`,
-        // so this course was worth one hour in a widget and two on the home screen — and since
-        // OD hours are what buys a bunk, the same student saw two answers to one question.
+    fun odHoursUsesSlotPrefixNotCodeSuffix() {
+        // D-120: the web OD Hours History page reads only `slotName.startsWith("L")`. A `(L)`
+        // course code on an A1 slot is a 1h theory period there; the old broad Kotlin lab test
+        // charged 2h and made the counter overshoot. WidgetDataUtils still uses the broad test and
+        // is reported as a separate wiring change to the central-build owner.
         val code = "18CSC301(L)"
         val logs = listOf(AttendanceLog("15-Dec-2025", "On Duty"))
 
@@ -303,14 +304,8 @@ class AcademicDeriversTest {
             semesterName = "Fall Semester 2025-26",
             courses = mapOf(code to course(code = code, slots = listOf("A1"), attendance = StoredAttendance(logs = logs))),
         )
-        val asRow = sem.courses.getValue(code).toAttendanceItem()
 
-        assertEquals(2, AcademicDerivers.computeODHours(sem))
-        // Both entry points, over the same course, must now be the same number.
-        assertEquals(
-            AcademicDerivers.computeODHours(sem),
-            com.amazecc.app.shared.utils.WidgetDataUtils.computeODHours(listOf(asRow)),
-        )
+        assertEquals(1, AcademicDerivers.computeODHours(sem))
     }
 
     @Test
@@ -319,8 +314,8 @@ class AcademicDeriversTest {
         val lab = "18CSC301L"
         val logs = listOf(
             AttendanceLog("15-Dec-2025", "On Duty"),
-            AttendanceLog("16-Dec-2025", "on duty"),
-            AttendanceLog("17-Dec-2025", " od "),
+            AttendanceLog("16-Dec-2025", "On Duty"),
+            AttendanceLog("17-Dec-2025", "On Duty"),
         )
 
         val sem = SemesterData(

@@ -1,7 +1,9 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -102,7 +104,10 @@ class M3EProfileResidenceActionsTest {
         }
 
         onNodeWithText("VELLORE INSTITUTE OF TECHNOLOGY").performClick()
-        onNodeWithContentDescription("Refresh").performClick()
+        // D-116: the header refresh is now an item of the page-actions FAB.
+        onNodeWithContentDescription("More actions").performClick()
+        waitForIdle()
+        onNodeWithText("Refresh").performSemanticsAction(SemanticsActions.OnClick)
 
         assertEquals(2, actions.size)
         assertTrue(actions[0] is M3EProfileAction.FlipIdCard)

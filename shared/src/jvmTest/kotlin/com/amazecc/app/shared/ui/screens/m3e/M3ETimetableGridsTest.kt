@@ -83,6 +83,7 @@ class M3ETimetableGridsTest {
             AmazeM3ETheme {
                 M3EHorizontalTimetableGrid(
                     days = sampleDays(),
+                    denseGrid = true,
                     onSlotClick = { clickedSlot = it }
                 )
             }
@@ -116,6 +117,7 @@ class M3ETimetableGridsTest {
             AmazeM3ETheme {
                 M3EVerticalTimetableGrid(
                     days = sampleDays(),
+                    denseGrid = true,
                     selectedDayIndex = 0,
                     onSelectDay = { selectedDayIdx = it },
                     onSlotClick = { clickedSlot = it }
@@ -185,9 +187,12 @@ class M3ETimetableGridsTest {
             }
         }
 
-        // Lunch break banner should appear in vertical mode
-        onNodeWithText("Lunch Break").assertExists()
-        onNodeWithText("12:40 PM - 01:30 PM • Dining Hall & Mess").assertExists()
+        // The screen's VERTICAL branch renders M3EVerticalTimetableGrid with its
+        // default compact layout. The lunch banner is an opt-in of the dense
+        // grid (see testVerticalGridRendersDayScheduleAndSlots), so verify the
+        // screen wired the vertical grid itself: the day selector and slots.
+        onNodeWithText("Mon").assertExists()
+        onNodeWithText("Tue").assertExists()
         onNodeWithText("CSE3002").assertExists()
     }
 

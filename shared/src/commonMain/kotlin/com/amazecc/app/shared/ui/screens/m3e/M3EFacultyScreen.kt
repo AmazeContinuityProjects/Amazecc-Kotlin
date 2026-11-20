@@ -6,7 +6,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +33,7 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -128,26 +128,15 @@ fun M3EFacultyScreen(
                 )
             }
 
-            // School Filter Chips
+            // School Filter Chips — Material FilterChip exposes role + selected state to TalkBack.
             item(key = "school_chips") {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(state.availableSchools) { school ->
-                        val isSelected = school == state.selectedSchool
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50.dp))
-                                .background(if (isSelected) colors.primary else colors.surfaceContainerLow)
-                                .clickable { onAction(M3EFacultyAction.SelectSchool(school)) }
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = school,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) colors.onPrimary else colors.onSurface
-                            )
-                        }
+                        FilterChip(
+                            selected = school == state.selectedSchool,
+                            onClick = { onAction(M3EFacultyAction.SelectSchool(school)) },
+                            label = { Text(school, fontSize = 12.sp) }
+                        )
                     }
                 }
             }
@@ -297,22 +286,10 @@ private fun M3EFacultyCard(
                                     )
                                 }
                             }
-                            if (faculty.isCurrentlyTeaching) {
-                                Spacer(Modifier.width(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(50.dp))
-                                        .background(colors.secondaryContainer)
-                                        .padding(horizontal = 7.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "● In Class",
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = colors.onSecondaryContainer
-                                    )
-                                }
-                            }
+                            // D-122: the removed "● In Class" chip claimed live presence with
+                            // no freshness signal or timestamp in M3EFacultyMember, so it could
+                            // not be qualified with "as of <time>". Real data never sets
+                            // isCurrentlyTeaching; show no presence claim rather than a false one.
                         }
                         Text(
                             text = "${faculty.designation} · ${faculty.school}",
@@ -372,7 +349,7 @@ private fun M3EFacultyCard(
                     )
                     IconButton(
                         onClick = { onCopyEmail() },
-                        modifier = Modifier.size(28.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.ContentCopy,
@@ -416,8 +393,13 @@ private fun M3EFacultyCard(
             // Expandable: Intercom + Courses + Timetable
             AnimatedVisibility(
                 visible = isExpanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                // D-122: M3E specs replace the defaults. The composable M3ETheme.motion
+                // provider reads LocalMotionReduced directly, so reduced motion applies
+                // on the first frame without the root-fallback lag.
+                enter = expandVertically(animationSpec = M3ETheme.motion.spatialDefault()) +
+                    fadeIn(animationSpec = M3ETheme.motion.effectsDefault()),
+                exit = shrinkVertically(animationSpec = M3ETheme.motion.spatialDefault()) +
+                    fadeOut(animationSpec = M3ETheme.motion.effectsDefault())
             ) {
                 Column(
                     modifier = Modifier
@@ -603,7 +585,7 @@ private fun createMockFacultyState() = M3EFacultyState(
             coursesTaught = listOf("CSE3002", "CSE1007"),
             isMyFaculty = true,
             isCurrentlyTeaching = true,
-            currentSlotInfo = "Now: CSE3002 in SJT-512 (Slot A1)",
+            currentSlotInfo = "CSE3002 in SJT-512 (Slot A1)",
             timetable = listOf(
                 M3EFacultyTimetableSlot("A1", "CSE3002", "Full Stack Development", "SJT-512", "MON"),
                 M3EFacultyTimetableSlot("B1", "CSE3002", "Full Stack Development", "SJT-512", "TUE"),
@@ -640,7 +622,7 @@ private fun createMockFacultyState() = M3EFacultyState(
             coursesTaught = listOf("CSE3002", "CSE1007"),
             isMyFaculty = true,
             isCurrentlyTeaching = true,
-            currentSlotInfo = "Now: CSE3002 in SJT-512 (Slot A1)",
+            currentSlotInfo = "CSE3002 in SJT-512 (Slot A1)",
             timetable = listOf(
                 M3EFacultyTimetableSlot("A1", "CSE3002", "Full Stack Development", "SJT-512", "MON"),
                 M3EFacultyTimetableSlot("B1", "CSE3002", "Full Stack Development", "SJT-512", "TUE"),

@@ -41,11 +41,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -64,10 +62,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.domain.overhaul.M3EKohaBookDetail
 import com.amazecc.app.shared.domain.overhaul.M3EKohaHolding
-import com.amazecc.app.shared.model.KohaBook
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
@@ -76,9 +72,6 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /** A library book, mapped from either an issued [BookItem] or a Koha catalog hit. */
@@ -112,7 +105,15 @@ data class M3ELibrariesState(
     val bookDetail: M3EKohaBookDetail? = null,
     val isDetailLoading: Boolean = false,
     val detailErrorMessage: String? = null,
-    val renewNotice: String? = null
+    val renewNotice: String? = null,
+    // D-121: catalog paging is host-owned. Page 0 is `searchResults`; deeper pages
+    // are delivered as `catalogPageResults` after the host calls the same real Koha
+    // endpoint with its offset. The composable never performs AmazeClient IO.
+    val catalogPage: Int = 0,
+    val catalogPageSize: Int = 20,
+    val catalogPageResults: List<M3ELibraryBook> = emptyList(),
+    val isPaging: Boolean = false,
+    val pageError: String? = null
 )
 
 /** The two library surfaces: the loan account and the Koha catalog. */
@@ -134,6 +135,8 @@ sealed interface M3ELibrariesAction {
     data class RenewBook(val bookId: String) : M3ELibrariesAction
     data class OpenBookDetail(val biblionumber: String) : M3ELibrariesAction
     data object DismissBookDetail : M3ELibrariesAction
+    /** Load a zero-based catalog page; the host maps it to `offset = page * catalogPageSize`. */
+    data class LoadCatalogPage(val page: Int) : M3ELibrariesAction
     data object Refresh : M3ELibrariesAction
 }
 
@@ -151,15 +154,6 @@ internal fun renewLibraryOutcome(result: com.amazecc.app.shared.model.BasicRes):
         null to (result.message?.takeIf { it.isNotBlank() } ?: "Renewal failed")
     }
 
-/** Same field mapping the host uses for page 0, so later pages render identically (D-063). */
-private fun KohaBook.toM3ELibraryBook() = M3ELibraryBook(
-    id = biblionumber,
-    title = title,
-    author = author,
-    publisher = publisher.takeIf { it.isNotBlank() },
-    isbn = isbn.takeIf { it.isNotBlank() }
-)
-
 /**
  * Material 3 Expressive Library screen.
  * 100% stateless: receives [M3ELibrariesState] and emits [M3ELibrariesAction].
@@ -175,59 +169,19 @@ fun M3ELibrariesScreen(
     val colors = M3ETheme.colors
     val showBookDetail = state.bookDetail != null || state.isDetailLoading || state.detailErrorMessage != null
 
-    // D-063: the host owns page 0 (state.searchResults). Deeper pages hit the same real Koha
-    // endpoint with its offset — this shared action/state model has no page intent, so paging is
-    // screen-local rather than a fake slice of the first 20 rows. Detail stays host-driven.
-    val pageScope = rememberCoroutineScope()
-    var currentPage by remember { mutableStateOf(0) }
-    var pagedResults by remember { mutableStateOf(state.searchResults) }
-    var isPaging by remember { mutableStateOf(false) }
-    var pageError by remember { mutableStateOf<String?>(null) }
-    var selectedResultIndex by remember { mutableStateOf(-1) }
-    val catalogPageSize = 20 // matches AmazeClient.searchLibrary's `count=20`
+    // D-121: paging is host-owned — page 0 is `state.searchResults`, deeper pages
+    // arrive in `state.catalogPageResults`. The only local state left is transient
+    // keyboard focus for the result list; no page data and no IO live here.
+    val pagedResults = if (state.catalogPage == 0) {
+        state.searchResults
+    } else {
+        state.catalogPageResults
+    }
+    val catalogPageSize = state.catalogPageSize.coerceAtLeast(1)
     val totalPages = if (state.totalResults <= 0) 1 else
         (state.totalResults + catalogPageSize - 1) / catalogPageSize
+    var selectedResultIndex by remember(state.catalogPage, state.searchQuery) { mutableStateOf(-1) }
     val resultFocusRequesters = remember(pagedResults.size) { List(pagedResults.size) { FocusRequester() } }
-
-    LaunchedEffect(state.searchQuery, state.hasSearched, state.searchResults) {
-        currentPage = 0
-        pagedResults = state.searchResults
-        pageError = null
-        selectedResultIndex = -1
-    }
-
-    fun requestCatalogPage(page: Int) {
-        if (page !in 0 until totalPages || isPaging) return
-        if (page == 0) {
-            currentPage = 0
-            pagedResults = state.searchResults
-            selectedResultIndex = -1
-            pageError = null
-            return
-        }
-        isPaging = true
-        pageError = null
-        pageScope.launch {
-            try {
-                val res = withContext(Dispatchers.Default) {
-                    AmazeClient.searchLibrary(state.searchQuery, "kw", page * catalogPageSize)
-                }
-                if (res.success) {
-                    pagedResults = res.books.map { it.toM3ELibraryBook() }
-                    currentPage = page
-                    selectedResultIndex = -1
-                } else {
-                    pageError = res.error?.takeIf { it.isNotBlank() }
-                        ?: res.message?.takeIf { it.isNotBlank() }
-                        ?: "Could not load page ${page + 1}"
-                }
-            } catch (e: Exception) {
-                pageError = e.message ?: "Could not load page ${page + 1}"
-            } finally {
-                isPaging = false
-            }
-        }
-    }
 
     Box(modifier = modifier.fillMaxSize().background(colors.surface)) {
         LazyColumn(
@@ -259,7 +213,7 @@ fun M3ELibrariesScreen(
                 IconButton(
                     onClick = { onAction(M3ELibrariesAction.Refresh) },
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(colors.surfaceContainerHigh)
                 ) {
@@ -267,7 +221,7 @@ fun M3ELibrariesScreen(
                         imageVector = Icons.Rounded.Refresh,
                         contentDescription = "Refresh library",
                         tint = colors.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
@@ -409,7 +363,7 @@ fun M3ELibrariesScreen(
 
                 if (state.isBusy) {
                     item(key = "catalog_progress") {
-                        M3EWavyLinearProgress(progress = 0.5f)
+                        M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
                     }
                 }
 
@@ -453,7 +407,7 @@ fun M3ELibrariesScreen(
                     }
                 }
 
-                if (pageError != null) {
+                if (state.pageError != null) {
                     item(key = "catalog_page_error") {
                         M3ESurfaceCard(
                             modifier = Modifier.fillMaxWidth(),
@@ -461,7 +415,7 @@ fun M3ELibrariesScreen(
                             borderColor = colors.error
                         ) {
                             Text(
-                                text = pageError.orEmpty(),
+                                text = state.pageError.orEmpty(),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = colors.error
                             )
@@ -469,7 +423,10 @@ fun M3ELibrariesScreen(
                     }
                 }
 
-                itemsIndexed(pagedResults, key = { _, book -> "koha_${currentPage}_${book.id}" }) { index, book ->
+                itemsIndexed(
+                    pagedResults,
+                    key = { _, book -> "koha_${state.catalogPage}_${book.id}" }
+                ) { index, book ->
                     val requester = resultFocusRequesters.getOrNull(index)
                     CatalogBookCard(
                         book = book,
@@ -521,8 +478,12 @@ fun M3ELibrariesScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(
-                                    onClick = { requestCatalogPage(currentPage - 1) },
-                                    enabled = currentPage > 0 && !isPaging
+                                    onClick = {
+                                        onAction(
+                                            M3ELibrariesAction.LoadCatalogPage(state.catalogPage - 1)
+                                        )
+                                    },
+                                    enabled = state.catalogPage > 0 && !state.isPaging
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.ChevronLeft,
@@ -531,7 +492,7 @@ fun M3ELibrariesScreen(
                                     )
                                 }
                                 Spacer(Modifier.width(10.dp))
-                                if (isPaging) {
+                                if (state.isPaging) {
                                     com.amazecc.app.shared.ui.m3e.components.M3EInlineSkeleton(
                                         width = 36.dp,
                                         height = 14.dp,
@@ -539,15 +500,19 @@ fun M3ELibrariesScreen(
                                     )
                                 } else {
                                     Text(
-                                        text = "Page ${currentPage + 1} of $totalPages",
+                                        text = "Page ${state.catalogPage + 1} of $totalPages",
                                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                                         color = colors.onSurface
                                     )
                                 }
                                 Spacer(Modifier.width(10.dp))
                                 IconButton(
-                                    onClick = { requestCatalogPage(currentPage + 1) },
-                                    enabled = currentPage < totalPages - 1 && !isPaging
+                                    onClick = {
+                                        onAction(
+                                            M3ELibrariesAction.LoadCatalogPage(state.catalogPage + 1)
+                                        )
+                                    },
+                                    enabled = state.catalogPage < totalPages - 1 && !state.isPaging
                                 ) {
                                     Icon(
                                         imageVector = Icons.Rounded.ChevronRight,
@@ -1029,6 +994,39 @@ private fun M3ELibrariesScreenPreview() {
 @Composable
 private fun M3ELibrariesCatalogPreview() {
     AmazeM3ETheme(isDark = false) {
+        M3ELibrariesScreen(
+            state = M3ELibrariesState(
+                activeTab = M3ELibraryTab.CATALOG,
+                searchQuery = "kotlin",
+                hasSearched = true,
+                totalResults = 1,
+                searchResults = listOf(
+                    M3ELibraryBook(
+                        id = "4421",
+                        title = "Kotlin in Action",
+                        author = "Dmitry Jemerov",
+                        publisher = "Manning",
+                        isbn = "9781617293290"
+                    )
+                )
+            ),
+            onAction = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun M3ELibrariesScreenDarkPreview() {
+    AmazeM3ETheme(isDark = true) {
+        M3ELibrariesScreen(state = previewLibrariesState(), onAction = {})
+    }
+}
+
+@Preview
+@Composable
+private fun M3ELibrariesCatalogDarkPreview() {
+    AmazeM3ETheme(isDark = true) {
         M3ELibrariesScreen(
             state = M3ELibrariesState(
                 activeTab = M3ELibraryTab.CATALOG,

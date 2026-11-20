@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.m3e.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -8,10 +9,43 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.amazecc.app.shared.domain.overhaul.M3EPalettePreset
 import com.amazecc.app.shared.ui.components.LocalAnimationsEnabled
 
 val LocalM3EColors = staticCompositionLocalOf { M3EDarkPalette }
+
+/**
+ * D-114: the active palette preset, provided by [AmazeM3ETheme]. Nested theme
+ * wrappers inherit it through their default parameter, so one root wiring makes
+ * the whole tree consume the user's selection without per-screen edits.
+ */
+val LocalM3EPalettePreset = compositionLocalOf<M3EPalettePreset?> { null }
+
+/**
+ * D-114: composable face of the motion specs. Every `M3ETheme.motion.*` call
+ * site is composable, so routing them here makes each spec read the current
+ * [LocalMotionReduced] value instead of a global that a later composition could
+ * overwrite. The plain [M3EMotion] factories remain for non-composable builders.
+ */
+object M3EMotionScope {
+    @Composable
+    fun <T> spatialDefault(): FiniteAnimationSpec<T> = M3EMotion.spatialDefaultLocal()
+
+    @Composable
+    fun <T> spatialFast(): FiniteAnimationSpec<T> = M3EMotion.spatialFastLocal()
+
+    @Composable
+    fun <T> spatialSlow(): FiniteAnimationSpec<T> = M3EMotion.spatialSlowLocal()
+
+    @Composable
+    fun <T> effectsDefault(): FiniteAnimationSpec<T> = M3EMotion.effectsDefaultLocal()
+
+    @Composable
+    fun tabSwitchTransform(): ContentTransform = M3EMotion.tabSwitchTransformLocal()
+}
 
 object M3ETheme {
     val colors: M3EColorPalette
@@ -19,23 +53,27 @@ object M3ETheme {
         @ReadOnlyComposable
         get() = LocalM3EColors.current
 
-    val motion = M3EMotion
+    val motion = M3EMotionScope
 }
 
 @Composable
 fun AmazeM3ETheme(
     isDark: Boolean = com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge.isDarkThemeActive(),
+    palettePreset: M3EPalettePreset? = LocalM3EPalettePreset.current,
     content: @Composable () -> Unit
 ) {
-    val palette = if (isDark) M3EDarkPalette else M3ELightPalette
+    val effectivePreset = palettePreset ?: M3EPalettePreset.OCEAN_MIDNIGHT
+    val palette = resolveM3EPalette(isDark, effectivePreset)
 
-    // D-084: OS "reduce motion" plus the existing in-app Animations toggle are
-    // folded into one effective decision for every M3E motion spec. The global
-    // publication keeps M3EMotion's factory functions non-composable (some call
-    // sites are plain transition builders); LocalMotionReduced remains the
-    // composable source for primitives that read it directly, e.g. skeletons.
+    // D-114: reduced motion is no longer published to a global on every
+    // composition. Composable spec providers read LocalMotionReduced directly.
+    // The one remaining global is a root-only fallback for plain (non-composable)
+    // transition builders; it is written once by the OUTERMOST theme (no parent
+    // provider), so nested per-screen wrappers can never overwrite it.
     val reducedMotion = platformPrefersReducedMotion() || !LocalAnimationsEnabled.current
-    M3EMotion.reducedMotionEnabled = reducedMotion
+    if (LocalM3EPalettePreset.current == null) {
+        SideEffect { M3EMotion.fallbackReducedMotion = reducedMotion }
+    }
 
     val m3Colors = if (isDark) {
         darkColorScheme(
@@ -59,6 +97,8 @@ fun AmazeM3ETheme(
             onBackground = palette.onBackground,
             error = palette.error,
             onError = palette.onError,
+            errorContainer = palette.errorContainer,
+            onErrorContainer = palette.onErrorContainer,
             outline = palette.outline,
             outlineVariant = palette.outlineVariant
         )
@@ -84,6 +124,8 @@ fun AmazeM3ETheme(
             onBackground = palette.onBackground,
             error = palette.error,
             onError = palette.onError,
+            errorContainer = palette.errorContainer,
+            onErrorContainer = palette.onErrorContainer,
             outline = palette.outline,
             outlineVariant = palette.outlineVariant
         )
@@ -91,6 +133,7 @@ fun AmazeM3ETheme(
 
     CompositionLocalProvider(
         LocalM3EColors provides palette,
+        LocalM3EPalettePreset provides effectivePreset,
         LocalMotionReduced provides reducedMotion,
         LocalContentColor provides palette.onBackground
     ) {

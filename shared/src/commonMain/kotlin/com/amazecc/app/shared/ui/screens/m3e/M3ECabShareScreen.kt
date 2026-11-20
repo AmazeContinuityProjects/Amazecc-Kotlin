@@ -65,6 +65,8 @@ import com.amazecc.app.shared.domain.overhaul.M3ECabShareState
 import com.amazecc.app.shared.domain.overhaul.M3EGenderPreference
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenu
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -123,42 +125,21 @@ fun M3ECabShareScreen(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ElevatedButton(
-                        onClick = { onAction(M3ECabShareAction.OpenCreateDialog) },
-                        shape = CircleShape,
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = colors.primaryContainer,
-                            contentColor = colors.onPrimaryContainer
+                // D-116: "Offer Ride" + refresh collapse into one M3E action-menu FAB.
+                M3EPageActionsMenu(
+                    actions = listOf(
+                        M3EPageAction(
+                            label = "Offer Ride",
+                            icon = Icons.Rounded.Add,
+                            onClick = { onAction(M3ECabShareAction.OpenCreateDialog) }
+                        ),
+                        M3EPageAction(
+                            label = "Refresh",
+                            icon = Icons.Rounded.Refresh,
+                            onClick = { onAction(M3ECabShareAction.Refresh) }
                         )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Offer Ride",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { onAction(M3ECabShareAction.Refresh) },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(colors.surfaceContainerHigh)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Refresh",
-                            tint = colors.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                    )
+                )
             }
         }
 

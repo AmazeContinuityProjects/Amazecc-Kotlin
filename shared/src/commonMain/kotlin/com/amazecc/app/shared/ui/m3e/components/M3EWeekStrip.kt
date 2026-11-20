@@ -4,7 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,8 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -114,7 +112,6 @@ private fun M3EWeekDayDisc(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .semantics { contentDescription = a11yDescription }
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -126,11 +123,15 @@ private fun M3EWeekDayDisc(
                     Modifier.border(1.5.dp, colors.primary, CircleShape)
                 } else Modifier
             )
-            .clickable(
+            // D-119: explicit role + label + keyboard activation. The rich day
+            // description is the click label so screen readers announce both the
+            // action and the day's state.
+            .clickableA11y(
+                onClickLabel = a11yDescription,
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onClick
             )
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
             .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
         Text(

@@ -2,7 +2,6 @@ package com.amazecc.app.shared.ui.m3e.components
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,33 +20,34 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EStatTone
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.m3e.theme.LocalMotionReduced
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -55,6 +55,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Designed to fit a half-screen width on mobile alongside a constant stat card (e.g. Attendance).
  * Cycles smoothly through secondary insights (Cumulative GPA, Safe Bunks, Credits Earned)
  * with animated pill dot indicators, swipe gesture support, and automatic rotation.
+ *
+ * D-118: automatic rotation is disabled under [LocalMotionReduced], can be
+ * paused by the user at any time (WCAG 2.2.2), and the dots are now decorative
+ * indicators rather than 4dp clickable targets.
  */
 @Composable
 fun M3EInsightCarouselCard(
@@ -65,18 +69,20 @@ fun M3EInsightCarouselCard(
     if (items.isEmpty()) return
 
     val colors = M3ETheme.colors
-    val coroutineScope = rememberCoroutineScope()
+    val reduceMotion = LocalMotionReduced.current
+    var userPaused by remember { mutableStateOf(false) }
     val pagerState = rememberPagerState(
         initialPage = 0,
         pageCount = { items.size }
     )
 
-    // Auto-advance timer (pauses when user is actively dragging)
-    LaunchedEffect(pagerState, items.size) {
-        if (items.size <= 1) return@LaunchedEffect
+    // Auto-advance timer: off entirely for reduced motion or when the user has
+    // paused it, and it never fights an in-progress swipe.
+    LaunchedEffect(pagerState, items.size, reduceMotion, userPaused) {
+        if (items.size <= 1 || reduceMotion || userPaused) return@LaunchedEffect
         while (isActive) {
             delay(autoAdvanceDelayMillis)
-            if (!pagerState.isScrollInProgress) {
+            if (!pagerState.isScrollInProgress && !userPaused && !reduceMotion) {
                 val nextPage = (pagerState.currentPage + 1) % items.size
                 pagerState.animateScrollToPage(nextPage)
             }
@@ -84,27 +90,9 @@ fun M3EInsightCarouselCard(
     }
 
     val currentItem = items[pagerState.currentPage.coerceIn(0, items.size - 1)]
-
-    // Asymmetric M3E character shape complementary to the constant stat card
-    val cardShape = when (currentItem.tone) {
-        M3EStatTone.PRIMARY -> RoundedCornerShape(topStart = 10.dp, topEnd = 26.dp, bottomEnd = 10.dp, bottomStart = 26.dp)
-        M3EStatTone.SECONDARY -> RoundedCornerShape(topStart = 26.dp, topEnd = 10.dp, bottomEnd = 26.dp, bottomStart = 10.dp)
-        M3EStatTone.TERTIARY -> RoundedCornerShape(topStart = 12.dp, topEnd = 26.dp, bottomEnd = 26.dp, bottomStart = 12.dp)
-        M3EStatTone.GOOD -> RoundedCornerShape(topStart = 26.dp, topEnd = 12.dp, bottomEnd = 12.dp, bottomStart = 26.dp)
-        M3EStatTone.WARNING -> RoundedCornerShape(topStart = 12.dp, topEnd = 24.dp, bottomEnd = 20.dp, bottomStart = 24.dp)
-        M3EStatTone.CRITICAL -> RoundedCornerShape(topStart = 24.dp, topEnd = 10.dp, bottomEnd = 24.dp, bottomStart = 10.dp)
-        M3EStatTone.NEUTRAL -> RoundedCornerShape(20.dp)
-    }
-
-    val accentColor = when (currentItem.tone) {
-        M3EStatTone.PRIMARY -> colors.primary
-        M3EStatTone.SECONDARY -> colors.secondary
-        M3EStatTone.TERTIARY -> colors.tertiary
-        M3EStatTone.GOOD -> colors.success
-        M3EStatTone.WARNING -> colors.warning
-        M3EStatTone.CRITICAL -> colors.error
-        M3EStatTone.NEUTRAL -> colors.onSurface
-    }
+    val cardShape = currentItem.tone.statCardShape(complementary = true)
+    val accentColor = currentItem.tone.statAccentAndIconBg(colors).first
+    val canAutoAdvance = items.size > 1 && !reduceMotion
 
     Box(
         modifier = modifier
@@ -122,117 +110,87 @@ fun M3EInsightCarouselCard(
                     .weight(1f)
             ) { pageIndex ->
                 val item = items[pageIndex]
-                val (itemAccent, itemIconBg) = when (item.tone) {
-                    M3EStatTone.PRIMARY -> Pair(colors.primary, colors.primaryContainer)
-                    M3EStatTone.SECONDARY -> Pair(colors.secondary, colors.secondaryContainer)
-                    M3EStatTone.TERTIARY -> Pair(colors.tertiary, colors.tertiaryContainer)
-                    M3EStatTone.GOOD -> Pair(colors.success, colors.successContainer)
-                    M3EStatTone.WARNING -> Pair(colors.warning, colors.warningContainer)
-                    M3EStatTone.CRITICAL -> Pair(colors.error, colors.errorContainer)
-                    M3EStatTone.NEUTRAL -> Pair(colors.onSurface, colors.surfaceContainerHighest)
-                }
+                val (itemAccent, itemIconBg) = item.tone.statAccentAndIconBg(colors)
 
-                Column(
+                M3EStatCardContent(
+                    stat = item,
+                    accentColor = itemAccent,
+                    iconBg = itemIconBg,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clickable(enabled = item.onClick != null) { item.onClick?.invoke() }
+                        .then(
+                            if (item.onClick != null) {
+                                Modifier.clickableA11y(onClickLabel = "Open ${item.label}") {
+                                    item.onClick?.invoke()
+                                }
+                            } else {
+                                Modifier
+                            }
+                        )
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    // Header: Label + Icon
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = item.label.uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.onSurfaceVariant,
-                            letterSpacing = 1.sp,
-                            fontSize = 10.sp,
-                            maxLines = 1,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-
-                        if (item.icon != null) {
-                            Box(
-                                modifier = Modifier
-                                    .size(26.dp)
-                                    .clip(CircleShape)
-                                    .background(itemIconBg),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = item.icon,
-                                    contentDescription = null,
-                                    tint = itemAccent,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    // Metric Value & Subtitle
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(
-                            text = item.value,
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Black,
-                            color = itemAccent,
-                            fontSize = 24.sp,
-                            letterSpacing = (-0.5).sp,
-                            maxLines = 1
-                        )
-
-                        if (!item.sub.isNullOrBlank()) {
-                            Text(
-                                text = item.sub,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Medium,
-                                color = colors.onSurfaceVariant,
-                                fontSize = 11.sp,
-                                lineHeight = 13.sp,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
+                )
             }
 
-            // Mini dot indicators at bottom
+            // Indicators + visible pause control at the bottom of the card.
             if (items.size > 1) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.Center,
+                        .padding(start = 8.dp, top = 2.dp, end = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    items.forEachIndexed { index, _ ->
-                        val isSelected = index == pagerState.currentPage
-                        val dotWidth by animateDpAsState(
-                            targetValue = if (isSelected) 14.dp else 4.dp,
-                            animationSpec = M3ETheme.motion.effectsDefault(),
-                            label = "MiniDotWidth"
-                        )
-                        val dotBg = if (isSelected) accentColor else colors.outlineVariant.copy(alpha = 0.5f)
+                    Row(
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics {
+                                contentDescription = "Slide ${pagerState.currentPage + 1} of ${items.size}"
+                            },
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items.forEachIndexed { index, _ ->
+                            val isSelected = index == pagerState.currentPage
+                            val dotWidth by animateDpAsState(
+                                targetValue = if (isSelected) 14.dp else 4.dp,
+                                animationSpec = M3ETheme.motion.effectsDefault(),
+                                label = "MiniDotWidth"
+                            )
+                            val dotBg = if (isSelected) {
+                                accentColor
+                            } else {
+                                colors.outlineVariant.copy(alpha = 0.5f)
+                            }
 
-                        Box(
-                            modifier = Modifier
-                                .height(4.dp)
-                                .width(dotWidth)
-                                .clip(RoundedCornerShape(50.dp))
-                                .background(dotBg)
-                                .clickable {
-                                    coroutineScope.launch {
-                                        pagerState.animateScrollToPage(index)
-                                    }
-                                }
-                        )
-                        if (index < items.size - 1) {
-                            Spacer(Modifier.width(4.dp))
+                            // D-118: decorative indicator, not a 4dp clickable target.
+                            Box(
+                                modifier = Modifier
+                                    .height(4.dp)
+                                    .width(dotWidth)
+                                    .clip(RoundedCornerShape(50.dp))
+                                    .background(dotBg)
+                            )
+                            if (index < items.size - 1) {
+                                Spacer(Modifier.width(4.dp))
+                            }
+                        }
+                    }
+
+                    // WCAG 2.2.2: only present when there is something to pause.
+                    if (canAutoAdvance) {
+                        IconButton(
+                            onClick = { userPaused = !userPaused },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (userPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                                contentDescription = if (userPaused) {
+                                    "Resume automatic slide rotation"
+                                } else {
+                                    "Pause automatic slide rotation"
+                                },
+                                tint = colors.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -290,7 +248,11 @@ fun M3EStatCardsCarousel(
         // Animated Pill Dot Indicators (only shown when multiple slides exist)
         if (stats.size > 1) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .semantics {
+                        contentDescription = "Card ${activeIndex + 1} of ${stats.size}"
+                    },
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -303,6 +265,7 @@ fun M3EStatCardsCarousel(
                     )
                     val dotBg = if (isSelected) colors.primary else colors.outlineVariant.copy(alpha = 0.6f)
 
+                    // Decorative; the row announces the active position.
                     Box(
                         modifier = Modifier
                             .height(6.dp)
@@ -323,12 +286,13 @@ fun M3EStatCardsCarousel(
 @Composable
 private fun M3EStatCardsCarouselPreview() {
     AmazeM3ETheme(isDark = false) {
+        val cgpa = 9.18
         val sampleStats = listOf(
             M3EStatItem(
                 id = "stat_1",
                 label = "Cumulative GPA",
-                value = "9.18",
-                sub = "Top 5% in School of CS",
+                value = cgpa.toString(),
+                sub = M3EStatSubtitle.fromMetric(cgpa.toString(), "CGPA"),
                 tone = M3EStatTone.PRIMARY,
                 icon = Icons.Rounded.School
             ),
@@ -336,7 +300,7 @@ private fun M3EStatCardsCarouselPreview() {
                 id = "stat_2",
                 label = "Overall Attendance",
                 value = "94.2%",
-                sub = "Safe margin: can miss 14 lectures",
+                sub = M3EStatSubtitle.fromData("Safe margin: can miss 14 lectures"),
                 tone = M3EStatTone.GOOD,
                 icon = Icons.Rounded.CheckCircle
             ),
@@ -344,7 +308,7 @@ private fun M3EStatCardsCarouselPreview() {
                 id = "stat_3",
                 label = "Credits Earned",
                 value = "118 / 160",
-                sub = "On track for graduation",
+                sub = M3EStatSubtitle.fromData("118 of 160 credits earned"),
                 tone = M3EStatTone.SECONDARY,
                 icon = Icons.Rounded.Insights
             )

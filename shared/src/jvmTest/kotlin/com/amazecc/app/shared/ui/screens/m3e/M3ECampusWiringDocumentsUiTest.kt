@@ -1,7 +1,7 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
-import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithTag

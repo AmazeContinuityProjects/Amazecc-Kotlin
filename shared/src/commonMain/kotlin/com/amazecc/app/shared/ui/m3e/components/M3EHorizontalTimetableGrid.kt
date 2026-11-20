@@ -66,15 +66,6 @@ val StandardTimetablePeriods = listOf(
     TimetablePeriodColumn("p11", "19:00 - 19:50", "19:00", "19:50", 1140, 1190)
 )
 
-val StandardDaySlotsMap = mapOf(
-    "MON" to listOf("A1 / L1", "F1 / L2", "D1 / L3", "TB1 / L4", "TG1 / L5", "LUNCH", "A2 / L31", "F2 / L32", "D2 / L33", "TB2 / L34", "TG2 / L35", "S3 / L36"),
-    "TUE" to listOf("B1 / L7", "G1 / L8", "E1 / L9", "TC1 / L10", "TAA1 / L11", "LUNCH", "B2 / L37", "G2 / L38", "E2 / L39", "TC2 / L40", "TAA2 / L41", "S1 / L42"),
-    "WED" to listOf("C1 / L13", "A1 / L14", "F1 / L15", "TD1 / L16", "TBB1 / L17", "LUNCH", "C2 / L43", "A2 / L44", "F2 / L45", "TD2 / L46", "TBB2 / L47", "S4 / L48"),
-    "THU" to listOf("D1 / L19", "B1 / L20", "G1 / L21", "TE1 / L22", "TCC1 / L23", "LUNCH", "D2 / L49", "B2 / L50", "G2 / L51", "TE2 / L52", "TCC2 / L53", "S2 / L54"),
-    "FRI" to listOf("E1 / L25", "C1 / L26", "TA1 / L27", "TF1 / L28", "TDD1 / L29", "LUNCH", "E2 / L55", "C2 / L56", "TA2 / L57", "TF2 / L58", "TDD2 / L59", "S15 / L60"),
-    "SAT" to listOf("X11 / L71", "X12 / L72", "Y11 / L73", "Y12 / L74", "S8 / L75", "LUNCH", "X21 / L77", "Z21 / L78", "Y21 / L79", "W21 / L80", "W22 / L81", "Z22 / L82")
-)
-
 /**
  * Mobile-friendly Material 3 Expressive horizontally scrollable timetable grid.
  *
@@ -82,15 +73,28 @@ val StandardDaySlotsMap = mapOf(
  * - Time slots as columns across the top (08:00 - 08:50, ..., [LUNCH 12:40 - 13:30], ..., 19:00 - 19:50)
  * - Horizontal scrolling via [Modifier.horizontalScroll]
  * - Course slot card with courseCode, slot code, venue, tonal background, clickable
- * - Free slot cell with subtle outline and default slot code
+ * - Free slot cell with subtle outline and an honest empty ("—") state
  * - Lunch break column/cell with restaurant icon
+ *
+ * Density is opt-in: by default this renders a compact, readable list of the real
+ * classes. Pass [denseGrid] = true to render the dense 6x12 period matrix.
  */
 @Composable
 fun M3EHorizontalTimetableGrid(
     days: List<M3ETimetableDay>,
     onSlotClick: (M3ETimetableSlot) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    denseGrid: Boolean = false
 ) {
+    if (!denseGrid) {
+        M3EHorizontalCompactList(
+            days = days,
+            onSlotClick = onSlotClick,
+            modifier = modifier
+        )
+        return
+    }
+
     val colors = M3ETheme.colors
     val standardDays = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT")
 
@@ -253,15 +257,13 @@ fun M3EHorizontalTimetableGrid(
 
                 // Grid Rows (One per Day)
                 displayDays.forEach { day ->
-                    val dayCode = day.shortName.uppercase()
                     val matchedIdsForDay = mutableSetOf<String>()
                     Row(
                         modifier = Modifier.height(rowHeight),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        StandardTimetablePeriods.forEachIndexed { periodIndex, period ->
-                            val defaultCode = StandardDaySlotsMap[dayCode]?.getOrNull(periodIndex) ?: ""
+                        StandardTimetablePeriods.forEach { period ->
                             val cellW = if (period.isLunch) lunchCellWidth else slotCellWidth
 
                             if (period.isLunch) {
@@ -300,7 +302,7 @@ fun M3EHorizontalTimetableGrid(
                             } else {
                                 // Check if a slot is present
                                 val availableSlots = day.slots.filter { it.id !in matchedIdsForDay }
-                                val matchedSlot = findMatchingSlot(availableSlots, dayCode, periodIndex, period)
+                                val matchedSlot = findMatchingSlot(availableSlots, period)
                                 if (matchedSlot != null) {
                                     matchedIdsForDay.add(matchedSlot.id)
                                 }
@@ -376,8 +378,8 @@ fun M3EHorizontalTimetableGrid(
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(
-                                            text = defaultCode,
-                                            fontSize = 10.sp,
+                                            text = "—",
+                                            fontSize = 12.sp,
                                             color = colors.onSurfaceVariant.copy(alpha = 0.45f),
                                             fontWeight = FontWeight.Normal,
                                             textAlign = TextAlign.Center
@@ -394,16 +396,15 @@ fun M3EHorizontalTimetableGrid(
 }
 
 /**
- * Robust matching logic by slot token and time overlap.
+ * Places a real slot into a period by comparing the slot's own published time window
+ * with the period window. No fabricated code table is consulted: when a slot has no
+ * usable time it is simply not placed, so the period stays honestly empty.
  */
 internal fun findMatchingSlot(
     slots: List<M3ETimetableSlot>,
-    dayCode: String,
-    periodIndex: Int,
     period: TimetablePeriodColumn
-): M3ETimetableSlot? {
-    // 1. Match by scheduled time window first
-    val matchByTime = slots.firstOrNull { slot ->
+): M3ETimetableSlot? =
+    slots.firstOrNull { slot ->
         val sMin = parseTimeToMinutes(slot.startTime)
         val eMin = parseTimeToMinutes(slot.endTime)
         if (sMin != null && eMin != null) {
@@ -414,19 +415,6 @@ internal fun findMatchingSlot(
             false
         }
     }
-    if (matchByTime != null) return matchByTime
-
-    // 2. Fallback to slot code token match (e.g. "A1" in "A1 / L1")
-    val defaultTokens = (StandardDaySlotsMap[dayCode]?.getOrNull(periodIndex) ?: "")
-        .split('/', '+', ' ')
-        .map { it.trim().uppercase() }
-        .filter { it.isNotEmpty() && it != "LUNCH" }
-
-    return slots.firstOrNull { slot ->
-        val slotParts = slot.slot.uppercase().split('+', '/', ' ').map { it.trim() }
-        slotParts.any { it in defaultTokens }
-    }
-}
 
 internal fun parseTimeToMinutes(timeStr: String): Int? {
     val clean = timeStr.trim().removeSuffix("AM").removeSuffix("PM").removeSuffix("am").removeSuffix("pm").trim()
@@ -438,6 +426,120 @@ internal fun parseTimeToMinutes(timeStr: String): Int? {
     val adjustedHours = if (isPm) hours + 12 else hours
     return adjustedHours * 60 + minutes
 }
+
+/**
+ * Default list-first presentation: only real, published classes are listed, grouped by day.
+ * Days without published slots say so explicitly instead of showing invented codes.
+ */
+@Composable
+private fun M3EHorizontalCompactList(
+    days: List<M3ETimetableDay>,
+    onSlotClick: (M3ETimetableSlot) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        days.forEach { day ->
+            M3ESurfaceCard(
+                modifier = Modifier.fillMaxWidth(),
+                containerLevel = if (day.isToday) SurfaceContainerLevel.HIGH else SurfaceContainerLevel.LOW
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = day.shortName.uppercase(),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (day.isToday) colors.primary else colors.onSurface
+                        )
+                        Text(
+                            text = "${day.slots.size} classes",
+                            fontSize = 11.sp,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                    if (day.slots.isEmpty()) {
+                        Text(
+                            text = "— No classes scheduled",
+                            fontSize = 12.sp,
+                            color = colors.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    } else {
+                        day.slots.forEach { slot ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(colors.surfaceContainerLow)
+                                    .clickable { onSlotClick(slot) }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = slot.courseCode,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.primary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = slot.courseTitle,
+                                        fontSize = 11.sp,
+                                        color = colors.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(
+                                        text = publishedTimeRange(slot),
+                                        fontSize = 11.sp,
+                                        color = colors.onSurfaceVariant
+                                    )
+                                    val meta = listOfNotNull(
+                                        slot.slot.takeIf { it.isNotBlank() },
+                                        slot.venue.takeIf { it.isNotBlank() }
+                                    ).joinToString(" • ")
+                                    if (meta.isNotBlank()) {
+                                        Text(
+                                            text = meta,
+                                            fontSize = 10.sp,
+                                            color = colors.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Honest time label: never invent a range when the host published no times. */
+private fun publishedTimeRange(slot: M3ETimetableSlot): String =
+    if (slot.startTime.isBlank() || slot.endTime.isBlank()) "Time not published"
+    else "${slot.startTime} - ${slot.endTime}"
 
 private fun createSampleGridDays() = listOf(
     M3ETimetableDay(
@@ -496,5 +598,17 @@ private fun M3EHorizontalTimetableGridPreview() {
 private fun M3EHorizontalTimetableGridDarkPreview() {
     AmazeM3ETheme(isDark = true) {
         M3EHorizontalTimetableGrid(days = createSampleGridDays(), onSlotClick = {})
+    }
+}
+
+@Preview
+@Composable
+private fun M3EHorizontalTimetableGridDensePreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EHorizontalTimetableGrid(
+            days = createSampleGridDays(),
+            onSlotClick = {},
+            denseGrid = true
+        )
     }
 }

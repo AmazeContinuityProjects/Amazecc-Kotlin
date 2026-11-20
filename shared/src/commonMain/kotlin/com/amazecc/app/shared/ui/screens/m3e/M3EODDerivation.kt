@@ -1,7 +1,8 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import com.amazecc.app.shared.domain.CourseAttendance
-import com.amazecc.app.shared.domain.odWeight
+import com.amazecc.app.shared.domain.deriveOdHoursDays
+import com.amazecc.app.shared.domain.isOdHoursStatus
 
 /**
  * One on-duty row derived locally from a real attendance log row.
@@ -17,38 +18,26 @@ data class DerivedOdRow(
     val hours: Int,
 )
 
-/** True when a VTOP attendance status text denotes on duty (case/whitespace insensitive). */
-internal fun isOnDutyStatus(status: String): Boolean {
-    val value = status.trim().lowercase()
-    return value == "on duty" || value == "od" || value == "onduty"
-}
+/** Kept as a named seam for callers that used the old broader vocabulary; now web-exact. */
+internal fun isOnDutyStatus(status: String): Boolean = isOdHoursStatus(status)
 
 /**
  * Derive on-duty rows from the attendance data the central sync already persisted.
  *
- * Pure and local: no network call, no `AppState` access, no side effects. Every returned row comes
- * from a real log whose status is "On Duty" / "od" / "onduty"; blank dates and every other status
- * are skipped rather than guessed at. The lab split uses the legacy ODTrackerScreen rule (a slot
- * beginning with `L`), and hours come from the canonical [odWeight] heuristic (lab/ELA/PBL = 2h,
- * otherwise 1h), so these rows agree with `CalendarAttendance.odRecordsFrom` and can be unioned
- * with VTOP OD-details records without inventing anything.
+ * Pure and local: no network call, no `AppState` access, no side effects. Delegates entirely to
+ * the canonical web-equivalent derivation in `domain/OdHoursDerivation.kt`, so the OD Tracker,
+ * home tile and widget cannot disagree about which statuses count or whether a `(L)` course code
+ * with a theory slot is worth one hour or two.
  */
-fun deriveOdRowsFromAttendance(attendance: List<CourseAttendance>): List<DerivedOdRow> {
-    val rows = ArrayList<DerivedOdRow>()
-    for (course in attendance) {
-        val type = if (course.slotName.startsWith("L")) "LAB" else "TH"
-        val hours = odWeight(type)
-        for (entry in course.logs) {
-            val date = entry.date.trim()
-            if (date.isEmpty() || !isOnDutyStatus(entry.status)) continue
-            rows += DerivedOdRow(
-                date = date,
-                courseCode = course.courseCode,
-                title = course.courseTitle,
-                type = type,
-                hours = hours,
+fun deriveOdRowsFromAttendance(attendance: List<CourseAttendance>): List<DerivedOdRow> =
+    deriveOdHoursDays(attendance).flatMap { day ->
+        day.entries.map { entry ->
+            DerivedOdRow(
+                date = day.date,
+                courseCode = entry.courseCode,
+                title = entry.title,
+                type = entry.type,
+                hours = entry.hours,
             )
         }
     }
-    return rows
-}

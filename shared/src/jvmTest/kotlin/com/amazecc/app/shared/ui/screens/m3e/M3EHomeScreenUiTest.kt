@@ -93,8 +93,10 @@ class M3EHomeScreenUiTest {
         onNodeWithText("Fall Sem 2025-2026").assertExists()
         onNodeWithText("21BCE1042 · Vellore Campus").assertDoesNotExist()
         onNodeWithText("88.50%").assertExists()
-        onNodeWithText("ATTENDANCE").assertExists()
-        onNodeWithText("Safe margin across all courses").assertExists()
+        // The attendance subtitle is composed into one M3EStatCard line as
+        // "75% safety target · <status>" (no separate uppercase ATTENDANCE label).
+        onNodeWithText("75% safety target · Safe margin across all courses", substring = true)
+            .assertExists()
     }
 
     @Test

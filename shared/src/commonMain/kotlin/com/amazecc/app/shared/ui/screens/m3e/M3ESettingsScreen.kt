@@ -1,7 +1,6 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -62,6 +62,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ESettingsState
 import com.amazecc.app.shared.domain.overhaul.M3EThemeMode
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
+import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -249,7 +250,11 @@ private fun ThemeCard(state: M3ESettingsState, onAction: (M3ESettingsAction) -> 
             M3EConnectedButtonGroup(
                 items = M3EPalettePreset.entries,
                 selectedItem = state.selectedPalettePreset,
-                onItemSelected = { onAction(M3ESettingsAction.SelectPalettePreset(it)) },
+                onItemSelected = { preset ->
+                    // D-114: the root AmazeM3ETheme derives its palette from AppState.accent,
+                    // so this action is all that is needed for the whole tree to recompose.
+                    onAction(M3ESettingsAction.SelectPalettePreset(preset))
+                },
                 labelProvider = { it.label },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -497,14 +502,16 @@ private fun NotificationsCard(state: M3ESettingsState, onAction: (M3ESettingsAct
         }
     }
 
-    // Quiet Hours card (web parity — PushNotificationManager). Android has no
-    // FCM wake path yet: the setting is stored and honored when scheduling.
+    // D-120: these are real on-device (AlarmManager) controls, not FCM push.
+    // Quiet hours is checked when a reminder is scheduled; alarms already set
+    // still fire. The test button is disabled while quiet hours is on so we
+    // never report "sent" for an alert that the quiet-hours rule suppressed.
     M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             SectionTitleRow("Sound & Quiet Hours", Icons.Rounded.Brightness4)
             SectionToggleRow(
                 title = "Quiet Hours Mode",
-                subtitle = "Mute scheduled alerts during the quiet window",
+                subtitle = "New on-device reminders are not scheduled during the quiet window",
                 checked = state.quietHoursEnabled,
                 onCheckedChange = { onAction(M3ESettingsAction.ToggleQuietHours(it)) }
             )
@@ -518,11 +525,17 @@ private fun NotificationsCard(state: M3ESettingsState, onAction: (M3ESettingsAct
                     }
                 }
             }
+            Text(
+                text = "Reminders are local alarms on this device, not server push. Quiet Hours stops new alarms from being scheduled inside the window; alarms already scheduled still fire. The test alert uses the same local path.",
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant
+            )
         }
     }
 
     ElevatedButton(
         onClick = { onAction(M3ESettingsAction.SendTestNotification) },
+        enabled = !state.quietHoursEnabled,
         modifier = Modifier.fillMaxWidth(),
         shape = CircleShape,
         colors = ButtonDefaults.elevatedButtonColors(
@@ -532,8 +545,21 @@ private fun NotificationsCard(state: M3ESettingsState, onAction: (M3ESettingsAct
     ) {
         Icon(imageVector = Icons.Rounded.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(6.dp))
-        Text("Send Test Notification", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+        Text(
+            text = if (state.quietHoursEnabled) "Test alerts muted during Quiet Hours" else "Send Test Notification",
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+        )
     }
+    Text(
+        text = if (state.quietHoursEnabled) {
+            "Turn off Quiet Hours to send a test alert."
+        } else {
+            "Sends a real local notification about 5 seconds after you tap (notification permission required)."
+        },
+        style = MaterialTheme.typography.labelSmall,
+        color = colors.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 4.dp)
+    )
 }
 
 @Composable
@@ -623,7 +649,8 @@ private fun SettingsRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .clickableA11y(onClickLabel = "Open $title", onClick = onClick)
+            .heightIn(min = 48.dp)
             .background(colors.surfaceContainerLow)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

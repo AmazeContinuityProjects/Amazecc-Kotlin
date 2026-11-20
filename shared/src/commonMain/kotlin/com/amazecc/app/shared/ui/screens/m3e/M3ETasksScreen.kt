@@ -34,8 +34,6 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -64,6 +62,8 @@ import com.amazecc.app.shared.domain.overhaul.M3ETasksFilter
 import com.amazecc.app.shared.domain.overhaul.M3ETasksState
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenu
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -118,43 +118,23 @@ fun M3ETasksScreen(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ElevatedButton(
-                        onClick = { onAction(M3ETasksAction.OpenCreateDialog) },
-                        shape = CircleShape,
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = colors.primaryContainer,
-                            contentColor = colors.onPrimaryContainer
+                // D-116: the "New Task" button and the refresh icon become two
+                // items of a single M3E action-menu FAB. Both lambdas are unchanged.
+                M3EPageActionsMenu(
+                    actions = listOf(
+                        M3EPageAction(
+                            label = "New Task",
+                            icon = Icons.Rounded.Add,
+                            onClick = { onAction(M3ETasksAction.OpenCreateDialog) }
+                        ),
+                        M3EPageAction(
+                            label = "Refresh",
+                            icon = Icons.Rounded.Refresh,
+                            enabled = !state.isLoading,
+                            onClick = { onAction(M3ETasksAction.Refresh) }
                         )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Add,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "New Task",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { onAction(M3ETasksAction.Refresh) },
-                        enabled = !state.isLoading,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(colors.surfaceContainerHigh)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Refresh",
-                            tint = colors.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                    )
+                )
             }
         }
 
@@ -453,11 +433,11 @@ private fun TaskItemCard(
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Status Icon Toggle Button
+            // Status Icon Toggle Button — 48dp touch target (D-122).
             IconButton(
                 onClick = onToggleStatus,
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(48.dp)
                     .align(Alignment.CenterVertically)
             ) {
                 Icon(
@@ -592,10 +572,10 @@ private fun TaskItemCard(
                 }
             }
 
-            // Actions: Delete
+            // Actions: Delete — 48dp touch target (D-122).
             IconButton(
                 onClick = onDelete,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Rounded.Delete,

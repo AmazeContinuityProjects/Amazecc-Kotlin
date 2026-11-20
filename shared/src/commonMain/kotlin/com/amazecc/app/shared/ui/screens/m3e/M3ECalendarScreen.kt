@@ -3,7 +3,6 @@ package com.amazecc.app.shared.ui.screens.m3e
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,39 +29,69 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenu
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
+import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.m3e.theme.M3EColorPalette
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
+
+/**
+ * The real source that put an entry on a calendar day.
+ *
+ * These are the web `EventKind` categories the super calendar merges: the VTOP academic calendar
+ * (holidays / day types / milestones), the exam schedule, Moodle deadlines, the task store, OD
+ * records, attendance classes and the user's own EventHub registrations. Keeping the source on the
+ * entry (rather than sniffing its title) is what lets a dot, a filter and a label agree.
+ */
+enum class M3ECalendarSource {
+    CLASS, EXAM, MILESTONE, DEADLINE, HOLIDAY, OD, EVENT, DAY_TYPE, OTHER
+}
 
 /** One classified event on a calendar day. */
 @Immutable
 data class M3ECalendarEvent(
     val title: String,
     val type: String,
-    val category: String = ""
+    val category: String = "",
+    /**
+     * The source that produced this entry. `null` only for raw/legacy entries created before the
+     * enriched projection was wired in; [effectiveSource] infers one from their text in that case.
+     */
+    val source: M3ECalendarSource? = null
 )
+
+/**
+ * The classified day type carried through from the domain projection.
+ *
+ * D-113's tint used to be derived by sniffing event text. Carrying the real type keeps that tint
+ * correct now that a day can hold an exam, a deadline and a class at once — none of which should
+ * change what the college published about the day itself.
+ */
+enum class M3ECalendarDayType { INSTRUCTIONAL, SEMIHOLIDAY, NON_INSTRUCTIONAL, HOLIDAY, OTHER }
 
 /** One day cell of the month grid. */
 @Immutable
@@ -70,10 +99,11 @@ data class M3ECalendarDay(
     val date: Int,
     val events: List<M3ECalendarEvent> = emptyList(),
     val isToday: Boolean = false,
-    val isSelected: Boolean = false
+    val isSelected: Boolean = false,
+    val dayType: M3ECalendarDayType? = null
 )
 
-/** A month of the academic calendar, mapped from the scraped CalendarMonth. */
+/** A month of the merged super calendar, mapped from the enriched domain projection. */
 @Immutable
 data class M3ECalendarMonth(
     val name: String,
@@ -86,6 +116,8 @@ object M3ECalendarTestTags {
     const val WEEK_ROW = "m3e_calendar_week_row"
     /** Applied to every grid cell — real day or trailing/leading blank. */
     const val CELL = "m3e_calendar_cell"
+    const val SOURCE_LEGEND = "m3e_calendar_source_legend"
+    const val EVENT_ROW = "m3e_calendar_event_row"
 }
 
 /** Immutable, screen-owned state for [M3ECalendarScreen]. */
@@ -103,13 +135,20 @@ data class M3ECalendarState(
     val exportMessage: String? = null
 )
 
-/** Coarse event groups that map onto VTOP's event types. */
+/**
+ * Per-source filters for the merged super calendar.
+ *
+ * The web page tints the day by its college-published type but filters the *list* by source, so the
+ * two answers stay independent: "is this a teaching day" and "what is on it". These chips follow
+ * that split — a day can be instructional and still have its deadline hidden by the Deadlines chip.
+ */
 enum class M3ECalendarFilter(val label: String) {
     ALL("All"),
-    INSTRUCTIONAL("Classes"),
-    HOLIDAY("Holidays"),
-    EXAM("Exams"),
-    OTHER("Other")
+    CLASSES("Classes"),
+    EXAMS("Exams"),
+    DEADLINES("Deadlines"),
+    HOLIDAYS("Holidays"),
+    EVENTS("Events & OD")
 }
 
 /** User intents emitted by [M3ECalendarScreen]. */
@@ -127,10 +166,12 @@ sealed interface M3ECalendarAction {
 }
 
 /**
- * Material 3 Expressive Academic Calendar screen.
+ * Material 3 Expressive Super Calendar screen.
  * 100% stateless: receives [M3ECalendarState] and emits [M3ECalendarAction].
- * Months come from AppState.domain.schedule.calendarsList / AppState.calendar
- * (online scraper / offline cache) through the host bridge.
+ * Months are the enriched projection built by the host bridge: the published academic calendar
+ * merged with exam papers, Moodle deadlines, tasks, OD records, attendance classes and EventHub
+ * registrations. Each entry keeps its [M3ECalendarSource] so the grid dots, the legend, the filter
+ * chips and the day list all name the same source.
  */
 @Composable
 fun M3ECalendarScreen(
@@ -141,6 +182,8 @@ fun M3ECalendarScreen(
     val colors = M3ETheme.colors
     val activeMonth = state.months.getOrNull(state.selectedMonthIndex)
     val selectedDayModel = activeMonth?.days?.firstOrNull { it.date == state.selectedDay }
+    // D-116: the five crowded header controls are now one M3E action-menu FAB.
+    // The menu owns only its open/closed flag; every action lambda stays here.
 
     LazyColumn(
         modifier = modifier
@@ -158,7 +201,7 @@ fun M3ECalendarScreen(
                 ) {
                     Column {
                         Text(
-                            text = "Academic Calendar",
+                            text = "Super Calendar",
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 24.sp
@@ -166,38 +209,42 @@ fun M3ECalendarScreen(
                             color = colors.onSurface
                         )
                         Text(
-                            text = "Instructional days, holidays & exams",
+                            text = "Classes, exams, deadlines & events",
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.onSurfaceVariant
                         )
                     }
-                    Row {
-                        CalendarActionButton(
-                            icon = Icons.Rounded.Download,
-                            contentDescription = "Export semester to .ics",
-                            onClick = { onAction(M3ECalendarAction.ExportCalendar) }
-                        )
-                        CalendarActionButton(
-                            icon = Icons.Rounded.DateRange,
-                            contentDescription = "Jump to today",
-                            onClick = { onAction(M3ECalendarAction.Today) }
-                        )
-                        CalendarActionButton(
-                            icon = Icons.Rounded.MenuBook,
-                            contentDescription = "Connect Moodle",
-                            onClick = { onAction(M3ECalendarAction.OpenMoodle) }
-                        )
-                        CalendarActionButton(
-                            icon = Icons.Rounded.Folder,
-                            contentDescription = "Academic circulars",
-                            onClick = { onAction(M3ECalendarAction.OpenCirculars) }
-                        )
-                        CalendarActionButton(
-                            icon = Icons.Rounded.Refresh,
-                            contentDescription = "Refresh calendar",
-                            onClick = { onAction(M3ECalendarAction.Refresh) }
-                        )
-                    }
+                    M3EPageActionsMenu(
+                        actions = listOf(
+                            M3EPageAction(
+                                label = "Refresh calendar",
+                                icon = Icons.Rounded.Refresh,
+                                onClick = { onAction(M3ECalendarAction.Refresh) }
+                            ),
+                            M3EPageAction(
+                                label = "Export semester to .ics",
+                                icon = Icons.Rounded.Download,
+                                onClick = { onAction(M3ECalendarAction.ExportCalendar) }
+                            ),
+                            M3EPageAction(
+                                label = "Jump to today",
+                                icon = Icons.Rounded.DateRange,
+                                onClick = { onAction(M3ECalendarAction.Today) }
+                            ),
+                            M3EPageAction(
+                                label = "Connect Moodle",
+                                icon = Icons.Rounded.MenuBook,
+                                onClick = { onAction(M3ECalendarAction.OpenMoodle) }
+                            ),
+                            M3EPageAction(
+                                label = "Academic circulars",
+                                icon = Icons.Rounded.Folder,
+                                onClick = { onAction(M3ECalendarAction.OpenCirculars) }
+                            )
+                        ),
+                        collapsedLabel = "More calendar actions",
+                        expandedLabel = "Close calendar actions"
+                    )
                 }
                 if (!state.exportMessage.isNullOrBlank()) {
                     Text(
@@ -212,7 +259,7 @@ fun M3ECalendarScreen(
 
         if (state.isLoading) {
             item(key = "progress") {
-                M3EWavyLinearProgress(progress = 0.5f)
+                M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
             }
         }
 
@@ -269,7 +316,10 @@ fun M3ECalendarScreen(
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .background(if (isSelected) colors.primary else colors.surfaceContainerHigh)
-                                .clickable { onAction(M3ECalendarAction.SelectMonth(index)) }
+                                .clickableA11y(
+                                    onClickLabel = "Select ${month.name}",
+                                    onClick = { onAction(M3ECalendarAction.SelectMonth(index)) }
+                                )
                                 .padding(horizontal = 14.dp, vertical = 8.dp)
                         ) {
                             Text(
@@ -333,6 +383,46 @@ fun M3ECalendarScreen(
                 }
             }
 
+            item(key = "source_legend") {
+                // The web page ships a legend alongside the grid. Here it is derived from the
+                // sources actually present this month, so it never promises a dot nothing draws.
+                val presentSources = activeMonth?.days.orEmpty()
+                    .asSequence()
+                    .flatMap { it.events.asSequence() }
+                    .map { it.effectiveSource() }
+                    .filter { it != M3ECalendarSource.DAY_TYPE && it != M3ECalendarSource.OTHER }
+                    .distinct()
+                    .toList()
+                if (presentSources.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag(M3ECalendarTestTags.SOURCE_LEGEND),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        presentSources.forEach { source ->
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(sourceDotColor(source, colors))
+                                )
+                                Text(
+                                    text = sourceLabel(source),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             item(key = "filter") {
                 M3EConnectedButtonGroup(
                     items = M3ECalendarFilter.entries,
@@ -344,17 +434,24 @@ fun M3ECalendarScreen(
             }
 
             val filteredEvents = selectedDayModel?.events?.filter { event ->
+                val source = event.effectiveSource()
                 when (state.eventFilter) {
                     M3ECalendarFilter.ALL -> true
-                    M3ECalendarFilter.INSTRUCTIONAL -> event.type.contains("instructional", true) ||
-                        event.category.contains("class", true)
-                    M3ECalendarFilter.HOLIDAY -> event.type.contains("holiday", true) ||
-                        event.category.contains("holiday", true)
-                    M3ECalendarFilter.EXAM -> event.type.contains("exam", true) ||
-                        event.category.contains("exam", true)
-                    M3ECalendarFilter.OTHER -> !event.type.contains("instructional", true) &&
-                        !event.type.contains("holiday", true) &&
-                        !event.type.contains("exam", true)
+                    // The published day type is part of "Classes": it says whether teaching runs,
+                    // which is the same answer the web page's Classes chip gives.
+                    M3ECalendarFilter.CLASSES ->
+                        source == M3ECalendarSource.CLASS || source == M3ECalendarSource.DAY_TYPE
+                    // A milestone (CAT / LID / Mid Term) and its papered exam are one assessment,
+                    // matching the web page where both pass the Exams chip.
+                    M3ECalendarFilter.EXAMS ->
+                        source == M3ECalendarSource.EXAM || source == M3ECalendarSource.MILESTONE
+                    M3ECalendarFilter.DEADLINES -> source == M3ECalendarSource.DEADLINE
+                    // A published "No Instructional Day" is filed with holidays, as on the web.
+                    M3ECalendarFilter.HOLIDAYS ->
+                        source == M3ECalendarSource.HOLIDAY ||
+                            (source == M3ECalendarSource.DAY_TYPE && isNonInstructionalEvent(event))
+                    M3ECalendarFilter.EVENTS ->
+                        source == M3ECalendarSource.EVENT || source == M3ECalendarSource.OD
                 }
             }.orEmpty()
 
@@ -384,9 +481,12 @@ fun M3ECalendarScreen(
                     }
                 }
             } else {
-                items(filteredEvents, key = { "${it.type}_${it.title}" }) { event ->
+                items(filteredEvents, key = { "${it.source}_${it.type}_${it.title}" }) { event ->
+                    val source = event.effectiveSource()
                     M3ESurfaceCard(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag(M3ECalendarTestTags.EVENT_ROW),
                         containerLevel = SurfaceContainerLevel.LOW
                     ) {
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -394,22 +494,30 @@ fun M3ECalendarScreen(
                                 modifier = Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(colors.primary)
+                                    .background(sourceDotColor(source, colors))
                             )
                             Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = event.title,
                                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = colors.onSurface
+                                    color = colors.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
-                                if (event.type.isNotBlank()) {
-                                    Text(
-                                        text = event.type,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = colors.onSurfaceVariant
-                                    )
-                                }
+                                // Source label leads the second line so an exam, a Moodle deadline
+                                // and a task never read as the same kind of obligation.
+                                val secondary = listOfNotNull(
+                                    sourceLabel(source),
+                                    event.category.takeIf { it.isNotBlank() }
+                                ).joinToString(" · ")
+                                Text(
+                                    text = secondary,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
                             }
                         }
                     }
@@ -427,11 +535,12 @@ fun M3ECalendarScreen(
  * One M3E calendar day: springy selection morph, emphasized date and semantic event dots.
  * The scale uses the Expressive spatial-fast spring so selecting a day feels physical.
  *
- * Day-state tint (D-113) is tonal and semantic, never a saturated primary: instructional days
- * use the success container, while non-instructional/holiday/no-marking days use the error
- * container. Text stays on the matching on-container role, the edge is a 1px `outlineVariant`
- * hairline at half alpha, and there is no shadow. Selection stays visible as a 2dp primary ring
- * plus the spring scale so it cannot be swallowed by either tint.
+ * Day-state tint (D-113/D-121) is tonal and semantic, never a saturated primary: instructional
+ * days use the success container, explicitly marked holiday/non-instructional days use the error
+ * container, and every other day (including empty ones) stays on a neutral surface container.
+ * Text uses a contrast-safe foreground, the edge is a 1px `outlineVariant` hairline at half
+ * alpha, and there is no shadow. Selection stays visible as a 2dp primary ring plus the spring
+ * scale so it cannot be swallowed by any tint.
  */
 @Composable
 private fun CalendarDayCell(
@@ -448,20 +557,36 @@ private fun CalendarDayCell(
     )
     val tone = day.dayTone()
     val isInstructional = tone == M3ECalendarDayTone.INSTRUCTIONAL
-    // success/error are the bright on-container roles in this palette and read clearly on the
-    // dark successContainer/errorContainer fills (same convention used by other M3E status UI).
-    val containerColor = if (isInstructional) colors.successContainer else colors.errorContainer
-    val onContainerColor = if (isInstructional) colors.success else colors.error
-
-    val dotColors = day.events.take(3).map { event ->
-        when {
-            event.type.contains("exam", ignoreCase = true) ||
-                event.category.contains("exam", ignoreCase = true) -> colors.error
-            event.type.contains("holiday", ignoreCase = true) ||
-                event.category.contains("holiday", ignoreCase = true) -> colors.tertiary
-            else -> colors.primary
-        }
+    // D-121: "no teaching marked" is not a status. A day with no events (or only
+    // exams/other events) stays on a neutral surface; only a real holiday /
+    // non-instructional marker from the scraped data earns the error tint.
+    // A published non-instructional / holiday day is a real marker even when it carries no event
+    // text (the projection can classify a day purely from its VTOP day type).
+    val hasExplicitNonInstructional = day.events.any(::isNonInstructionalEvent) ||
+        day.dayType == M3ECalendarDayType.NON_INSTRUCTIONAL ||
+        day.dayType == M3ECalendarDayType.HOLIDAY
+    val containerColor = when {
+        isInstructional -> colors.successContainer
+        hasExplicitNonInstructional -> colors.errorContainer
+        else -> colors.surfaceContainerHigh
     }
+    // D-114: containers always pair with their measured on*Container token
+    // (onSuccessContainer is 9.65:1 on Classic Light successContainer).
+    val onContainerColor = when {
+        isInstructional -> colors.onSuccessContainer
+        hasExplicitNonInstructional -> colors.onErrorContainer
+        else -> colors.onSurface
+    }
+
+    // One dot per distinct source, in the projection's priority order. A published day type is
+    // the cell's own tint, not news, so it is deliberately not drawn as a dot.
+    val dotColors = day.events.asSequence()
+        .map { it.effectiveSource() }
+        .filter { it != M3ECalendarSource.DAY_TYPE && it != M3ECalendarSource.OTHER }
+        .distinct()
+        .take(3)
+        .map { sourceDotColor(it, colors) }
+        .toList()
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = modifier
@@ -480,11 +605,12 @@ private fun CalendarDayCell(
                 shape = shape
             )
             .testTag(M3ECalendarTestTags.CELL)
-            .semantics {
-                contentDescription = "Day ${day.date}, " +
-                    if (isInstructional) "instructional" else "non-instructional"
-            }
-            .clickable(onClick = onClick),
+            .clickableA11y(
+                onClickLabel = "Day ${day.date}, " +
+                    if (isInstructional) "instructional" else "non-instructional",
+                mergeDescendants = false,
+                onClick = onClick
+            ),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -542,39 +668,77 @@ private fun isNonInstructionalEvent(event: M3ECalendarEvent): Boolean {
     }
 }
 
-/** Instructional (green) only when marked so with no non-instructional marker; everything else red. */
+/**
+ * The source of an entry, with a text fallback for raw/legacy entries that predate the enriched
+ * projection. The fallback is deliberately narrow: "non instructional" is checked before the
+ * bare "instructional" it contains, the same ordering trap the classifier itself guards against.
+ */
+internal fun M3ECalendarEvent.effectiveSource(): M3ECalendarSource {
+    source?.let { return it }
+    val text = "$title $type $category"
+    return when {
+        text.contains("non-instructional", true) ||
+            text.contains("non instructional", true) ||
+            text.contains("noninstructional", true) -> M3ECalendarSource.DAY_TYPE
+        // A holiday is its own source. Folding it into the day-type branch made a raw "Holiday"
+        // entry lose its dot and its filter chip, even though the web super calendar treats a
+        // holiday as a merged source in its own right.
+        text.contains("holiday", true) -> M3ECalendarSource.HOLIDAY
+        text.contains("exam", true) || text.contains("CAT-", true) -> M3ECalendarSource.EXAM
+        text.contains("milestone", true) || text.contains("LID", true) -> M3ECalendarSource.MILESTONE
+        text.contains("moodle", true) || text.contains("assignment", true) ||
+            text.contains("deadline", true) || text.contains("task", true) -> M3ECalendarSource.DEADLINE
+        text.contains("class", true) || text.contains("instructional", true) -> M3ECalendarSource.CLASS
+        else -> M3ECalendarSource.OTHER
+    }
+}
+
+/** Short, lowercase-free label for a source, safe to use as a chip or a row's second line. */
+internal fun sourceLabel(source: M3ECalendarSource): String = when (source) {
+    M3ECalendarSource.CLASS -> "Class"
+    M3ECalendarSource.EXAM -> "Exam"
+    M3ECalendarSource.MILESTONE -> "Milestone"
+    M3ECalendarSource.DEADLINE -> "Deadline"
+    M3ECalendarSource.HOLIDAY -> "Holiday"
+    M3ECalendarSource.OD -> "OD"
+    M3ECalendarSource.EVENT -> "Event"
+    M3ECalendarSource.DAY_TYPE -> "Day type"
+    M3ECalendarSource.OTHER -> "Other"
+}
+
+/**
+ * Semantic dot colour for a source. Tonal-first: these are the same status / role tokens the rest
+ * of the ledger uses, never a bespoke per-source hue. Class is the success tone, exams and holidays
+ * the alert tone, deadlines the primary role, OD the secondary role, and milestones / user events
+ * the restrained tertiary role.
+ */
+internal fun sourceDotColor(source: M3ECalendarSource, colors: M3EColorPalette): Color = when (source) {
+    M3ECalendarSource.CLASS -> colors.success
+    M3ECalendarSource.EXAM, M3ECalendarSource.HOLIDAY -> colors.error
+    M3ECalendarSource.DEADLINE -> colors.primary
+    M3ECalendarSource.OD -> colors.secondary
+    M3ECalendarSource.MILESTONE, M3ECalendarSource.EVENT -> colors.tertiary
+    M3ECalendarSource.DAY_TYPE, M3ECalendarSource.OTHER -> colors.outlineVariant
+}
+
+/** Semantic classification used for the day's accessibility label; the visual tint is decided separately. */
 internal fun M3ECalendarDay.dayTone(): M3ECalendarDayTone {
+    // The enriched projection supplies the college's own day type. Prefer it: a day carrying an
+    // exam and a deadline is still an instructional day if the calendar says so. The text fallback
+    // below exists only for raw entries built before the projection was wired in (and for tests).
+    dayType?.let { type ->
+        return when (type) {
+            M3ECalendarDayType.INSTRUCTIONAL, M3ECalendarDayType.SEMIHOLIDAY ->
+                M3ECalendarDayTone.INSTRUCTIONAL
+            M3ECalendarDayType.NON_INSTRUCTIONAL, M3ECalendarDayType.HOLIDAY,
+            M3ECalendarDayType.OTHER -> M3ECalendarDayTone.NON_INSTRUCTIONAL
+        }
+    }
     if (events.isEmpty()) return M3ECalendarDayTone.NON_INSTRUCTIONAL
     val hasInstructional = events.any(::isInstructionalEvent)
     val hasNonInstructional = events.any(::isNonInstructionalEvent)
     return if (hasInstructional && !hasNonInstructional) M3ECalendarDayTone.INSTRUCTIONAL
     else M3ECalendarDayTone.NON_INSTRUCTIONAL
-}
-
-/**
- * Header action button (44dp touch target, M3E surface token).
- * Kept as its own composable so every action in the header reads identically.
- */
-@Composable
-private fun CalendarActionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit
-) {
-    IconButton(
-        onClick = onClick,
-        modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(M3ETheme.colors.surfaceContainerHigh)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = M3ETheme.colors.primary,
-            modifier = Modifier.size(20.dp)
-        )
-    }
 }
 
 // ==========================================

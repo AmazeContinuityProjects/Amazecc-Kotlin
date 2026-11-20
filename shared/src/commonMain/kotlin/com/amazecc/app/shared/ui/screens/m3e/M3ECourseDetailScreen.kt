@@ -1,9 +1,6 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -70,6 +67,10 @@ fun M3ECourseDetailScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    // D-114: M3ETheme.motion.* is composable and reads LocalMotionReduced at the call site.
+    // Compute it here (composable scope) and capture the value; the transitionSpec lambda below
+    // is NOT composable and may only return the already-computed transform.
+    val tabSwitchTransform = M3ETheme.motion.tabSwitchTransform()
 
     Box(
         modifier = modifier
@@ -161,7 +162,9 @@ fun M3ECourseDetailScreen(
             item(key = "tab_content_${state.activeTab}") {
                 AnimatedContent(
                     targetState = state.activeTab,
-                    transitionSpec = { fadeIn() togetherWith fadeOut() }
+                    // Captured from the composable scope above so the reduce-motion decision is
+                    // read from LocalMotionReduced; a raw fadeIn/fadeOut would bypass it (D-117).
+                    transitionSpec = { tabSwitchTransform }
                 ) { tab ->
                     when (tab) {
                         CourseDetailTab.OVERVIEW -> CourseOverviewSection(state = state)
@@ -409,7 +412,9 @@ private fun CourseMarksSection(state: M3ECourseDetailState) {
                         color = colors.onSurfaceVariant
                     )
                     Text(
-                        text = "${state.internalScored.toFixed(2)} / ${state.internalMax.toFixed(2)}",
+                        text = if (state.internalMax > 0.0) {
+                            "${state.internalScored.toFixed(2)} / ${state.internalMax.toFixed(2)}"
+                        } else "Not available",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Black,
                         color = colors.primary
@@ -520,6 +525,16 @@ private fun CourseSyllabusSection(
             )
         }
 
+        // Real download outcome: the button is not a dead control, and the message never claims
+        // modules will appear when the app has no structured module data to show.
+        state.errorMessage?.let { message ->
+            Text(
+                text = message,
+                fontSize = 12.sp,
+                color = colors.onSurfaceVariant
+            )
+        }
+
         Text(
             text = "Course Modules",
             fontSize = 14.sp,
@@ -529,7 +544,7 @@ private fun CourseSyllabusSection(
 
         if (state.syllabusUnits.isEmpty()) {
             Text(
-                text = "Syllabus modules will appear once downloaded or cached.",
+                text = "Not available — structured syllabus modules are not published for this course. Use the PDF above for the full outline.",
                 fontSize = 13.sp,
                 color = colors.onSurfaceVariant
             )
@@ -609,14 +624,21 @@ private fun CoursePredictorSection(
                 )
 
                 Text(
-                    text = state.requiredFinalScore?.let { "${it.toFixed(2)} / 100" } ?: "Calculable on complete internals",
+                    text = state.requiredFinalScore?.let { "${it.toFixed(2)} / 100" } ?: "Not available",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Black,
                     color = colors.primary
                 )
 
                 Text(
-                    text = "Based on current internals (${state.internalScored.toFixed(2)}/${state.internalMax.toFixed(2)}) and typical cohort curves.",
+                    text = when {
+                        state.internalMax <= 0.0 ->
+                            "Internal marks are not published for this course."
+                        state.requiredFinalScore == null ->
+                            "Could not compute a requirement for grade ${state.targetGrade} from the available data."
+                        else ->
+                            "Based on current internals (${state.internalScored.toFixed(2)}/${state.internalMax.toFixed(2)}) for target grade ${state.targetGrade}."
+                    },
                     fontSize = 11.sp,
                     color = colors.onSurfaceVariant
                 )

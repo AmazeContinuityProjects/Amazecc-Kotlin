@@ -173,7 +173,7 @@ fun M3EPaymentsScreen(
 
         if (state.isLoading) {
             item(key = "progress") {
-                M3EWavyLinearProgress(progress = 0.55f)
+                M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
             }
         }
 

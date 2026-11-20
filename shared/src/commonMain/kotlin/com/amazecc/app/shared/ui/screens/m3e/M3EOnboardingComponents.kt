@@ -3,7 +3,6 @@ package com.amazecc.app.shared.ui.screens.m3e
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,8 +35,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -59,6 +56,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import kotlinx.datetime.LocalTime
@@ -114,7 +112,13 @@ internal fun M3EOnboardingSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            // D-120: the row is the single toggle source. The indicator on the
+            // right is draw-only so there is no second click/toggle target.
+            .clickableA11y(
+                onClickLabel = if (checked) "Turn off $title" else "Turn on $title",
+                onClick = { onCheckedChange(!checked) }
+            )
+            .heightIn(min = 48.dp)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -133,15 +137,29 @@ internal fun M3EOnboardingSwitchRow(
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
         Spacer(Modifier.width(8.dp))
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(
-                checkedTrackColor = effectiveTint,
-                checkedThumbColor = colors.onPrimary,
-                uncheckedTrackColor = colors.surfaceContainerHighest,
-                uncheckedThumbColor = colors.onSurfaceVariant
-            )
+        // Display-only: the row above is the one toggle source and carries the
+        // Role/label through clickableA11y.
+        M3EDisplaySwitch(checked = checked, tint = effectiveTint)
+    }
+}
+
+/** M3 switch appearance with no input semantics — used when a parent row owns the toggle. */
+@Composable
+private fun M3EDisplaySwitch(checked: Boolean, tint: Color) {
+    val colors = M3ETheme.colors
+    Box(
+        modifier = Modifier
+            .size(width = 52.dp, height = 32.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (checked) tint else colors.surfaceContainerHighest),
+        contentAlignment = if (checked) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(3.dp)
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(if (checked) colors.onPrimary else colors.onSurfaceVariant)
         )
     }
 }
@@ -172,7 +190,11 @@ internal fun M3EOnboardingChoiceChip(
             .clip(RoundedCornerShape(20.dp))
             .background(background)
             .border(1.dp, if (selected) Color.Transparent else colors.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
+            .clickableA11y(
+                onClickLabel = if (selected) "Deselect $label" else "Select $label",
+                onClick = onClick
+            )
+            .heightIn(min = 48.dp)
             .padding(horizontal = 14.dp, vertical = 9.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -205,7 +227,8 @@ internal fun M3EOnboardingPickerField(
             .clip(RoundedCornerShape(16.dp))
             .background(colors.surfaceContainerLow)
             .border(1.dp, colors.outlineVariant.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
+            .clickableA11y(onClickLabel = "Choose $label", onClick = onClick)
+            .heightIn(min = 48.dp)
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -346,7 +369,8 @@ internal fun M3EOnboardingSemesterSheet(
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(16.dp))
                             .background(bg)
-                            .clickable { onSelect(id) }
+                            .clickableA11y(onClickLabel = "Select semester $id", onClick = { onSelect(id) })
+                            .heightIn(min = 48.dp)
                             .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -387,7 +411,7 @@ internal fun M3EOnboardingCustomAccentSheet(
                         .clip(CircleShape)
                         .background(swatch)
                         .border(2.dp, if (swatch == live) colors.onSurface else colors.outlineVariant, CircleShape)
-                        .clickable {
+                        .clickableA11y(onClickLabel = "Use this preset color") {
                             hue = 0f
                             saturation = 0f
                             onSelected(swatch)

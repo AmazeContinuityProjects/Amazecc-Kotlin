@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -11,15 +12,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.domain.CalendarIcs
+import com.amazecc.app.shared.domain.DayEvent
+import com.amazecc.app.shared.domain.DayType
+import com.amazecc.app.shared.domain.EventKind
+import com.amazecc.app.shared.domain.MonthModel
+import com.amazecc.app.shared.domain.buildEnrichedCalendars
+import com.amazecc.app.shared.domain.calendarSources
+import com.amazecc.app.shared.domain.kindLabel
+import com.amazecc.app.shared.domain.leadingBlanks
 import com.amazecc.app.shared.domain.overhaul.M3EKohaBookDetail
 import com.amazecc.app.shared.domain.overhaul.M3EKohaHolding
 import com.amazecc.app.shared.model.BookItem
-import com.amazecc.app.shared.model.CalendarMonth
 import com.amazecc.app.shared.model.KohaBook
 import com.amazecc.app.shared.model.KohaDetailBook
 import com.amazecc.app.shared.model.KohaHolding
+import com.amazecc.app.shared.model.NamedCalendar
 import com.amazecc.app.shared.model.PaymentItem
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.UserStore
@@ -36,7 +46,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.Month
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
@@ -174,6 +183,11 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
     var isDetailLoading by remember { mutableStateOf(false) }
     var detailErrorMessage by remember { mutableStateOf<String?>(null) }
     var renewNotice by remember { mutableStateOf<String?>(null) }
+    // D-121: host-owned catalog paging (page 0 is `searchResults`; deeper pages come from Koha).
+    var catalogPage by remember { mutableStateOf(0) }
+    var catalogPageResults by remember { mutableStateOf<List<M3ELibraryBook>>(emptyList()) }
+    var isPaging by remember { mutableStateOf(false) }
+    var pageError by remember { mutableStateOf<String?>(null) }
 
     // Library dues are synced centrally (SyncModule.LIBRARY); page entry only reads the cache.
     LaunchedEffect(Unit) {
@@ -216,6 +230,11 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
         isBusy = true
         errorMessage = null
         hasSearched = true
+        // A new query starts at page 0; older pages are no longer valid.
+        catalogPage = 0
+        catalogPageResults = emptyList()
+        pageError = null
+        isPaging = false
         try {
             val res = withContext(Dispatchers.Default) { AmazeClient.searchLibrary(query) }
             searchResults = res.books.map { it.toM3ELibraryBook() }
@@ -252,7 +271,12 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
         bookDetail = bookDetail,
         isDetailLoading = isDetailLoading,
         detailErrorMessage = detailErrorMessage,
-        renewNotice = renewNotice
+        renewNotice = renewNotice,
+        catalogPage = catalogPage,
+        catalogPageSize = 20,
+        catalogPageResults = catalogPageResults,
+        isPaging = isPaging,
+        pageError = pageError
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -271,6 +295,34 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
                         totalResults = 0
                         hasSearched = false
                         errorMessage = null
+                        catalogPage = 0
+                        catalogPageResults = emptyList()
+                        pageError = null
+                        isPaging = false
+                    }
+                    is M3ELibrariesAction.LoadCatalogPage -> {
+                        if (searchQuery.isNotBlank() && action.page >= 0) {
+                            scope.launch {
+                                isPaging = true
+                                pageError = null
+                                try {
+                                    val res = withContext(Dispatchers.Default) {
+                                        AmazeClient.searchLibrary(searchQuery, "kw", action.page * 20)
+                                    }
+                                    catalogPage = action.page
+                                    catalogPageResults = res.books.map { it.toM3ELibraryBook() }
+                                    pageError = if (res.success) null else {
+                                        res.error?.takeIf { it.isNotBlank() }
+                                            ?: res.message?.takeIf { it.isNotBlank() }
+                                            ?: "Could not load this page"
+                                    }
+                                } catch (e: Exception) {
+                                    pageError = e.message ?: "Could not load this page"
+                                } finally {
+                                    isPaging = false
+                                }
+                            }
+                        }
                     }
                     is M3ELibrariesAction.UpdateUsername -> username = action.value
                     is M3ELibrariesAction.UpdatePassword -> password = action.value
@@ -384,6 +436,13 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
     val isLoading by AppState.isLoading.collectAsState()
     val error by AppState.error.collectAsState()
     val selectedSemester by AppState.selectedSemester.collectAsState()
+    // The same five flows the legacy CalendarScreen reads. They already live on AppState; the M3E
+    // host used to ignore them and show only the scraped day types. Collecting them here is the
+    // entire wiring change for D-115 — no AppState / M3EStateBridge edits are needed.
+    val domain by AppState.domain.collectAsState()
+    val moodleData by AppState.moodleData.collectAsState()
+    val registeredEvents by AppState.registeredEvents.collectAsState()
+    val tasks by AppState.tasks.collectAsState()
 
     val today = remember {
         Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
@@ -393,7 +452,12 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
         calendarsListRes?.calendars.orEmpty()
     }
 
-    var selectedCalendarIndex by remember { mutableStateOf(0) }
+    // D-122: honour the calendar type chosen in Settings on first composition; valid index
+    // falls back to 0 ("ALL") until the calendars-list sync has populated the options.
+    var selectedCalendarIndex by remember(calendars) {
+        val preferred = com.amazecc.app.shared.repository.SettingsManager.getPreferredCalendar()
+        mutableStateOf(calendars.indexOfFirst { it.name == preferred }.takeIf { it >= 0 } ?: 0)
+    }
     var selectedMonthIndex by remember { mutableStateOf(0) }
     var selectedDay by remember { mutableStateOf<Int?>(null) }
     var eventFilter by remember { mutableStateOf(M3ECalendarFilter.ALL) }
@@ -408,12 +472,40 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
         (calendars.getOrNull(selectedCalendarIndex)?.months ?: calendarRes?.months).orEmpty()
     }
 
-    val months = remember(calendars, calendarRes, selectedCalendarIndex, today) {
+    /**
+     * The one enriched projection, shared with the legacy CalendarScreen through [calendarSources].
+     * Every real source Kotlin has data for is folded in here: published calendar, exam papers,
+     * Moodle deadlines, tasks, OD records, attendance classes and EventHub registrations. The
+     * screen receives only this projection, so its grid, filter and day list cannot disagree about
+     * what a day contains.
+     */
+    val enrichedMonths = remember(
+        calendars, calendarRes, domain, moodleData, registeredEvents, tasks,
+        selectedSemester, selectedCalendarIndex, today
+    ) {
         val activeCalendar = calendars.getOrNull(selectedCalendarIndex)
-        when {
-            activeCalendar != null -> activeCalendar.months.map { it.toM3ECalendarMonth(today) }
-            else -> calendarRes?.months?.map { it.toM3ECalendarMonth(today) } ?: emptyList()
-        }
+            ?: calendarRes?.months?.takeIf { it.isNotEmpty() }?.let {
+                NamedCalendar(name = "General Semester", months = it)
+            }
+        buildEnrichedCalendars(
+            calendarSources(
+                calendar = activeCalendar,
+                snapshot = domain,
+                semesterId = selectedSemester,
+                moodle = moodleData?.data.orEmpty(),
+                tasks = tasks,
+                registeredEvents = registeredEvents?.events.orEmpty(),
+                // The OD tracker screen still owns its raw JSON; until that screen moves to
+                // odRecordsFrom, an OD row reads "On-Duty" instead of "wasted"/"recovered" —
+                // exactly the degradation the legacy CalendarScreen documents.
+                odTracker = emptyMap(),
+            ),
+            now = today,
+        )
+    }
+
+    val months = remember(enrichedMonths) {
+        enrichedMonths.map { it.toM3ECalendarMonth() }
     }
 
     LaunchedEffect(months) {
@@ -494,54 +586,69 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
     }
 }
 
-private fun CalendarMonth.toM3ECalendarMonth(today: LocalDate): M3ECalendarMonth {
-    // Prefer the scraper's explicit year/month; fall back to parsing the month label so the
-    // grid always starts on the real weekday and ends on the real last date of the month.
-    val parsed = parseMonthLabel(month)
-    val resolvedYear = year ?: parsed?.second ?: today.year
-    val resolvedMonth = monthNumber ?: parsed?.first ?: today.monthNumber
-    return M3ECalendarMonth(
-        name = month,
-        leadingBlankDays = leadingBlankDays(resolvedYear, resolvedMonth),
+/**
+ * The enriched month, flattened into the screen's immutable view model.
+ *
+ * The domain's [MonthModel] already carries the authoritative weekday offset and day type, so no
+ * label parsing or text sniffing happens here. Keeping this mapping pure makes the merged sources
+ * testable without a host, and keeps the screen stateless.
+ */
+internal fun MonthModel.toM3ECalendarMonth(today: LocalDate = com.amazecc.app.shared.domain.today()): M3ECalendarMonth =
+    M3ECalendarMonth(
+        name = label,
+        leadingBlankDays = leadingBlanks(year, monthIndex),
         days = days.map { day ->
             M3ECalendarDay(
                 date = day.date,
-                events = day.events.map { event ->
-                    M3ECalendarEvent(title = event.text, type = event.type, category = event.category)
+                events = day.events.flatMap { event ->
+                    val entries = mutableListOf(event.toM3ECalendarEvent())
+                    // The projection folds a milestone's papers into the milestone so the day sheet
+                    // can show one assessment. Each paper is still a real exam entry, so surface it
+                    // here: a CAT day must show an exam dot, not only a milestone dot.
+                    event.papers.orEmpty().forEach { paper -> entries += paper.toM3ECalendarEvent() }
+                    entries
                 },
-                isToday = resolvedYear == today.year && resolvedMonth == today.monthNumber && day.date == today.dayOfMonth
+                isToday = day.fullDate == today,
+                dayType = day.dayType.toM3EDayType(),
             )
         }
     )
+
+private fun DayType.toM3EDayType(): M3ECalendarDayType = when (this) {
+    DayType.INSTRUCTIONAL -> M3ECalendarDayType.INSTRUCTIONAL
+    DayType.SEMIHOLIDAY -> M3ECalendarDayType.SEMIHOLIDAY
+    DayType.NON_INSTRUCTIONAL -> M3ECalendarDayType.NON_INSTRUCTIONAL
+    DayType.HOLIDAY -> M3ECalendarDayType.HOLIDAY
+    DayType.OTHER -> M3ECalendarDayType.OTHER
 }
 
-private fun parseMonthLabel(label: String): Pair<Int, Int>? {
-    val parts = label.trim().split(Regex("\\s+"))
-    val number = Month.entries.firstOrNull { it.name.equals(parts.firstOrNull().orEmpty(), ignoreCase = true) }
-        ?.monthNumberValue ?: return null
-    return number to (parts.getOrNull(1)?.toIntOrNull() ?: return null)
+/** One classified domain event, with its source preserved for dots, filters and labels. */
+internal fun DayEvent.toM3ECalendarEvent(): M3ECalendarEvent {
+    val source = when (kind) {
+        EventKind.EXAM -> M3ECalendarSource.EXAM
+        EventKind.MILESTONE -> M3ECalendarSource.MILESTONE
+        EventKind.ASSIGNMENT -> M3ECalendarSource.DEADLINE
+        EventKind.CLASS -> M3ECalendarSource.CLASS
+        EventKind.HOLIDAY -> M3ECalendarSource.HOLIDAY
+        EventKind.OD -> M3ECalendarSource.OD
+        EventKind.EVENT -> M3ECalendarSource.EVENT
+        EventKind.WORKING -> M3ECalendarSource.DAY_TYPE
+    }
+    val secondary = mutableListOf<String>()
+    detail?.takeIf { it.isNotBlank() }?.let { secondary += it }
+    courseCode?.takeIf { it.isNotBlank() }?.let { secondary += it }
+    val typeLabel = when {
+        kind == EventKind.ASSIGNMENT && taskId != null -> "Task"
+        kind == EventKind.ASSIGNMENT -> "Moodle"
+        else -> kindLabel(kind)
+    }
+    return M3ECalendarEvent(
+        title = title,
+        type = typeLabel,
+        category = secondary.joinToString(" · "),
+        source = source,
+    )
 }
-
-/** 1-based month number; `kotlinx.datetime.Month` has no `number` property in this version. */
-private val Month.monthNumberValue: Int get() = ordinal + 1
-
-private fun isSameMonth(monthName: String, date: LocalDate): Boolean {
-    val firstPart = monthName.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
-    val parsed = Month.entries.firstOrNull { it.name.equals(firstPart, ignoreCase = true) } ?: return false
-    val year = monthName.trim().split(Regex("\\s+")).getOrNull(1)?.toIntOrNull() ?: return false
-    return parsed.monthNumberValue == date.monthNumber && year == date.year
-}
-
-private fun leadingBlankDays(year: Int, monthNumber: Int): Int {
-    // Sakamoto's weekday algorithm (0 = Sunday), Monday-first leading blanks.
-    val offsets = intArrayOf(0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4)
-    val adjustedYear = if (monthNumber < 3) year - 1 else year
-    val sundayBased = (adjustedYear + adjustedYear / 4 - adjustedYear / 100 + adjustedYear / 400 +
-        offsets[monthNumber - 1] + 1).floorMod(7)
-    return (sundayBased + 6) % 7
-}
-
-private fun Int.floorMod(divisor: Int): Int = ((this % divisor) + divisor) % divisor
 
 // ==========================================
 // CIRCULARS
@@ -558,6 +665,9 @@ fun M3ECircularsScreenHost(modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
 
     var expandedKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Per-row download outcomes keyed by circular id. Written from the download coroutine,
+    // read by the stateless screen as an immutable snapshot; only real results go in here.
+    val downloadStates = remember { mutableStateMapOf<String, M3ECircularDownloadUi>() }
     // Identity guard, mirroring M3EDocumentsScreenHost: open each downloaded circular exactly once.
     var lastOpenedCircular by remember { mutableStateOf<Any?>(null) }
 
@@ -571,6 +681,34 @@ fun M3ECircularsScreenHost(modifier: Modifier = Modifier) {
         if (result != null && result !== lastOpenedCircular) {
             lastOpenedCircular = result
             openDocumentBytes(result.bytes, result.fileName, result.mimeType)
+        }
+    }
+
+    /**
+     * D-114: the real download action for a circular row. This is the same mechanism as
+     * `AppState.downloadDocument(id)` (AmazeClient credentialed binary fetch → the
+     * `AppState.circularDownload` flow → `openDocumentBytes` in the effect above), but it keeps
+     * the actual result in hand so the row can show a genuine saved/failed state — the flow
+     * publishes `null` on failure and cannot distinguish a first failed attempt from idle.
+     */
+    fun requestDownload(id: String) {
+        if (id.isBlank()) return
+        downloadStates[id] = M3ECircularDownloadUi(M3ECircularDownloadStatus.DOWNLOADING)
+        scope.launch {
+            val result = runCatching { AmazeClient.downloadCircular(id) }.getOrNull()
+            // Feed the exact same flow the documents host and the open effect consume.
+            AppDataStore.setCircularDownload(result)
+            downloadStates[id] = if (result != null) {
+                M3ECircularDownloadUi(
+                    status = M3ECircularDownloadStatus.SAVED,
+                    message = result.fileName
+                )
+            } else {
+                M3ECircularDownloadUi(
+                    status = M3ECircularDownloadStatus.FAILED,
+                    message = "Download failed. Check your connection and retry."
+                )
+            }
         }
     }
 
@@ -594,7 +732,8 @@ fun M3ECircularsScreenHost(modifier: Modifier = Modifier) {
         folders = folders,
         expandedKeys = expandedKeys,
         isLoading = isSyncing && circularsRes == null,
-        errorMessage = error ?: circularsRes?.let { if (!it.success) it.error ?: it.message else null }
+        errorMessage = error ?: circularsRes?.let { if (!it.success) it.error ?: it.message else null },
+        downloadStates = downloadStates.toMap()
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -609,10 +748,9 @@ fun M3ECircularsScreenHost(modifier: Modifier = Modifier) {
                             expandedKeys + action.key
                         }
                     }
-                    // Same pipeline the Documents tab uses: download the circular into
-                    // AppState.circularDownload; the LaunchedEffect above opens it.
-                    is M3ECircularsAction.OpenCircular ->
-                        scope.launch { AppState.downloadDocument(action.id) }
+                    // D-114: every row's Download/retry affordance reaches the real
+                    // credentialed download pipeline and reports its true outcome per row.
+                    is M3ECircularsAction.OpenCircular -> requestDownload(action.id)
                     M3ECircularsAction.Refresh -> AppState.refreshCirculars()
                 }
             },

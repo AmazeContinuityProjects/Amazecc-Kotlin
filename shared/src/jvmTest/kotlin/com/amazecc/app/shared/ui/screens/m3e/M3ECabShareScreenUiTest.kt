@@ -1,7 +1,10 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -96,7 +99,10 @@ class M3ECabShareScreenUiTest {
             }
         }
 
-        onNodeWithText("Offer Ride").performClick()
+        // D-116: "Offer Ride" is now an item of the single page-actions FAB.
+        onNodeWithContentDescription("More actions").performClick()
+        waitForIdle()
+        onNodeWithText("Offer Ride").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, capturedActions.size)
         assertTrue(capturedActions[0] is M3ECabShareAction.OpenCreateDialog)
     }

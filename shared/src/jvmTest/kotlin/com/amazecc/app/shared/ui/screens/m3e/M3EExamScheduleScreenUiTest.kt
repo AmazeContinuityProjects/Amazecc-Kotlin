@@ -1,7 +1,9 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -126,7 +128,10 @@ class M3EExamScheduleScreenUiTest {
             }
         }
 
-        onNodeWithContentDescription("Export to Calendar").performClick()
+        // D-116: the five header controls now live behind one M3E page-actions FAB.
+        onNodeWithContentDescription("More actions").performClick()
+        waitForIdle()
+        onNodeWithText("Export to Calendar").performSemanticsAction(SemanticsActions.OnClick)
 
         assertTrue(capturedActions.contains(M3EExamScheduleAction.ExportCalendar))
     }

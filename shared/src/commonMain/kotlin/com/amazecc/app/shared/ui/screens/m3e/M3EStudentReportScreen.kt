@@ -32,6 +32,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,12 +54,17 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Material 3 Expressive Student Report & Academic Export Hub.
  * 100% Stateless: accepts [M3EStudentReportState] and emits [M3EStudentReportAction].
  * Features Complete Student Profile, Academic Metrics, and PDF / JSON export actions.
+ *
+ * Export outcomes are shown only when the host supplies them: [state.exportSuccessMessage]
+ * on real success and [exportErrorMessage] on real failure. A blank/in-flight export never
+ * renders a success claim.
  */
 @Composable
 fun M3EStudentReportScreen(
     state: M3EStudentReportState,
     onAction: (M3EStudentReportAction) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    exportErrorMessage: String? = null
 ) {
     val colors = M3ETheme.colors
 
@@ -381,6 +387,76 @@ fun M3EStudentReportScreen(
                 }
             }
 
+            // Export result: bound to real host outcomes only. No success is
+            // claimed from a button press or from the absence of an error.
+            if (!state.isExportingPdf && !exportErrorMessage.isNullOrBlank()) {
+                item(key = "export_failure") {
+                    M3ESurfaceCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        borderColor = colors.error.copy(alpha = 0.5f)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Warning,
+                                    contentDescription = null,
+                                    tint = colors.error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    text = "PDF export failed",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.error
+                                )
+                            }
+                            Text(
+                                text = exportErrorMessage,
+                                fontSize = 12.sp,
+                                color = colors.onSurfaceVariant
+                            )
+                            TextButton(onClick = { onAction(M3EStudentReportAction.ExportPdfReport) }) {
+                                Text("Retry export", color = colors.primary)
+                            }
+                        }
+                    }
+                }
+            } else if (!state.isExportingPdf && !state.exportSuccessMessage.isNullOrBlank()) {
+                item(key = "export_success") {
+                    M3ESurfaceCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        borderColor = colors.success.copy(alpha = 0.5f)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.CheckCircle,
+                                contentDescription = null,
+                                tint = colors.success,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = "PDF report saved",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.success
+                                )
+                                // Name/path comes from the real export result, not a guess.
+                                Text(
+                                    text = state.exportSuccessMessage!!,
+                                    fontSize = 12.sp,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             // Bottom Spacing (twice nav bar height: 140dp)
             item(key = "bottom_spacer") {
                 Spacer(Modifier.height(140.dp))
@@ -418,5 +494,30 @@ private fun M3EStudentReportScreenPreview() {
 private fun M3EStudentReportScreenDarkPreview() {
     AmazeM3ETheme(isDark = true) {
         M3EStudentReportScreen(state = createMockStudentReportState(), onAction = {})
+    }
+}
+
+@Preview
+@Composable
+private fun M3EStudentReportExportSuccessPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EStudentReportScreen(
+            state = createMockStudentReportState().copy(
+                exportSuccessMessage = "student_report_21BCE1042.pdf saved to Downloads"
+            ),
+            onAction = {}
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun M3EStudentReportExportFailurePreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EStudentReportScreen(
+            state = createMockStudentReportState(),
+            onAction = {},
+            exportErrorMessage = "Could not generate the PDF. Storage permission was denied."
+        )
     }
 }

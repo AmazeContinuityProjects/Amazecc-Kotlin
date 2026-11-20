@@ -13,12 +13,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.PI
+import kotlin.math.roundToInt
 import kotlin.math.sin
+
+/** Pass this as [progress] to draw an honest indeterminate loading wave (no fake percentage). */
+const val M3E_WAVY_INDETERMINATE = -1f
 
 /**
  * Material 3 Expressive Wavy Progress Indicator (The signature M3E visual).
@@ -28,29 +39,70 @@ import kotlin.math.sin
  * - 4dp stroke thickness
  * - 4dp gap between active wave and flat track
  * - 4dp stop dot at end of track
+ *
+ * Accessibility (D-118): the canvas is exposed as a real [Role.Progressbar] with
+ * a readable [label], a percentage [stateDescription] and an explicit
+ * [ProgressBarRangeInfo]. A visible 75% tick plus a safe/unsafe tone answer
+ * "am I safe?" without relying on colour alone.
+ *
+ * @param label Announced name of the measured quantity, e.g. "Attendance".
+ * @param safetyThreshold Fraction at which the value is considered safe.
+ *   Pass a value outside 0..1 is clamped; the default 0.75 matches the
+ *   attendance target used across AmazeCC.
  */
 @Composable
 fun M3EWavyLinearProgress(
     progress: Float, // 0.0f to 1.0f
     modifier: Modifier = Modifier,
     activeColor: Color? = null,
-    trackColor: Color? = null
+    trackColor: Color? = null,
+    label: String = "Progress",
+    safetyThreshold: Float = 0.75f
 ) {
     val colors = M3ETheme.colors
-    val effectiveActive = activeColor ?: colors.primary
-    val effectiveTrack = trackColor ?: colors.secondaryContainer.copy(alpha = 0.5f)
+    val indeterminate = progress < 0f
+    val value = if (indeterminate) 0f else progress.coerceIn(0f, 1f)
+    val threshold = safetyThreshold.coerceIn(0f, 1f)
+    val isSafe = value >= threshold
+    // Indeterminate loading uses the neutral primary role — never a fake safe/error verdict.
+    val effectiveActive = if (indeterminate) colors.primary else (activeColor ?: if (isSafe) colors.success else colors.error)
+
+    // D-118: the old track was secondaryContainer at 0.5 alpha. In Classic Light
+    // that is #C2E7FF over #F8F9FA — effectively invisible. A neutral foreground
+    // token with appearance-aware alpha keeps >=3:1 contrast in both schemes.
+    val isLightAppearance = colors.background.luminance() > 0.5f
+    val effectiveTrack = trackColor ?: colors.onSurfaceVariant.copy(
+        alpha = if (isLightAppearance) 0.65f else 0.6f
+    )
 
     val animatedProgress by animateFloatAsState(
-        targetValue = progress.coerceIn(0f, 1f),
+        targetValue = if (indeterminate) 1f else value,
         animationSpec = M3ETheme.motion.spatialDefault(),
         label = "WavyProgressAnimation"
     )
+
+    val percent = (value * 100).roundToInt()
+    val thresholdPercent = (threshold * 100).roundToInt()
+    val safetyState = if (isSafe) {
+        "$percent% — at or above the $thresholdPercent% safety target"
+    } else {
+        "$percent% — below the $thresholdPercent% safety target"
+    }
 
     Canvas(
         modifier = modifier
             .fillMaxWidth()
             .height(14.dp)
             .padding(horizontal = 4.dp)
+            .semantics {
+                // progressBarRangeInfo publishes the progress semantics; this Compose
+                // version has no matching Role constant for progress indicators.
+                contentDescription = label
+                stateDescription = if (indeterminate) "Loading" else safetyState
+                if (!indeterminate) {
+                    progressBarRangeInfo = ProgressBarRangeInfo(value, 0f..1f, 0)
+                }
+            }
     ) {
         val width = size.width
         val height = size.height
@@ -88,7 +140,7 @@ fun M3EWavyLinearProgress(
         val remainingStart = (activeEnd + gap).coerceAtMost(width)
         val stopDotX = width - strokeWidthPx / 2f
 
-        if (remainingStart < stopDotX - gap) {
+        if (!indeterminate && remainingStart < stopDotX - gap) {
             drawLine(
                 color = effectiveTrack,
                 start = Offset(remainingStart, centerY),
@@ -104,6 +156,20 @@ fun M3EWavyLinearProgress(
                 center = Offset(stopDotX, centerY)
             )
         }
+
+        // 4. D-118: visible safety tick. A neutral, high-contrast notch marks the
+        //    threshold so the safe/unsafe reading does not depend on colour alone.
+        if (!indeterminate) {
+            val tickX = width * threshold
+            val tickColor = colors.onSurface.copy(alpha = if (isLightAppearance) 0.6f else 0.85f)
+            drawLine(
+                color = tickColor,
+                start = Offset(tickX, centerY - amplitude - strokeWidthPx),
+                end = Offset(tickX, centerY + amplitude + strokeWidthPx),
+                strokeWidth = 2.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+        }
     }
 }
 
@@ -111,6 +177,6 @@ fun M3EWavyLinearProgress(
 @Composable
 private fun M3EWavyLinearProgressPreview() {
     AmazeM3ETheme(isDark = false) {
-        M3EWavyLinearProgress(progress = 0.75f)
+        M3EWavyLinearProgress(progress = 0.75f, label = "Attendance")
     }
 }

@@ -87,12 +87,12 @@ private fun extractODEntries(attendance: List<CourseAttendance>): List<ODDay> {
         }
 
         for ((date, status) in daily) {
-            val normalizedStatus = status.trim().lowercase()
-            val isOD = normalizedStatus == "on duty" || normalizedStatus == "od" || normalizedStatus == "onduty"
-            if (isOD) {
-                val isLab = course.slotName?.startsWith("L") == true
-                val hours = if (isLab) 2 else 1
-                rawEntries.add(date to ODEntry(course.courseTitle, if (isLab) "LAB" else "TH", hours, course.courseCode))
+            // D-120: the web OD Hours History page counts only the exact "On Duty" status and
+            // derives lab hours from the slot prefix alone - not a code suffix or a type cell.
+            if (com.amazecc.app.shared.domain.isOdHoursStatus(status)) {
+                val hours = com.amazecc.app.shared.domain.odHoursForSlot(course.slotName)
+                val type = if (hours == 2) "LAB" else "TH"
+                rawEntries.add(date to ODEntry(course.courseTitle, type, hours, course.courseCode))
             }
         }
     }

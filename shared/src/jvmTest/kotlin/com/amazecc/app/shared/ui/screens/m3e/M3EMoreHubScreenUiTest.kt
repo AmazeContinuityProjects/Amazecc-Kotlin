@@ -1,10 +1,12 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -34,9 +36,17 @@ class M3EMoreHubScreenUiTest {
         onNodeWithText("Campus Features").assertExists()
         onNodeWithText("Explore all services & campus utilities").assertExists()
         onNodeWithText("ACADEMICS").assertExists()
-        onNodeWithText("Course Detail").assertExists()
+        // "Course Detail" legitimately appears twice: once in the RECENT group
+        // and once in the ACADEMICS category. Assert both cards are present by
+        // exact count rather than demanding a single unique node.
+        onAllNodesWithText("Course Detail").assertCountEquals(2)
+        // The category list is lazy: scroll each far-down tile into view before
+        // asserting it, rather than assuming all rows are composed at once.
+        onNodeWithTag("more_hub_list").performScrollToNode(hasText("Faculty Directory"))
         onNodeWithText("Faculty Directory").assertExists()
+        onNodeWithTag("more_hub_list").performScrollToNode(hasText("Degree Curriculum"))
         onNodeWithText("Degree Curriculum").assertExists()
+        onNodeWithTag("more_hub_list").performScrollToNode(hasText("Course Dashboard"))
         onNodeWithText("Course Dashboard").assertExists()
     }
 

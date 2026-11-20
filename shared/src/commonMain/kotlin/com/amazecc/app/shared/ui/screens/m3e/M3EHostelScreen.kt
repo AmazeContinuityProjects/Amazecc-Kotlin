@@ -1,7 +1,6 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -49,6 +49,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EHostelTab
 import com.amazecc.app.shared.domain.overhaul.M3ELaundrySlot
 import com.amazecc.app.shared.domain.overhaul.M3ELeaveRecord
 import com.amazecc.app.shared.domain.overhaul.M3EMessMealItem
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -68,6 +69,10 @@ fun M3EHostelScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    // VTOP can return a profile with no hostel block / room at all. Never render
+    // "Room " with a blank value — surface an honest unallocated state instead.
+    val hasAllocation = state.hostelDetails.blockName.isNotBlank() ||
+        state.hostelDetails.roomNumber.isNotBlank()
 
     LazyColumn(
         modifier = modifier
@@ -93,16 +98,25 @@ fun M3EHostelScreen(
                         color = colors.onSurface
                     )
                     Text(
-                        text = "${state.hostelDetails.blockName} • Room ${state.hostelDetails.roomNumber}",
+                        text = when {
+                            state.hostelDetails.blockName.isNotBlank() &&
+                                state.hostelDetails.roomNumber.isNotBlank() ->
+                                "${state.hostelDetails.blockName} • Room ${state.hostelDetails.roomNumber}"
+                            state.hostelDetails.blockName.isNotBlank() -> state.hostelDetails.blockName
+                            state.hostelDetails.roomNumber.isNotBlank() ->
+                                "Room ${state.hostelDetails.roomNumber}"
+                            else -> "No hostel allocation on record"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.onSurfaceVariant
                     )
                 }
 
+                // D-121: 48dp minimum touch target.
                 IconButton(
                     onClick = { onAction(M3EHostelAction.Refresh) },
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(colors.surfaceContainerHigh)
                 ) {
@@ -110,21 +124,26 @@ fun M3EHostelScreen(
                         imageVector = Icons.Rounded.Refresh,
                         contentDescription = "Refresh",
                         tint = colors.primary,
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
         }
 
-        // 2. Hostel Room Hero Card
-        item {
-            HostelHeroCard(
-                details = state.hostelDetails,
-                onCallWarden = { onAction(M3EHostelAction.CallWarden) }
-            )
+        // 2. Hostel Room Hero Card — or an honest no-allocation state.
+        if (hasAllocation) {
+            item {
+                HostelHeroCard(
+                    details = state.hostelDetails,
+                    onCallWarden = { onAction(M3EHostelAction.CallWarden) }
+                )
+            }
+        } else {
+            item { NoHostelAllocationCard() }
         }
 
-        // 3. Tab Switcher
+        // 3. Tab Switcher. M3EConnectedButtonGroup now sizes every segment to
+        // >=48dp, so this row is safe on narrow phones and at 1.3x font scale.
         item {
             M3EConnectedButtonGroup(
                 items = M3EHostelTab.entries,
@@ -210,6 +229,11 @@ fun M3EHostelScreen(
                             // Keep the affordance visible but honestly disabled.
                             onClick = {},
                             enabled = false,
+                            // D-121: >=48dp tall, 8dp clear of the section heading.
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .padding(start = 8.dp),
+                            contentPadding = PaddingValues(horizontal = 16.dp),
                             shape = CircleShape,
                             colors = ButtonDefaults.elevatedButtonColors(
                                 containerColor = colors.primaryContainer,
@@ -266,11 +290,15 @@ fun M3EHostelScreen(
             }
 
             M3EHostelTab.ROOM_INFO -> {
-                item {
-                    RoomDetailsCard(
-                        details = state.hostelDetails,
-                        onCallWarden = { onAction(M3EHostelAction.CallWarden) }
-                    )
+                if (hasAllocation) {
+                    item {
+                        RoomDetailsCard(
+                            details = state.hostelDetails,
+                            onCallWarden = { onAction(M3EHostelAction.CallWarden) }
+                        )
+                    }
+                } else {
+                    item { NoHostelAllocationCard() }
                 }
                 item {
                     LaundryScheduleCard(slots = state.laundrySchedule)
@@ -278,9 +306,49 @@ fun M3EHostelScreen(
             }
         }
 
-        // Bottom Spacing for floating navigation bar clearance (140dp)
+        // Bottom spacing for the floating navigation bar / system gestures.
         item(key = "bottom_spacer") {
-            Spacer(Modifier.height(140.dp))
+            Spacer(Modifier.height(BOTTOM_NAV_PADDING))
+        }
+    }
+}
+
+/**
+ * Honest empty state for a profile with no VTOP hostel allocation. No room number,
+ * bed or block values are invented, and the warden call action is not offered.
+ */
+@Composable
+private fun NoHostelAllocationCard(
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.HIGH,
+        cornerRadius = 24.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Hotel,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(44.dp)
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "No hostel allocation on record",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Your VTOP profile has no hostel block or room yet. Allocation details will appear here once published.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant
+            )
         }
     }
 }

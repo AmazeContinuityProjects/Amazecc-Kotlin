@@ -3,7 +3,7 @@ package com.amazecc.app.shared.ui.screens.m3e
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.Badge
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Contacts
 import androidx.compose.material.icons.rounded.ContentCopy
@@ -34,7 +36,6 @@ import androidx.compose.material.icons.rounded.HowToReg
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Phone
-import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.SupervisorAccount
@@ -42,19 +43,22 @@ import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -69,8 +73,12 @@ import com.amazecc.app.shared.domain.overhaul.M3EMentorItem
 import com.amazecc.app.shared.domain.overhaul.M3EProfileAction
 import com.amazecc.app.shared.domain.overhaul.M3EProfileState
 import com.amazecc.app.shared.domain.overhaul.M3EResidenceStatus
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenu
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
+import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.utils.toFixed
@@ -88,11 +96,20 @@ object M3EProfileTestTags {
     const val RESIDENCE_SEGMENT_DAYSCHOLAR = "m3e_profile_segment_dayscholar"
     const val BUS_CHECKBOX = "m3e_profile_bus_checkbox"
     const val CONTACTS_MENU_CARD = "m3e_profile_contacts_menu_card"
+    // D-118: the logout confirmation is the only gate between the icon and the
+    // single AppState.logout() call in the host. Stable tags keep that gate testable.
+    const val LOGOUT_TRIGGER = "m3e_profile_logout_trigger"
+    const val LOGOUT_CONFIRM_SHEET = "m3e_profile_logout_confirm_sheet"
+    const val LOGOUT_CANCEL = "m3e_profile_logout_cancel"
+    const val LOGOUT_CONFIRM = "m3e_profile_logout_confirm"
 }
 
 /**
  * Material 3 Expressive Digital Student ID & Profile Screen.
- * 100% Stateless: accepts [M3EProfileState] and emits [M3EProfileAction].
+ * Domain state is owned entirely by the host: this composable accepts [M3EProfileState] and
+ * emits [M3EProfileAction]. The only local state is the D-118 logout-sheet visibility — an
+ * ephemeral UI flag, not domain data — so the destructive action can be confirmed before it
+ * is emitted (and every dismissal route can cancel without emitting anything).
  * One hero (the digital ID card); all other blocks are calm semantic surface tiers.
  */
 @Composable
@@ -103,9 +120,11 @@ fun M3EProfileScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    var showLogoutConfirmation by remember { mutableStateOf(false) }
 
+    Box(modifier = modifier.fillMaxSize()) {
     LazyColumn(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .background(colors.surface)
             .testTag("profile_list"),
@@ -135,37 +154,26 @@ fun M3EProfileScreen(
                     )
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(
-                        onClick = { onAction(M3EProfileAction.Refresh) },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(colors.surfaceContainerLow)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Refresh,
-                            contentDescription = "Refresh",
-                            tint = colors.onSurface,
-                            modifier = Modifier.size(20.dp)
+                // D-116: refresh + sign-out collapse into one M3E action-menu FAB.
+                M3EPageActionsMenu(
+                    actions = listOf(
+                        M3EPageAction(
+                            label = "Refresh",
+                            icon = Icons.Rounded.Refresh,
+                            onClick = { onAction(M3EProfileAction.Refresh) }
+                        ),
+                        // D-118: never emit SignOut from the menu item itself. The
+                        // confirmation sheet below is the single gate; only its
+                        // Confirm button emits it. The existing test tag is kept
+                        // on the item so the sheet contract stays verifiable.
+                        M3EPageAction(
+                            label = "Sign Out",
+                            icon = Icons.AutoMirrored.Rounded.Logout,
+                            testTag = M3EProfileTestTags.LOGOUT_TRIGGER,
+                            onClick = { showLogoutConfirmation = true }
                         )
-                    }
-
-                    IconButton(
-                        onClick = { onAction(M3EProfileAction.SignOut) },
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(colors.errorContainer)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Logout,
-                            contentDescription = "Sign Out",
-                            tint = colors.onError,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
+                    )
+                )
             }
         }
 
@@ -280,6 +288,62 @@ fun M3EProfileScreen(
             }
         }
     }
+
+    // D-118: one confirmation gate for the destructive action. Every dismissal route of
+    // M3EDismissibleSheet (X / swipe / backdrop / Escape / system back) funnels into
+    // onDismiss, which only hides the sheet — it never emits SignOut. The Confirm button
+    // emits SignOut exactly once; the host keeps the single AppState.logout() call.
+    M3EDismissibleSheet(
+        isOpen = showLogoutConfirmation,
+        onDismiss = { showLogoutConfirmation = false },
+        title = "Log out of AmazeCC?",
+        modifier = Modifier.testTag(M3EProfileTestTags.LOGOUT_CONFIRM_SHEET)
+    ) {
+        Column(
+            // The shared sheet already owns the nav-bar inset + 16 dp bottom padding (D-119).
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Copy mirrors AppState.logout(): session, credentials, local caches and all
+            // persisted preferences are cleared and reset before returning to sign-in.
+            Text(
+                text = "This signs you out and returns you to sign-in. It also erases your saved VTOP and Moodle credentials, your active session, and all local app data — attendance, marks, calendar, tasks and preferences. The app resets to defaults; this cannot be undone.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = { showLogoutConfirmation = false },
+                    modifier = Modifier.testTag(M3EProfileTestTags.LOGOUT_CANCEL)
+                ) {
+                    Text(
+                        text = "Cancel",
+                        color = colors.onSurfaceVariant,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                TextButton(
+                    onClick = {
+                        showLogoutConfirmation = false
+                        onAction(M3EProfileAction.SignOut)
+                    },
+                    modifier = Modifier.testTag(M3EProfileTestTags.LOGOUT_CONFIRM)
+                ) {
+                    Text(
+                        text = "Log out",
+                        color = colors.error,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+    }
 }
 
 @Composable
@@ -305,7 +369,13 @@ private fun DigitalIdCard(
         cornerRadius = 24.dp,
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onFlip)
+            // D-120: explicit button role + label; descendants stay separate so
+            // the copy button inside the card keeps its own a11y action.
+            .clickableA11y(
+                onClickLabel = if (state.isIdCardFlipped) "Show front of student ID" else "Show back of student ID",
+                mergeDescendants = false,
+                onClick = onFlip
+            )
     ) {
         Column(
             modifier = Modifier
@@ -413,14 +483,17 @@ private fun DigitalIdCard(
                                 color = colors.primary
                             )
 
-                            Icon(
-                                imageVector = Icons.Rounded.ContentCopy,
-                                contentDescription = "Copy Reg No",
-                                tint = colors.onSurfaceVariant,
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .clickable(onClick = onCopyRegNo)
-                            )
+                            IconButton(
+                                onClick = onCopyRegNo,
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ContentCopy,
+                                    contentDescription = "Copy registration number",
+                                    tint = colors.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
 
                             residenceBadgeLabel(state.residence)?.let { label ->
                                 ResidentBadge(label = label, isHosteller = state.residence == M3EResidenceStatus.HOSTELLER)
@@ -438,7 +511,8 @@ private fun DigitalIdCard(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Library Barcode Visual Simulation
+                // D-120: the bar pattern is decorative only — it is explicitly
+                // labelled as illustrative, and the identifier below is real data.
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -469,12 +543,18 @@ private fun DigitalIdCard(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = "*${state.registrationNumber}*",
-                        style = MaterialTheme.typography.labelSmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 2.sp
-                        ),
+                        text = "Illustrative pattern — not a scannable barcode",
+                        style = MaterialTheme.typography.labelSmall,
                         color = colors.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Registration No.  ${orDash(state.registrationNumber)}",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = colors.onSurface
                     )
                 }
             } else {
@@ -572,19 +652,21 @@ private fun DigitalIdCard(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.QrCode2,
+                                imageVector = Icons.Rounded.Badge,
                                 contentDescription = null,
                                 tint = colors.primary,
                                 modifier = Modifier.size(32.dp)
                             )
                             Column {
+                                // D-120: no signing or verification data source exists —
+                                // say so plainly instead of claiming an official card.
                                 Text(
-                                    text = "Digital ID Signature",
+                                    text = "Student ID (illustrative)",
                                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                     color = colors.onSurface
                                 )
                                 Text(
-                                    text = "Verified VIT Smart Card",
+                                    text = "Details from your VTOP profile — not an official VIT card",
                                     style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
                                     color = colors.onSurfaceVariant
                                 )
@@ -745,15 +827,24 @@ private fun ResidencePreferenceCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onSetBus(!state.isRegisteredForBus) },
+                        .heightIn(min = 48.dp)
+                        // Tag stays on the one interactive node so existing UI tests
+                        // that click BUS_CHECKBOX still drive the real toggle.
+                        .testTag(M3EProfileTestTags.BUS_CHECKBOX)
+                        // D-120: the whole row is the single toggle source;
+                        // the box below is draw-only so it cannot double-toggle.
+                        .clickableA11y(
+                            onClickLabel = if (state.isRegisteredForBus) {
+                                "Unregister from university bus"
+                            } else {
+                                "Register for university bus"
+                            },
+                            onClick = { onSetBus(!state.isRegisteredForBus) }
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Checkbox(
-                        checked = state.isRegisteredForBus,
-                        onCheckedChange = onSetBus,
-                        modifier = Modifier.testTag(M3EProfileTestTags.BUS_CHECKBOX)
-                    )
+                    M3EDisplayCheckbox(checked = state.isRegisteredForBus)
                     Text(
                         text = "Registered for University Transport / Bus",
                         style = MaterialTheme.typography.bodyMedium,
@@ -761,6 +852,30 @@ private fun ResidencePreferenceCard(
                     )
                 }
             }
+        }
+    }
+}
+
+/** Checkbox appearance with no input semantics — the parent row owns the toggle. */
+@Composable
+private fun M3EDisplayCheckbox(checked: Boolean) {
+    val colors = M3ETheme.colors
+    val shape = RoundedCornerShape(4.dp)
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clip(shape)
+            .border(2.dp, if (checked) colors.primary else colors.onSurfaceVariant, shape)
+            .background(if (checked) colors.primary else Color.Transparent),
+        contentAlignment = Alignment.Center
+    ) {
+        if (checked) {
+            Icon(
+                imageVector = Icons.Rounded.Check,
+                contentDescription = null,
+                tint = colors.onPrimary,
+                modifier = Modifier.size(16.dp)
+            )
         }
     }
 }
@@ -988,7 +1103,7 @@ private fun ProctorContactCard(
                         IconButton(
                             onClick = onPhone,
                             modifier = Modifier
-                                .size(38.dp)
+                                .size(48.dp)
                                 .clip(CircleShape)
                                 .background(colors.surfaceContainerHigh)
                         ) {
@@ -1128,7 +1243,7 @@ private fun MentorsSection(
                             IconButton(
                                 onClick = { onPhone(mentor.phone) },
                                 modifier = Modifier
-                                    .size(34.dp)
+                                    .size(48.dp)
                                     .clip(CircleShape)
                                     .background(colors.surfaceContainerHigh)
                             ) {
@@ -1144,7 +1259,7 @@ private fun MentorsSection(
                             IconButton(
                                 onClick = { onEmail(mentor.email) },
                                 modifier = Modifier
-                                    .size(34.dp)
+                                    .size(48.dp)
                                     .clip(CircleShape)
                                     .background(colors.primaryContainer)
                             ) {
@@ -1286,7 +1401,7 @@ private fun CredentialsCard(
 
                 IconButton(
                     onClick = { onCopy(username, "Username") },
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.ContentCopy,
@@ -1322,7 +1437,7 @@ private fun CredentialsCard(
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         IconButton(
                             onClick = onToggleVisibility,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 imageVector = if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
@@ -1334,7 +1449,7 @@ private fun CredentialsCard(
 
                         IconButton(
                             onClick = { onCopy(password, "Password") },
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.ContentCopy,

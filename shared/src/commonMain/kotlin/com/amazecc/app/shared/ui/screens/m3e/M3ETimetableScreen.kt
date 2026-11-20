@@ -7,10 +7,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -41,6 +39,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ETimetableDay
 import com.amazecc.app.shared.domain.overhaul.M3ETimetableSlot
 import com.amazecc.app.shared.domain.overhaul.M3ETimetableState
 import com.amazecc.app.shared.domain.overhaul.TimetableViewMode
+import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EHorizontalTimetableGrid
 import com.amazecc.app.shared.ui.m3e.components.M3EPageShell
@@ -90,7 +89,13 @@ fun M3ETimetableScreen(
         eyebrow = "Schedule",
         subtitle = "${state.semesterName} • ${state.totalCredits} Credits Registered",
         stats = stats,
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+        // Bottom inset is the shared, named nav-bar allowance, not a magic spacer value.
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            end = 16.dp,
+            top = 16.dp,
+            bottom = BOTTOM_NAV_PADDING
+        ),
         modifier = modifier
     ) {
         LazyColumn(
@@ -208,18 +213,16 @@ fun M3ETimetableScreen(
                 }
 
                 TimetableViewMode.HORIZONTAL -> {
+                    // Reaching this branch means the user explicitly switched away from the
+                    // default day-schedule list, which is the opt-in for the dense grid.
                     item(key = "horizontal_grid") {
                         M3EHorizontalTimetableGrid(
                             days = state.days,
-                            onSlotClick = { onAction(M3ETimetableAction.SlotClicked(it)) }
+                            onSlotClick = { onAction(M3ETimetableAction.SlotClicked(it)) },
+                            denseGrid = true
                         )
                     }
                 }
-            }
-
-            // Bottom Spacing for floating toolbar (twice nav bar height: 140dp)
-            item(key = "bottom_spacer") {
-                Spacer(Modifier.height(140.dp))
             }
         }
     }

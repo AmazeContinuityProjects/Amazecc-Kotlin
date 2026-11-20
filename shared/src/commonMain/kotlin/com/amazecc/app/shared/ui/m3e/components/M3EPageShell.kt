@@ -90,7 +90,7 @@ fun M3EPageShell(
                                 IconButton(
                                     onClick = onBack,
                                     modifier = Modifier
-                                        .size(38.dp)
+                                        .size(48.dp)
                                         .clip(CircleShape)
                                         .background(colors.surfaceContainerLow)
                                 ) {
@@ -102,7 +102,7 @@ fun M3EPageShell(
                                     )
                                 }
                             } else {
-                                Spacer(Modifier.size(38.dp))
+                                Spacer(Modifier.size(48.dp))
                             }
 
                             if (actions != null) {

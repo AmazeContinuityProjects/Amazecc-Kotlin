@@ -1387,6 +1387,8 @@ private fun AddTaskBottomSheet(
                 .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState())
                 .imePadding()
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
         ) {
             // Header
             Row(

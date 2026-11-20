@@ -159,40 +159,104 @@ fun M3EAttendanceScreen(
                 )
             }
 
-            // 4. Course Cards
-            if (state.courses.isEmpty()) {
-                item(key = "empty_state") {
-                    M3ESurfaceCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        containerLevel = SurfaceContainerLevel.LOW
-                    ) {
-                        Column(
+            // 4. Course Cards — never claim "no matches" while the first load is still running.
+            when {
+                state.isLoading -> {
+                    item(key = "loading_skeleton") {
+                        M3EAttendanceLoadingSkeleton()
+                    }
+                }
+                state.courses.isEmpty() -> {
+                    item(key = "empty_state") {
+                        M3ESurfaceCard(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            containerLevel = SurfaceContainerLevel.LOW
                         ) {
-                            Text(
-                                text = "No courses match the active filter.",
-                                color = colors.onSurfaceVariant,
-                                fontSize = 14.sp
-                            )
+                            Column(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "No courses match the active filter.",
+                                    color = colors.onSurfaceVariant,
+                                    fontSize = 14.sp
+                                )
+                            }
                         }
                     }
                 }
-            } else {
-                items(
-                    items = state.courses,
-                    key = { it.courseCode }
-                ) { course ->
-                    M3ECourseAttendanceCard(
-                        course = course,
-                        onClick = { onAction(M3EAttendanceAction.CourseClicked(course.courseCode)) }
-                    )
+                else -> {
+                    items(
+                        items = state.courses,
+                        key = { it.courseCode }
+                    ) { course ->
+                        M3ECourseAttendanceCard(
+                            course = course,
+                            onClick = { onAction(M3EAttendanceAction.CourseClicked(course.courseCode)) }
+                        )
+                    }
                 }
             }
 
             // Bottom Spacing for floating toolbar (twice nav bar height: 140dp)
             item(key = "bottom_spacer") {
                 Spacer(Modifier.height(140.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun M3EAttendanceLoadingSkeleton() {
+    val colors = M3ETheme.colors
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Loading courses…",
+            fontSize = 13.sp,
+            color = colors.onSurfaceVariant
+        )
+        repeat(3) {
+            M3ESurfaceCard(
+                modifier = Modifier.fillMaxWidth(),
+                containerLevel = SurfaceContainerLevel.LOW
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.45f)
+                            .height(16.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.surfaceContainerHighest)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(18.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.surfaceContainerHigh)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.72f)
+                            .height(14.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.surfaceContainerHighest)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(colors.surfaceContainerHigh)
+                    )
+                }
             }
         }
     }

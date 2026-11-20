@@ -61,16 +61,10 @@ object WidgetDataUtils {
      * multiplier and the lab test are now all shared.
      */
     fun computeODHours(courses: List<AttendanceItem>): Int =
-        Projections.odHours(
-            courses.map { course ->
-                val odCount = course.logs.count { Projections.isOdStatus(it.status) }
-                odCount to AcademicDerivers.isLabCourse(
-                    courseCode = course.courseCode,
-                    courseType = course.courseType,
-                    slots = course.slotName.split("+").filter { it.isNotBlank() },
-                )
-            }
-        )
+        courses.sumOf { course ->
+            course.logs.count { com.amazecc.app.shared.domain.isOdHoursStatus(it.status) } *
+                com.amazecc.app.shared.domain.odHoursForSlot(course.slotName)
+        }
 
     /**
      * Widget processes have no AppState, so the "current semester" is resolved

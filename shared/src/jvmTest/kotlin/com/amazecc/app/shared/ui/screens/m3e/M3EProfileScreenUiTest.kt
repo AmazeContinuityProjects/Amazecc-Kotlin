@@ -1,7 +1,10 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -54,6 +57,10 @@ class M3EProfileScreenUiTest {
         onNodeWithText("VELLORE INSTITUTE OF TECHNOLOGY").assertExists()
         onNodeWithText("9.24").assertExists()
         onNodeWithText("91.50%").assertExists()
+        // Proctor name lives in the dedicated "Faculty Proctor" card, far down
+        // the lazy profile list — scroll it into view before asserting.
+        onNodeWithTag("profile_list").performScrollToNode(hasText("Faculty Proctor"))
+        onNodeWithText("Faculty Proctor").assertExists()
         onNodeWithText("Dr. Anita R").assertExists()
     }
 

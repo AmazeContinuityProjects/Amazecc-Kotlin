@@ -1,7 +1,9 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -104,7 +106,10 @@ class M3ETasksScreenUiTest {
             }
         }
 
-        onNodeWithText("New Task").performClick()
+        // D-116: "New Task" is now an item of the single page-actions FAB.
+        onNodeWithContentDescription("More actions").performClick()
+        waitForIdle()
+        onNodeWithText("New Task").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, capturedActions.size)
         assertTrue(capturedActions[0] is M3ETasksAction.OpenCreateDialog)
     }

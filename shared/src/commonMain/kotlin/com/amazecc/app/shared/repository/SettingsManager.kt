@@ -601,4 +601,160 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
         )
         saveQBankStats(all)
     }
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // D-122 — Global settings parity with ../AmazeCC.
+    //
+    // The web app persists one JSON blob under localStorage["settings"]
+    // (src/store/settingsAtoms.ts). The blob's getItem merge over `defaultSettings`
+    // IS its migration shim: a field added in a later release is picked up from the
+    // default on the next read. [WebSettings] is the Kotlin mirror of that blob —
+    // every field, every web default, verbatim. Individual Kotlin features keep
+    // reading their own flat keys (AppState, SyncEngine, …); this blob is the
+    // single source of truth for the *web-shaped* preferences and is what the
+    // settings UI patches so a backup/restore round-trips the same configuration.
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    /** Mirrors localStorage["settings"] in the web app. */
+    const val KEY_WEB_SETTINGS = "settings"
+
+    @kotlinx.serialization.Serializable
+    data class WebCustomPalette(
+        val accent: String = "#0ea5e9",
+        val background: String = "#f8fafc",
+        val surface: String = "#ffffff",
+    )
+
+    /** Exact Kotlin mirror of `Settings` from `../AmazeCC/src/store/settingsAtoms.ts`. */
+    @kotlinx.serialization.Serializable
+    data class WebSettings(
+        val decimalValues: Boolean = false,
+        val CGPAHidden: Boolean = false,
+        /** "percentage" | "str" */
+        val attendancePercentageOrString: String = "percentage",
+        /** Stamped by the host from the selected semester; web derives it from config.json. */
+        val currSemesterID: String = "",
+        /** ALL | ALL02 | ALL03 | ALL05 | ALL06 | ALL08 | ALL11 | WEI */
+        val calendarType: String = "ALL",
+        val isDayscholarWithBus: Boolean = false,
+        val targetAttendance: Int = 75,
+        val showGpa: Boolean = false,
+        val showProfilePhoto: Boolean = true,
+        val blurGrades: Boolean = false,
+        val privacyMode: Boolean = false,
+        val colorPalette: String = "default",
+        val customPalette: WebCustomPalette = WebCustomPalette(),
+        val cardSurfaceZinc: Boolean = false,
+        val hideHomeSearchBar: Boolean = false,
+        val reloadAllData: Boolean = false,
+        val isSidebarCollapsed: Boolean = false,
+        /** "hosteller" | "dayscholar" */
+        val residentialStatus: String = "hosteller",
+        val friendlyName: String = "",
+        val syncProfileData: Boolean = true,
+        val syncAdditionalData: Boolean = true,
+        val syncExcRegistration: Boolean = true,
+        val syncMinorHonour: Boolean = true,
+        val syncCourseCompletion: Boolean = true,
+        val defaultSyncMode: String = "quarterly",
+        val pinnedNavTabs: List<String> = listOf("academics", "attendance"),
+        val defaultAcademicsTab: String = "overview",
+        /** "off" | "15m" | "30m" | "1h" */
+        val autoSyncInterval: String = "off",
+        val lowDataMode: Boolean = false,
+        val soundEnabled: Boolean = true,
+        val smartMessFilter: Boolean = false,
+        /** "compact" | "detailed" */
+        val timetablePillStyle: String = "compact",
+        /** "auto" | "vertical" | "horizontal" | "classic" */
+        val timetableViewMode: String = "auto",
+        /** "full" | "compact" */
+        val timetableCellDensity: String = "full",
+        /** Null = pristine; stamped on the first density pick. */
+        val timetableDensityTouched: Boolean? = null,
+        val interfaceChosen: Boolean? = null,
+
+        // Push notification preferences (web posts these to notifications/subscribe).
+        val pushNotificationsEnabled: Boolean = true,
+        val notifyLowAttendance: Boolean = true,
+        val notifyClassReminders: Boolean = true,
+        val notifyExamAlerts: Boolean = true,
+        val notifyMessServing: Boolean = true,
+        val notifyAssignments: Boolean = true,
+        val notifyCirculars: Boolean = true,
+        val notifyHostelLeave: Boolean = true,
+        val notifyBusUpdates: Boolean = true,
+        val notifyLibraryBooks: Boolean = true,
+        val notifyMarksRelease: Boolean = true,
+        val classReminderLeadMinutes: Int = 15,
+        val pushSoundEnabled: Boolean = true,
+        val pushVibrationEnabled: Boolean = true,
+        val pushQuietHoursEnabled: Boolean = false,
+        val pushQuietHoursStart: String = "22:00",
+        val pushQuietHoursEnd: String = "07:00",
+        val customVapidKey: String = "",
+
+        // Tasks & Pomodoro preferences.
+        val tasksInlineOnHome: Boolean = true,
+        val taskPomodoroFocus: Int = 25,
+        val taskPomodoroBreak: Int = 5,
+        val taskPomodoroRounds: Int = 4,
+        val taskDefaultReminderMinutes: Int = 30,
+    ) {
+        companion object {
+            /** The web `defaultSettings` object, as a value. */
+            val DEFAULT = WebSettings()
+        }
+    }
+
+    private val webSettingsJson = kotlinx.serialization.json.Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+        encodeDefaults = false
+    }
+
+    /** Web `normalizeDefaultSyncMode` + the legacy `manual` → `off` picker shim. */
+    private fun normalizeWebSettings(value: WebSettings): WebSettings {
+        val mode = when (value.defaultSyncMode) {
+            "quick" -> "daily"
+            "balanced" -> "monthly"
+            "academics" -> "weekly"
+            "full", "campus" -> "quarterly"
+            else -> value.defaultSyncMode.ifBlank { "quarterly" }
+        }
+        val interval = if (value.autoSyncInterval == "manual") "off" else value.autoSyncInterval
+        return value.copy(defaultSyncMode = mode, autoSyncInterval = interval)
+    }
+
+    /**
+     * Reads the web settings blob. A missing, corrupt or partially-populated blob
+     * degrades to [WebSettings.DEFAULT] — the Kotlin equivalent of the web
+     * `{ ...defaultSettings, ...raw }` merge performed on every `getItem`.
+     */
+    fun getWebSettings(): WebSettings {
+        val raw = getString(KEY_WEB_SETTINGS, "")
+        if (raw.isBlank()) return WebSettings.DEFAULT
+        return try {
+            normalizeWebSettings(webSettingsJson.decodeFromString(raw))
+        } catch (_: Exception) {
+            WebSettings.DEFAULT
+        }
+    }
+
+    /** Writes the whole blob, mirroring `localStorage.setItem("settings", JSON.stringify(value))`. */
+    fun setWebSettings(value: WebSettings) =
+        setString(KEY_WEB_SETTINGS, webSettingsJson.encodeToString(value))
+
+    /** Applies a patch to the persisted blob in one read-modify-write. */
+    fun updateWebSetting(block: (WebSettings) -> WebSettings) {
+        setWebSettings(block(getWebSettings()))
+    }
+
+    /** Preferred name. The web keeps it in the blob; Kotlin's profile host also
+     * persists this dedicated key, so both now share one constant. */
+    const val KEY_FRIENDLY_NAME = "friendly_name"
+
+    fun getFriendlyName(): String = getString(KEY_FRIENDLY_NAME, "")
+
+    fun setFriendlyName(name: String) = setString(KEY_FRIENDLY_NAME, name)
 }
