@@ -278,6 +278,7 @@ object VtopDataSource {
     private const val PATH_CIRCULAR_DOWNLOAD = "/vtop/admissions/viewStatusWiseCostCentreCircularContent"
     private const val PATH_LIBRARY_PAYMENTS = "/vtop/finance/libraryPayments"
     private const val PATH_SEMESTER_GRADES = "/vtop/examinations/examGradeView/doStudentGradeView"
+    private const val PATH_GRADE_VIEW_DETAILS = "/vtop/examinations/examGradeView/getGradeViewDetails"
 
     /** VTOP wants `DD-MMM-YYYY`, e.g. `01-JUL-2026`. */
     private val MONTH_ABBR = listOf(
@@ -815,6 +816,29 @@ object VtopDataSource {
         }
         return res
     }
+
+    /**
+     * Per-semester grade detail sweep. Walks every semester the student could have attended,
+     * POSTs `doStudentGradeView` for each, then `getGradeViewDetails` for each course that
+     * published a `courseId`. The heavy parsing lives in the pure seams of
+     * [VtopGradeDetailScraper]; this object only supplies the WebView engine seam and the VTOP
+     * paths, so none of that logic depends on a live session at test time.
+     *
+     * Fail-closed: a semester with no grade rows or an error response is omitted from the map,
+     * never emitted as an empty fabricated result.
+     */
+    suspend fun fetchGradeDetails(): Map<String, SemesterGradeResult> =
+        VtopGradeDetailScraper.scrape(
+            authorizedID = VtopSession.authorizedID.value.orEmpty(),
+            csrf = VtopSession.csrf.value.orEmpty(),
+            semesterViewPath = PATH_SEMESTER_GRADES,
+            detailPath = PATH_GRADE_VIEW_DETAILS,
+            // The sync gate already guaranteed a session. Use the raw engine seam so the
+            // bounded-concurrency fan-out does not run three redundant session checks.
+            evaluate = { script ->
+                withContext(Dispatchers.Default) { Vtop.engineInstance().evaluate(script, 30_000) }
+            }
+        )
 
     // ── Hostel ─────────────────────────────────────────────────────────────
 
@@ -1363,7 +1387,14 @@ object VtopDataSource {
         } else {
             categories.map { cat ->
                 val res = evaluate(
-                    VtopScripts.fetchCurriculumCategory(PATH_CURRICULUM_CATEGORY, pageCsrf, cat.code)
+                    VtopScripts.fetchCurriculumCategory(
+                        PATH_CURRICULUM_CATEGORY,
+                        pageCsrf,
+                        cat.code,
+                        // The real page's categoryOnClick() and the Hono route both replay the
+                        // login authorizedID on stage 2. Without it VTOP can reject the category.
+                        VtopSession.authorizedID.value.orEmpty()
+                    )
                 )
                 val baskets = res.decodeAt("baskets", curriculumBaskets) ?: emptyList()
                 CategoryDetail(code = cat.code, name = cat.name, baskets = baskets)
@@ -1379,6 +1410,29 @@ object VtopDataSource {
         )
         AppDataStore.setCurriculum(curriculumOutput)
         return curriculumOutput
+    }
+
+    /**
+     * Downloads the curriculum PDF/ZIP from [PATH_CURRICULUM_DOWNLOAD] using the validated
+     * on-device session. No captcha is involved. The WebView script replays `_csrf` twice,
+     * `authorizedID` and `regNo=NONE` exactly as VTOP's own form does, and returns the bytes
+     * base64-encoded; anything other than a 2xx with non-empty bytes fails closed as null.
+     * Offered through `AmazeClient.downloadCurriculum()` for both LOCAL and REMOTE sources.
+     */
+    suspend fun fetchCurriculumDownload(): ByteArray? {
+        if (!VtopSession.hasSession) return null
+        val csrf = VtopSession.csrf.value?.takeIf { it.isNotBlank() } ?: return null
+        val authorizedID = VtopSession.authorizedID.value?.takeIf { it.isNotBlank() } ?: return null
+        val raw = evaluate(VtopScripts.downloadCurriculum(PATH_CURRICULUM_DOWNLOAD, csrf, authorizedID))
+        val root = raw.rawObject()
+        if (!(root["ok"] as? JsonPrimitive)?.content.equals("true", ignoreCase = true)) return null
+        val encoded = (root["base64"] as? JsonPrimitive)?.content ?: return null
+        val bytes = try {
+            Base64.Default.decode(encoded)
+        } catch (_: Exception) {
+            return null
+        }
+        return bytes.takeIf { it.isNotEmpty() }
     }
 
     // ── Group E — Remote Parity Additions ────────────────────────────────────

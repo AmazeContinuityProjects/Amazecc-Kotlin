@@ -1,6 +1,8 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import com.amazecc.app.shared.domain.GradeComponent
 import com.amazecc.app.shared.domain.GradeHistory
+import com.amazecc.app.shared.domain.overhaul.M3EGradeAssessmentGroup
 import com.amazecc.app.shared.domain.overhaul.M3EGradeBreakdownRow
 import com.amazecc.app.shared.domain.overhaul.M3EGradeCourseRow
 import com.amazecc.app.shared.domain.overhaul.M3EGradeDistributionRow
@@ -9,6 +11,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EGradeTone
 import com.amazecc.app.shared.domain.overhaul.M3EGradeTermRow
 import com.amazecc.app.shared.domain.overhaul.M3EGradeTermScore
 import com.amazecc.app.shared.domain.overhaul.M3EGradeTypeAverage
+import com.amazecc.app.shared.model.GradeBreakdown
 import kotlin.math.round
 
 /**
@@ -132,4 +135,73 @@ object M3EGradeComputations {
     /** Heaviest assessment first, as in the web's flat breakdown fallback. */
     fun byWeightage(rows: List<M3EGradeBreakdownRow>): List<M3EGradeBreakdownRow> =
         rows.sortedByDescending { it.weightage }
+
+    /**
+     * DTO -> domain shape so the already-tested [GradeHistory.weightedTotal] /
+     * [GradeHistory.weightedTotalDiffers] can be used on the published effective-grade row.
+     * `weightageMark` is VTOP's weighted contribution; it is *not* the raw score.
+     */
+    fun gradeComponents(details: List<GradeBreakdown>?): List<GradeComponent>? =
+        details?.takeIf { it.isNotEmpty() }?.map { d ->
+            GradeComponent(
+                name = d.component,
+                score = d.scoredMark,
+                maxMark = d.maxMark,
+                weightagePercent = d.weightagePercent,
+                status = d.status,
+                weightage = d.weightageMark,
+            )
+        }
+
+    /**
+     * Port of the web's `groupAssessmentsByType`: VTOP publishes one "Mark Title" table per
+     * component, and the AmazeCC route tags each row with the table it came from. When no row
+     * carries a tag (frozen legacy route) this returns null and the caller keeps the flat list.
+     * Order: Theory, Lab, `Component N` ascending, then the rest alphabetically.
+     */
+    fun groupAssessmentsByType(rows: List<M3EGradeBreakdownRow>): List<M3EGradeAssessmentGroup>? {
+        if (rows.isEmpty() || rows.none { it.type != null }) return null
+        val grouped = LinkedHashMap<String, MutableList<M3EGradeBreakdownRow>>()
+        for (row in rows) {
+            val key = row.type?.trim().takeUnless { it.isNullOrEmpty() } ?: "Other"
+            grouped.getOrPut(key) { mutableListOf() }.add(row)
+        }
+        val rank: (String) -> Int = { name ->
+            when {
+                name.contains("theory", ignoreCase = true) -> 0
+                name.contains("lab", ignoreCase = true) -> 1
+                else -> Regex("^component\\s+(\\d+)$", RegexOption.IGNORE_CASE)
+                    .matchEntire(name)?.groupValues?.get(1)?.toIntOrNull()
+                    ?.let { 100 + it } ?: 1000
+            }
+        }
+        return grouped.keys
+            .sortedWith(compareBy(rank).thenBy { it.lowercase() })
+            .map { type ->
+                M3EGradeAssessmentGroup(
+                    type = type,
+                    assessments = grouped.getValue(type).sortedByDescending { it.weightage }
+                )
+            }
+    }
+
+    /**
+     * Reconciliation note the web prints when the weights do not add up to the published total.
+     * VTOP's recorded total stays authoritative; the note only explains the discrepancy.
+     */
+    fun reconciliationNote(grandTotal: String?, breakdown: List<GradeBreakdown>?): String? {
+        val components = gradeComponents(breakdown) ?: return null
+        if (!GradeHistory.weightedTotalDiffers(grandTotal, components)) return null
+        val weighted = GradeHistory.weightedTotal(components) ?: return null
+        return "The weightage above sums to ${round2(weighted)}, while VTOP records " +
+            "${numOrDash(grandTotal)}%. The recorded total is shown here."
+    }
 }
+
+/**
+ * Defensive seam for the assessment table tag. The AmazeCC route sets `type` on every
+ * `GradeBreakdown`; the frozen legacy route does not. When that field lands on the DTO the real
+ * member wins over this extension (members always beat extensions), so grouping switches on
+ * without a second edit. Until then it reports "untagged" and the flat breakdown is used.
+ */
+val GradeBreakdown.type: String? get() = null

@@ -314,8 +314,11 @@ object VtopIngestor {
             Grade(
                 letter = g.grade,
                 grandTotal = g.grandTotal,
+                // Theory / Lab / Component N grouping from getGradeViewDetails, preserved so the
+                // domain projection can render the same grouped breakdown as the raw grade payload.
                 details = g.details.orEmpty().map { d ->
                     GradeComponent(
+                        type = d.type,
                         name = d.component,
                         score = d.scoredMark,
                         maxMark = d.maxMark,
@@ -327,7 +330,7 @@ object VtopIngestor {
                 range = g.range?.let {
                     GradeBands(
                         s = it.S, a = it.A, b = it.B, c = it.C,
-                        d = it.D, e = it.E, f = it.F,
+                        d = it.D, e = it.E, f = it.F, n = it.N,
                     )
                 },
             )
@@ -379,6 +382,7 @@ object VtopIngestor {
                 grade = g.letter,
                 details = g.details.map { d ->
                     GradeBreakdown(
+                        type = d.type,
                         component = d.name,
                         maxMark = d.maxMark,
                         weightagePercent = d.weightagePercent,
@@ -387,7 +391,7 @@ object VtopIngestor {
                         weightageMark = d.weightage,
                     )
                 }.takeIf { it.isNotEmpty() },
-                range = g.range?.let { GradeRange(it.s, it.a, it.b, it.c, it.d, it.e, it.f) },
+                range = g.range?.let { GradeRange(it.s, it.a, it.b, it.c, it.d, it.e, it.f, it.n) },
             )
         },
     )

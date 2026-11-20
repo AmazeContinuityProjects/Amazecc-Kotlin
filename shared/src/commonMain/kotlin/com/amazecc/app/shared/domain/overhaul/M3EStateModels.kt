@@ -397,6 +397,23 @@ data class M3EBasketProgress(
     val creditsRequired: Int
 )
 
+/**
+ * One real credit-category row, built by `domain.buildCategoryRows` from the `/curriculum`
+ * payload. Kept alongside the coarse basket chips so the elective/special baskets (Foreign
+ * Language, HSM Elective, Extracurricular Activities) stay visible instead of being folded into
+ * "All" and lost.
+ */
+data class M3ECurriculumCategory(
+    val key: String,
+    val code: String?,
+    val title: String,
+    val earned: Float,
+    val required: Float,
+    val ongoing: Float,
+    val isSpecial: Boolean,
+    val courseCount: Int
+)
+
 data class M3ECurriculumState(
     val programmeName: String,
     val totalCreditsCompleted: Int,
@@ -407,13 +424,21 @@ data class M3ECurriculumState(
     val filteredCourses: List<M3ECurriculumCourse>,
     val searchQuery: String = "",
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Data-driven category rows; empty until the curriculum payload has been synced. */
+    val categoryRows: List<M3ECurriculumCategory> = emptyList(),
+    /** "Ready" or the "N sem" estimate derived from remaining credits. */
+    val expectedLabel: String? = null,
+    /** Result of the last syllabus/curriculum save, surfaced once by the stateless screen. */
+    val downloadStatus: String? = null
 )
 
 sealed interface M3ECurriculumAction {
     data class SelectBasket(val basket: CurriculumBasket) : M3ECurriculumAction
     data class UpdateSearch(val query: String) : M3ECurriculumAction
     data object DownloadCurriculum : M3ECurriculumAction
+    /** Per-course syllabus download, from the web page's per-item SyllabusButton. */
+    data class DownloadSyllabus(val courseCode: String) : M3ECurriculumAction
     data object Refresh : M3ECurriculumAction
 }
 
@@ -641,7 +666,19 @@ data class M3EGradeBreakdownRow(
     val scoredMark: String,
     val maxMark: String,
     /** Parsed weightage, used only for heaviest-first ordering. */
-    val weightage: Double = 0.0
+    val weightage: Double = 0.0,
+    /**
+     * The "Mark Title" table VTOP tagged the row with — "Theory", "Lab", "Component N".
+     * Null on the frozen legacy API, in which case the flat breakdown is shown instead.
+     */
+    val type: String? = null
+)
+
+/** One VTOP "Mark Title" table and the assessments published under it. */
+@androidx.compose.runtime.Immutable
+data class M3EGradeAssessmentGroup(
+    val type: String,
+    val assessments: List<M3EGradeBreakdownRow>
 )
 
 @androidx.compose.runtime.Immutable
@@ -675,7 +712,13 @@ data class M3EGradeCourseDetail(
     val breakdown: List<M3EGradeBreakdownRow>,
     val gradeScale: List<M3EGradeScaleRow>,
     val embeddedHalves: List<M3EGradeEmbeddedHalf>,
-    val isEmbedded: Boolean
+    val isEmbedded: Boolean,
+    /** Aggregate credits from the effective-grade row (e.g. "4.0 cr"), never a hidden half. */
+    val creditsLabel: String? = null,
+    /** Non-null only when VTOP tagged the breakdown rows with their source table. */
+    val assessmentGroups: List<M3EGradeAssessmentGroup>? = null,
+    /** Shown when the assessment weights do not add up to the published grand total. */
+    val reconciliationText: String? = null
 )
 
 /**

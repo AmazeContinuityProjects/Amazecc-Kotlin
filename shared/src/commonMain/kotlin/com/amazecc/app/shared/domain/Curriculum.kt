@@ -55,6 +55,11 @@ enum class CourseStatus { COMPLETED, IN_PROGRESS, REMAINING }
  * Matched case-insensitively as substrings of the row title, exactly as `curriculum.ts.isSpecial`.
  */
 val SPECIAL_BASKETS: List<String> = listOf(
+    // The VTOP snapshot spells this "Extracurricular Activities" (curriculum.html:436-453).
+    // The two older spellings are kept because normaliseOngoingCategory emits one and older
+    // cached snapshots carry the other; matching is a case-insensitive substring on all three.
+    "Extracurricular Activities",
+    "Extra extracurricular activities",
     "Extra curricular activities",
     "HSM Elective",
     "Foreign Language",

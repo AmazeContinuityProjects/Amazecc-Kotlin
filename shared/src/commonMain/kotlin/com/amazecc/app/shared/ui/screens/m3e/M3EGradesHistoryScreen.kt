@@ -513,6 +513,12 @@ private fun LazyListScope.gradeCourseContent(state: M3EGradesHistoryState) {
                 value = course.courseType.ifBlank { "—" },
                 modifier = Modifier.weight(1f)
             )
+            // Aggregate credits from the effective-grade row, never a hidden ETL/ETH/ELA half.
+            M3EGradeKeyValueTile(
+                label = "Credits",
+                value = course.creditsLabel ?: "—",
+                modifier = Modifier.weight(1f)
+            )
         }
     }
 
@@ -578,9 +584,34 @@ private fun LazyListScope.gradeCourseContent(state: M3EGradesHistoryState) {
                 description = "VTOP published a final grade for this course without the per-assessment marks behind it."
             )
         }
+    } else if (course.assessmentGroups != null) {
+        // VTOP publishes each Mark Title table separately; show the split it recorded rather
+        // than one weight-ordered pile that hides which half each assessment belongs to.
+        course.assessmentGroups!!.forEach { group ->
+            item(key = "assessment_group_${group.type}") {
+                M3EGradeSectionHeader(
+                    icon = when {
+                        group.type.contains("theory", ignoreCase = true) -> Icons.Rounded.MenuBook
+                        group.type.contains("lab", ignoreCase = true) -> Icons.Rounded.Science
+                        else -> Icons.Rounded.Layers
+                    },
+                    title = "${group.type} assessments",
+                    count = group.assessments.size
+                )
+            }
+            items(items = group.assessments, key = { "${group.type}_${it.component}" }) { row ->
+                M3EGradeAssessmentRow(row = row)
+            }
+        }
     } else {
         items(items = course.breakdown, key = { "breakdown_${it.component}" }) { row ->
             M3EGradeAssessmentRow(row = row)
+        }
+    }
+
+    if (course.reconciliationText != null) {
+        item(key = "breakdown_reconciliation") {
+            M3EGradeInfoCard(text = course.reconciliationText!!)
         }
     }
 
@@ -1113,11 +1144,47 @@ internal fun buildGradesHistoryState(
         ?: terms.reversed().firstOrNull { it.courses.isNotEmpty() }
         ?: terms.lastOrNull()
 
-    fun creditsOf(semesterId: String, courseCode: String): Int =
-        snapshot.academics.semesters[semesterId]?.courses?.get(courseCode)?.credits
-            ?.trim()?.toDoubleOrNull()?.toInt() ?: 0
+    // VTOP's effective-grade table publishes one aggregate row per course (BAEEE101, 4.0 cr)
+    // and hides the ETL/ETH/ELA halves in a collapsed sub-table whose credit cells are blank
+    // (grades.html:201-259). Credit totals must come from the aggregate row exactly once;
+    // summing every snapshot course would count an embedded course up to three times.
+    fun baseCode(code: String): String = code.substringBefore("(").trim().uppercase()
 
-    var attemptedTotal = 0
+    val publishedCreditsByTerm: Map<String, Map<String, Int>> = terms.associate { term ->
+        term.id to term.courses
+            .mapNotNull { item ->
+                val credits = M3EGradeComputations.num(item.credits)?.toInt()?.takeIf { it > 0 }
+                    ?: return@mapNotNull null
+                baseCode(item.courseCode) to credits
+            }
+            .toMap()
+    }
+
+    fun creditsOf(semesterId: String, courseCode: String): Int {
+        publishedCreditsByTerm[semesterId]?.get(baseCode(courseCode))?.let { return it }
+        return snapshot.academics.semesters[semesterId]?.courses?.values
+            ?.firstOrNull { baseCode(it.code) == baseCode(courseCode) }
+            ?.credits?.trim()?.toDoubleOrNull()?.toInt() ?: 0
+    }
+
+    fun attemptedCredits(semesterId: String): Int {
+        val published = publishedCreditsByTerm[semesterId]
+        if (!published.isNullOrEmpty()) return published.values.sum()
+        // No published marks for this term yet: still take one figure per base code so hidden
+        // halves cannot inflate the attempted total.
+        return snapshot.academics.semesters[semesterId]?.courses?.values
+            ?.groupBy { baseCode(it.code) }
+            ?.values
+            ?.sumOf { halves ->
+                halves.firstNotNullOfOrNull { c ->
+                    c.credits?.trim()?.toDoubleOrNull()?.toInt()?.takeIf { it > 0 }
+                } ?: 0
+            } ?: 0
+    }
+
+    // Counted over the published terms so the total still works when the marks snapshot is
+    // absent — the per-term records below are only the snapshot's projection.
+    val attemptedTotal = terms.sumOf { attemptedCredits(it.id) }
     var gpaSum = 0.0
     var gpaTerms = 0
     val semesterRecords = domainRows.map { row ->
@@ -1131,8 +1198,6 @@ internal fun buildGradesHistoryState(
                 courseType = c.courseType
             )
         }
-        val attempted = snapshot.academics.semesters[row.id]?.courses?.values
-            ?.sumOf { it.credits?.trim()?.toDoubleOrNull()?.toInt() ?: 0 } ?: 0
         val earned = courses.filter { (GradeHistory.gradePoints(it.grade) ?: 0) > 0 }.sumOf { it.credits }
         if (row.gpa > 0) {
             gpaSum += row.gpa
@@ -1145,7 +1210,7 @@ internal fun buildGradesHistoryState(
             cgpaAtEnd = if (gpaTerms == 0) 0.0 else (gpaSum / gpaTerms * 100).let { round(it) / 100 },
             creditsEarned = earned,
             courses = courses
-        ).also { attemptedTotal += attempted }
+        )
     }
 
     val termRows = terms.map { term ->
@@ -1260,15 +1325,20 @@ private fun buildGradeCourseDetail(
     snapshot: DomainSnapshot
 ): M3EGradeCourseDetail {
     val details = item.details.orEmpty()
-    val breakdown = M3EGradeComputations.byWeightage(details.map { d ->
+    val flatRows = details.map { d ->
         M3EGradeBreakdownRow(
             component = d.component,
             weightagePercent = d.weightagePercent,
             scoredMark = d.scoredMark,
             maxMark = d.maxMark,
-            weightage = M3EGradeComputations.num(d.weightagePercent) ?: 0.0
+            weightage = M3EGradeComputations.num(d.weightagePercent) ?: 0.0,
+            type = d.type
         )
-    })
+    }
+    // The web keeps the flat list when the deployment stripped the per-table `type` tag;
+    // a real tag switches the same rows into Theory / Lab / Component N sections.
+    val groups = M3EGradeComputations.groupAssessmentsByType(flatRows)
+    val breakdown = if (groups != null) flatRows else M3EGradeComputations.byWeightage(flatRows)
     val gradeScale = item.range?.let { r ->
         listOf(
             "S" to r.S, "A" to r.A, "B" to r.B, "C" to r.C,
@@ -1284,8 +1354,15 @@ private fun buildGradeCourseDetail(
     }.orEmpty()
 
     val embedded = M3EGradeComputations.isEmbedded(item.courseType)
-    val domainCourse = termId?.let { snapshot.academics.semesters[it]?.courses?.get(item.courseCode) }
-        ?: snapshot.academics.semesters.values.firstNotNullOfOrNull { it.courses[item.courseCode] }
+    // The published row carries the aggregate code; a legacy snapshot may key its halves with a
+    // "(L)"/"(T)" suffix. Match on the base code so the halves still attach to the right course.
+    val baseCode = item.courseCode.substringBefore("(").trim().uppercase()
+    val domainCourse = termId?.let { tid ->
+        snapshot.academics.semesters[tid]?.courses?.values
+            ?.firstOrNull { it.code.substringBefore("(").trim().uppercase() == baseCode }
+    } ?: snapshot.academics.semesters.values.firstNotNullOfOrNull { sem ->
+        sem.courses.values.firstOrNull { it.code.substringBefore("(").trim().uppercase() == baseCode }
+    }
     val halves = if (embedded) {
         domainCourse?.halves.orEmpty()
             .filter { it.half.startsWith("T", ignoreCase = true) || it.half.startsWith("L", ignoreCase = true) }
@@ -1320,7 +1397,10 @@ private fun buildGradeCourseDetail(
         breakdown = breakdown,
         gradeScale = gradeScale,
         embeddedHalves = halves,
-        isEmbedded = embedded
+        isEmbedded = embedded,
+        creditsLabel = item.credits?.takeIf { it.isNotBlank() }?.let { "$it cr" },
+        assessmentGroups = groups,
+        reconciliationText = M3EGradeComputations.reconciliationNote(item.grandTotal, details)
     )
 }
 

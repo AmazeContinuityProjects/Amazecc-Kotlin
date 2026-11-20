@@ -33,6 +33,20 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.amazecc.app.shared.domain.DomainSnapshot
+import com.amazecc.app.shared.domain.Projections
+import com.amazecc.app.shared.domain.CREDITS_PER_SEMESTER
+import com.amazecc.app.shared.domain.buildCategoryRows
+import com.amazecc.app.shared.domain.completedCourseCodes
+import com.amazecc.app.shared.domain.courseStatus
+import com.amazecc.app.shared.domain.curriculumNum
+import com.amazecc.app.shared.domain.curriculumTotals
+import com.amazecc.app.shared.domain.earnedCreditsFromGrades
+import com.amazecc.app.shared.domain.isSpecialBasket
+import com.amazecc.app.shared.domain.ongoingCourseCodes
+import com.amazecc.app.shared.domain.ongoingCreditsByCategory
+import com.amazecc.app.shared.domain.totalOngoingCredits
+import com.amazecc.app.shared.model.CurriculumRes
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.CourseCompletionStatus
 import com.amazecc.app.shared.domain.overhaul.CurriculumBasket
 import com.amazecc.app.shared.domain.overhaul.M3EBasketProgress
+import com.amazecc.app.shared.domain.overhaul.M3ECurriculumCategory
 import com.amazecc.app.shared.domain.overhaul.M3ECurriculumAction
 import com.amazecc.app.shared.domain.overhaul.M3ECurriculumCourse
 import com.amazecc.app.shared.domain.overhaul.M3ECurriculumState
@@ -170,6 +185,25 @@ fun M3ECurriculumScreen(
                                 color = if (remainingCredits == 0) colors.success else colors.primary
                             )
                         }
+                        state.expectedLabel?.let { label ->
+                            Text(
+                                text = "At $CREDITS_PER_SEMESTER cr / semester: $label",
+                                fontSize = 11.sp,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Transient result of the last save; only composed when the host has one.
+            state.downloadStatus?.let { status ->
+                item(key = "download_status") {
+                    M3ESurfaceCard(
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(text = status, fontSize = 12.sp, color = colors.onSurface)
                     }
                 }
             }
@@ -206,6 +240,84 @@ fun M3ECurriculumScreen(
                                     fontSize = 11.sp,
                                     color = colors.onSurfaceVariant
                                 )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Real category rows from buildCategoryRows, including the elective/special baskets
+            // that the four coarse chips cannot represent (CurriculumPage.tsx:816-939).
+            if (state.categoryRows.isNotEmpty()) {
+                item(key = "category_rows") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Credit categories",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurface
+                        )
+                        state.categoryRows.forEach { category ->
+                            M3ESurfaceCard(
+                                containerLevel = SurfaceContainerLevel.LOWEST,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = category.title,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = colors.onSurface,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 2
+                                        )
+                                        if (!category.code.isNullOrBlank()) {
+                                            Text(
+                                                text = category.code,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = colors.primary
+                                            )
+                                        }
+                                        if (category.isSpecial) {
+                                            Text(
+                                                text = "Extra",
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = colors.secondary
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "${category.earned.toFixed(1)} / ${category.required.toFixed(1)} cr" +
+                                            if (category.ongoing > 0f) " · ${category.ongoing.toFixed(0)} cr live" else "",
+                                        fontSize = 11.sp,
+                                        color = colors.onSurfaceVariant
+                                    )
+                                    val pct = if (category.required > 0f) {
+                                        (category.earned / category.required).coerceIn(0f, 1f)
+                                    } else 0f
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(4.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(colors.surfaceContainerHighest)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(pct)
+                                                .height(4.dp)
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(colors.primary)
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -285,7 +397,10 @@ fun M3ECurriculumScreen(
                     items = state.filteredCourses,
                     key = { "${it.courseCode}_${it.basket.name}" }
                 ) { course ->
-                    M3ECurriculumCourseCard(course = course)
+                    M3ECurriculumCourseCard(
+                        course = course,
+                        onDownloadSyllabus = { code -> onAction(M3ECurriculumAction.DownloadSyllabus(code)) }
+                    )
                 }
             }
 
@@ -297,9 +412,142 @@ fun M3ECurriculumScreen(
     }
 }
 
+/**
+ * Maps VTOP's real category codes onto the four coarse filter chips. The snapshot uses
+ * NC/UCC/OEC/PCC/CON (curriculum.html:288,325,362,399,436); the legacy PC/PE/UC/UE codes are
+ * kept so older cached payloads still filter. NC is a non-credit category, so it stays in
+ * "All" rather than claiming a progress card it cannot fill.
+ */
+internal fun curriculumBasketFor(code: String?, title: String): CurriculumBasket {
+    val c = code?.trim()?.uppercase().orEmpty()
+    val t = title.uppercase()
+    return when {
+        c == "PCC" || c == "PC" || t.contains("PROGRAMME CORE") || t.contains("PROGRAM CORE") ->
+            CurriculumBasket.PROGRAM_CORE
+        c == "UCC" || c == "UC" || t.contains("UNIVERSITY CORE") ->
+            CurriculumBasket.UNIVERSITY_CORE
+        c == "OEC" || c == "UE" || t.contains("OPEN ELECTIVE") || t.contains("UNIVERSITY ELECTIVE") ->
+            CurriculumBasket.UNIVERSITY_ELECTIVE
+        c == "CON" || c == "PE" || t.contains("CONCENTRATION") ||
+            t.contains("PROGRAMME ELECTIVE") || t.contains("PROGRAM ELECTIVE") ->
+            CurriculumBasket.PROGRAM_ELECTIVE
+        else -> CurriculumBasket.ALL
+    }
+}
+
+/**
+ * Pure, headless counterpart of the curriculum host. Every number comes from the domain
+ * curriculum port or the real grade/attendance snapshot — no placeholder programme, credit
+ * totals, basket progress, status or grade is manufactured here.
+ */
+internal fun buildCurriculumState(
+    curriculumRes: CurriculumRes?,
+    snapshot: DomainSnapshot,
+    publishedCreditsEarned: String? = null,
+    programmeName: String? = null,
+    selectedBasket: CurriculumBasket = CurriculumBasket.ALL,
+    searchQuery: String = "",
+    isLoading: Boolean = false,
+    downloadStatus: String? = null,
+): M3ECurriculumState {
+    val attendance = Projections.currentSemesterAttendance(snapshot)
+    val completed = completedCourseCodes(snapshot)
+    val ongoing = ongoingCourseCodes(attendance)
+    val earned = earnedCreditsFromGrades(snapshot)
+        .takeIf { it > 0f } ?: curriculumNum(publishedCreditsEarned)
+    val totals = curriculumTotals(curriculumRes, earned, totalOngoingCredits(attendance))
+    val categoryMeta = curriculumRes?.categories.orEmpty().associateBy { it.code.trim().uppercase() }
+
+    fun baseCode(code: String): String = code.substringBefore("(").trim().uppercase()
+
+    fun gradeFor(code: String): String? {
+        val base = baseCode(code)
+        return snapshot.academics.semesters.values.firstNotNullOfOrNull { sem ->
+            sem.courses.values.firstNotNullOfOrNull { course ->
+                course.grade?.letter?.takeIf { it.isNotBlank() && baseCode(course.code) == base }
+            }
+        }
+    }
+
+    val courses = curriculumRes?.details.orEmpty().flatMap { detail ->
+        val meta = categoryMeta[detail.code.trim().uppercase()]
+        val code = detail.code.ifBlank { meta?.code }.orEmpty()
+        val title = detail.name.ifBlank { meta?.name }.orEmpty()
+        val basket = curriculumBasketFor(code, title)
+        detail.baskets.flatMap { b ->
+            b.items.map { item ->
+                val status = when (courseStatus(item.code, completed, ongoing)) {
+                    com.amazecc.app.shared.domain.CourseStatus.COMPLETED -> CourseCompletionStatus.COMPLETED
+                    com.amazecc.app.shared.domain.CourseStatus.IN_PROGRESS -> CourseCompletionStatus.IN_PROGRESS
+                    com.amazecc.app.shared.domain.CourseStatus.REMAINING -> CourseCompletionStatus.NOT_STARTED
+                }
+                M3ECurriculumCourse(
+                    courseCode = item.code,
+                    courseTitle = item.name,
+                    credits = item.credits,
+                    basket = basket,
+                    courseType = item.type ?: "Theory",
+                    status = status,
+                    grade = gradeFor(item.code)?.takeIf { status == CourseCompletionStatus.COMPLETED }
+                )
+            }
+        }
+    }
+
+    val rows = buildCategoryRows(
+        categories = curriculumRes?.categories.orEmpty(),
+        details = curriculumRes?.details.orEmpty(),
+        ongoingByCategory = ongoingCreditsByCategory(attendance),
+    )
+    val categoryRows = rows.map { row ->
+        M3ECurriculumCategory(
+            key = row.key,
+            code = row.code,
+            title = row.title,
+            earned = row.earned,
+            required = row.required,
+            ongoing = row.ongoing,
+            isSpecial = isSpecialBasket(row.title),
+            courseCount = row.baskets.sumOf { it.items.size },
+        )
+    }
+    val baskets = rows.mapNotNull { row ->
+        val basket = curriculumBasketFor(row.code, row.title)
+        if (basket == CurriculumBasket.ALL) null else M3EBasketProgress(
+            basket = basket,
+            creditsCompleted = kotlin.math.round(row.earned).toInt(),
+            creditsRequired = kotlin.math.round(row.required).toInt(),
+        )
+    }.distinctBy { it.basket }
+
+    val filtered = courses.filter { course ->
+        val matchesBasket = selectedBasket == CurriculumBasket.ALL || course.basket == selectedBasket
+        val matchesQuery = searchQuery.isBlank() ||
+            course.courseCode.contains(searchQuery, ignoreCase = true) ||
+            course.courseTitle.contains(searchQuery, ignoreCase = true)
+        matchesBasket && matchesQuery
+    }
+
+    return M3ECurriculumState(
+        programmeName = programmeName?.takeIf { it.isNotBlank() } ?: "Programme",
+        totalCreditsCompleted = kotlin.math.round(totals.earned).toInt(),
+        totalCreditsRequired = kotlin.math.round(totals.required).toInt(),
+        baskets = baskets,
+        selectedBasket = selectedBasket,
+        courses = courses,
+        filteredCourses = filtered,
+        searchQuery = searchQuery,
+        isLoading = isLoading,
+        categoryRows = categoryRows,
+        expectedLabel = totals.expectedLabel,
+        downloadStatus = downloadStatus,
+    )
+}
+
 @Composable
 private fun M3ECurriculumCourseCard(
     course: M3ECurriculumCourse,
+    onDownloadSyllabus: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
@@ -418,6 +666,24 @@ private fun M3ECurriculumCourseCard(
                 fontSize = 11.sp,
                 color = colors.onSurfaceVariant
             )
+
+            // Per-course syllabus, the web page's per-item SyllabusButton (CurriculumPage.tsx:796).
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                IconButton(
+                    onClick = { onDownloadSyllabus(course.courseCode) },
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(colors.surfaceContainerHighest)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Download,
+                        contentDescription = "Download ${course.courseCode} syllabus",
+                        tint = colors.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
         }
     }
 }

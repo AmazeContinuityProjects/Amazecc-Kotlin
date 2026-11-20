@@ -10,7 +10,13 @@ data class GradeBreakdown(
     val weightagePercent: String = "",
     val status: String = "",
     val scoredMark: String = "",
-    val weightageMark: String = ""
+    val weightageMark: String = "",
+    // Additive, verbatim from `getGradeViewDetails`. `slNo` is the row's own ordinal and `type`
+    // is the web grouping ("Theory" / "Lab" / "Component N") assigned by the reference parser
+    // (`amazecc-api-hono/src/lib/grades/fetchAllGradesHistory.ts:92-116`). Both are optional so
+    // legacy payloads and the domain fallback keep decoding unchanged. Never fabricated.
+    val slNo: String = "",
+    val type: String? = null
 )
 
 @Serializable
@@ -21,7 +27,9 @@ data class GradeRange(
     val C: String,
     val D: String,
     val E: String,
-    val F: String
+    val F: String,
+    // Additive: some VTOP grade-range tables publish an "N" band after F. Blank when absent.
+    val N: String = ""
 )
 
 @Serializable
@@ -40,7 +48,13 @@ data class GradeItem(
     val examMonth: String? = null,
     val resultDeclared: String? = null,
     val distributionType: String? = null,
-    val courseId: String? = null
+    val courseId: String? = null,
+    // Additive verbatim cells from the semester grade view (`doStudentGradeView`):
+    // tds[4]=L, [5]=P, [6]=J, [7]=C. `credits` above mirrors C when the detail scrape supplies it.
+    // Null when the page did not publish the cell — never reconstructed.
+    val l: String? = null,
+    val p: String? = null,
+    val j: String? = null
 )
 
 @Serializable

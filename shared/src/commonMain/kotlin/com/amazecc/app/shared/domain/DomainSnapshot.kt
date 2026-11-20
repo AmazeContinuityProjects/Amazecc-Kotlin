@@ -209,6 +209,8 @@ data class Grade(
 
 @Serializable
 data class GradeComponent(
+    /** Theory / Lab / Component N from getGradeViewDetails; null when the payload omitted it. */
+    val type: String? = null,
     val name: String = "",
     val score: String = "",
     val maxMark: String = "",
@@ -234,6 +236,8 @@ data class GradeBands(
     val d: String = "",
     val e: String = "",
     val f: String = "",
+    /** "Not eligible"/remedial band emitted by newer VTOP payloads. */
+    val n: String = "",
 )
 
 // ── schedule ──────────────────────────────────────────────────────────────────

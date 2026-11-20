@@ -169,9 +169,11 @@ class GradeLocalParseTest {
         assertTrue("'table.table.table-hover.table-bordered tbody tr'" in script)
         assertTrue("CREDITS_NUMERIC.test(credits)" in script)
         assertTrue("GRADE_LETTER.test(grade)" in script)
-        // eq(5) reads cells 0/1/2; eq(6) reads 0/2/3 — the asymmetry the old code missed.
-        assertTrue("cell(c5, 1)" in script && "cell(c5, 2)" in script)
-        assertTrue("cell(c6, 2)" in script && "cell(c6, 3)" in script)
+        // Basket tables are located by their header labels, not by a fragile table index.
+        assertTrue("'Curriculum Distribution Type'" in script)
+        assertTrue("'Basket Title'" in script)
+        assertTrue("titleIdx = 0; requiredIdx = 1; earnedIdx = 2" in script)
+        assertTrue("titleIdx = 0; requiredIdx = 2; earnedIdx = 3" in script)
         // Credentials are injected as escaped JS string literals, never raw.
         assertTrue("authorizedID=21BCS001" in script)
         assertTrue("xhr.open('POST'" in script)

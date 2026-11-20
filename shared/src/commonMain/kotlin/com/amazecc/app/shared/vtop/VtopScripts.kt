@@ -475,7 +475,8 @@ internal object VtopScripts {
      *    cells 1=code 2=title 3=type 4=credits 5=grade 6=examMonth 7=resultDeclared
      *    8=distributionType. A row is kept only when credits are numeric and grade is a
      *    single S/A/B/C/D/E/F letter — the exact guards the server uses.
-     *  - curriculum baskets: tables eq(5) (cells 0/1/2) and eq(6) (cells 0/2/3).
+     *  - curriculum baskets: located by their header labels ("Curriculum Distribution Type"
+     *    → cells 0/1/2, "Basket Title" → cells 0/2/3) rather than a positional table index.
      *  - published CGPA: first `table.table.table-hover.table-bordered tbody tr`,
      *    cells 0=creditsRegistered 1=creditsEarned 2=cgpa 3..10=S/A/B/C/D/E/F/N counts.
      *
@@ -536,28 +537,39 @@ internal object VtopScripts {
           }
         }
 
+        // Baskets are found by their header labels, not by a positional table index. VTOP moves
+        // these tables around between pages; the labels ("Curriculum Distribution Type" and
+        // "Basket Title") are the stable contract (grades.html:969-1023). Column maps stay
+        // verbatim from grades.ts so LOCAL and REMOTE emit identical basket rows.
         var baskets = [];
-        var t5 = tables[5];
-        if (t5) {
-          var rows5 = t5.querySelectorAll('tr.tableContent');
-          for (var a = 0; a < rows5.length; a++) {
-            var c5 = rows5[a].querySelectorAll('td');
-            baskets.push({
-              basketTitle: cell(c5, 0),
-              creditsRequired: cell(c5, 1),
-              creditsEarned: cell(c5, 2)
-            });
+        var allTables = doc.querySelectorAll('table');
+        for (var bt = 0; bt < allTables.length; bt++) {
+          var bTable = allTables[bt];
+          var headerText = '';
+          var headerRows = bTable.querySelectorAll('tr.tableHeader');
+          for (var hr = 0; hr < headerRows.length; hr++) {
+            headerText += ' ' + (headerRows[hr].textContent || '');
           }
-        }
-        var t6 = tables[6];
-        if (t6) {
-          var rows6 = t6.querySelectorAll('tr.tableContent');
-          for (var d = 0; d < rows6.length; d++) {
-            var c6 = rows6[d].querySelectorAll('td');
+          headerText = headerText.replace(/\s+/g, ' ').trim();
+
+          var titleIdx, requiredIdx, earnedIdx;
+          if (headerText.indexOf('Curriculum Distribution Type') !== -1) {
+            titleIdx = 0; requiredIdx = 1; earnedIdx = 2;
+          } else if (headerText.indexOf('Basket Title') !== -1) {
+            titleIdx = 0; requiredIdx = 2; earnedIdx = 3;
+          } else {
+            continue; // never guess a table by position
+          }
+
+          var dataRows = bTable.querySelectorAll('tr.tableContent');
+          for (var br = 0; br < dataRows.length; br++) {
+            var bc = dataRows[br].querySelectorAll('td');
+            var title = cell(bc, titleIdx);
+            if (!title) continue;
             baskets.push({
-              basketTitle: cell(c6, 0),
-              creditsRequired: cell(c6, 2),
-              creditsEarned: cell(c6, 3)
+              basketTitle: title,
+              creditsRequired: cell(bc, requiredIdx),
+              creditsEarned: cell(bc, earnedIdx)
             });
           }
         }
@@ -582,6 +594,198 @@ internal object VtopScripts {
 
         return JSON.stringify({ ok: true, courses: courses, cgpa: cgpa, baskets: baskets });
         """
+        )
+    }
+
+    /**
+     * `examinations/examGradeView/doStudentGradeView` — one POST per semester.
+     *
+     * Port of `amazecc-api-hono/src/lib/grades/fetchAllGradesHistory.ts:127-179`. The grade table
+     * in the real page (`tmp-vtop-inspect/doStudentGradeView_CH20252601.html:131-170,326-330`) has:
+     * 0 slNo, 1 code, 2 title, 3 type, 4 L, 5 P, 6 J, 7 C, 8 grading type, 9 grand total,
+     * 10 grade, 11 View Mark button whose `onclick` carries the `courseId`.
+     * The GPA is a separate `<tr align="center">` row. Hidden embedded-course detail rows have
+     * one `colspan` cell and no grade letter, so the `tds.length >= 11` + grade-letter guards
+     * reject them — the aggregate row already carries the full credits, so nothing is double
+     * counted. Every emitted value is a verbatim cell; a row missing its letter is dropped.
+     */
+    fun fetchSemesterGradeView(path: String, body: String): String {
+        val p = jsString(path)
+        val b = jsString(body)
+        return wrapped(
+            """
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', $p, false);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('Referer', 'https://vtopcc.vit.ac.in/vtop/examinations/examGradeView/StudentGradeView');
+        xhr.send($b);
+
+        if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+        if (xhr.status >= 400) return JSON.stringify({ ok: false, error: 'http error ' + xhr.status });
+
+        var res = xhr.responseText || '';
+        var lower = res.toLowerCase();
+        if (lower.indexOf('not authorized') !== -1 ||
+            lower.indexOf('session timed out') !== -1 ||
+            lower.indexOf('invalid session') !== -1 ||
+            lower.indexOf('session expired') !== -1) {
+          return JSON.stringify({ ok: false, error: 'not authorized' });
+        }
+
+        var doc = new DOMParser().parseFromString(res, 'text/html');
+        var cell = function(tds, i) {
+          return tds[i] ? (tds[i].textContent || '').replace(/\s+/g, ' ').trim() : '';
+        };
+        var GRADE_LETTER = /^[SABCDEF]${'$'}/i;
+        var ORDINAL = /^\d+${'$'}/;
+        var gpa = null;
+        var grades = [];
+        var tables = doc.querySelectorAll('table.table-bordered');
+
+        for (var t = 0; t < tables.length && grades.length === 0; t++) {
+          var trs = tables[t].querySelectorAll('tr');
+          for (var r = 0; r < trs.length; r++) {
+            var tr = trs[r];
+
+            // GPA row: <tr align="center"><td colspan="..">GPA : 9.5</td></tr>.
+            if ((tr.getAttribute('align') || '').toLowerCase() === 'center') {
+              var txt = (tr.textContent || '').replace(/\s+/g, ' ').trim();
+              var gm = txt.match(/GPA\s*:\s*([\d.]+)/i);
+              if (gm) gpa = gm[1];
+              continue;
+            }
+
+            // Hidden ETL/ETH/ELA halves of an embedded course: not real grade rows.
+            var style = (tr.getAttribute('style') || '').toLowerCase();
+            if (style.indexOf('display: none') !== -1 || style.indexOf('display:none') !== -1) continue;
+
+            var tds = tr.querySelectorAll('td');
+            if (tds.length < 11) continue;
+            var slNo = cell(tds, 0);
+            if (!ORDINAL.test(slNo)) continue;          // repeated header row, not data
+            var grade = cell(tds, 10);
+            if (!GRADE_LETTER.test(grade)) continue;    // fail closed, never invent a grade
+
+            var btn = tds[11] ? tds[11].querySelector('button[onclick], a[onclick], [onclick]') : null;
+            var onclick = btn ? (btn.getAttribute('onclick') || '') : '';
+            var cm = onclick.match(/getGradeViewDetails\('([^']+)'\)/);
+
+            grades.push({
+              slNo: slNo,
+              courseCode: cell(tds, 1),
+              courseTitle: cell(tds, 2),
+              courseType: cell(tds, 3),
+              l: cell(tds, 4), p: cell(tds, 5), j: cell(tds, 6), c: cell(tds, 7),
+              gradingType: cell(tds, 8),
+              grandTotal: cell(tds, 9),
+              grade: grade,
+              courseId: cm ? cm[1] : null
+            });
+          }
+        }
+        return JSON.stringify({ ok: true, gpa: gpa, grades: grades });
+         """
+        )
+    }
+
+    /**
+     * `examinations/examGradeView/getGradeViewDetails` — one POST per course.
+     *
+     * Port of `fetchAllGradesHistory.ts:41-125`. Two table families are read:
+     *  - "Range of Grades" → `tr` 2, `td span` 0/2/3/4/5/6/7 = S/A/B/C/D/E/F. An extra band
+     *    at span index 8, when published, becomes N.
+     *  - Every table containing "Mark Title" → assessment rows. Cells come from `td, output`
+     *    (the marks snapshot uses `<td><output>…</output></td>`, so even indices are the values):
+     *    0 slNo, 2 component, 4 maxMark, 6 weightagePercent, 8 status, 10 scoredMark,
+     *    12 weightageMark. A row with fewer than 13 cells is skipped rather than padded with
+     *    invented empties. Group type follows the reference: Theory / Lab / Component N.
+     */
+    fun fetchGradeViewDetails(path: String, body: String): String {
+        val p = jsString(path)
+        val b = jsString(body)
+        return wrapped(
+            """
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', $p, false);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('Referer', 'https://vtopcc.vit.ac.in/vtop/examinations/examGradeView/StudentGradeView');
+        xhr.send($b);
+
+        if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+        if (xhr.status >= 400) return JSON.stringify({ ok: false, error: 'http error ' + xhr.status });
+        var res = xhr.responseText || '';
+        var lower = res.toLowerCase();
+        if (lower.indexOf('not authorized') !== -1 ||
+            lower.indexOf('session timed out') !== -1 ||
+            lower.indexOf('invalid session') !== -1 ||
+            lower.indexOf('session expired') !== -1) {
+          return JSON.stringify({ ok: false, error: 'not authorized' });
+        }
+
+        var doc = new DOMParser().parseFromString(res, 'text/html');
+        var clean = function(el) {
+          return (el ? (el.textContent || '') : '').replace(/\s+/g, ' ').trim();
+        };
+        var tables = doc.querySelectorAll('table');
+
+        // Grade range: locate the table by its heading, not by a positional index.
+        var range = null;
+        for (var i = 0; i < tables.length; i++) {
+          if ((tables[i].textContent || '').indexOf('Range of Grades') === -1) continue;
+          var rangeRows = tables[i].querySelectorAll('tr');
+          var bandRow = rangeRows[2];
+          if (!bandRow) break;
+          var spans = bandRow.querySelectorAll('td span');
+          if (spans.length >= 8) {
+            range = {
+              S: clean(spans[0]), A: clean(spans[2]), B: clean(spans[3]), C: clean(spans[4]),
+              D: clean(spans[5]), E: clean(spans[6]), F: clean(spans[7]),
+              N: spans[8] ? clean(spans[8]) : ''
+            };
+          }
+          break;
+        }
+
+        // Assessment breakdown, grouped by the table's ordinal among "Mark Title" tables.
+        var details = [];
+        var detailCount = 0;
+        for (var d = 0; d < tables.length; d++) {
+          var table = tables[d];
+          if ((table.textContent || '').indexOf('Mark Title') === -1) continue;
+          var type = detailCount === 0 ? 'Theory'
+                   : detailCount === 1 ? 'Lab'
+                   : 'Component ' + (detailCount + 1);
+          var trs = table.querySelectorAll('tr');
+
+          var collect = function(from, toExclusive) {
+            var found = [];
+            for (var k = from; k < toExclusive && k < trs.length; k++) {
+              var cells = trs[k].querySelectorAll('td, output');
+              if (cells.length < 13) continue;
+              var component = clean(cells[2]);
+              var maxMark = clean(cells[4]);
+              if (!component || !maxMark) continue;   // header / total row — fail closed
+              found.push({
+                slNo: clean(cells[0]), component: component, maxMark: maxMark,
+                weightagePercent: clean(cells[6]), status: clean(cells[8]),
+                scoredMark: clean(cells[10]), weightageMark: clean(cells[12]),
+                type: type
+              });
+            }
+            return found;
+          };
+
+          // The reference slices(2, -1): title + column header above, grand total below.
+          var rows = collect(2, trs.length - 1);
+          if (rows.length === 0) rows = collect(1, trs.length); // flatter page layout fallback
+          for (var q = 0; q < rows.length; q++) details.push(rows[q]);
+          detailCount++;
+        }
+
+        return JSON.stringify({ ok: true, range: range, details: details.length ? details : null });
+         """
         )
     }
 
@@ -1364,6 +1568,55 @@ internal object VtopScripts {
     }
 
     /**
+     * `academics/curriculDown` — the curriculum PDF/ZIP download.
+     *
+     * The body mirrors `routes/remote/curriculum-download.ts:20-41` exactly: `_csrf` is sent
+     * **twice** (VTOP's own form does this), plus `authorizedID` and `regNo=NONE`, and the request
+     * carries the Curriculum page as Referer. No captcha is involved. As with [downloadCircular],
+     * a synchronous XHR cannot request an `arraybuffer`, so the bytes are forced through
+     * `charset=x-user-defined` and rebuilt with `charCodeAt(i) & 0xff` before base64 encoding.
+     */
+    fun downloadCurriculum(path: String, csrf: String, authorizedID: String): String {
+        val p = jsString(path)
+        val c = jsString(csrf)
+        val a = jsString(authorizedID)
+        return wrapped(
+            """
+        var postBody = '_csrf=' + encodeURIComponent($c)
+                     + '&_csrf=' + encodeURIComponent($c)
+                     + '&authorizedID=' + encodeURIComponent($a)
+                     + '&regNo=NONE';
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', $p, false);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+        xhr.setRequestHeader('Referer', 'https://vtopcc.vit.ac.in/vtop/academics/common/Curriculum');
+        xhr.overrideMimeType('text/plain; charset=x-user-defined');
+        xhr.send(postBody);
+        if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+        if (xhr.status < 200 || xhr.status >= 300) return JSON.stringify({ ok: false, status: xhr.status });
+        var text = xhr.responseText || '';
+        if (!text.length) return JSON.stringify({ ok: false, error: 'empty response' });
+        var bytes = new Uint8Array(text.length);
+        for (var i = 0; i < text.length; i++) bytes[i] = text.charCodeAt(i) & 0xff;
+        var binary = '';
+        var chunk = 0x8000;
+        for (var j = 0; j < bytes.length; j += chunk) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(j, j + chunk));
+        }
+        var ct = xhr.getResponseHeader('Content-Type') || 'application/octet-stream';
+        if (ct.toLowerCase().indexOf('json') !== -1) {
+          return JSON.stringify({ ok: false, error: 'vtop returned json', snippet: text.substring(0, 200) });
+        }
+        return JSON.stringify({
+          ok: true, status: xhr.status, base64: btoa(binary),
+          contentType: ct,
+          fileName: (xhr.getResponseHeader('Content-Disposition') || 'curriculum.pdf')
+        });
+         """
+        )
+    }
+
+    /**
      * `proctor/viewStudentCredentials` as a standalone module.
      *
      * Same parse as the PROFILE_IMAGES leg, but the response **spreads** it
@@ -1582,20 +1835,40 @@ internal object VtopScripts {
     /**
      * `academics/common/curriculumCategoryView` — stage 2, run once per category **sequentially**.
      *
-     * Two things differ from every other route: the body carries the stage-1 `pageCsrf`, and `x`
-     * is a UTC date *string* rather than epoch milliseconds.
+     * Three things differ from every other route: the body carries the stage-1 `pageCsrf`, the
+     * session `authorizedID` (added by the 4-arg overload), and `x` is a UTC date *string* rather
+     * than epoch milliseconds.
      *
      * Table discovery runs four strategies and stops at the first that yields anything, so a page
      * laid out as Bootstrap tabs never gets double-counted by the card strategy.
      */
-    fun fetchCurriculumCategory(path: String, pageCsrf: String, categoryCode: String): String {
+    fun fetchCurriculumCategory(path: String, pageCsrf: String, categoryCode: String): String =
+        fetchCurriculumCategory(path, pageCsrf, categoryCode, "")
+
+    /**
+     * Overload that replays the `authorizedID` VTOP embeds in the stage-1 page's
+     * `categoryOnClick()` (`curriculum.html:521-522`) and the Hono route sends
+     * (`routes/remote/curriculum.ts:37-43`). The 3-arg overload is kept for source
+     * compatibility and omits the field, which older pages did not require.
+     */
+    fun fetchCurriculumCategory(
+        path: String,
+        pageCsrf: String,
+        categoryCode: String,
+        authorizedID: String
+    ): String {
         val p = jsString(path)
         val csrf = jsString(pageCsrf)
         val cat = jsString(categoryCode)
+        val aid = jsString(authorizedID)
+        // Only emit the parameter when a real id was supplied — never an empty `authorizedID=`.
+        val authorizedPart = if (authorizedID.isNotBlank())
+            " + '&authorizedID=' + encodeURIComponent($aid)"
+        else ""
         return wrapped(
             """
         var postBody = '_csrf=' + encodeURIComponent($csrf)
-                     + '&categoryId=' + encodeURIComponent($cat)
+                     + '&categoryId=' + encodeURIComponent($cat)$authorizedPart
                      + '&x=' + encodeURIComponent(new Date().toUTCString());
 
         var xhr = new XMLHttpRequest();

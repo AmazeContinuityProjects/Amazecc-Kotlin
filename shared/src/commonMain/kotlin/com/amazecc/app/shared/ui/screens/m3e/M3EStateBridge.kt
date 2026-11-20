@@ -11,8 +11,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.api.SyllabusResult
+import com.amazecc.app.shared.utils.rememberFileSaver
 import com.amazecc.app.shared.vtop.VtopSource
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.domain.Course
@@ -23,7 +26,6 @@ import com.amazecc.app.shared.utils.openExternalUrl
 import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.domain.overhaul.AcademicCourseFilter
 import com.amazecc.app.shared.domain.overhaul.AttendanceFilter
-import com.amazecc.app.shared.domain.overhaul.CourseCompletionStatus
 import com.amazecc.app.shared.domain.overhaul.CourseDetailTab
 import com.amazecc.app.shared.domain.overhaul.CurriculumBasket
 import com.amazecc.app.shared.domain.overhaul.ExamSeries
@@ -34,7 +36,6 @@ import com.amazecc.app.shared.domain.overhaul.M3EAcademicsState
 import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
 import com.amazecc.app.shared.domain.overhaul.M3EAttendanceAction
 import com.amazecc.app.shared.domain.overhaul.M3EAttendanceState
-import com.amazecc.app.shared.domain.overhaul.M3EBasketProgress
 import com.amazecc.app.shared.domain.overhaul.M3EBunkSummary
 import com.amazecc.app.shared.domain.overhaul.M3EBusRoute
 import com.amazecc.app.shared.domain.overhaul.M3ECabShareAction
@@ -56,8 +57,6 @@ import com.amazecc.app.shared.domain.overhaul.M3ECourseDetailAction
 import com.amazecc.app.shared.domain.overhaul.M3ECourseDetailState
 import com.amazecc.app.shared.domain.overhaul.M3ECoursePredictionItem
 import com.amazecc.app.shared.domain.overhaul.M3ECurriculumAction
-import com.amazecc.app.shared.domain.overhaul.M3ECurriculumCourse
-import com.amazecc.app.shared.domain.overhaul.M3ECurriculumState
 import com.amazecc.app.shared.domain.overhaul.M3EEventCategory
 import com.amazecc.app.shared.domain.overhaul.M3EEventHubAction
 import com.amazecc.app.shared.domain.overhaul.M3EEventHubState
@@ -705,62 +704,42 @@ fun M3EFacultyScreen(modifier: Modifier = Modifier) {
 fun M3ECurriculumScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val curriculumRes by AppState.curriculum.collectAsState()
+    val domain by AppState.domain.collectAsState()
+    val allGrades by AppState.allGrades.collectAsState()
+    val identity by UserStore.identity.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
 
     var selectedBasket by remember { mutableStateOf(CurriculumBasket.ALL) }
     var searchQuery by remember { mutableStateOf("") }
+    var downloadStatus by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val saveFile = rememberFileSaver()
 
-    val curriculumCourses = remember(curriculumRes) {
-        curriculumRes?.details?.flatMap { cat ->
-            cat.baskets.flatMap { b ->
-                b.items.map { item ->
-                    val basket = when (cat.code.trim().uppercase()) {
-                        "PC", "PROGRAM CORE" -> CurriculumBasket.PROGRAM_CORE
-                        "PE", "PROGRAM ELECTIVE" -> CurriculumBasket.PROGRAM_ELECTIVE
-                        "UC", "UNIVERSITY CORE" -> CurriculumBasket.UNIVERSITY_CORE
-                        "UE", "UNIVERSITY ELECTIVE" -> CurriculumBasket.UNIVERSITY_ELECTIVE
-                        else -> CurriculumBasket.ALL
-                    }
-                    M3ECurriculumCourse(
-                        courseCode = item.code,
-                        courseTitle = item.name,
-                        credits = item.credits,
-                        basket = basket,
-                        courseType = item.type ?: "Theory",
-                        status = CourseCompletionStatus.NOT_STARTED,
-                        grade = null
-                    )
-                }
-            }
-        }.orEmpty()
+    // Every displayed figure comes from the real curriculum/grade/attendance payload. The pure
+    // builder lives beside the stateless screen so it can be exercised without a store.
+    val state = remember(
+        curriculumRes, domain, allGrades, identity.program, selectedBasket, searchQuery,
+        isLoading, downloadStatus
+    ) {
+        buildCurriculumState(
+            curriculumRes = curriculumRes,
+            snapshot = domain,
+            publishedCreditsEarned = allGrades?.overall?.cgpa?.creditsEarned,
+            programmeName = identity.program?.takeIf { it.isNotBlank() } ?: curriculumRes?.title,
+            selectedBasket = selectedBasket,
+            searchQuery = searchQuery,
+            isLoading = isLoading,
+            downloadStatus = downloadStatus,
+        )
     }
 
-    val filtered = remember(curriculumCourses, selectedBasket, searchQuery) {
-        curriculumCourses.filter { course ->
-            val matchBasket = selectedBasket == CurriculumBasket.ALL || course.basket == selectedBasket
-            val matchQuery = searchQuery.isBlank() ||
-                course.courseCode.contains(searchQuery, ignoreCase = true) ||
-                course.courseTitle.contains(searchQuery, ignoreCase = true)
-            matchBasket && matchQuery
+    // The status banner is transient; its lifetime follows the host that owns the value.
+    if (downloadStatus != null) {
+        LaunchedEffect(downloadStatus) {
+            delay(4_000)
+            downloadStatus = null
         }
     }
-
-    val state = M3ECurriculumState(
-        programmeName = "B.Tech Computer Science & Engineering",
-        totalCreditsCompleted = 120,
-        totalCreditsRequired = 160,
-        baskets = listOf(
-            M3EBasketProgress(CurriculumBasket.PROGRAM_CORE, 45, 55),
-            M3EBasketProgress(CurriculumBasket.PROGRAM_ELECTIVE, 12, 18),
-            M3EBasketProgress(CurriculumBasket.UNIVERSITY_CORE, 40, 50),
-            M3EBasketProgress(CurriculumBasket.UNIVERSITY_ELECTIVE, 6, 12)
-        ),
-        selectedBasket = selectedBasket,
-        courses = curriculumCourses,
-        filteredCourses = filtered,
-        searchQuery = searchQuery,
-        isLoading = isLoading
-    )
 
     AmazeM3ETheme(isDark = isDark) {
         M3ECurriculumScreen(
@@ -769,7 +748,30 @@ fun M3ECurriculumScreen(modifier: Modifier = Modifier) {
                 when (action) {
                     is M3ECurriculumAction.SelectBasket -> selectedBasket = action.basket
                     is M3ECurriculumAction.UpdateSearch -> searchQuery = action.query
-                    is M3ECurriculumAction.DownloadCurriculum -> {}
+                    is M3ECurriculumAction.DownloadCurriculum -> scope.launch {
+                        val bytes = AmazeClient.downloadCurriculum()
+                        val saved = bytes != null && bytes.isNotEmpty() &&
+                            saveFile("curriculum.pdf", bytes)
+                        downloadStatus = when {
+                            saved -> "Curriculum saved to Downloads"
+                            bytes == null -> "Could not download curriculum"
+                            else -> "Could not save curriculum file"
+                        }
+                    }
+                    is M3ECurriculumAction.DownloadSyllabus -> scope.launch {
+                        val result = AmazeClient.getSyllabusPdf(action.courseCode)
+                        val file = result.download
+                        val saved = file != null && file.bytes.isNotEmpty() &&
+                            saveFile(
+                                "${action.courseCode}_syllabus.${file.extension.ifBlank { "pdf" }}",
+                                file.bytes
+                            )
+                        downloadStatus = when {
+                            saved -> "${action.courseCode} syllabus saved to Downloads"
+                            file == null -> result.error ?: "Could not download syllabus"
+                            else -> "Could not save syllabus file"
+                        }
+                    }
                     is M3ECurriculumAction.Refresh -> AppState.loadAllData()
                 }
             },

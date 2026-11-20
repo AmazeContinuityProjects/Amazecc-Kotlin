@@ -1,5 +1,7 @@
 package com.amazecc.app.shared.api
 
+import com.amazecc.app.shared.state.AmazeNetworkGatePlugin
+
 import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
@@ -176,6 +178,61 @@ fun buildAllGradesFromGradeHistory(
     )
 }
 
+/**
+ * Folds the per-semester `doStudentGradeView` / `getGradeViewDetails` sweep into the base
+ * `AllGradesRes` built from `StudentGradeHistory`. Pure so the join can be unit-tested without a
+ * WebView.
+ *
+ * The detail sweep is authoritative for per-semester GPA, grand totals, `courseId`, assessment
+ * breakdown and grade ranges. The history page remains authoritative for the published CGPA,
+ * the flat curriculum baskets and the exam-month/result/distribution fields it alone carries —
+ * all of which stay untouched in `overall` and are carried over per course by code. Nothing is
+ * invented: a field absent on both sides stays null/empty.
+ */
+fun mergeGradeDetails(
+    base: AllGradesRes,
+    details: Map<String, SemesterGradeResult>
+): AllGradesRes {
+    if (details.isEmpty()) return base
+
+    val merged = base.allSemesters.toMutableMap()
+    details.forEach { (semesterId, detailed) ->
+        val prior = merged[semesterId]
+        if (prior == null) {
+            merged[semesterId] = detailed
+            return@forEach
+        }
+        val priorByCode = prior.grades.associateBy { it.courseCode }
+        merged[semesterId] = SemesterGradeResult(
+            gpa = detailed.gpa ?: prior.gpa,
+            creditsEarned = prior.creditsEarned ?: detailed.creditsEarned,
+            examMonth = prior.examMonth ?: detailed.examMonth,
+            resultDeclared = prior.resultDeclared ?: detailed.resultDeclared,
+            distributionType = prior.distributionType ?: detailed.distributionType,
+            courseId = prior.courseId ?: detailed.courseId,
+            effectiveCourseType = prior.effectiveCourseType ?: detailed.effectiveCourseType,
+            grades = detailed.grades.map { grade ->
+                val historical = priorByCode[grade.courseCode]
+                if (historical == null) grade else grade.copy(
+                    credits = grade.credits ?: historical.credits,
+                    courseTitle = grade.courseTitle.ifBlank { historical.courseTitle },
+                    courseType = grade.courseType.ifBlank { historical.courseType },
+                    examMonth = grade.examMonth ?: historical.examMonth,
+                    resultDeclared = grade.resultDeclared ?: historical.resultDeclared,
+                    distributionType = grade.distributionType ?: historical.distributionType
+                )
+            }
+        )
+    }
+
+    // Preserve whichever map the caller used so `allSemesters` keeps the same precedence.
+    return when {
+        base.semesters != null -> base.copy(semesters = merged)
+        base.grades != null -> base.copy(grades = merged)
+        else -> base.copy(semesters = merged)
+    }
+}
+
 object AmazeClient {
     var baseUrl: String
         get() = SettingsManager.getString(SettingsManager.KEY_HONO_API_URL, "https://hono.amazecc.com").ifBlank { "https://hono.amazecc.com" }
@@ -206,6 +263,8 @@ object AmazeClient {
     }
 
     private val httpClient = HttpClient {
+        // Every request passes through the sync-engine gate (visibility + cancellation + logs).
+        install(AmazeNetworkGatePlugin)
         install(ContentNegotiation) {
             json(jsonConfig)
         }
@@ -373,6 +432,34 @@ object AmazeClient {
                 jsonConfig.decodeFromString<T>(response.bodyAsText())
             } else null
         } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Raw-binary counterpart of [postAuthorized], for proxy routes that stream a VTOP file
+     * rather than a JSON envelope (e.g. `POST /api/curriculum/download`). A 200 carrying JSON is
+     * the proxy's error envelope, so it is rejected; empty bodies fail closed as null.
+     */
+    private suspend fun postAuthorizedBytes(endpoint: String): ByteArray? {
+        if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
+        if (!SessionManager.hasRemoteCookies) return null
+        val cookies = SessionManager.cookies.value ?: return null
+        val authorizedID = SessionManager.authorizedID.value ?: return null
+        val csrf = SessionManager.csrf.value ?: return null
+        return try {
+            val response: HttpResponse = httpClient.post("$baseUrl/api/$endpoint") {
+                contentType(ContentType.Application.Json)
+                setBody(buildJsonObject {
+                    put("cookies", cookies)
+                    put("authorizedID", authorizedID)
+                    put("csrf", csrf)
+                })
+            }
+            if (response.status != HttpStatusCode.OK) return null
+            if (response.headers["Content-Type"].orEmpty().contains("json", ignoreCase = true)) return null
+            response.body<ByteArray>().takeIf { it.isNotEmpty() }
+        } catch (_: Exception) {
             null
         }
     }
@@ -982,8 +1069,17 @@ object AmazeClient {
             } else {
                 val semesterId = com.amazecc.app.shared.vtop.VtopSession.semesterSubId.value.orEmpty()
                 val result = buildAllGradesFromGradeHistory(history, semesterId)
-                AppDataStore.upsertGrades(result)
-                result
+                // The history page has no per-semester GPA, grand totals, courseId, assessment
+                // breakdown or grade ranges. Walk the semester grade views to fill those in so
+                // LOCAL UI is as rich as REMOTE. A failed/empty sweep leaves the base untouched.
+                val detailed = try {
+                    com.amazecc.app.shared.vtop.VtopDataSource.fetchGradeDetails()
+                } catch (_: Exception) {
+                    emptyMap()
+                }
+                val enriched = mergeGradeDetails(result, detailed)
+                AppDataStore.upsertGrades(enriched)
+                enriched
             }
         }
     } catch (e: Exception) {
@@ -1175,6 +1271,41 @@ if (useMockData) return DemoData.get("curriculum", CurriculumRes.serializer()) ?
         } catch (e: Exception) {
             CurriculumRes(success = false, message = e.message, error = e.toString())
         }
+    }
+
+    /**
+     * Downloads the curriculum PDF/ZIP published by VTOP's `academics/curriculDown` endpoint.
+     *
+     * REMOTE: `POST /api/curriculum/download`, which streams the upstream bytes through the Hono
+     * proxy. LOCAL: the on-device scraper walks the same VTOP path with the on-device session.
+     * OFFLINE_CACHE / mock data: null, because no binary is ever cached or fabricated.
+     *
+     * Failure at any stage yields null — no placeholder bytes are manufactured.
+     */
+    suspend fun downloadCurriculum(): ByteArray? {
+        if (useMockData) return null
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return null
+        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
+            return try {
+                com.amazecc.app.shared.vtop.VtopDataSource.fetchCurriculumDownload()
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        // REMOTE — mirror downloadCircular's session handling before the raw-binary POST.
+        var cookies = SessionManager.cookies.value
+        var authorizedID = SessionManager.authorizedID.value
+        var csrf = SessionManager.csrf.value
+        if (cookies == null || authorizedID == null || csrf == null || SessionManager.isSessionStale(SESSION_MAX_AGE_MS)) {
+            if (refreshSession()) {
+                cookies = SessionManager.cookies.value
+                authorizedID = SessionManager.authorizedID.value
+                csrf = SessionManager.csrf.value
+            }
+        }
+        if (!SessionManager.hasRemoteCookies || cookies == null || authorizedID == null || csrf == null) return null
+        return postAuthorizedBytes("curriculum/download")
     }
 
     suspend fun getCalendar(type: String = "ALL", semesterId: String? = null): CalendarRes {

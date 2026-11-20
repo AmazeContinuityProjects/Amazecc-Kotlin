@@ -197,7 +197,12 @@ class SyncEngineSessionTest {
         assertEquals(3, progress.completedModules)
         assertEquals(0, progress.successCount)
         assertEquals(3, progress.errorCount)
-        assertTrue(progress.displayText.contains("3 errors", ignoreCase = true))
+        // Wording moved from "3 errors" to "3 failed" in the sync-progress UI.
+        assertTrue(
+            progress.displayText.contains("3 errors", ignoreCase = true) ||
+                progress.displayText.contains("3 failed", ignoreCase = true),
+            "progress should surface the three module failures"
+        )
     }
 
     @Test
