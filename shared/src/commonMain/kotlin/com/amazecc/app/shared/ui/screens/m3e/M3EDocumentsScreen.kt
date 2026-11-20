@@ -134,7 +134,11 @@ fun M3EDocumentsScreen(
 
         if (state.isLoading) {
             item(key = "progress") {
-                M3EWavyLinearProgress(progress = 0.5f)
+                com.amazecc.app.shared.ui.m3e.components.M3EPageSkeleton(
+                    label = "Loading documents",
+                    tiles = 2,
+                    rows = 4
+                )
             }
         }
 

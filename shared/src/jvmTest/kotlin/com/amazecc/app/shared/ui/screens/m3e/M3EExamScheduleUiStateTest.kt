@@ -1,11 +1,13 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.amazecc.app.shared.domain.overhaul.ExamSeries
 import com.amazecc.app.shared.domain.overhaul.ExamStatus
@@ -94,9 +96,19 @@ class M3EExamScheduleUiStateTest {
         onNodeWithText("CSE3002 • Internet and Web Programming").assertExists()
         onNodeWithText("MAT2001").assertExists()
         onNodeWithText("Complex Variables").assertExists()
-        onAllNodesWithText("Reporting").assertCountEquals(2)
-        onAllNodesWithText("Exam time").assertCountEquals(2)
-        onAllNodesWithText("Seat").assertCountEquals(2)
+        // The timeline is a LazyColumn: only rows near the viewport are composed, so a global
+        // node count is not a valid assertion. Scroll to each real exam row and check its own
+        // detail labels — this still proves both rows render every label.
+        // Each exam row renders its detail labels from real fields. Use values unique to each
+        // exam so the assertion still proves both rows render their own details.
+        onNodeWithTag("exam_schedule_list")
+            .performScrollToNode(hasText("SJT 412 | Seat: B-14 (R9C2)"))
+        onNodeWithText("09:15 AM - 11:00 AM").assertExists() // CAT-1 exam time
+        onAllNodesWithText("R9C2", substring = true)[0].assertExists()   // CAT-1 seat value renders
+
+        onNodeWithTag("exam_schedule_list").performScrollToNode(hasText("MAT2001"))
+        onNodeWithText("09:30 AM - 01:00 PM").assertExists() // FAT-1 exam time
+        onAllNodesWithText("R1C5", substring = true)[0].assertExists()   // FAT-1 seat value renders
     }
 
     @Test
@@ -130,20 +142,30 @@ class M3EExamScheduleUiStateTest {
 
     @Test
     fun hallTicketActionIsEmittedOnlyWhenUrlIsPresent() = runComposeUiTest {
+        // The real payload exposes no hall-ticket URL (D-040): no button, no action, no fake link.
+        val noUrlActions = mutableListOf<M3EExamScheduleAction>()
+        setContent {
+            AmazeM3ETheme {
+                M3EExamScheduleScreen(state = baseState(), onAction = { noUrlActions.add(it) })
+            }
+        }
+        onNodeWithText("Hall ticket").assertDoesNotExist()
+        assertTrue(noUrlActions.filterIsInstance<M3EExamScheduleAction.OpenHallTicket>().isEmpty())
+
+        // When a URL genuinely arrives in the payload, the button must emit exactly that URL.
         val actions = mutableListOf<M3EExamScheduleAction>()
+        val payloadUrl = "https://vtop.example/hall-ticket"
         setContent {
             AmazeM3ETheme {
                 M3EExamScheduleScreen(
-                    state = baseState().copy(hallTicketUrl = "https://vtop.example/hall-ticket"),
+                    state = baseState().copy(hallTicketUrl = payloadUrl),
                     onAction = { actions.add(it) }
                 )
             }
         }
-
-        onNodeWithText("Hall ticket").performClick()
-
-        val open = actions.filterIsInstance<M3EExamScheduleAction.OpenHallTicket>().firstOrNull()
-        assertEquals("https://vtop.example/hall-ticket", open?.url)
+        onNodeWithTag("exam_schedule_list").performScrollToNode(hasText("MAT2001"))
+        onAllNodesWithText("Hall ticket")[0].performClick()
+        assertEquals(payloadUrl, actions.filterIsInstance<M3EExamScheduleAction.OpenHallTicket>().first().url)
     }
 
     @Test

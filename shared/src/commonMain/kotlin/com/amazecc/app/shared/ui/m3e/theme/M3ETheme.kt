@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
+import com.amazecc.app.shared.ui.components.LocalAnimationsEnabled
 
 val LocalM3EColors = staticCompositionLocalOf { M3EDarkPalette }
 
@@ -27,6 +28,14 @@ fun AmazeM3ETheme(
     content: @Composable () -> Unit
 ) {
     val palette = if (isDark) M3EDarkPalette else M3ELightPalette
+
+    // D-084: OS "reduce motion" plus the existing in-app Animations toggle are
+    // folded into one effective decision for every M3E motion spec. The global
+    // publication keeps M3EMotion's factory functions non-composable (some call
+    // sites are plain transition builders); LocalMotionReduced remains the
+    // composable source for primitives that read it directly, e.g. skeletons.
+    val reducedMotion = platformPrefersReducedMotion() || !LocalAnimationsEnabled.current
+    M3EMotion.reducedMotionEnabled = reducedMotion
 
     val m3Colors = if (isDark) {
         darkColorScheme(
@@ -82,6 +91,7 @@ fun AmazeM3ETheme(
 
     CompositionLocalProvider(
         LocalM3EColors provides palette,
+        LocalMotionReduced provides reducedMotion,
         LocalContentColor provides palette.onBackground
     ) {
         MaterialTheme(

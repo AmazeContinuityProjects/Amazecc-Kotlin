@@ -32,9 +32,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.components.M3EListSkeleton
+import com.amazecc.app.shared.ui.m3e.components.SkeletonLeading
+import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import kotlinx.coroutines.delay
 
 /**
@@ -137,6 +142,19 @@ fun CommandPalette(
         }
     }
 
+    // D-052: one dismissal path shared by the Escape key and the "Esc" chip.
+    // The chip previously cleared only the query, which disagreed with the web
+    // palette where Escape (and the chip that advertises it) closes the palette.
+    val handleEscape: () -> Unit = {
+        if (isInSubStage) {
+            subSpec = null
+            subCtx = null
+            subResults = emptyList()
+        } else {
+            onClose()
+        }
+    }
+
     // Handle keyboard navigation globally inside the dialog
     val handleKeyEvent: (KeyEvent) -> Boolean = { event ->
         if (event.type == KeyEventType.KeyDown) {
@@ -156,13 +174,7 @@ fun CommandPalette(
                     true
                 }
                 Key.Escape -> {
-                    if (isInSubStage) {
-                        subSpec = null
-                        subCtx = null
-                        subResults = emptyList()
-                    } else {
-                        onClose()
-                    }
+                    handleEscape()
                     true
                 }
                 else -> false
@@ -266,7 +278,10 @@ fun CommandPalette(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(colors.background)
-                                .clickable { query = "" }
+                                .clickable(onClick = handleEscape)
+                                .semantics(mergeDescendants = true) {
+                                    contentDescription = if (isInSubStage) "Back to all search" else "Close command palette"
+                                }
                                 .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text("Esc", style = AmazeTheme.typography.smallLabel, color = colors.textSecondary)
@@ -338,10 +353,15 @@ fun CommandPalette(
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
                     if (isInSubStage && subLoading) {
+                        // D-074: shape-preserving skeleton instead of a bare spinner.
                         item {
-                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(color = colors.accent, modifier = Modifier.size(28.dp))
-                            }
+                            M3EListSkeleton(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                rows = 3,
+                                leading = SkeletonLeading.DOT,
+                                trailing = true,
+                                label = "Searching"
+                            )
                         }
                     } else if (filteredCommands.isEmpty()) {
                         item {
@@ -458,7 +478,7 @@ private fun CommandItemRow(
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(if (isSelected) colors.accent.copy(alpha = 0.1f) else colors.surface)
-            .clickable(onClick = onClick)
+            .clickableA11y(onClickLabel = item.label, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

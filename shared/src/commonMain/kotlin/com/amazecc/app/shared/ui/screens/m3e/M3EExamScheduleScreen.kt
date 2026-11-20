@@ -20,21 +20,34 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.EventAvailable
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.domain.ExamSeries as DomainExamSeries
@@ -59,6 +72,26 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
+/** Sort order for the grouped timeline (web parity: the schedule's control strip). */
+enum class ExamSortMode(val label: String) {
+    DATE("By date"), COURSE("By course code"), STATUS("By status")
+}
+
+/** Local, screen-level status filter; the series filter itself is host-driven. */
+enum class ExamStatusFilter(val label: String) {
+    ALL("All"), UPCOMING("Upcoming"), TODAY("Today"), COMPLETED("Completed")
+}
+
+/** D-062: export requests carry the exact rows on screen, so per-type exports are truthful. */
+enum class ExamExportFormat { ICS, PNG, PDF }
+
+data class ExamExportRequest(
+    val format: ExamExportFormat,
+    /** Raw VTOP series label for per-type file names; null means the whole schedule. */
+    val seriesLabel: String?,
+    val exams: List<M3EExamEntry>
+)
+
 /**
  * Material 3 Expressive Exam Schedule & Seating hub.
  * 100% stateless: accepts [M3EExamScheduleState] and emits [M3EExamScheduleAction].
@@ -73,13 +106,53 @@ fun M3EExamScheduleScreen(
     onAction: (M3EExamScheduleAction) -> Unit,
     modifier: Modifier = Modifier,
     /** Detail UI is host-owned; the action set has no "show details" intent. */
-    onExamClicked: (M3EExamEntry) -> Unit = {}
+    onExamClicked: (M3EExamEntry) -> Unit = {},
+    /** D-062: exports are host-owned because they need file access; rows are passed explicitly. */
+    onExport: (ExamExportRequest) -> Unit = {},
+    isExporting: Boolean = false,
+    exportNotice: String? = null
 ) {
     val colors = M3ETheme.colors
-    // Legacy hosts (the bridge) do not populate groupedEntries yet — derive the same groups here
-    // so their rows keep rendering until App.kt points at M3EExamScheduleHost.
-    val groups = state.groupedEntries.ifEmpty {
-        M3EExamScheduleComputations.groupBySeries(state.filteredExams)
+    val clipboard = LocalClipboardManager.current
+    var sortMode by remember { mutableStateOf(ExamSortMode.DATE) }
+    var statusFilter by remember { mutableStateOf(ExamStatusFilter.ALL) }
+    var copyNotice by remember { mutableStateOf<String?>(null) }
+
+    val dateComparator = compareBy<M3EExamEntry>(
+        { M3EExamScheduleComputations.parseDate(it.date)?.toEpochDays() ?: Int.MAX_VALUE },
+        { M3EExamScheduleComputations.clockMinutes(it.examTime) ?: 0 },
+        { it.courseCode }
+    )
+    val visibleExams = remember(state.filteredExams, sortMode, statusFilter) {
+        val byStatus = when (statusFilter) {
+            ExamStatusFilter.ALL -> state.filteredExams
+            ExamStatusFilter.UPCOMING -> state.filteredExams.filter { it.status == ExamStatus.UPCOMING }
+            ExamStatusFilter.TODAY -> state.filteredExams.filter { it.status == ExamStatus.TODAY }
+            ExamStatusFilter.COMPLETED -> state.filteredExams.filter { it.status == ExamStatus.COMPLETED }
+        }
+        when (sortMode) {
+            ExamSortMode.DATE -> byStatus.sortedWith(dateComparator)
+            ExamSortMode.COURSE -> byStatus.sortedWith(
+                compareBy<M3EExamEntry>({ it.courseCode }, { it.date })
+            )
+            ExamSortMode.STATUS -> byStatus.sortedWith(
+                compareBy<M3EExamEntry>({ it.status.ordinal }, { it.date })
+            )
+        }
+    }
+    val groups = remember(visibleExams, sortMode) {
+        M3EExamScheduleComputations.groupBySeries(visibleExams).map { group ->
+            if (sortMode == ExamSortMode.DATE) group
+            else group.copy(
+                entries = group.entries.sortedWith(
+                    when (sortMode) {
+                        ExamSortMode.COURSE -> compareBy<M3EExamEntry>({ it.courseCode }, { it.date })
+                        ExamSortMode.STATUS -> compareBy<M3EExamEntry>({ it.status.ordinal }, { it.date })
+                        ExamSortMode.DATE -> dateComparator
+                    }
+                )
+            )
+        }
     }
 
     Box(
@@ -88,7 +161,7 @@ fun M3EExamScheduleScreen(
             .background(colors.surface)
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag("exam_schedule_list"),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -111,13 +184,21 @@ fun M3EExamScheduleScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = colors.onSurfaceVariant
                         )
+                        // Copy/export feedback is informational; load failures use the error card.
+                        listOfNotNull(copyNotice, exportNotice).takeIf { it.isNotEmpty() }?.let { notices ->
+                            Text(
+                                text = notices.joinToString(" · "),
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.primary
+                            )
+                        }
                     }
 
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         IconButton(
                             onClick = { onAction(M3EExamScheduleAction.Refresh) },
                             modifier = Modifier
-                                .size(42.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
                                 .background(colors.surfaceContainerHigh)
                         ) {
@@ -128,10 +209,64 @@ fun M3EExamScheduleScreen(
                                 modifier = Modifier.size(20.dp)
                             )
                         }
+                        // D-062: real clipboard copy of every course code currently on screen.
+                        IconButton(
+                            onClick = {
+                                val codes = visibleExams.map { it.courseCode }.distinct()
+                                clipboard.setText(AnnotatedString(codes.joinToString("\n")))
+                                copyNotice = "Copied ${codes.size} course code${if (codes.size == 1) "" else "s"}"
+                            },
+                            enabled = visibleExams.isNotEmpty(),
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(colors.surfaceContainerHigh)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.ContentCopy,
+                                contentDescription = "Copy course codes",
+                                tint = colors.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                onExport(ExamExportRequest(ExamExportFormat.PNG, null, visibleExams))
+                            },
+                            enabled = !isExporting && visibleExams.isNotEmpty(),
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(colors.surfaceContainerHigh)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Download,
+                                contentDescription = "Download exam schedule as PNG",
+                                tint = colors.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        IconButton(
+                            onClick = {
+                                onExport(ExamExportRequest(ExamExportFormat.PDF, null, visibleExams))
+                            },
+                            enabled = !isExporting && visibleExams.isNotEmpty(),
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(colors.surfaceContainerHigh)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.PictureAsPdf,
+                                contentDescription = "Download exam schedule as PDF",
+                                tint = colors.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                         IconButton(
                             onClick = { onAction(M3EExamScheduleAction.ExportCalendar) },
                             modifier = Modifier
-                                .size(42.dp)
+                                .size(40.dp)
                                 .clip(CircleShape)
                                 .background(colors.primaryContainer)
                         ) {
@@ -140,6 +275,13 @@ fun M3EExamScheduleScreen(
                                 contentDescription = "Export to Calendar",
                                 tint = colors.onPrimaryContainer,
                                 modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        if (isExporting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = colors.primary,
+                                strokeWidth = 2.dp
                             )
                         }
                     }
@@ -235,8 +377,56 @@ fun M3EExamScheduleScreen(
                     }
                 }
 
+                // ── Sort + status filters (D-062) ───────────────────────────────────
+                item(key = "exam_sort_filter") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Sort by",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.onSurfaceVariant
+                        )
+                        M3EConnectedButtonGroup(
+                            items = ExamSortMode.entries,
+                            selectedItem = sortMode,
+                            onItemSelected = { sortMode = it },
+                            labelProvider = { it.label }
+                        )
+                        Text(
+                            text = "Status",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.onSurfaceVariant
+                        )
+                        // Tagged chips: a status badge on an exam row carries the same word
+                        // ("Completed"), so tests must be able to target the real filter control.
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ExamStatusFilter.entries.forEach { filter ->
+                                val selected = filter == statusFilter
+                                OutlinedButton(
+                                    onClick = { statusFilter = filter },
+                                    modifier = Modifier
+                                        .height(36.dp)
+                                        .testTag("exam_status_filter_${filter.name}"),
+                                    shape = RoundedCornerShape(10.dp),
+                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (selected) colors.primaryContainer
+                                        else colors.surfaceContainerLow,
+                                        contentColor = if (selected) colors.onPrimaryContainer
+                                        else colors.onSurfaceVariant
+                                    )
+                                ) {
+                                    Text(filter.label, style = MaterialTheme.typography.labelSmall)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // ── Grouped timeline ────────────────────────────────────────────────
-                if (state.filteredExams.isEmpty()) {
+                if (visibleExams.isEmpty()) {
                     item(key = "empty_exams") {
                         M3ESurfaceCard(
                             containerLevel = SurfaceContainerLevel.LOW,
@@ -254,7 +444,11 @@ fun M3EExamScheduleScreen(
                                     modifier = Modifier.size(40.dp)
                                 )
                                 Text(
-                                    text = "No exams scheduled for ${state.selectedSeries.label}",
+                                    text = if (statusFilter == ExamStatusFilter.ALL) {
+                                        "No exams scheduled for ${state.selectedSeries.label}"
+                                    } else {
+                                        "No ${statusFilter.label.lowercase()} exams in ${state.selectedSeries.label}"
+                                    },
                                     style = MaterialTheme.typography.titleMedium,
                                     color = colors.onSurface
                                 )
@@ -273,7 +467,9 @@ fun M3EExamScheduleScreen(
                                 group = group,
                                 hallTicketUrl = state.hallTicketUrl,
                                 onAction = onAction,
-                                onExamClicked = onExamClicked
+                                onExamClicked = onExamClicked,
+                                onExport = onExport,
+                                isExporting = isExporting
                             )
                         }
                     }
@@ -449,6 +645,8 @@ private fun M3EExamSeriesSection(
     hallTicketUrl: String?,
     onAction: (M3EExamScheduleAction) -> Unit,
     onExamClicked: (M3EExamEntry) -> Unit,
+    onExport: (ExamExportRequest) -> Unit,
+    isExporting: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
@@ -483,6 +681,46 @@ private fun M3EExamSeriesSection(
                 style = MaterialTheme.typography.labelMedium,
                 color = colors.onSurfaceVariant
             )
+        }
+
+        // D-062: per-series exports. ICS reuses the D-040 builder with only this group's rows.
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(
+                onClick = {
+                    onExport(ExamExportRequest(ExamExportFormat.PNG, group.label, group.entries))
+                },
+                enabled = !isExporting && group.entries.isNotEmpty(),
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                modifier = Modifier.height(34.dp)
+            ) {
+                Text("${group.label} PNG", style = MaterialTheme.typography.labelSmall)
+            }
+            OutlinedButton(
+                onClick = {
+                    onExport(ExamExportRequest(ExamExportFormat.PDF, group.label, group.entries))
+                },
+                enabled = !isExporting && group.entries.isNotEmpty(),
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                modifier = Modifier.height(34.dp)
+            ) {
+                Text("${group.label} PDF", style = MaterialTheme.typography.labelSmall)
+            }
+            OutlinedButton(
+                onClick = {
+                    onExport(ExamExportRequest(ExamExportFormat.ICS, group.label, group.entries))
+                },
+                enabled = !isExporting && group.entries.isNotEmpty(),
+                shape = RoundedCornerShape(10.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                modifier = Modifier.height(34.dp)
+            ) {
+                Text("Add to Calendar", style = MaterialTheme.typography.labelSmall)
+            }
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -581,24 +819,36 @@ private fun M3EExamRowCard(
                 )
             }
 
-            // Detail rows
-            M3EExamDetailRow(Icons.Rounded.AccessTime, "Reporting", exam.reportingTime.ifBlank { "TBA" })
-            M3EExamDetailRow(Icons.Rounded.AccessTime, "Exam time", exam.examTime.ifBlank { "TBA" })
+            // Detail rows — tagged per exam so a test can verify each row even when a LazyColumn
+            // has composed only part of the timeline.
+            M3EExamDetailRow(
+                Icons.Rounded.AccessTime, "Reporting", exam.reportingTime.ifBlank { "TBA" },
+                modifier = Modifier.testTag("exam_reporting_${exam.id}")
+            )
+            M3EExamDetailRow(
+                Icons.Rounded.AccessTime, "Exam time", exam.examTime.ifBlank { "TBA" },
+                modifier = Modifier.testTag("exam_exam_time_${exam.id}")
+            )
             M3EExamDetailRow(
                 Icons.Rounded.LocationOn,
                 "Venue",
-                exam.venueDisplay.ifBlank { exam.venue }.ifBlank { "TBA" }
+                exam.venueDisplay.ifBlank { exam.venue }.ifBlank { "TBA" },
+                modifier = Modifier.testTag("exam_venue_${exam.id}")
             )
             M3EExamDetailRow(
                 Icons.Rounded.CalendarMonth,
                 "Seat",
                 if (exam.seatLocation.isBlank()) exam.seatNumber.ifBlank { "TBA" }
-                else "${exam.seatNumber.ifBlank { "TBA" }} · ${exam.seatLocation}"
+                else "${exam.seatNumber.ifBlank { "TBA" }} · ${exam.seatLocation}",
+                modifier = Modifier.testTag("exam_seat_${exam.id}")
             )
 
             // Hall ticket — only when the payload actually exposes a link.
             if (hallTicketUrl != null) {
-                Button(onClick = { onOpenHallTicket(hallTicketUrl) }) {
+                Button(
+                    onClick = { onOpenHallTicket(hallTicketUrl) },
+                    modifier = Modifier.testTag("exam_hall_ticket_${exam.id}")
+                ) {
                     Icon(
                         imageVector = Icons.Rounded.OpenInNew,
                         contentDescription = null,
@@ -613,10 +863,15 @@ private fun M3EExamRowCard(
 }
 
 @Composable
-private fun M3EExamDetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+private fun M3EExamDetailRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
     val colors = M3ETheme.colors
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

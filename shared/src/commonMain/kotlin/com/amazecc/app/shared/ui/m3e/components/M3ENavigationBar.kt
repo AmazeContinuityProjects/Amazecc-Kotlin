@@ -10,7 +10,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.ui.components.NavTapOutcome
+import com.amazecc.app.shared.ui.components.NavTapTracker
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -77,7 +78,8 @@ fun M3ENavigationBar(
     modifier: Modifier = Modifier,
     currentScreen: Screen = AppState.currentScreen.collectAsState().value,
     pinnedTabs: List<Screen> = AppState.pinnedNavTabs.collectAsState().value,
-    onTabSelected: (Screen) -> Unit = { AppState.navigateTo(it) }
+    onTabSelected: (Screen) -> Unit = { AppState.navigateTo(it) },
+    onTabReselected: (Screen, Boolean) -> Unit = { screen, _ -> onTabSelected(screen) }
 ) {
     if (currentScreen == Screen.LOGIN || currentScreen == Screen.SPLASH || currentScreen == Screen.ONBOARDING) {
         return
@@ -104,6 +106,7 @@ fun M3ENavigationBar(
         tabs = tabs,
         currentScreen = currentScreen,
         onTabSelected = onTabSelected,
+        onTabReselected = onTabReselected,
         modifier = modifier
     )
 }
@@ -113,12 +116,14 @@ fun M3ENavigationBar(
     tabs: List<Screen>,
     currentScreen: Screen,
     onTabSelected: (Screen) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onTabReselected: (Screen, Boolean) -> Unit = { screen, _ -> onTabSelected(screen) }
 ) {
     M3ENavigationBarContent(
         tabs = tabs,
         currentScreen = currentScreen,
         onTabSelected = onTabSelected,
+        onTabReselected = onTabReselected,
         modifier = modifier
     )
 }
@@ -128,9 +133,13 @@ private fun M3ENavigationBarContent(
     tabs: List<Screen>,
     currentScreen: Screen,
     onTabSelected: (Screen) -> Unit,
+    onTabReselected: (Screen, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    // D-055: consumed-pair tracker, keyed by tab. Remembers whether the first
+    // tap of a pair had to navigate into the section (for history collapsing).
+    val tapTracker = remember { NavTapTracker() }
 
     Box(
         modifier = modifier
@@ -156,7 +165,12 @@ private fun M3ENavigationBarContent(
                     icon = icon,
                     label = label,
                     isSelected = isSelected,
-                    onClick = { onTabSelected(tab) }
+                    onClick = {
+                        when (val outcome = tapTracker.tap(tab.name, wasActive = isSelected)) {
+                            NavTapOutcome.Single -> onTabSelected(tab)
+                            is NavTapOutcome.GoRoot -> onTabReselected(tab, outcome.collapseFirstTap)
+                        }
+                    }
                 )
             }
         }
@@ -206,9 +220,9 @@ private fun M3ENavItemPill(
             }
             .clip(CircleShape)
             .background(activeBgColor)
-            .clickable(
+            .clickableA11y(
+                onClickLabel = label,
                 interactionSource = interactionSource,
-                indication = null,
                 onClick = onClick
             )
             .padding(horizontal = horizontalPadding, vertical = 13.dp),

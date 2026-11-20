@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -90,6 +91,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.domain.ApiTarget
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.LogLine
 import com.amazecc.app.shared.state.NetworkGate
@@ -147,6 +150,9 @@ fun M3ESyncNotification(
     val isAppStateSyncing by AppState.isSyncing.collectAsState()
     val isAppStateLoading by AppState.isLoading.collectAsState()
     val syncMessage by AppState.syncMessage.collectAsState()
+    // D-036/D-067: the offline/cache banner is mounted from App.kt through this root component.
+    val isUsingCachedData by AppState.isUsingCachedData.collectAsState()
+    val offlineCacheStatus by AppState.offlineCacheStatus.collectAsState()
 
     val isEngineSyncing = syncProgress.activeModules.isNotEmpty() || SyncEngine.isAnyModuleLoading()
     val isSyncing = isAppStateSyncing || isAppStateLoading || isEngineSyncing
@@ -163,6 +169,15 @@ fun M3ESyncNotification(
     var isLoggingIn by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
 
+    // D-067: per-problem dismissal and a real health check behind "Check now".
+    var dismissedConnectionProblem by remember { mutableStateOf<String?>(null) }
+    var isCheckingConnection by remember { mutableStateOf(false) }
+    var connectionCheckMessage by remember { mutableStateOf<String?>(null) }
+
+    // D-066: the sheet's gateway switch. Persisted by AmazeClient.setApiTarget -> SettingsManager.
+    var apiTargetName by remember { mutableStateOf(SettingsManager.getApiTargetName()) }
+    var apiTargetMessage by remember { mutableStateOf<String?>(null) }
+
     // Classify notice state across ALL recent lines. Reading only the last line let a late
     // "Synced" from a parallel module hide an earlier "Session expired" from the user.
     val notice: M3ESyncNotice? = remember(syncProgress, logLines, isSyncing) {
@@ -173,6 +188,22 @@ fun M3ESyncNotification(
                 text.contains("session expired") || text.contains("sign in again") -> M3ESyncNotice.LOGIN
             text.contains("offline") || text.contains("no network") -> M3ESyncNotice.OFFLINE
             else -> null
+        }
+    }
+
+    // Web parity: a device-offline banner wins; an explicit VTOP-down log line is the server-down
+    // case. "Using cached data" with no other signal is shown as the offline/saved-data case.
+    val connectionProblem: String? = when {
+        notice == M3ESyncNotice.VTOP_DOWN -> "vtop"
+        isUsingCachedData || !offlineCacheStatus.isNullOrBlank() -> "offline"
+        else -> null
+    }
+
+    // Like the web banner, a cleaned-up problem resets its dismissal so a recurrence shows again.
+    LaunchedEffect(connectionProblem) {
+        if (connectionProblem == null) {
+            dismissedConnectionProblem = null
+            connectionCheckMessage = null
         }
     }
 
@@ -193,13 +224,12 @@ fun M3ESyncNotification(
     // Auto-dismiss 2.5s after clean completion
     LaunchedEffect(isSyncing, syncProgress.completedModules, syncProgress.errorCount, isMinimized) {
         if (!isSyncing && showSyncDialog && !isMinimized && syncProgress.errorCount == 0 && syncProgress.completedModules > 0) {
-            delay(2500L)
+            delay(com.amazecc.app.shared.ui.m3e.theme.M3EFeedbackDurations.SYNC_SUCCESS_CLOSE_MS)
             SyncEngine.setShowSyncDialog(false)
         }
     }
 
     val shouldShow = (showSyncDialog && !userDismissed) || isSyncing
-    if (!shouldShow) return
 
     val progressPercent = syncProgress.percentage.coerceIn(0f, 100f)
 
@@ -225,6 +255,35 @@ fun M3ESyncNotification(
             .zIndex(100f),
         contentAlignment = Alignment.BottomCenter
     ) {
+        // D-036/D-067: this banner is independent of the sync sheet lifecycle, so it renders
+        // even when no sync is running. Explicit child alignment keeps it at the top of the root.
+        M3EConnectionBanner(
+            problem = connectionProblem.takeIf { it != dismissedConnectionProblem },
+            cacheStatus = offlineCacheStatus,
+            checkMessage = connectionCheckMessage,
+            isChecking = isCheckingConnection,
+            onCheckNow = {
+                isCheckingConnection = true
+                connectionCheckMessage = null
+                coroutineScope.launch {
+                    val (reachable, latencyMs) = AmazeClient.pingHealth()
+                    isCheckingConnection = false
+                    connectionCheckMessage = if (reachable) {
+                        dismissedConnectionProblem = connectionProblem
+                        "Connected — server replied in ${latencyMs}ms."
+                    } else {
+                        "Still unreachable — showing your saved data."
+                    }
+                }
+            },
+            onDismiss = {
+                dismissedConnectionProblem = connectionProblem
+                connectionCheckMessage = null
+            },
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
+
+        if (shouldShow) {
         // ==========================================
         // 1. MINIMIZED FLOATING PILL (ENERGY BAR)
         // ==========================================
@@ -822,6 +881,20 @@ fun M3ESyncNotification(
                             }
                         }
 
+                        // D-066: web-parity gateway switch inside the sync sheet. Every entry is
+                        // a real ApiTarget; setApiTarget updates AmazeClient.baseUrl and persists.
+                        ApiTargetPicker(
+                            selected = ApiTarget.fromName(apiTargetName),
+                            message = apiTargetMessage,
+                            onSelected = { target ->
+                                AmazeClient.setApiTarget(target)
+                                apiTargetName = target.name
+                                apiTargetMessage = target.url?.let {
+                                    "Now using ${target.label} · $it"
+                                } ?: "Now using your saved Worker Base URL (Custom)"
+                            }
+                        )
+
                         // Collapsible Console / Activity Logs
                         AnimatedVisibility(
                             visible = showConsole,
@@ -874,7 +947,7 @@ fun M3ESyncNotification(
                                                 clipboard.setText(AnnotatedString(all))
                                                 copiedLogsToast = true
                                                 coroutineScope.launch {
-                                                    delay(1800)
+                                                    delay(com.amazecc.app.shared.ui.m3e.theme.M3EFeedbackDurations.COPY_TOAST_MS)
                                                     copiedLogsToast = false
                                                 }
                                             }
@@ -1023,6 +1096,7 @@ fun M3ESyncNotification(
                 }
             }
         }
+        } // if (shouldShow)
     }
 }
 
@@ -1093,6 +1167,189 @@ private fun MilestoneRow(item: MilestoneItem) {
                 color = colors.onSurfaceVariant,
                 fontSize = 11.sp
             )
+        }
+    }
+}
+
+/**
+ * D-036/D-067: web `ConnectionBanner` parity. Offline and VTOP-down get distinct copy; the
+ * server-down case owns a real "Check now" action (`AmazeClient.pingHealth`) that is disabled and
+ * shows a spinner while in flight. Dismissal is per problem, and a recurring problem shows again.
+ * [cacheStatus] is AppState.offlineCacheStatus, surfaced here so cached data is never silent.
+ */
+@Composable
+private fun M3EConnectionBanner(
+    problem: String?,
+    cacheStatus: String?,
+    checkMessage: String?,
+    isChecking: Boolean,
+    onCheckNow: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    AnimatedVisibility(
+        visible = problem != null,
+        enter = slideInVertically { -it } + fadeIn(),
+        exit = slideOutVertically { -it } + fadeOut(),
+        modifier = modifier
+    ) {
+        val serverDown = problem == "vtop"
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(start = 12.dp, end = 12.dp, top = 8.dp)
+        ) {
+            M3ESurfaceCard(
+                containerLevel = SurfaceContainerLevel.HIGH,
+                cornerRadius = 16.dp,
+                borderColor = if (serverDown) colors.error else colors.warning,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Icon(
+                        imageVector = if (serverDown) Icons.Rounded.CloudOff else Icons.Rounded.WifiOff,
+                        contentDescription = null,
+                        tint = if (serverDown) colors.error else colors.warning,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = if (serverDown) "VTOP isn't responding right now." else "You're offline.",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = colors.onSurface
+                        )
+                        Text(
+                            text = if (serverDown) {
+                                "This is on VIT's side, not your password. Showing your saved data; we'll check again in a few minutes."
+                            } else {
+                                "Showing your saved data. It refreshes when you're back online."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                        if (!cacheStatus.isNullOrBlank()) {
+                            Text(
+                                text = cacheStatus,
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = colors.primary
+                            )
+                        }
+                        if (!checkMessage.isNullOrBlank()) {
+                            Text(
+                                text = checkMessage,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                    if (serverDown) {
+                        OutlinedButton(
+                            onClick = onCheckNow,
+                            enabled = !isChecking,
+                            shape = RoundedCornerShape(10.dp),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                            modifier = Modifier.height(34.dp)
+                        ) {
+                            if (isChecking) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    color = colors.primary,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text(
+                                    text = "Check now",
+                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                                )
+                            }
+                        }
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            imageVector = Icons.Rounded.Close,
+                            contentDescription = "Dismiss connection notice",
+                            tint = colors.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * D-066: real gateway switch for the sync sheet. Every option is a live [ApiTarget] from the
+ * domain enum; selecting one calls AmazeClient.setApiTarget (URL + SettingsManager persistence).
+ * The web-only UniCC proxy is deliberately absent from the shared enum (it 404s unported routes).
+ */
+@Composable
+private fun ApiTargetPicker(
+    selected: ApiTarget,
+    message: String?,
+    onSelected: (ApiTarget) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 18.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Refresh,
+                    contentDescription = null,
+                    tint = colors.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Column {
+                    Text(
+                        text = "API target",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = colors.onSurface
+                    )
+                    Text(
+                        text = "Current: ${selected.label}${selected.url?.let { " · $it" } ?: " · your saved Worker Base URL"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+            }
+            M3EConnectedButtonGroup(
+                items = ApiTarget.entries,
+                selectedItem = selected,
+                onItemSelected = onSelected,
+                labelProvider = { it.label },
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (!message.isNullOrBlank()) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.success
+                )
+            }
         }
     }
 }

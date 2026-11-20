@@ -3,7 +3,6 @@ package com.amazecc.app.shared.ui.m3e.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
@@ -71,11 +70,8 @@ fun M3ESurfaceCard(
             .border(1.dp, effectiveBorderColor, shape)
             .then(
                 if (onClick != null) {
-                    Modifier.clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                        onClick = onClick
-                    )
+                    // D-085: explicit button role + focus + Enter/Space activation.
+                    Modifier.clickableA11y(onClick = onClick)
                 } else Modifier
             )
             .padding(16.dp)

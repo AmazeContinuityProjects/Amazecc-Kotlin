@@ -48,7 +48,11 @@ data class M3EFresherSection(val category: M3EFresherCategory, val title: String
 
 /** Immutable, stateless state for [M3EFresherWelcomeScreen]. */
 @Immutable
-data class M3EFresherWelcomeState(val sections: List<M3EFresherSection> = emptyList())
+data class M3EFresherWelcomeState(
+    val sections: List<M3EFresherSection> = emptyList(),
+    /** Real profile key used by [M3EFresherContent] to build [sections]. */
+    val profile: M3EFresherProfile = M3EFresherProfile()
+)
 
 /** User intents emitted by [M3EFresherWelcomeScreen]. */
 sealed interface M3EFresherWelcomeAction {
@@ -87,8 +91,17 @@ fun M3EFresherWelcomeScreen(
                         ) {
                             Icon(Icons.Rounded.Star, contentDescription = null, tint = colors.onPrimaryContainer, modifier = Modifier.size(28.dp))
                         }
-                        Text("Welcome to VIT!", fontSize = 24.sp, fontWeight = FontWeight.Black, color = colors.onSurface)
-                        Text("Everything you need to know to get started.", fontSize = 13.sp, color = colors.onSurfaceVariant)
+                        Text(
+                            M3EFresherContent.welcomeTitle(state.profile),
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Black,
+                            color = colors.onSurface
+                        )
+                        Text(
+                            M3EFresherContent.welcomeSubtitle(state.sections),
+                            fontSize = 13.sp,
+                            color = colors.onSurfaceVariant
+                        )
                     }
                 }
             }
@@ -140,24 +153,22 @@ private fun sectionTint(category: M3EFresherCategory) = when (category) {
     M3EFresherCategory.EVENTS -> M3ETheme.colors.secondary
 }
 
-private fun mockFresherState() = M3EFresherWelcomeState(
-    sections = listOf(
-        M3EFresherSection(M3EFresherCategory.CAMPUS, "Campus", "Labs, libraries, sports and hostels. Get your ID card and explore."),
-        M3EFresherSection(M3EFresherCategory.ACADEMICS, "Academics", "Attend orientation, understand CBCS, and track attendance and grades via VTOP."),
-        M3EFresherSection(M3EFresherCategory.HOSTEL, "Hostel", "Accommodation, mess timings, laundry and counselling in the Hostel module."),
-        M3EFresherSection(M3EFresherCategory.TRANSPORT, "Transport", "College bus routes and passes for day-boarders."),
-        M3EFresherSection(M3EFresherCategory.EVENTS, "Events", "Clubs, hackathons, cultural fests and tech talks.")
+/** Preview state comes from the same real content provider the host will use. */
+private fun previewFresherState() = M3EFresherWelcomeState(
+    profile = M3EFresherProfile(displayName = "Student", isHosteller = false, isDayScholar = false),
+    sections = M3EFresherContent.sectionsFor(
+        M3EFresherProfile(displayName = "Student", isHosteller = false, isDayScholar = false)
     )
 )
 
 @Preview
 @Composable
 private fun M3EFresherWelcomeScreenPreview() {
-    AmazeM3ETheme(isDark = false) { M3EFresherWelcomeScreen(state = mockFresherState(), onAction = {}) }
+    AmazeM3ETheme(isDark = false) { M3EFresherWelcomeScreen(state = previewFresherState(), onAction = {}) }
 }
 
 @Preview
 @Composable
 private fun M3EFresherWelcomeScreenDarkPreview() {
-    AmazeM3ETheme(isDark = true) { M3EFresherWelcomeScreen(state = mockFresherState(), onAction = {}) }
+    AmazeM3ETheme(isDark = true) { M3EFresherWelcomeScreen(state = previewFresherState(), onAction = {}) }
 }

@@ -49,6 +49,7 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
     var refreshTick by remember { mutableStateOf(0) }
     var selectedExam by remember { mutableStateOf<M3EExamEntry?>(null) }
     var exportNotice by remember { mutableStateOf<String?>(null) }
+    var isExporting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val saveFile = rememberFileSaver()
 
@@ -106,7 +107,8 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
         isLoading = isFetching || isLoading,
         // A failed fetch returns a non-null ExamScheduleRes(success=false), so exception-only
         // error detection rendered those failures as "No exams scheduled". Read both sources.
-        errorMessage = exportNotice ?: examScheduleErrorMessage(loadError, scheduleRes),
+        // Export feedback is informational and passed separately; it must not hide the timeline.
+        errorMessage = examScheduleErrorMessage(loadError, scheduleRes),
         groupedEntries = groups,
         availableSeries = availableSeries,
         // ExamItem / ExamScheduleRes expose no hall-ticket URL today. The state field and the
@@ -115,6 +117,43 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
         hallTicketUrl = null,
         statusCounts = counts
     )
+
+    /**
+     * D-062: every export writes real bytes produced from the exact rows on screen. ICS delegates
+     * to the D-040 builder rather than duplicating calendar logic; PNG/PDF come from the pure
+     * [M3EExamScheduleExports] writers. Failures are surfaced as informational notices.
+     */
+    fun exportExams(request: ExamExportRequest) {
+        scope.launch {
+            isExporting = true
+            exportNotice = try {
+                val extension = when (request.format) {
+                    ExamExportFormat.ICS -> "ics"
+                    ExamExportFormat.PDF -> "pdf"
+                    ExamExportFormat.PNG -> "png"
+                }
+                val fileName = M3EExamScheduleExports.fileName(extension, request.seriesLabel)
+                val bytes: ByteArray? = when (request.format) {
+                    ExamExportFormat.ICS -> buildExamIcs(request.exams)?.toByteArray()
+                    ExamExportFormat.PDF -> M3EExamScheduleExports.buildPdf(
+                        request.seriesLabel ?: "Exam Schedule", request.exams
+                    )
+                    ExamExportFormat.PNG -> M3EExamScheduleExports.buildPng(
+                        request.seriesLabel ?: "Exam Schedule", request.exams
+                    )
+                }
+                when {
+                    bytes == null -> "No dated exams are available to export."
+                    saveFile(fileName, bytes) -> "${request.format.name} saved to Downloads as $fileName."
+                    else -> "Could not save $fileName."
+                }
+            } catch (e: Exception) {
+                "Export failed: ${e.message ?: "unknown error"}"
+            } finally {
+                isExporting = false
+            }
+        }
+    }
 
     AmazeM3ETheme(isDark = isDark) {
         M3EExamScheduleScreen(
@@ -129,18 +168,13 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
                     }
                     is M3EExamScheduleAction.OpenHallTicket -> openExternalUrl(action.url)
                     is M3EExamScheduleAction.ExamClicked -> selectedExam = action.exam
-                    M3EExamScheduleAction.ExportCalendar -> scope.launch {
-                        val ics = buildExamIcs(entries)
-                        exportNotice = if (ics == null) {
-                            "No dated exams are available to export."
-                        } else if (saveFile("amazecc-exams.ics", ics.toByteArray())) {
-                            "Exam calendar saved to Downloads."
-                        } else {
-                            "Could not save the exam calendar file."
-                        }
-                    }
+                    M3EExamScheduleAction.ExportCalendar ->
+                        exportExams(ExamExportRequest(ExamExportFormat.ICS, null, entries))
                 }
             },
+            onExport = { request -> exportExams(request) },
+            isExporting = isExporting,
+            exportNotice = exportNotice,
             modifier = modifier,
             onExamClicked = { exam -> selectedExam = exam }
         )

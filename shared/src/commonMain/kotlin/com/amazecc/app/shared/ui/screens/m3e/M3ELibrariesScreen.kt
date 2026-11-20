@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,15 +16,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.ChevronLeft
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -34,16 +39,33 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.domain.overhaul.M3EKohaBookDetail
 import com.amazecc.app.shared.domain.overhaul.M3EKohaHolding
+import com.amazecc.app.shared.model.KohaBook
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
@@ -51,6 +73,9 @@ import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /** A library book, mapped from either an issued [BookItem] or a Koha catalog hit. */
@@ -123,6 +148,15 @@ internal fun renewLibraryOutcome(result: com.amazecc.app.shared.model.BasicRes):
         null to (result.message?.takeIf { it.isNotBlank() } ?: "Renewal failed")
     }
 
+/** Same field mapping the host uses for page 0, so later pages render identically (D-063). */
+private fun KohaBook.toM3ELibraryBook() = M3ELibraryBook(
+    id = biblionumber,
+    title = title,
+    author = author,
+    publisher = publisher.takeIf { it.isNotBlank() },
+    isbn = isbn.takeIf { it.isNotBlank() }
+)
+
 /**
  * Material 3 Expressive Library screen.
  * 100% stateless: receives [M3ELibrariesState] and emits [M3ELibrariesAction].
@@ -138,9 +172,63 @@ fun M3ELibrariesScreen(
     val colors = M3ETheme.colors
     val showBookDetail = state.bookDetail != null || state.isDetailLoading || state.detailErrorMessage != null
 
+    // D-063: the host owns page 0 (state.searchResults). Deeper pages hit the same real Koha
+    // endpoint with its offset — this shared action/state model has no page intent, so paging is
+    // screen-local rather than a fake slice of the first 20 rows. Detail stays host-driven.
+    val pageScope = rememberCoroutineScope()
+    var currentPage by remember { mutableStateOf(0) }
+    var pagedResults by remember { mutableStateOf(state.searchResults) }
+    var isPaging by remember { mutableStateOf(false) }
+    var pageError by remember { mutableStateOf<String?>(null) }
+    var selectedResultIndex by remember { mutableStateOf(-1) }
+    val catalogPageSize = 20 // matches AmazeClient.searchLibrary's `count=20`
+    val totalPages = if (state.totalResults <= 0) 1 else
+        (state.totalResults + catalogPageSize - 1) / catalogPageSize
+    val resultFocusRequesters = remember(pagedResults.size) { List(pagedResults.size) { FocusRequester() } }
+
+    LaunchedEffect(state.searchQuery, state.hasSearched, state.searchResults) {
+        currentPage = 0
+        pagedResults = state.searchResults
+        pageError = null
+        selectedResultIndex = -1
+    }
+
+    fun requestCatalogPage(page: Int) {
+        if (page !in 0 until totalPages || isPaging) return
+        if (page == 0) {
+            currentPage = 0
+            pagedResults = state.searchResults
+            selectedResultIndex = -1
+            pageError = null
+            return
+        }
+        isPaging = true
+        pageError = null
+        pageScope.launch {
+            try {
+                val res = withContext(Dispatchers.Default) {
+                    AmazeClient.searchLibrary(state.searchQuery, "kw", page * catalogPageSize)
+                }
+                if (res.success) {
+                    pagedResults = res.books.map { it.toM3ELibraryBook() }
+                    currentPage = page
+                    selectedResultIndex = -1
+                } else {
+                    pageError = res.error?.takeIf { it.isNotBlank() }
+                        ?: res.message?.takeIf { it.isNotBlank() }
+                        ?: "Could not load page ${page + 1}"
+                }
+            } catch (e: Exception) {
+                pageError = e.message ?: "Could not load page ${page + 1}"
+            } finally {
+                isPaging = false
+            }
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize().background(colors.surface)) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().testTag("library_list"),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
@@ -339,11 +427,134 @@ fun M3ELibrariesScreen(
                     }
                 }
 
-                items(state.searchResults, key = { "koha_${it.id}" }) { book ->
+                item(key = "catalog_result_meta") {
+                    if (pagedResults.isNotEmpty() && state.totalResults > 0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (state.totalResults > pagedResults.size)
+                                    "${pagedResults.size} of ${state.totalResults} results"
+                                else "${pagedResults.size} result${if (pagedResults.size == 1) "" else "s"}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.onSurfaceVariant
+                            )
+                            Text(
+                                text = "↑↓ navigate · Enter open",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                if (pageError != null) {
+                    item(key = "catalog_page_error") {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.LOW,
+                            borderColor = colors.error
+                        ) {
+                            Text(
+                                text = pageError.orEmpty(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.error
+                            )
+                        }
+                    }
+                }
+
+                itemsIndexed(pagedResults, key = { _, book -> "koha_${currentPage}_${book.id}" }) { index, book ->
+                    val requester = resultFocusRequesters.getOrNull(index)
                     CatalogBookCard(
                         book = book,
-                        onOpen = { onAction(M3ELibrariesAction.OpenBookDetail(book.id)) }
+                        onOpen = { onAction(M3ELibrariesAction.OpenBookDetail(book.id)) },
+                        modifier = Modifier
+                            .then(requester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                            .onFocusChanged { if (it.isFocused) selectedResultIndex = index }
+                            .onKeyEvent { event ->
+                                if (showBookDetail || event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                                when (event.key) {
+                                    Key.DirectionDown -> {
+                                        val next = (index + 1).coerceAtMost(pagedResults.lastIndex)
+                                        selectedResultIndex = next
+                                        resultFocusRequesters.getOrNull(next)?.requestFocus()
+                                        true
+                                    }
+                                    Key.DirectionUp -> {
+                                        val previous = (index - 1).coerceAtLeast(0)
+                                        selectedResultIndex = previous
+                                        resultFocusRequesters.getOrNull(previous)?.requestFocus()
+                                        true
+                                    }
+                                    Key.Enter -> {
+                                        onAction(M3ELibrariesAction.OpenBookDetail(book.id))
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            }
+                            .then(
+                                if (selectedResultIndex == index) {
+                                    Modifier.border(2.dp, colors.primary, RoundedCornerShape(16.dp))
+                                } else Modifier
+                            )
                     )
+                }
+
+                item(key = "catalog_pager") {
+                    if (totalPages > 1) {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.LOW
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = { requestCatalogPage(currentPage - 1) },
+                                    enabled = currentPage > 0 && !isPaging
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ChevronLeft,
+                                        contentDescription = "Previous page",
+                                        tint = colors.primary
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                if (isPaging) {
+                                    com.amazecc.app.shared.ui.m3e.components.M3EInlineSkeleton(
+                                        width = 36.dp,
+                                        height = 14.dp,
+                                        label = "Loading next page"
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Page ${currentPage + 1} of $totalPages",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colors.onSurface
+                                    )
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                IconButton(
+                                    onClick = { requestCatalogPage(currentPage + 1) },
+                                    enabled = currentPage < totalPages - 1 && !isPaging
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.ChevronRight,
+                                        contentDescription = "Next page",
+                                        tint = colors.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

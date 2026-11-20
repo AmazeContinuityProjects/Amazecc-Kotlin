@@ -22,9 +22,14 @@ import com.amazecc.app.shared.state.AcademicDerivers.resolveCurrentSemester
 import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
 import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.BusyEntry
+import com.amazecc.app.shared.state.SocialClient.FfcsMatchRequest
 import com.amazecc.app.shared.state.FfcsViewModel
 import com.amazecc.app.shared.state.FriendsViewModel
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.SocialApiError
+import com.amazecc.app.shared.state.SocialClient
+import com.amazecc.app.shared.state.SocialVisibility
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ContentData
@@ -392,6 +397,9 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
     val groupsFlow by FriendsViewModel.groups.collectAsState()
     val academic by AppState.academic.collectAsState()
     val identity by UserStore.identity.collectAsState()
+    val selectedSemester by AppState.selectedSemester.collectAsState()
+    val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
 
     var activeTab by remember { mutableStateOf(M3ESocialTab.SHARE) }
     var addFriendOpen by remember { mutableStateOf(false) }
@@ -399,7 +407,131 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
     var addFriendCode by remember { mutableStateOf("") }
     var newGroupName by remember { mutableStateOf("") }
 
-    val clipboard = LocalClipboardManager.current
+    // Server-backed Social state (D-003/D-006/D-064). Every value here comes from a real
+    // SocialClient response; failures are surfaced as text, never replaced with demo data.
+    var handle by remember { mutableStateOf("") }
+    var identityLabel by remember { mutableStateOf("") }
+    var serverSemester by remember { mutableStateOf("") }
+    var serverError by remember { mutableStateOf<String?>(null) }
+    var formError by remember { mutableStateOf<String?>(null) }
+    var needsSignIn by remember { mutableStateOf(false) }
+    var isServerLoading by remember { mutableStateOf(false) }
+    var peers by remember { mutableStateOf<List<M3ESocialPeerUi>>(emptyList()) }
+    var serverClasses by remember { mutableStateOf<List<M3ESocialClassUi>>(emptyList()) }
+    var overlaps by remember { mutableStateOf<List<M3ESocialOverlapUi>>(emptyList()) }
+    var serverFreeSlots by remember { mutableStateOf<List<M3ESocialFreeSlotUi>>(emptyList()) }
+    var freeNowHandles by remember { mutableStateOf<List<String>>(emptyList()) }
+    var currentSlotLabel by remember { mutableStateOf("") }
+    var joined by remember { mutableStateOf(false) }
+    var discoverable by remember { mutableStateOf(false) }
+    var addHandleOpen by remember { mutableStateOf(false) }
+    var addHandleInput by remember { mutableStateOf("") }
+    var importOpen by remember { mutableStateOf(false) }
+    var importInput by remember { mutableStateOf("") }
+    var openPeerHandle by remember { mutableStateOf<String?>(null) }
+    var peerTimetable by remember { mutableStateOf<M3ESocialTimetableUi?>(null) }
+
+    /**
+     * One fresh read of server truth: identity + grants, peer busy maps (common-free grid),
+     * and the caller's Classes Together state. Sign-in failures stay inline with an explicit
+     * action instead of silently redirecting on mount.
+     */
+    suspend fun loadServer() {
+        isServerLoading = true
+        serverError = null
+        needsSignIn = false
+        try {
+            val sync = SocialClient.identitySync()
+            handle = sync.identity.handle
+            identityLabel = sync.identity.displayName
+            serverSemester = sync.identity.semesterId.takeIf { it.isNotBlank() }
+                ?: selectedSemester.trim().uppercase()
+
+            peers = sync.peers.filter { !it.isSelf && it.handle.isNotBlank() }.map { p ->
+                val grant = sync.grantSecrets.firstOrNull { it.peerHandle == p.handle }
+                M3ESocialPeerUi(
+                    handle = p.handle,
+                    name = p.name.orEmpty(),
+                    visibility = p.visibility.name.lowercase(),
+                    shared = p.shared,
+                    lastPublishedAt = p.lastPublishedAt,
+                    semesterId = p.semesterId.orEmpty(),
+                    grantId = grant?.grantId.orEmpty(),
+                    secret = grant?.secret.orEmpty()
+                )
+            }
+
+            val peerMaps = mutableListOf<Pair<String, Map<String, BusyEntry>>>()
+            for (peer in peers) {
+                if (peer.grantId.isBlank() || peer.secret.isBlank()) continue
+                try {
+                    val timetable = SocialClient.readPeerTimetable(peer.secret, peer.handle, serverSemester)
+                    peerMaps += peer.handle to timetable.busyMap
+                    if (peer.handle == openPeerHandle) {
+                        peerTimetable = M3ESocialTimetableUi(
+                            handle = peer.handle,
+                            title = timetable.identity.displayName?.takeIf { it.isNotBlank() }
+                                ?: peer.name.ifBlank { peer.handle },
+                            semesterLabel = timetable.identity.semesterLabel,
+                            courses = timetable.courses.map { c ->
+                                listOfNotNull(
+                                    c.code.takeIf { it.isNotBlank() },
+                                    c.title.takeIf { it.isNotBlank() },
+                                    c.ltpjc.takeIf { it.isNotBlank() } ?: c.classId.takeIf { it.isNotBlank() },
+                                    c.venue.takeIf { it.isNotBlank() }
+                                ).joinToString(" · ")
+                            },
+                            stale = timetable.stale,
+                            coarse = timetable.visibility == SocialVisibility.COARSE
+                        )
+                    }
+                } catch (_: SocialApiError) {
+                    // A revoked or expired grant simply drops out of the grid.
+                }
+            }
+            serverFreeSlots = M3ESocialProto.commonFreeSlots(sync.busyMap, peerMaps)
+
+            val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+            val slotKey = M3ESocialProto.currentSlotKey(now.dayOfWeek.name.take(3), now.hour * 60 + now.minute)
+            currentSlotLabel = slotKey.orEmpty()
+            freeNowHandles = M3ESocialProto.freeNowHandles(sync.busyMap, peerMaps, slotKey)
+
+            val match = SocialClient.ffcsMatchState(FfcsMatchRequest.Get(serverSemester))
+            joined = match.me.joined
+            discoverable = match.me.discoverable
+            serverClasses = match.sections.map { section ->
+                M3ESocialClassUi(
+                    classId = section.classId,
+                    courseCode = section.offering?.code.orEmpty(),
+                    courseTitle = section.offering?.title.orEmpty(),
+                    slot = section.offering?.slot.orEmpty(),
+                    faculty = section.offering?.faculty.orEmpty(),
+                    people = section.people.map { it.name.ifBlank { it.handle } }
+                )
+            }
+            overlaps = match.overlaps.map { overlap ->
+                M3ESocialOverlapUi(
+                    handle = overlap.handle,
+                    name = overlap.name,
+                    shared = overlap.shared,
+                    identical = overlap.identical,
+                    sharedClassIds = overlap.sharedClassIds
+                )
+            }
+        } catch (e: SocialApiError) {
+            needsSignIn = e.needsAmazeIdSignIn
+            serverError = if (needsSignIn) {
+                "Sign in with Amaze ID to use Social."
+            } else {
+                e.message?.takeIf { it.isNotBlank() } ?: "Social is unavailable (${e.code})."
+            }
+        } catch (e: Exception) {
+            serverError = e.message?.takeIf { it.isNotBlank() } ?: "Social is unavailable."
+        }
+        isServerLoading = false
+    }
+
+    LaunchedEffect(Unit) { loadServer() }
 
     val userAttendance = remember(academic) {
         resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
@@ -437,27 +569,50 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
             state = M3ESocialState(
                 activeTab = activeTab,
                 shareCode = shareCode,
+                handle = handle,
+                identityLabel = identityLabel,
+                serverError = serverError,
+                needsSignIn = needsSignIn,
+                isServerLoading = isServerLoading,
+                peers = peers,
+                serverClasses = serverClasses,
+                overlaps = overlaps,
+                serverFreeSlots = serverFreeSlots,
+                freeNowHandles = freeNowHandles,
+                currentSlotLabel = currentSlotLabel,
+                joined = joined,
+                discoverable = discoverable,
+                openPeerHandle = openPeerHandle,
+                peerTimetable = peerTimetable,
                 friends = friends,
                 groups = groups,
                 commonFreeSlots = commonFreeSlots,
                 isAddFriendDialogOpen = addFriendOpen,
                 isCreateGroupDialogOpen = createGroupOpen,
                 addFriendCode = addFriendCode,
-                newGroupName = newGroupName
+                newGroupName = newGroupName,
+                isAddHandleDialogOpen = addHandleOpen,
+                addHandleInput = addHandleInput,
+                isImportDialogOpen = importOpen,
+                importCodeInput = importInput,
+                formError = formError
             ),
             onAction = { action ->
                 when (action) {
                     is M3ESocialAction.SelectTab -> activeTab = action.tab
                     is M3ESocialAction.UpdateAddFriendCode -> addFriendCode = action.code
                     is M3ESocialAction.UpdateNewGroupName -> newGroupName = action.name
-                    is M3ESocialAction.OpenAddFriendDialog -> addFriendOpen = true
-                    is M3ESocialAction.CloseAddFriendDialog -> addFriendOpen = false
+                    is M3ESocialAction.OpenAddFriendDialog -> { addFriendOpen = true; formError = null }
+                    is M3ESocialAction.CloseAddFriendDialog -> { addFriendOpen = false; formError = null }
                     is M3ESocialAction.OpenCreateGroupDialog -> createGroupOpen = true
                     is M3ESocialAction.CloseCreateGroupDialog -> createGroupOpen = false
                     is M3ESocialAction.AddFriend -> {
                         if (FriendsViewModel.addFriendFromCode(addFriendCode)) {
                             addFriendCode = ""
                             addFriendOpen = false
+                            formError = null
+                        } else {
+                            formError = "Could not read that schedule code."
                         }
                     }
                     is M3ESocialAction.CreateGroup -> {
@@ -471,7 +626,154 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                     is M3ESocialAction.DeleteGroup -> FriendsViewModel.deleteGroup(action.groupId)
                     is M3ESocialAction.CopyShareCode -> clipboard.setText(AnnotatedString(shareCode))
                     is M3ESocialAction.Refresh -> AppState.loadAllData()
+                    is M3ESocialAction.RefreshServer -> scope.launch { loadServer() }
                     is M3ESocialAction.Back -> backToHub()
+
+                    is M3ESocialAction.SignIn -> SignInReturn.prepare(Screen.SOCIAL)
+                    is M3ESocialAction.CopyHandle ->
+                        if (handle.isNotBlank()) clipboard.setText(AnnotatedString(handle)) else Unit
+                    is M3ESocialAction.CopyInviteLink ->
+                        if (handle.isNotBlank()) clipboard.setText(AnnotatedString(M3ESocialProto.inviteLink(handle))) else Unit
+
+                    is M3ESocialAction.OpenAddHandleDialog -> { addHandleOpen = true; formError = null }
+                    is M3ESocialAction.CloseAddHandleDialog -> { addHandleOpen = false; formError = null }
+                    is M3ESocialAction.UpdateAddHandleInput -> { addHandleInput = action.input; formError = null }
+                    is M3ESocialAction.AddHandle -> {
+                        val parsed = M3ESocialProto.handleFromInvite(addHandleInput)
+                        when {
+                            !M3ESocialProto.isValidHandle(parsed) ->
+                                formError = "That does not look like a handle. Expected AMZ-XXXX-XXXX."
+                            parsed.equals(handle, ignoreCase = true) ->
+                                formError = "That is your own handle."
+                            else -> {
+                                isServerLoading = true
+                                formError = null
+                                scope.launch {
+                                    try {
+                                        SocialClient.lookupPerson(parsed)
+                                        SocialClient.claimPair(parsed, SocialVisibility.FULL)
+                                        addHandleInput = ""
+                                        addHandleOpen = false
+                                        loadServer()
+                                    } catch (e: SocialApiError) {
+                                        needsSignIn = e.needsAmazeIdSignIn
+                                        formError = when {
+                                            needsSignIn -> "Sign in with Amaze ID to pair."
+                                            e.code == "handle_not_found" -> "No student has that handle."
+                                            else -> e.message?.takeIf { it.isNotBlank() } ?: "Could not pair (${e.code})."
+                                        }
+                                        isServerLoading = false
+                                    } catch (e: Exception) {
+                                        formError = e.message ?: "Could not pair with that handle."
+                                        isServerLoading = false
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    is M3ESocialAction.OpenImportDialog -> { importOpen = true; formError = null }
+                    is M3ESocialAction.CloseImportDialog -> { importOpen = false; formError = null }
+                    is M3ESocialAction.UpdateImportCode -> { importInput = action.code; formError = null }
+                    is M3ESocialAction.ImportCode -> {
+                        if (FriendsViewModel.addFriendFromCode(importInput.trim())) {
+                            importInput = ""
+                            importOpen = false
+                            formError = null
+                        } else {
+                            formError = "Could not read that code. Use a v5/v6 code or an amazecc://share link."
+                        }
+                    }
+
+                    is M3ESocialAction.PublishClasses,
+                    is M3ESocialAction.LeaveClasses,
+                    is M3ESocialAction.SetDiscoverable -> {
+                        val sem = serverSemester.ifBlank { selectedSemester.trim().uppercase() }
+                        val request = when (action) {
+                            is M3ESocialAction.PublishClasses -> FfcsMatchRequest.Publish(sem)
+                            is M3ESocialAction.LeaveClasses -> FfcsMatchRequest.Leave(sem)
+                            is M3ESocialAction.SetDiscoverable -> FfcsMatchRequest.Visibility(sem, action.discoverable)
+                            else -> FfcsMatchRequest.Get(sem)
+                        }
+                        scope.launch {
+                            try {
+                                SocialClient.ffcsMatchState(request)
+                                loadServer()
+                            } catch (e: SocialApiError) {
+                                needsSignIn = e.needsAmazeIdSignIn
+                                serverError = if (needsSignIn) "Sign in with Amaze ID to manage Classes Together."
+                                else e.message?.takeIf { it.isNotBlank() } ?: "Could not update Classes Together (${e.code})."
+                                isServerLoading = false
+                            } catch (e: Exception) {
+                                serverError = e.message ?: "Could not update Classes Together."
+                                isServerLoading = false
+                            }
+                        }
+                    }
+
+                    is M3ESocialAction.RevokeGrant -> {
+                        scope.launch {
+                            try {
+                                SocialClient.revokeGrant(action.grantId, action.secret)
+                                loadServer()
+                            } catch (e: Exception) {
+                                serverError = e.message ?: "Could not revoke that pairing."
+                                isServerLoading = false
+                            }
+                        }
+                    }
+                    is M3ESocialAction.SetGrantVisibility -> {
+                        val visibility = if (action.visibility.equals("full", ignoreCase = true)) {
+                            SocialVisibility.FULL
+                        } else {
+                            SocialVisibility.COARSE
+                        }
+                        scope.launch {
+                            try {
+                                SocialClient.setGrantVisibility(action.grantId, visibility)
+                                loadServer()
+                            } catch (e: Exception) {
+                                serverError = e.message ?: "Could not change that pairing's visibility."
+                                isServerLoading = false
+                            }
+                        }
+                    }
+                    is M3ESocialAction.OpenPeer -> {
+                        openPeerHandle = action.handle
+                        peerTimetable = null
+                        val peer = peers.firstOrNull { it.handle == action.handle }
+                        if (peer == null || peer.secret.isBlank() || peer.grantId.isBlank()) {
+                            serverError = "No active grant for that peer."
+                        } else {
+                            scope.launch {
+                                try {
+                                    val timetable = SocialClient.readPeerTimetable(peer.secret, peer.handle, serverSemester)
+                                    peerTimetable = M3ESocialTimetableUi(
+                                        handle = peer.handle,
+                                        title = timetable.identity.displayName?.takeIf { it.isNotBlank() }
+                                            ?: peer.name.ifBlank { peer.handle },
+                                        semesterLabel = timetable.identity.semesterLabel,
+                                        courses = timetable.courses.map { c ->
+                                            listOfNotNull(
+                                                c.code.takeIf { it.isNotBlank() },
+                                                c.title.takeIf { it.isNotBlank() },
+                                                c.ltpjc.takeIf { it.isNotBlank() } ?: c.classId.takeIf { it.isNotBlank() },
+                                                c.venue.takeIf { it.isNotBlank() }
+                                            ).joinToString(" · ")
+                                        },
+                                        stale = timetable.stale,
+                                        coarse = timetable.visibility == SocialVisibility.COARSE
+                                    )
+                                } catch (e: Exception) {
+                                    serverError = e.message ?: "Could not read that timetable."
+                                }
+                            }
+                        }
+                    }
+                    is M3ESocialAction.ClosePeer -> {
+                        openPeerHandle = null
+                        peerTimetable = null
+                    }
                 }
             },
             modifier = modifier
@@ -782,17 +1084,13 @@ fun M3EFeedbackStatusScreenHost(modifier: Modifier = Modifier) {
 @Composable
 fun M3EFresherWelcomeScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
-    val sections = listOf(
-        M3EFresherSection(M3EFresherCategory.CAMPUS, "Campus", "VIT has state-of-the-art labs, libraries, sports facilities and hostels. Get your ID card and explore!"),
-        M3EFresherSection(M3EFresherCategory.ACADEMICS, "Academics", "Attend orientation, understand CBCS, manage registration, and track attendance and grades via VTOP."),
-        M3EFresherSection(M3EFresherCategory.HOSTEL, "Hostel", "Accommodation, mess timings, laundry and counselling are managed in the Hostel module."),
-        M3EFresherSection(M3EFresherCategory.TRANSPORT, "Transport", "College buses run on fixed routes. Day-boarders can register for bus passes in Transport."),
-        M3EFresherSection(M3EFresherCategory.EVENTS, "Events", "Join clubs, hackathons, cultural fests and tech talks via Events and Social.")
-    )
+    val identity by UserStore.identity.collectAsState()
+    val fresherProfile = remember(identity) { M3EFresherContent.fromIdentity(identity) }
+    val sections = remember(fresherProfile) { M3EFresherContent.sectionsFor(fresherProfile) }
 
     AmazeM3ETheme(isDark = isDark) {
         M3EFresherWelcomeScreen(
-            state = M3EFresherWelcomeState(sections = sections),
+            state = M3EFresherWelcomeState(sections = sections, profile = fresherProfile),
             onAction = { action ->
                 when (action) {
                     is M3EFresherWelcomeAction.OpenSection -> {
