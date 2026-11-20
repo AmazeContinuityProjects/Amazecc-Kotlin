@@ -15,26 +15,33 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Brightness4
+import androidx.compose.material.icons.rounded.Brush
 import androidx.compose.material.icons.rounded.CleaningServices
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.CloudDone
-import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.DarkMode
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.HealthAndSafety
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.NotificationsActive
-import androidx.compose.material.icons.rounded.OpenInNew
-import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Storage
-import androidx.compose.material.icons.rounded.Sync
-import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Upload
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -45,15 +52,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EPalettePreset
 import com.amazecc.app.shared.domain.overhaul.M3ESettingsAction
 import com.amazecc.app.shared.domain.overhaul.M3ESettingsState
 import com.amazecc.app.shared.domain.overhaul.M3EThemeMode
-import com.amazecc.app.shared.vtop.VtopSource
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -64,7 +70,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 /**
  * Material 3 Expressive System & Settings Hub.
  * 100% Stateless: accepts [M3ESettingsState] and emits [M3ESettingsAction].
- * Features theme mode, M3E palette presets, Hono API connection, and offline cache purger.
+ * Features theme mode, M3E palette presets, API target, offline cache purger,
+ * privacy mode, pomodoro defaults, export/import, and the storage & diagnostics card.
  */
 @Composable
 fun M3ESettingsScreen(
@@ -98,7 +105,11 @@ fun M3ESettingsScreen(
                         color = colors.onSurface
                     )
                     Text(
-                        text = "Appearance, Engine & Diagnostics",
+                        text = if (state.settingsSearchQuery.isBlank()) {
+                            "Appearance, Engine, Storage & Privacy"
+                        } else {
+                            "Filtered — the cards below match your search"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.onSurfaceVariant
                     )
@@ -119,504 +130,32 @@ fun M3ESettingsScreen(
             }
         }
 
-        // 2. Appearance & Themes Card
-        item {
-            M3ESurfaceCard(
-                containerLevel = SurfaceContainerLevel.LOW,
-                cornerRadius = 22.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.DarkMode,
-                            contentDescription = null,
-                            tint = colors.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "Theme & Display Mode",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.onSurface
-                        )
-                    }
-
-                    M3EConnectedButtonGroup(
-                        items = M3EThemeMode.entries,
-                        selectedItem = state.selectedThemeMode,
-                        onItemSelected = { onAction(M3ESettingsAction.SelectThemeMode(it)) },
-                        labelProvider = { it.label },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ColorLens,
-                            contentDescription = null,
-                            tint = colors.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "M3 Expressive Color Palette",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.onSurface
-                        )
-                    }
-
-                    M3EConnectedButtonGroup(
-                        items = M3EPalettePreset.entries,
-                        selectedItem = state.selectedPalettePreset,
-                        onItemSelected = { onAction(M3ESettingsAction.SelectPalettePreset(it)) },
-                        labelProvider = { it.label },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
+        // Settings search — the list below is filtered by the host to the
+        // matching sections, so typing narrows what is rendered.
+        item(key = "search") {
+            SettingsSearchField(
+                query = state.settingsSearchQuery,
+                resultCount = state.visibleSettingsSections.size,
+                onQueryChange = { onAction(M3ESettingsAction.UpdateSettingsSearch(it)) },
+                onClear = { onAction(M3ESettingsAction.UpdateSettingsSearch("")) }
+            )
         }
 
-        // 3. Hono API Backend Configuration
-        item {
-            M3ESurfaceCard(
-                containerLevel = SurfaceContainerLevel.LOW,
-                cornerRadius = 22.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.CloudDone,
-                                contentDescription = null,
-                                tint = colors.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Text(
-                                text = "Hono Backend API",
-                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                                color = colors.onSurface
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(colors.primaryContainer)
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "ACTIVE",
-                                style = MaterialTheme.typography.labelSmall.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 9.sp
-                                ),
-                                color = colors.onPrimaryContainer
-                            )
-                        }
-                    }
-
-                    OutlinedTextField(
-                        value = state.honoApiBaseUrl,
-                        onValueChange = { onAction(M3ESettingsAction.UpdateHonoApiUrl(it)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Worker Base URL", style = MaterialTheme.typography.labelSmall) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = colors.onSurface,
-                            unfocusedTextColor = colors.onSurface,
-                            focusedContainerColor = colors.surfaceContainerHigh,
-                            unfocusedContainerColor = colors.surfaceContainerLow,
-                            focusedBorderColor = colors.primary,
-                            unfocusedBorderColor = colors.outlineVariant,
-                            focusedLabelColor = colors.primary,
-                            unfocusedLabelColor = colors.onSurfaceVariant
-                        )
-                    )
-                }
-            }
-        }
-
-        // 4. Cache & Diagnostics Card
-        item {
-            M3ESurfaceCard(
-                containerLevel = SurfaceContainerLevel.LOW,
-                cornerRadius = 22.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Storage,
-                            contentDescription = null,
-                            tint = colors.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "Storage & Cache (${state.cacheSizeText})",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.onSurface
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        ElevatedButton(
-                            onClick = { onAction(M3ESettingsAction.ClearCache) },
-                            modifier = Modifier.weight(1f),
-                            shape = CircleShape,
-                            colors = ButtonDefaults.elevatedButtonColors(
-                                containerColor = colors.surfaceContainerHigh,
-                                contentColor = colors.onSurface
-                            )
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.CleaningServices,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Clear Cache",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-
-                        ElevatedButton(
-                            onClick = { onAction(M3ESettingsAction.RunDiagnostics) },
-                            modifier = Modifier.weight(1f),
-                            shape = CircleShape,
-                            colors = ButtonDefaults.elevatedButtonColors(
-                                containerColor = colors.primaryContainer,
-                                contentColor = colors.onPrimaryContainer
-                            )
-                        ) {
-                            if (state.isDiagnosticsRunning) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(16.dp),
-                                    color = colors.onPrimaryContainer,
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Rounded.HealthAndSafety,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Diagnostics",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                            )
-                        }
-                    }
-
-                    if (!state.diagnosticStatus.isNullOrBlank()) {
-                        Text(
-                            text = state.diagnosticStatus,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.primary
-                        )
-                    }
-                }
-            }
-        }
-
-        // 4b. VTOP Sync Engine & Data Source Card
-        item {
-            M3ESurfaceCard(
-                containerLevel = SurfaceContainerLevel.LOW,
-                cornerRadius = 22.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.CloudSync,
-                            contentDescription = null,
-                            tint = colors.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "VTOP Engine & Data Source",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.onSurface
-                        )
-                    }
-
-                    Text(
-                        text = "Data Source Tier",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colors.onSurfaceVariant
-                    )
-
-                    M3EConnectedButtonGroup(
-                        items = listOf(VtopSource.REMOTE, VtopSource.LOCAL, VtopSource.OFFLINE_CACHE),
-                        selectedItem = state.vtopSource,
-                        onItemSelected = { onAction(M3ESettingsAction.SetVtopSource(it)) },
-                        labelProvider = {
-                            when (it) {
-                                VtopSource.REMOTE -> "Tier 1: Remote"
-                                VtopSource.LOCAL -> "Tier 2: Scraper"
-                                VtopSource.OFFLINE_CACHE -> "Offline Cache"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Text(
-                        text = "Sync Mode Cadence",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colors.onSurfaceVariant
-                    )
-
-                    val syncModes = listOf("quick", "balanced", "full", "academics", "campus")
-                    M3EConnectedButtonGroup(
-                        items = syncModes,
-                        selectedItem = state.selectedSyncMode,
-                        onItemSelected = { onAction(M3ESettingsAction.SelectSyncMode(it)) },
-                        labelProvider = { it.replaceFirstChar { c -> c.uppercase() } },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    ElevatedButton(
-                        onClick = { onAction(M3ESettingsAction.TriggerManualSync(state.selectedSyncMode)) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = CircleShape,
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = colors.primary,
-                            contentColor = colors.onPrimary
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Sync,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Invoke Sync (${state.selectedSyncMode.replaceFirstChar { it.uppercase() }})",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-                }
-            }
-        }
-
-        // 5. Notifications & Reminders Card
-        item {
-            M3ESurfaceCard(
-                containerLevel = SurfaceContainerLevel.LOW,
-                cornerRadius = 22.dp,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Notifications,
-                            contentDescription = null,
-                            tint = colors.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "Notifications & Reminders",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = colors.onSurface
-                        )
-                    }
-
-                    // Class Alerts Toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Class Schedule Alerts",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = colors.onSurface
-                            )
-                            Text(
-                                text = "Remind 10 mins before upcoming lecture",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = state.classAlertsEnabled,
-                            onCheckedChange = { onAction(M3ESettingsAction.ToggleClassAlerts(it)) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = colors.primary,
-                                checkedTrackColor = colors.primaryContainer
-                            )
-                        )
-                    }
-
-                    // Attendance Alerts Toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Low Attendance Warnings",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = colors.onSurface
-                            )
-                            Text(
-                                text = "Alert when any course drops below 75%",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = state.attendanceAlertsEnabled,
-                            onCheckedChange = { onAction(M3ESettingsAction.ToggleAttendanceAlerts(it)) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = colors.primary,
-                                checkedTrackColor = colors.primaryContainer
-                            )
-                        )
-                    }
-
-                    // Exam Reminders Toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Exam & Seating Notifications",
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = colors.onSurface
-                            )
-                            Text(
-                                text = "Remind CAT / FAT schedule 24h prior",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant
-                            )
-                        }
-                        Switch(
-                            checked = state.examRemindersEnabled,
-                            onCheckedChange = { onAction(M3ESettingsAction.ToggleExamReminders(it)) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = colors.primary,
-                                checkedTrackColor = colors.primaryContainer
-                            )
-                        )
-                    }
-
-                    ElevatedButton(
-                        onClick = { onAction(M3ESettingsAction.SendTestNotification) },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = CircleShape,
-                        colors = ButtonDefaults.elevatedButtonColors(
-                            containerColor = colors.surfaceContainerHigh,
-                            contentColor = colors.onSurface
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.NotificationsActive,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Send Test Notification",
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                        )
-                    }
-                }
-            }
-        }
-
-        // 6. Open Source Credits Card
-        item {
-            M3ESurfaceCard(
-                containerLevel = SurfaceContainerLevel.LOW,
-                cornerRadius = 20.dp,
-                onClick = { onAction(M3ESettingsAction.OpenGithubRepo) },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Code,
-                            contentDescription = null,
-                            tint = colors.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Column {
-                            Text(
-                                text = "AmazeCC Open Source",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = colors.onSurface
-                            )
-                            Text(
-                                text = "GitHub Repository & Documentation",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = colors.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Icon(
-                        imageVector = Icons.Rounded.OpenInNew,
-                        contentDescription = "Open GitHub",
-                        tint = colors.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
+        // Settings depth cards, driven by the section list. The host passes the
+        // full list when the search is empty and the filtered list otherwise.
+        state.visibleSettingsSections.forEach { section ->
+            item(key = section.id) {
+                when (section.id) {
+                    "privacy" -> PrivacyModeCard(state, onAction)
+                    "pomodoro" -> PomodoroCard(state, onAction)
+                    "theme" -> ThemeCard(state, onAction)
+                    "storage" -> StorageCard(state, onAction)
+                    "api_target" -> ApiTargetCard(state, onAction)
+                    "notifications" -> NotificationsCard(state, onAction)
+                    "app_icon" -> AppIconCard(state, onAction)
+                    "export_import" -> ExportImportCard(state, onAction)
+                    "keyboard" -> KeyboardShortcutsCard(onAction)
+                    else -> Unit
                 }
             }
         }
@@ -625,6 +164,536 @@ fun M3ESettingsScreen(
         item(key = "bottom_spacer") {
             Spacer(Modifier.height(140.dp))
         }
+    }
+}
+
+// ==========================================
+// Helpers
+// ==========================================
+
+@Composable
+private fun SectionToggleRow(
+    title: String,
+    subtitle: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    Row(modifier = modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = colors.onSurface)
+            if (subtitle != null) Text(text = subtitle, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange, colors = SwitchDefaults.colors(checkedThumbColor = colors.primary, checkedTrackColor = colors.primaryContainer))
+    }
+}
+
+@Composable
+private fun SettingsSearchField(
+    query: String,
+    resultCount: Int,
+    onQueryChange: (String) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    OutlinedTextField(
+        value = query,
+        onValueChange = onQueryChange,
+        modifier = modifier.fillMaxWidth(),
+        placeholder = { Text("Search settings…") },
+        singleLine = true,
+        leadingIcon = { Icon(imageVector = Icons.Rounded.Search, contentDescription = "Search settings") },
+        trailingIcon = if (query.isNotEmpty()) {
+            { IconButton(onClick = onClear) { Icon(imageVector = Icons.Rounded.Clear, contentDescription = "Clear search") } }
+        } else null,
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = colors.surfaceContainerHigh,
+            unfocusedContainerColor = colors.surfaceContainerLow,
+            focusedBorderColor = colors.primary,
+            unfocusedBorderColor = colors.outlineVariant,
+            focusedLabelColor = colors.primary,
+            unfocusedLabelColor = colors.onSurfaceVariant
+        )
+    )
+    if (query.isNotBlank() && resultCount == 0) {
+        Text(text = "No settings match — try another word", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+    }
+}
+
+// ==========================================
+// CARDS (stateless; the host owns all state)
+// ==========================================
+
+@Composable
+private fun ThemeCard(state: M3ESettingsState, onAction: (M3ESettingsAction) -> Unit) {
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SectionTitleRow("Theme & Display Mode", Icons.Rounded.DarkMode)
+            M3EConnectedButtonGroup(
+                items = M3EThemeMode.entries,
+                selectedItem = state.selectedThemeMode,
+                onItemSelected = { onAction(M3ESettingsAction.SelectThemeMode(it)) },
+                labelProvider = { it.label },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(4.dp))
+            SectionTitleRow("M3 Expressive Color Palette", Icons.Rounded.ColorLens)
+            M3EConnectedButtonGroup(
+                items = M3EPalettePreset.entries,
+                selectedItem = state.selectedPalettePreset,
+                onItemSelected = { onAction(M3ESettingsAction.SelectPalettePreset(it)) },
+                labelProvider = { it.label },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(4.dp))
+            SectionTitleRow("Timetable Class Density (Pill Style)", Icons.Rounded.Brush)
+            M3EConnectedButtonGroup(
+                items = com.amazecc.app.shared.state.HomePillStyle.entries,
+                selectedItem = state.homePillStyle,
+                onItemSelected = { onAction(M3ESettingsAction.SelectHomePillStyle(it)) },
+                labelProvider = { if (it == com.amazecc.app.shared.state.HomePillStyle.COMPACT) "Compact" else "Detailed" },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrivacyModeCard(state: M3ESettingsState, onAction: (M3ESettingsAction) -> Unit) {
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        SectionToggleRow(
+            title = "Privacy Mode",
+            subtitle = "Masks fee amounts in Fee Payments. App-wide blur for grades, attendance and marks is a separate privacy-mode workstream and may not be active yet.",
+            checked = state.privacyModeEnabled,
+            onCheckedChange = { onAction(M3ESettingsAction.TogglePrivacyMode(it)) }
+        )
+    }
+}
+
+@Composable
+private fun PomodoroCard(state: M3ESettingsState, onAction: (M3ESettingsAction) -> Unit) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SectionTitleRow("Pomodoro Focus & Study Settings", Icons.Rounded.Timer)
+            Text(text = "Customize the default focus interval, break length and rounds for study sessions", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                PomodoroNumberField(
+                    label = "Focus (min)",
+                    value = state.pomodoroFocusMinutes,
+                    min = 5,
+                    max = 120,
+                    modifier = Modifier.weight(1f),
+                    onCommit = { onAction(M3ESettingsAction.UpdatePomodoroFocusMinutes(it)) }
+                )
+                PomodoroNumberField(
+                    label = "Break (min)",
+                    value = state.pomodoroBreakMinutes,
+                    min = 1,
+                    max = 60,
+                    modifier = Modifier.weight(1f),
+                    onCommit = { onAction(M3ESettingsAction.UpdatePomodoroBreakMinutes(it)) }
+                )
+                PomodoroNumberField(
+                    label = "Rounds",
+                    value = state.pomodoroRounds,
+                    min = 1,
+                    max = 16,
+                    modifier = Modifier.weight(1f),
+                    onCommit = { onAction(M3ESettingsAction.UpdatePomodoroRounds(it)) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PomodoroNumberField(
+    label: String,
+    value: Int,
+    min: Int,
+    max: Int,
+    modifier: Modifier = Modifier,
+    onCommit: (Int) -> Unit
+) {
+    val colors = M3ETheme.colors
+    Column(modifier = modifier) {
+        OutlinedTextField(
+            value = value.toString(),
+            onValueChange = { raw ->
+                val parsed = raw.toIntOrNull()
+                if (parsed != null) onCommit(parsed.coerceIn(min, max))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = colors.surfaceContainerHigh,
+                unfocusedContainerColor = colors.surfaceContainerLow,
+                focusedBorderColor = colors.primary,
+                unfocusedBorderColor = colors.outlineVariant,
+                focusedLabelColor = colors.primary,
+                unfocusedLabelColor = colors.onSurfaceVariant
+            )
+        )
+    }
+}
+
+@Composable
+private fun StorageCard(state: M3ESettingsState, onAction: (M3ESettingsAction) -> Unit) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SectionTitleRow("Storage & Cache (${state.cacheSizeText})", Icons.Rounded.Storage)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ElevatedButton(
+                    onClick = { onAction(M3ESettingsAction.ClearCache) },
+                    modifier = Modifier.weight(1f),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = colors.surfaceContainerHigh,
+                        contentColor = colors.onSurface
+                    )
+                ) {
+                    Icon(imageVector = Icons.Rounded.CleaningServices, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Clear Cache", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                }
+
+                ElevatedButton(
+                    onClick = { onAction(M3ESettingsAction.RunDiagnostics) },
+                    modifier = Modifier.weight(1f),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = colors.primaryContainer,
+                        contentColor = colors.onPrimaryContainer
+                    )
+                ) {
+                    if (state.isDiagnosticsRunning) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), color = colors.onPrimaryContainer, strokeWidth = 2.dp)
+                    } else {
+                        Icon(imageVector = Icons.Rounded.HealthAndSafety, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Text("Diagnostics", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+                }
+            }
+
+            if (!state.diagnosticStatus.isNullOrBlank()) {
+                Text(text = state.diagnosticStatus, style = MaterialTheme.typography.bodySmall, color = colors.primary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ApiTargetCard(state: M3ESettingsState, onAction: (M3ESettingsAction) -> Unit) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(imageVector = Icons.Rounded.CloudDone, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
+                    Text("API Target", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = colors.onSurface)
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(colors.primaryContainer)
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "ACTIVE",
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 9.sp),
+                        color = colors.onPrimaryContainer
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = state.honoApiBaseUrl,
+                onValueChange = { onAction(M3ESettingsAction.UpdateHonoApiUrl(it)) },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Worker Base URL", style = MaterialTheme.typography.labelSmall) },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = colors.onSurface,
+                    unfocusedTextColor = colors.onSurface,
+                    focusedContainerColor = colors.surfaceContainerHigh,
+                    unfocusedContainerColor = colors.surfaceContainerLow,
+                    focusedBorderColor = colors.primary,
+                    unfocusedBorderColor = colors.outlineVariant,
+                    focusedLabelColor = colors.primary,
+                    unfocusedLabelColor = colors.onSurfaceVariant
+                )
+            )
+
+            SectionTitleRow("Mount", Icons.Rounded.CloudSync)
+            M3EConnectedButtonGroup(
+                items = com.amazecc.app.shared.domain.ApiTarget.entries,
+                selectedItem = com.amazecc.app.shared.domain.ApiTarget.fromName(state.apiTargetName),
+                onItemSelected = { onAction(M3ESettingsAction.SelectApiTarget(it)) },
+                labelProvider = { it.label },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun NotificationsCard(state: M3ESettingsState, onAction: (M3ESettingsAction) -> Unit) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SectionTitleRow("Notifications & Reminders", Icons.Rounded.Notifications)
+
+            SectionToggleRow(
+                title = "Class Schedule Alerts",
+                subtitle = "Remind before upcoming lecture starts",
+                checked = state.classAlertsEnabled,
+                onCheckedChange = { onAction(M3ESettingsAction.ToggleClassAlerts(it)) }
+            )
+
+            // Class-reminder lead time (web parity — PushNotificationManager).
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(text = "Class Reminder Lead", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = colors.onSurface)
+                M3EConnectedButtonGroup(
+                    items = listOf(10, 15, 30),
+                    selectedItem = state.classReminderLeadMinutes,
+                    onItemSelected = { onAction(M3ESettingsAction.UpdateClassReminderLeadMinutes(it)) },
+                    labelProvider = { "$it min before" },
+                    modifier = Modifier.weight(0.6f)
+                )
+            }
+
+            SectionToggleRow(
+                title = "Low Attendance Warnings",
+                subtitle = "Alert when any course drops below 75%",
+                checked = state.attendanceAlertsEnabled,
+                onCheckedChange = { onAction(M3ESettingsAction.ToggleAttendanceAlerts(it)) }
+            )
+
+            SectionToggleRow(
+                title = "Exam & Seating Notifications",
+                subtitle = "Remind CAT / FAT schedule 24h prior",
+                checked = state.examRemindersEnabled,
+                onCheckedChange = { onAction(M3ESettingsAction.ToggleExamReminders(it)) }
+            )
+        }
+    }
+
+    // Quiet Hours card (web parity — PushNotificationManager). Android has no
+    // FCM wake path yet: the setting is stored and honored when scheduling.
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SectionTitleRow("Sound & Quiet Hours", Icons.Rounded.Brightness4)
+            SectionToggleRow(
+                title = "Quiet Hours Mode",
+                subtitle = "Mute scheduled alerts during the quiet window",
+                checked = state.quietHoursEnabled,
+                onCheckedChange = { onAction(M3ESettingsAction.ToggleQuietHours(it)) }
+            )
+            if (state.quietHoursEnabled) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "Quiet Hours Range:", style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        QuietHoursTimeField(state.quietHoursStart, true, onAction)
+                        Text(text = "to", style = MaterialTheme.typography.labelMedium, color = colors.onSurfaceVariant)
+                        QuietHoursTimeField(state.quietHoursEnd, false, onAction)
+                    }
+                }
+            }
+        }
+    }
+
+    ElevatedButton(
+        onClick = { onAction(M3ESettingsAction.SendTestNotification) },
+        modifier = Modifier.fillMaxWidth(),
+        shape = CircleShape,
+        colors = ButtonDefaults.elevatedButtonColors(
+            containerColor = colors.surfaceContainerHigh,
+            contentColor = colors.onSurface
+        )
+    ) {
+        Icon(imageVector = Icons.Rounded.NotificationsActive, contentDescription = null, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text("Send Test Notification", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+    }
+}
+
+@Composable
+private fun QuietHoursTimeField(
+    value: String,
+    isStart: Boolean,
+    onAction: (M3ESettingsAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    OutlinedTextField(
+        value = value,
+        onValueChange = { text ->
+            // Keep the HH:mm shape the web stores; a 6-char `HHMM` from the time picker
+            // is normalized on commit instead of being rejected.
+            val normalized = normalizeTimeInput(text)
+            if (normalized != null) {
+                onAction(if (isStart) M3ESettingsAction.UpdateQuietHoursStart(normalized) else M3ESettingsAction.UpdateQuietHoursEnd(normalized))
+            }
+        },
+        modifier = Modifier.width(100.dp),
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = colors.surfaceContainerHigh,
+            unfocusedContainerColor = colors.surfaceContainerLow,
+            focusedBorderColor = colors.primary,
+            unfocusedBorderColor = colors.outlineVariant,
+            focusedLabelColor = colors.primary,
+            unfocusedLabelColor = colors.onSurfaceVariant
+        )
+    )
+}
+
+/** Accepts `HH:mm` or `HHMM`; returns `HH:mm` or null while unparseable. */
+private fun normalizeTimeInput(text: String): String? {
+    val digits = text.filter { it.isDigit() }
+    if (digits.length != 4) return null
+    return "${digits.take(2)}:${digits.takeLast(2)}"
+}
+
+@Composable
+private fun AppIconCard(state: M3ESettingsState, onAction: (M3ESettingsAction) -> Unit) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SectionTitleRow("Application Icon", Icons.Rounded.Brush)
+            Text(
+                text = "Choose which launcher icon is shown on this device. The change takes effect on the home screen immediately.",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant
+            )
+            M3EConnectedButtonGroup(
+                items = com.amazecc.app.shared.utils.AppIconTheme.entries,
+                selectedItem = state.appIconTheme,
+                onItemSelected = { onAction(M3ESettingsAction.SelectAppIconTheme(it)) },
+                labelProvider = { it.label },
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun ExportImportCard(state: M3ESettingsState, onAction: (M3ESettingsAction) -> Unit) {
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            SectionTitleRow("Backup / Export Settings", Icons.Rounded.Upload)
+            SettingsRow("Save preferences", "Backup application preferences and layout options to a file", Icons.Rounded.Download) {
+                onAction(M3ESettingsAction.ExportSettings)
+            }
+            SettingsRow("Restore / Import Settings", "Import and restore configuration from a settings backup JSON file", Icons.Rounded.Upload) {
+                onAction(M3ESettingsAction.ImportSettings)
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsRow(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    val colors = M3ETheme.colors
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick)
+            .background(colors.surfaceContainerLow)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = colors.primary, modifier = Modifier.size(22.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = colors.onSurface)
+            Text(text = subtitle, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+        }
+        Icon(imageVector = Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(16.dp))
+    }
+}
+
+/** The app's actual physical-keyboard bindings (App.kt `handleAppGlobalShortcut`). */
+@Composable
+private fun KeyboardShortcutsCard(onAction: (M3ESettingsAction) -> Unit) {
+    val colors = M3ETheme.colors
+    val shortcuts = listOf(
+        "Ctrl / Cmd + K" to "Open command palette",
+        "/" to "Open command palette",
+        "?" to "Open this shortcuts help",
+        "g then letter" to "Jump to a screen (e.g. g, a → Attendance)",
+        "Alt + P" to "Toggle privacy mode",
+        "Alt + T" to "Toggle light / dark theme",
+        "Alt + B" to "Toggle hidden CGPA",
+        "Alt + letter" to "Jump to a screen with an Alt binding",
+        "Esc" to "Dismiss overlay / go back (Android)"
+    )
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SectionTitleRow("Keyboard Shortcuts", Icons.Rounded.Keyboard)
+            shortcuts.forEach { (key, description) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.surfaceContainerHigh)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text(text = key, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = colors.primary)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            ElevatedButton(
+                onClick = { onAction(M3ESettingsAction.OpenShortcutsHelp) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = CircleShape,
+                colors = ButtonDefaults.elevatedButtonColors(
+                    containerColor = colors.surfaceContainerHigh,
+                    contentColor = colors.onSurface
+                )
+            ) {
+                Text("View all shortcuts", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
+            }
+        }
+    }
+}
+
+@Composable
+private fun SectionTitleRow(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(imageVector = icon, contentDescription = null, tint = M3ETheme.colors.primary, modifier = Modifier.size(20.dp))
+        Text(text = title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = M3ETheme.colors.onSurface)
     }
 }
 
@@ -660,5 +729,10 @@ private fun createMockSettingsState() = M3ESettingsState(
     honoApiBaseUrl = "https://hono.amazecc.com",
     cacheSizeText = "14.2 MB",
     isDiagnosticsRunning = false,
-    diagnosticStatus = "All systems operational (Ping: 42ms)"
+    diagnosticStatus = "Not checked",
+    visibleSettingsSections = com.amazecc.app.shared.domain.overhaul.allSettingsSections(),
+    privacyModeEnabled = false,
+    classReminderLeadMinutes = 15,
+    quietHoursEnabled = false,
+    appIconTheme = com.amazecc.app.shared.utils.AppIconTheme.DEFAULT
 )

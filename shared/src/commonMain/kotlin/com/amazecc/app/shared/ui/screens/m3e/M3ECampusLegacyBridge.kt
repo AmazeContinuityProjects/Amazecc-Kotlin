@@ -10,6 +10,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.domain.CalendarIcs
 import com.amazecc.app.shared.domain.overhaul.M3EKohaBookDetail
 import com.amazecc.app.shared.domain.overhaul.M3EKohaHolding
 import com.amazecc.app.shared.model.BookItem
@@ -28,6 +29,7 @@ import com.amazecc.app.shared.utils.ContentData
 import com.amazecc.app.shared.utils.UpdateConfig
 import com.amazecc.app.shared.utils.openDocumentBytes
 import com.amazecc.app.shared.utils.openExternalUrl
+import com.amazecc.app.shared.utils.rememberFileSaver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -95,7 +97,9 @@ fun M3EPaymentsScreenHost(modifier: Modifier = Modifier) {
         isLoading = isLoading && paymentsRes == null,
         errorMessage = error ?: paymentsRes?.error,
         receiptDetail = receiptDetail?.takeIf { !receiptDismissed },
-        receiptNotice = receiptNotice
+        receiptNotice = receiptNotice,
+        // D-059 — privacy mode masks fee amounts (web parity — blurGrades/privacyMode).
+        blurAmounts = SettingsManager.isPrivacyMode()
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -392,9 +396,16 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
     var selectedMonthIndex by remember { mutableStateOf(0) }
     var selectedDay by remember { mutableStateOf<Int?>(null) }
     var eventFilter by remember { mutableStateOf(M3ECalendarFilter.ALL) }
+    var exportMessage by remember { mutableStateOf<String?>(null) }
+
+    val scope = rememberCoroutineScope()
+    val saveFile = rememberFileSaver()
 
     // Calendars are synced centrally (SyncModule.CALENDARS_LIST). Page entry reads the cached
     // flows; the Refresh action below is the only user-initiated fetch.
+    val rawMonths = remember(calendars, calendarRes, selectedCalendarIndex) {
+        (calendars.getOrNull(selectedCalendarIndex)?.months ?: calendarRes?.months).orEmpty()
+    }
 
     val months = remember(calendars, calendarRes, selectedCalendarIndex, today) {
         val activeCalendar = calendars.getOrNull(selectedCalendarIndex)
@@ -425,7 +436,8 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
         isLoading = months.isEmpty() && error == null,
         errorMessage = error
             ?: calendarsListRes?.takeIf { !it.success }?.let { it.error ?: it.message }
-            ?: "No calendar entries available — pull to retry"
+            ?: "No calendar entries available — use Refresh to retry",
+        exportMessage = exportMessage
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -437,6 +449,8 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
                         selectedCalendarIndex = action.index
                         selectedMonthIndex = 0
                         selectedDay = null
+                        // Web parity — switching the programme re-fetches that calendar's months.
+                        AppState.refreshCalendarsList()
                     }
                     is M3ECalendarAction.SelectMonth -> {
                         selectedMonthIndex = action.index
@@ -445,6 +459,33 @@ fun M3ECalendarScreenHost(modifier: Modifier = Modifier) {
                     is M3ECalendarAction.SelectDay -> selectedDay = action.day
                     is M3ECalendarAction.SetFilter -> eventFilter = action.filter
                     M3ECalendarAction.Refresh -> AppState.refreshCalendarsList()
+                    // Web parity — CalendarSubpage actions (D-061).
+                    M3ECalendarAction.ExportCalendar -> scope.launch {
+                        if (rawMonths.isEmpty()) {
+                            exportMessage = "No calendar loaded to export"
+                        } else {
+                            val ics = CalendarIcs.buildAcademicCalendarIcs(rawMonths)
+                            val eventCount = CalendarIcs.countVEvents(ics)
+                            if (eventCount == 0) {
+                                // An event-less VCALENDAR is valid but useless: never report it as exported.
+                                exportMessage = "Nothing to export — this calendar has no holidays or exam events"
+                            } else {
+                                val saved = saveFile(CalendarIcs.FILE_NAME, ics.toByteArray())
+                                exportMessage = if (saved) {
+                                    "Exported $eventCount event(s) to Downloads — Open Files → ${CalendarIcs.FILE_NAME}"
+                                } else {
+                                    "Export failed"
+                                }
+                            }
+                        }
+                    }
+                    M3ECalendarAction.OpenMoodle -> AppState.navigateTo(Screen.MOODLE)
+                    M3ECalendarAction.OpenCirculars -> AppState.navigateTo(Screen.CIRCULARS)
+                    M3ECalendarAction.Today -> {
+                        val target = months.indexOfFirst { it.days.any { d -> d.isToday } }.coerceAtLeast(0)
+                        selectedMonthIndex = target
+                        selectedDay = months.getOrNull(target)?.days?.firstOrNull { it.isToday }?.date ?: today.dayOfMonth
+                    }
                 }
             },
             modifier = modifier
@@ -512,11 +553,25 @@ fun M3ECircularsScreenHost(modifier: Modifier = Modifier) {
     val circularsRes by AppState.circulars.collectAsState()
     val isSyncing by AppState.isSyncing.collectAsState()
     val error by AppState.error.collectAsState()
+    val circularDownload by AppState.circularDownload.collectAsState()
+    val scope = rememberCoroutineScope()
 
     var expandedKeys by remember { mutableStateOf<Set<String>>(emptySet()) }
+    // Identity guard, mirroring M3EDocumentsScreenHost: open each downloaded circular exactly once.
+    var lastOpenedCircular by remember { mutableStateOf<Any?>(null) }
 
     // Circulars are synced centrally (SyncModule.CIRCULARS); page entry reads the cache.
     AppBackHandler { navigateBackOrMore() }
+
+    // Downloads run off the UI thread and publish into AppState.circularDownload; the
+    // LaunchedEffect performs the platform "open document" call for the just-opened circular.
+    LaunchedEffect(circularDownload) {
+        val result = circularDownload
+        if (result != null && result !== lastOpenedCircular) {
+            lastOpenedCircular = result
+            openDocumentBytes(result.bytes, result.fileName, result.mimeType)
+        }
+    }
 
     val folders = remember(circularsRes) {
         circularsRes?.circulars.orEmpty().mapIndexed { index, folder ->
@@ -553,8 +608,10 @@ fun M3ECircularsScreenHost(modifier: Modifier = Modifier) {
                             expandedKeys + action.key
                         }
                     }
-                    // Legacy screen had no document viewer; id is carried for a future deep link.
-                    is M3ECircularsAction.OpenCircular -> Unit
+                    // Same pipeline the Documents tab uses: download the circular into
+                    // AppState.circularDownload; the LaunchedEffect above opens it.
+                    is M3ECircularsAction.OpenCircular ->
+                        scope.launch { AppState.downloadDocument(action.id) }
                     M3ECircularsAction.Refresh -> AppState.refreshCirculars()
                 }
             },
@@ -662,8 +719,9 @@ fun M3EMoodleScreenHost(modifier: Modifier = Modifier) {
                         hasSavedCredentials = false
                         errorMessage = null
                     }
-                    // No commonMain browser intent in the legacy screen either.
-                    is M3EMoodleAction.OpenAssignment -> Unit
+                    is M3EMoodleAction.OpenAssignment -> {
+                        if (action.url.isNotBlank()) openExternalUrl(action.url)
+                    }
                     M3EMoodleAction.Refresh -> showLogin = true
                 }
             },
@@ -874,8 +932,9 @@ fun M3EAboutScreenHost(modifier: Modifier = Modifier) {
                         showChangelog = false
                         showUpdateCheck = false
                     }
-                    // Legacy credits card had no external link target.
-                    M3EAboutAction.OpenGithub -> Unit
+                    M3EAboutAction.OpenGithub -> openExternalUrl(
+                        "https://github.com/${UpdateConfig.GITHUB_OWNER}/${UpdateConfig.GITHUB_REPO}"
+                    )
                     M3EAboutAction.Back -> navigateBackOrMore()
                 }
             },

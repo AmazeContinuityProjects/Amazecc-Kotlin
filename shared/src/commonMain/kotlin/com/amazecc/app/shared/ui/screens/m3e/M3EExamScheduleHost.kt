@@ -1,5 +1,8 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -7,15 +10,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.domain.overhaul.ExamSeries
+import com.amazecc.app.shared.domain.overhaul.M3EExamEntry
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleAction
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleState
 import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.openExternalUrl
+import com.amazecc.app.shared.utils.rememberFileSaver
 
 /**
  * Stateful host for the exam schedule subpage. Lead wires App.kt here instead of the legacy
@@ -37,6 +47,10 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
     var loadError by remember { mutableStateOf<String?>(null) }
     var isFetching by remember { mutableStateOf(false) }
     var refreshTick by remember { mutableStateOf(0) }
+    var selectedExam by remember { mutableStateOf<M3EExamEntry?>(null) }
+    var exportNotice by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val saveFile = rememberFileSaver()
 
     // Page entry must not trigger a network sync. The central Sync All button (SyncModule
     // EXAM_SCHEDULE) keeps the cache warm; the screen only reads that cache on entry.
@@ -92,7 +106,7 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
         isLoading = isFetching || isLoading,
         // A failed fetch returns a non-null ExamScheduleRes(success=false), so exception-only
         // error detection rendered those failures as "No exams scheduled". Read both sources.
-        errorMessage = examScheduleErrorMessage(loadError, scheduleRes),
+        errorMessage = exportNotice ?: examScheduleErrorMessage(loadError, scheduleRes),
         groupedEntries = groups,
         availableSeries = availableSeries,
         // ExamItem / ExamScheduleRes expose no hall-ticket URL today. The state field and the
@@ -114,13 +128,81 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
                         refreshTick++
                     }
                     is M3EExamScheduleAction.OpenHallTicket -> openExternalUrl(action.url)
-                    is M3EExamScheduleAction.ExamClicked -> Unit
-                    M3EExamScheduleAction.ExportCalendar -> Unit
+                    is M3EExamScheduleAction.ExamClicked -> selectedExam = action.exam
+                    M3EExamScheduleAction.ExportCalendar -> scope.launch {
+                        val ics = buildExamIcs(entries)
+                        exportNotice = if (ics == null) {
+                            "No dated exams are available to export."
+                        } else if (saveFile("amazecc-exams.ics", ics.toByteArray())) {
+                            "Exam calendar saved to Downloads."
+                        } else {
+                            "Could not save the exam calendar file."
+                        }
+                    }
                 }
             },
-            modifier = modifier
+            modifier = modifier,
+            onExamClicked = { exam -> selectedExam = exam }
         )
     }
+
+    selectedExam?.let { exam ->
+        AlertDialog(
+            onDismissRequest = { selectedExam = null },
+            title = { Text("${exam.courseCode} — ${exam.examSeries.label}") },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    Text(exam.courseTitle)
+                    Text("Date: ${exam.date}")
+                    if (exam.examTime.isNotBlank()) Text("Time: ${exam.examTime}")
+                    if (exam.venue.isNotBlank()) Text("Venue: ${exam.venue}")
+                    if (exam.seatNumber.isNotBlank()) Text("Seat: ${exam.seatNumber}")
+                    if (exam.reportingTime.isNotBlank()) Text("Reporting: ${exam.reportingTime}")
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedExam = null }) { Text("Close") } }
+        )
+    }
+}
+
+/**
+ * Builds a minimal RFC 5545 calendar from real, dated exam entries only. Papers whose date or
+ * start time VTOP never published are skipped rather than assigned an invented slot.
+ */
+internal fun buildExamIcs(entries: List<M3EExamEntry>): String? {
+    val events = entries.mapNotNull { entry ->
+        val date = M3EExamScheduleComputations.parseDate(entry.date) ?: return@mapNotNull null
+        val startMinutes = M3EExamScheduleComputations.timeRange(entry.examTime).first
+            ?: M3EExamScheduleComputations.clockMinutes(entry.reportingTime)
+            ?: return@mapNotNull null
+        val endMinutes = M3EExamScheduleComputations.timeRange(entry.examTime).second
+            ?: (startMinutes + M3EExamScheduleComputations.durationMinutes(entry.examSeries.label))
+        val stamp = { m: Int -> "${(m / 60).toString().padStart(2, '0')}${(m % 60).toString().padStart(2, '0')}00" }
+        val day = "${date.year}${date.monthNumber.toString().padStart(2, '0')}${date.dayOfMonth.toString().padStart(2, '0')}"
+        val escape = { value: String -> value.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n") }
+        val end = if (endMinutes in (startMinutes + 1)..1439) endMinutes else startMinutes + 60
+        // RFC 5545: local DATE-TIME values are basic format `YYYYMMDDTHHMMSS`, and
+        // DTSTAMP is the UTC creation time with a trailing Z (same as the FFCS exporter).
+        val utcNow = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val utcDay = "${utcNow.year}${utcNow.monthNumber.toString().padStart(2, '0')}${utcNow.dayOfMonth.toString().padStart(2, '0')}"
+        val dtstamp = "${utcDay}T${utcNow.hour.toString().padStart(2, '0')}${utcNow.minute.toString().padStart(2, '0')}${utcNow.second.toString().padStart(2, '0')}Z"
+        listOf(
+            "BEGIN:VEVENT",
+            "UID:${entry.id}@amazecc",
+            "DTSTAMP:$dtstamp",
+            "DTSTART:${day}T${stamp(startMinutes)}",
+            "DTEND:${day}T${stamp(end)}",
+            "SUMMARY:${escape("${entry.courseCode} ${entry.examSeries.label}")}",
+            "DESCRIPTION:${escape(entry.courseTitle)}",
+            "LOCATION:${escape(entry.venue)}",
+            "END:VEVENT"
+        ).joinToString("\r\n")
+    }
+    if (events.isEmpty()) return null
+    return listOf("BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//AmazeCC//Exam Schedule//EN")
+        .plus(events)
+        .plus("END:VCALENDAR")
+        .joinToString("\r\n")
 }
 
 /**

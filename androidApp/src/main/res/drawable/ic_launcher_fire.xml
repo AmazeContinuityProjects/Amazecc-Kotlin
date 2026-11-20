@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Alternate launcher icon for the "Fire" app-icon theme (activity-alias in AndroidManifest.xml). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FF1A1030"
+        android:pathData="M54,6 A48,48 0 1,1 54,102 A48,48 0 1,1 54,6 Z" />
+    <path
+        android:fillColor="#FFFF6B2C"
+        android:pathData="M54,20 C64,34 74,46 74,60 C74,76 65,88 54,88 C43,88 34,76 34,60 C34,48 43,38 48,30 C48,40 52,44 54,48 C60,40 58,28 54,20 Z" />
+    <path
+        android:fillColor="#FFFFD54F"
+        android:pathData="M54,50 C60,60 64,66 64,72 C64,80 60,84 54,84 C48,84 44,80 44,72 C44,66 48,60 52,54 C52,58 54,60 54,62 C57,58 56,53 54,50 Z" />
+</vector>

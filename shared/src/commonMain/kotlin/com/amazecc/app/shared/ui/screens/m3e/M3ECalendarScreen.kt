@@ -24,6 +24,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,7 +88,9 @@ data class M3ECalendarState(
     val selectedDay: Int? = null,
     val eventFilter: M3ECalendarFilter = M3ECalendarFilter.ALL,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Feedback after an ICS export (e.g. "Saved to Downloads"). */
+    val exportMessage: String? = null
 )
 
 /** Coarse event groups that map onto VTOP's event types. */
@@ -103,6 +109,11 @@ sealed interface M3ECalendarAction {
     data class SelectDay(val day: Int) : M3ECalendarAction
     data class SetFilter(val filter: M3ECalendarFilter) : M3ECalendarAction
     data object Refresh : M3ECalendarAction
+    // Web parity — CalendarSubpage actions (D-061):
+    data object ExportCalendar : M3ECalendarAction
+    data object OpenMoodle : M3ECalendarAction
+    data object OpenCirculars : M3ECalendarAction
+    data object Today : M3ECalendarAction
 }
 
 /**
@@ -129,38 +140,61 @@ fun M3ECalendarScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item(key = "header") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "Academic Calendar",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 24.sp
-                        ),
-                        color = colors.onSurface
-                    )
-                    Text(
-                        text = "Instructional days, holidays & exams",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurfaceVariant
-                    )
-                }
-                IconButton(
-                    onClick = { onAction(M3ECalendarAction.Refresh) },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(colors.surfaceContainerHigh)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Refresh,
-                        contentDescription = "Refresh calendar",
-                        tint = colors.primary,
-                        modifier = Modifier.size(20.dp)
+                    Column {
+                        Text(
+                            text = "Academic Calendar",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 24.sp
+                            ),
+                            color = colors.onSurface
+                        )
+                        Text(
+                            text = "Instructional days, holidays & exams",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                    Row {
+                        CalendarActionButton(
+                            icon = Icons.Rounded.Download,
+                            contentDescription = "Export semester to .ics",
+                            onClick = { onAction(M3ECalendarAction.ExportCalendar) }
+                        )
+                        CalendarActionButton(
+                            icon = Icons.Rounded.DateRange,
+                            contentDescription = "Jump to today",
+                            onClick = { onAction(M3ECalendarAction.Today) }
+                        )
+                        CalendarActionButton(
+                            icon = Icons.Rounded.MenuBook,
+                            contentDescription = "Connect Moodle",
+                            onClick = { onAction(M3ECalendarAction.OpenMoodle) }
+                        )
+                        CalendarActionButton(
+                            icon = Icons.Rounded.Folder,
+                            contentDescription = "Academic circulars",
+                            onClick = { onAction(M3ECalendarAction.OpenCirculars) }
+                        )
+                        CalendarActionButton(
+                            icon = Icons.Rounded.Refresh,
+                            contentDescription = "Refresh calendar",
+                            onClick = { onAction(M3ECalendarAction.Refresh) }
+                        )
+                    }
+                }
+                if (!state.exportMessage.isNullOrBlank()) {
+                    Text(
+                        text = state.exportMessage,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.primary,
+                        modifier = Modifier.padding(top = 8.dp)
                     )
                 }
             }
@@ -432,6 +466,36 @@ private fun CalendarDayCell(
                 }
             }
         }
+    }
+}
+
+// ==========================================
+// PRIVATE HELPERS
+// ==========================================
+
+/**
+ * Header action button (44dp touch target, M3E surface token).
+ * Kept as its own composable so every action in the header reads identically.
+ */
+@Composable
+private fun CalendarActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(M3ETheme.colors.surfaceContainerHigh)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = M3ETheme.colors.primary,
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 

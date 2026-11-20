@@ -84,7 +84,18 @@ object ExportImportManager {
         SettingsManager.KEY_SWOT_CONFIG,
         SettingsManager.KEY_QBANK_STATS,
         SettingsManager.KEY_ONBOARDING_COMPLETE,
-        SettingsManager.PAST_SEMESTER_SYNCED
+        SettingsManager.PAST_SEMESTER_SYNCED,
+        // M3E Settings depth (web parity — D-059): app icon, privacy mode,
+        // pomodoro, quiet hours and API target. Credentials stay out of backups.
+        SettingsManager.KEY_APP_ICON,
+        SettingsManager.KEY_PRIVACY_MODE,
+        SettingsManager.KEY_POMODORO_FOCUS,
+        SettingsManager.KEY_POMODORO_BREAK,
+        SettingsManager.KEY_POMODORO_ROUNDS,
+        SettingsManager.KEY_PUSH_QUIET_HOURS_ENABLED,
+        SettingsManager.KEY_PUSH_QUIET_HOURS_START,
+        SettingsManager.KEY_PUSH_QUIET_HOURS_END,
+        SettingsManager.KEY_API_TARGET
     )
 
     /**

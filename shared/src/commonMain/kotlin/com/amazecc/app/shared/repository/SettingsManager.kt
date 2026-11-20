@@ -179,6 +179,74 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
     // Custom attendance target percentage (overrides bus subscriber / standard defaults)
     const val KEY_CUSTOM_ATTENDANCE_TARGET = "custom_attendance_target_pct"
 
+    // ── App icon theme (web parity — ProfilePage Application Icon) ──
+    const val KEY_APP_ICON = "app_icon"
+
+    fun getAppIconName(): String = getString(KEY_APP_ICON, "DEFAULT")
+    fun setAppIconName(name: String) = setString(KEY_APP_ICON, name)
+
+    // ── Privacy mode (web parity — settingsAtoms.ts privacyMode) ──
+    const val KEY_PRIVACY_MODE = "privacy_mode"
+
+    fun isPrivacyMode(): Boolean = getBoolean(KEY_PRIVACY_MODE, false)
+    fun setPrivacyMode(enabled: Boolean) = setBoolean(KEY_PRIVACY_MODE, enabled)
+
+    // ── Pomodoro defaults (web parity — ProfilePage taskPomodoro*) ──
+    const val KEY_POMODORO_FOCUS = "task_pomodoro_focus"
+    const val KEY_POMODORO_BREAK = "task_pomodoro_break"
+    const val KEY_POMODORO_ROUNDS = "task_pomodoro_rounds"
+
+    fun getPomodoroFocusMinutes(): Int = getString(KEY_POMODORO_FOCUS, "25").toIntOrNull() ?: 25
+    fun setPomodoroFocusMinutes(minutes: Int) = setString(KEY_POMODORO_FOCUS, minutes.toString())
+
+    fun getPomodoroBreakMinutes(): Int = getString(KEY_POMODORO_BREAK, "5").toIntOrNull() ?: 5
+    fun setPomodoroBreakMinutes(minutes: Int) = setString(KEY_POMODORO_BREAK, minutes.toString())
+
+    fun getPomodoroRounds(): Int = getString(KEY_POMODORO_ROUNDS, "4").toIntOrNull() ?: 4
+    fun setPomodoroRounds(rounds: Int) = setString(KEY_POMODORO_ROUNDS, rounds.toString())
+
+    // ── Quiet hours (web parity — PushNotificationManager quiet hours) ──
+    const val KEY_PUSH_QUIET_HOURS_ENABLED = "push_quiet_hours_enabled"
+    const val KEY_PUSH_QUIET_HOURS_START = "push_quiet_hours_start"
+    const val KEY_PUSH_QUIET_HOURS_END = "push_quiet_hours_end"
+
+    fun isQuietHoursEnabled(): Boolean = getBoolean(KEY_PUSH_QUIET_HOURS_ENABLED, false)
+    fun setQuietHoursEnabled(enabled: Boolean) = setBoolean(KEY_PUSH_QUIET_HOURS_ENABLED, enabled)
+
+    fun getQuietHoursStart(): String = getString(KEY_PUSH_QUIET_HOURS_START, "22:00")
+    fun setQuietHoursStart(time: String) = setString(KEY_PUSH_QUIET_HOURS_START, time)
+
+    fun getQuietHoursEnd(): String = getString(KEY_PUSH_QUIET_HOURS_END, "07:00")
+    fun setQuietHoursEnd(time: String) = setString(KEY_PUSH_QUIET_HOURS_END, time)
+
+    /**
+     * True when the wall-clock time is inside the user's quiet-hours window.
+     * Mirrors the web semantics loosely: the range wraps past midnight when end < start
+     * (22:00–07:00), inclusive start, exclusive end.
+     */
+    fun isQuietHoursActive(now: kotlinx.datetime.LocalDateTime): Boolean {
+        if (!isQuietHoursEnabled()) return false
+        val start = parseTimeMinutes(getQuietHoursStart()) ?: return false
+        val end = parseTimeMinutes(getQuietHoursEnd()) ?: return false
+        val current = now.hour * 60 + now.minute
+        return if (start <= end) current in start until end
+        else (current >= start) || (current < end)
+    }
+
+    private fun parseTimeMinutes(time: String): Int? {
+        val parts = time.trim().split(":").mapNotNull(String::toIntOrNull)
+        if (parts.size < 2) return null
+        return parts[0] * 60 + parts[1]
+    }
+
+    // Push is local-only by design (AlarmManager); no VAPID/FCM key is stored.
+
+    // ── API target (web parity — the Primary/Backup selector in fetch-utils.ts) ──
+    const val KEY_API_TARGET = "api_target"
+
+    fun getApiTargetName(): String = getString(KEY_API_TARGET, "PRIMARY")
+    fun setApiTargetName(name: String) = setString(KEY_API_TARGET, name)
+
     // ── Home screen ──
 
     /**

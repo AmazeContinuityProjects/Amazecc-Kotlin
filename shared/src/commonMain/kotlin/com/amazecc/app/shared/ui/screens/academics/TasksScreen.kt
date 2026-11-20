@@ -44,6 +44,7 @@ import androidx.compose.ui.window.Dialog
 import com.amazecc.app.shared.model.HomeworkTask
 import com.amazecc.app.shared.model.Subtask
 import com.amazecc.app.shared.model.WorkSession
+import com.amazecc.app.shared.repository.SettingsManager
 import com.mikepenz.markdown.m3.Markdown
 import com.amazecc.app.shared.state.AcademicDerivers
 import com.amazecc.app.shared.state.AppState
@@ -2267,7 +2268,9 @@ private fun AmazeFocusTimerModal(
     onDismiss: () -> Unit,
     onSessionComplete: (Int) -> Unit
 ) {
-    var timerSeconds by remember { mutableStateOf(25 * 60) }
+    // Pomodoro defaults (web parity — ProfilePage taskPomodoro* settings; Settings → Pomodoro).
+    val focusMinutes = SettingsManager.getPomodoroFocusMinutes()
+    var timerSeconds by remember(focusMinutes) { mutableStateOf(focusMinutes * 60) }
     var isRunning by remember { mutableStateOf(false) }
     var elapsedMins by remember { mutableStateOf(0) }
 
@@ -2279,14 +2282,14 @@ private fun AmazeFocusTimerModal(
         }
         if (timerSeconds == 0 && isRunning) {
             isRunning = false
-            onSessionComplete(25)
+            onSessionComplete(SettingsManager.getPomodoroFocusMinutes())
         }
     }
 
     val mins = timerSeconds / 60
     val secs = timerSeconds % 60
     val timeFormatted = "${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}"
-    val progress = 1f - (timerSeconds.toFloat() / (25f * 60f))
+    val progress = 1f - (timerSeconds.toFloat() / (focusMinutes * 60f))
 
     Dialog(onDismissRequest = onDismiss) {
         Card(

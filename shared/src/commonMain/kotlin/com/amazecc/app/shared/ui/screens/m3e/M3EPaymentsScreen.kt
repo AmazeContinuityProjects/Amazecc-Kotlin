@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.FormattingParity
 import com.amazecc.app.shared.model.ArrearResponse
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
@@ -81,7 +82,9 @@ data class M3EPaymentsState(
     /** Non-null when a receipt detail has been fetched; rendered in a detail dialog. */
     val receiptDetail: ArrearResponse? = null,
     /** Neutral (non-error) feedback, e.g. when a payment has no receipt number. */
-    val receiptNotice: String? = null
+    val receiptNotice: String? = null,
+    /** Privacy mode (web parity) — amounts are masked instead of rendered. */
+    val blurAmounts: Boolean = false
 )
 
 /** The two payment ledger views. */
@@ -162,7 +165,8 @@ fun M3EPaymentsScreen(
             WalletHeroCard(
                 balance = state.walletBalance,
                 duesCount = state.dues.size,
-                receiptsCount = state.receipts.size
+                receiptsCount = state.receipts.size,
+                blurAmounts = state.blurAmounts
             )
         }
 
@@ -254,6 +258,7 @@ fun M3EPaymentsScreen(
             items(visibleItems, key = { it.id }) { payment ->
                 PaymentCard(
                     payment = payment,
+                    blurAmounts = state.blurAmounts,
                     onPrimaryAction = {
                         if (payment.isPaid) {
                             onAction(M3EPaymentsAction.DownloadReceipt(payment.id))
@@ -403,11 +408,23 @@ private fun ReceiptDetailDialog(
     )
 }
 
+/**
+ * Fee amounts in display form (web parity — `FormattingParity.fmtAmt`).
+ * With [blurAmounts] the digits are masked, matching the privacy-mode blur.
+ */
+private fun displayAmount(raw: String, blurAmounts: Boolean): String {
+    val formatted = FormattingParity.fmtAmt(raw)
+    return if (blurAmounts) maskDigits(formatted) else formatted
+}
+
+private fun maskDigits(text: String): String = text.map { if (it.isDigit()) '•' else it }.joinToString("")
+
 @Composable
 private fun WalletHeroCard(
     balance: String,
     duesCount: Int,
     receiptsCount: Int,
+    blurAmounts: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
@@ -448,7 +465,7 @@ private fun WalletHeroCard(
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                text = balance.ifBlank { "₹ 0.00" },
+                text = displayAmount(balance.ifBlank { "0" }, blurAmounts),
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                 color = colors.onSurface,
                 modifier = Modifier.graphicsLayer(scaleX = balanceScale, scaleY = balanceScale)
@@ -487,6 +504,7 @@ private fun WalletHeroCard(
 @Composable
 private fun PaymentCard(
     payment: M3EPaymentItem,
+    blurAmounts: Boolean = false,
     onPrimaryAction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -561,7 +579,7 @@ private fun PaymentCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = payment.amount,
+                    text = displayAmount(payment.amount, blurAmounts),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = colors.onSurface
                 )
@@ -603,14 +621,14 @@ private fun PaymentCard(
 // ==========================================
 
 private fun previewPaymentsState() = M3EPaymentsState(
-    walletBalance = "₹ 1,240.00",
+    walletBalance = FormattingParity.fmtAmt(1240),
     dues = listOf(
         M3EPaymentItem(
             id = "bill-1",
             reference = "2026-8812",
             date = "Due 30 Nov 2026",
             description = "Evening Semester Tuition Fee",
-            amount = "₹ 1,240.00",
+            amount = FormattingParity.fmtAmt(1240),
             isPaid = false
         )
     ),
@@ -620,7 +638,7 @@ private fun previewPaymentsState() = M3EPaymentsState(
             reference = "2026-7701",
             date = "Paid 12 Aug 2026",
             description = "Hostel Fee — Q Block",
-            amount = "₹ 8,500.00",
+            amount = FormattingParity.fmtAmt(8500),
             isPaid = true
         )
     )

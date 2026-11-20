@@ -10,8 +10,12 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.services.AlarmReceiver
 import com.amazecc.app.shared.services.AndroidApp
+import kotlinx.datetime.Clock
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 actual suspend fun requestNotificationPermissions(): Boolean {
     val context = AndroidApp.context ?: return true
@@ -31,6 +35,9 @@ actual suspend fun requestNotificationPermissions(): Boolean {
 
 actual suspend fun scheduleLocalNotification(id: Int, title: String, body: String, triggerTimeMs: Long) {
     val context = AndroidApp.context ?: return
+    // Quiet hours (web parity — PushNotificationManager): don't schedule new
+    // alarms inside the user's muted window; existing alarms still fire.
+    if (SettingsManager.isQuietHoursActive(Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()))) return
     val channelId = when {
         id in NotificationsUtils.ASSIGNMENT_REMINDER_ID_BASE until NotificationsUtils.EXAM_REMINDER_ID_BASE -> AlarmReceiver.CHANNEL_ASSIGNMENTS
         id in NotificationsUtils.EXAM_REMINDER_ID_BASE until NotificationsUtils.TASK_REMINDER_ID_BASE -> AlarmReceiver.CHANNEL_EXAMS

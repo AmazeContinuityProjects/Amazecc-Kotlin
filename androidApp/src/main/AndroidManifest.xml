@@ -24,12 +24,37 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.App.Starting">
+            android:theme="@style/Theme.App.Starting" />
+
+        <!-- Launcher aliases for the app-icon theme setting (D-059).
+             Exactly one is enabled; PackageManager swaps them at runtime.
+             The launcher filter lives on the aliases, not the target activity,
+             so there is only ever one visible app icon. -->
+        <activity-alias
+            android:name=".MainActivityDefault"
+            android:enabled="true"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:label="AmazeCC"
+            android:targetActivity=".MainActivity">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivityFire"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_fire"
+            android:label="AmazeCC Fire"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
 
         <provider
             android:name="androidx.core.content.FileProvider"
