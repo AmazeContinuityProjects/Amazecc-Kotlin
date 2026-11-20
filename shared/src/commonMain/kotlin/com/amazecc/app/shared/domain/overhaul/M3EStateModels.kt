@@ -1390,7 +1390,7 @@ data class M3ESettingsSection(
 fun allSettingsSections(): List<M3ESettingsSection> = listOf(
     M3ESettingsSection(
         id = "privacy", title = "Privacy",
-        subtitle = "Privacy mode blurs grades, attendance, marks and fees",
+        subtitle = "Masks fee amounts in Fee Payments; app-wide blur is a separate workstream",
         searchHints = listOf("privacy mode", "blur", "mask", "grades attendance marks fees")
     ),
     M3ESettingsSection(
@@ -1466,7 +1466,9 @@ data class M3ESettingsState(
     val appIconTheme: com.amazecc.app.shared.utils.AppIconTheme =
         com.amazecc.app.shared.utils.AppIconTheme.DEFAULT,
     val homePillStyle: com.amazecc.app.shared.state.HomePillStyle =
-        com.amazecc.app.shared.state.HomePillStyle.COMPACT
+        com.amazecc.app.shared.state.HomePillStyle.COMPACT,
+    /** Non-null when a settings menu is open; its id is an [allSettingsSections] id. */
+    val openSettingsMenu: String? = null
 )
 
 sealed interface M3ESettingsAction {
@@ -1500,6 +1502,10 @@ sealed interface M3ESettingsAction {
     data object ImportSettings : M3ESettingsAction
     /** Opens the app's existing ShortcutsHelpSheet (same sheet as the `?` shortcut). */
     data object OpenShortcutsHelp : M3ESettingsAction
+    /** Opens a settings detail screen for the given section id (master-detail nav). */
+    data class OpenSettingsMenu(val id: String) : M3ESettingsAction
+    /** Returns from a settings detail screen to the grouped menu list. */
+    data object CloseSettingsMenu : M3ESettingsAction
 }
 
 // ==========================================

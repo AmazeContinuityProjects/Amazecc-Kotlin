@@ -1,7 +1,5 @@
 package com.amazecc.app.shared.ui.screens.settings
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,38 +8,21 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AccountCircle
-import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.CameraAlt
-import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.Description
-import androidx.compose.material.icons.rounded.DashboardCustomize
-import androidx.compose.material.icons.rounded.Flag
-import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Login
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Navigation
-import androidx.compose.material.icons.rounded.School
-import androidx.compose.material.icons.rounded.Sync
-import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -53,11 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.domain.ApiTarget
 import com.amazecc.app.shared.repository.SettingsManager
@@ -67,9 +44,12 @@ import com.amazecc.app.shared.state.HomePillStyle
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.state.SyncModule
-import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
-import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
-import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.components.SettingsActionRow
+import com.amazecc.app.shared.ui.m3e.components.SettingsGroupHeader
+import com.amazecc.app.shared.ui.m3e.components.SettingsInfoRow
+import com.amazecc.app.shared.ui.m3e.components.SettingsSegmentedRow
+import com.amazecc.app.shared.ui.m3e.components.SettingsToggleRow
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3EColorPalette
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -92,6 +72,10 @@ import kotlinx.coroutines.withContext
  * to render it once (see the wiring note in WEB_PARITY_DRIFT_REGISTER.md). It
  * also hosts the D-002 Amaze ID sign-in and D-009 document scanner so both are
  * reachable without touching the router.
+ *
+ * The hub is now rendered *inside* a settings detail screen, so it deliberately
+ * owns no cards and no nested scrolling: groups are [SettingsGroupHeader]s plus
+ * flat rows that each own exactly 16 dp of horizontal padding.
  */
 @Composable
 fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
@@ -137,15 +121,16 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
         var apiTargetName by remember { mutableStateOf(SettingsManager.getApiTargetName()) }
         var vtopSource by remember { mutableStateOf(AmazeClient.vtopSource) }
 
-        // D-121: M3ESettingsScreen mounts this hub as a LazyColumn item, which measures
-        // children with an unbounded height. A nested verticalScroll here is redundant
-        // (the parent already scrolls) and is a known source of nested-scroll /
-        // intrinsic-measurement failures inside a lazily composed item.
+        // D-121: no verticalScroll here. The parent settings detail screen already
+        // scrolls; a nested scroll container is a known source of nested-scroll /
+        // intrinsic-measurement failures inside a lazily composed item. Group headers
+        // add their own top spacing, so only a small gap is needed between groups.
         Column(
             modifier = modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            HubCard("Display & Layout", Icons.Rounded.Visibility, colors) {
+            SettingsGroupHeader("Display & Layout")
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text("UI scale · ${(uiScale * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = colors.onSurface)
                 Slider(
                     value = uiScale,
@@ -153,24 +138,43 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                     valueRange = 0.75f..1.4f,
                     steps = 12,
                 )
-                ToggleRow("Animations", "Respect the in-app motion preference", animationsEnabled) { AppState.setAnimationsEnabled(it) }
-                ToggleRow("Haptic feedback", "Vibration on interactive controls", hapticEnabled) { AppState.setHapticEnabled(it) }
-                ToggleRow("Privacy mode", "Mask fee amounts across the app", privacyMode) { AppState.setPrivacyMode(it) }
             }
+            SettingsToggleRow(
+                title = "Animations",
+                subtitle = "Respect the in-app motion preference",
+                checked = animationsEnabled,
+                onCheckedChange = { AppState.setAnimationsEnabled(it) },
+            )
+            SettingsToggleRow(
+                title = "Haptic feedback",
+                subtitle = "Vibration on interactive controls",
+                checked = hapticEnabled,
+                onCheckedChange = { AppState.setHapticEnabled(it) },
+            )
+            SettingsToggleRow(
+                title = "Privacy mode",
+                subtitle = "Mask fee amounts across the app",
+                checked = privacyMode,
+                onCheckedChange = { AppState.setPrivacyMode(it) },
+            )
 
-            HubCard("Dashboard", Icons.Rounded.DashboardCustomize, colors) {
-                SectionLabel("Class card density")
-                M3EConnectedButtonGroup(
-                    items = HomePillStyle.entries,
-                    selectedItem = homePillStyle,
-                    onItemSelected = { AppState.setHomePillStyle(it) },
-                    labelProvider = { if (it == HomePillStyle.COMPACT) "Compact" else "Detailed" },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                ToggleRow("Tasks on home", "Show today's tasks under the timetable", homeTasksInline) { AppState.setHomeTasksInline(it) }
-            }
+            SettingsGroupHeader("Dashboard")
+            SettingsSegmentedRow(
+                title = "Class card density",
+                items = HomePillStyle.entries,
+                selectedItem = homePillStyle,
+                onItemSelected = { AppState.setHomePillStyle(it) },
+                labelProvider = { if (it == HomePillStyle.COMPACT) "Compact" else "Detailed" },
+            )
+            SettingsToggleRow(
+                title = "Tasks on home",
+                subtitle = "Show today's tasks under the timetable",
+                checked = homeTasksInline,
+                onCheckedChange = { AppState.setHomeTasksInline(it) },
+            )
 
-            HubCard("Bottom Navigation", Icons.Rounded.Navigation, colors) {
+            SettingsGroupHeader("Bottom Navigation")
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text("Pinned tabs (max 4). Changes apply to the main tab bar immediately.", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                 val candidates = listOf(Screen.HOME, Screen.ATTENDANCE, Screen.ACADEMICS, Screen.TASKS, Screen.CALENDAR, Screen.SOCIAL, Screen.PROFILE)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -189,8 +193,9 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                 }
             }
 
-            HubCard("Academics & Semester", Icons.Rounded.School, colors) {
-                SectionLabel("Target semester")
+            SettingsGroupHeader("Academics & Semester")
+            SectionLabel("Target semester")
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 val semIds = semesterMap.keys.toList().sortedDescending()
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     semIds.take(6).forEach { id ->
@@ -201,58 +206,62 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                         )
                     }
                 }
-                // D-122: web "Academic Calendar" (settings.calendarType). The
-                // id/name pairs are the same eight the web ProfilePage offers.
-                SectionLabel("Default academic calendar")
-                val calendars = com.amazecc.app.shared.api.AmazeClient.calendarTypes
-                var selectedCalendar by remember {
-                    mutableStateOf(SettingsManager.getPreferredCalendar() ?: calendars.first().second)
-                }
-                M3EConnectedButtonGroup(
-                    items = calendars.map { it.second },
-                    selectedItem = selectedCalendar,
-                    onItemSelected = { name ->
-                        val id = calendars.first { it.second == name }.first
-                        SettingsManager.savePreferredCalendar(name)
-                        SettingsManager.updateWebSetting { it.copy(calendarType = id) }
-                        selectedCalendar = name
-                    },
-                    labelProvider = { it },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            }
+            // D-122: web "Academic Calendar" (settings.calendarType). The
+            // id/name pairs are the same eight the web ProfilePage offers.
+            val calendars = com.amazecc.app.shared.api.AmazeClient.calendarTypes
+            var selectedCalendar by remember {
+                mutableStateOf(SettingsManager.getPreferredCalendar() ?: calendars.first().second)
+            }
+            SettingsSegmentedRow(
+                title = "Default academic calendar",
+                items = calendars.map { it.second },
+                selectedItem = selectedCalendar,
+                onItemSelected = { name ->
+                    val id = calendars.first { it.second == name }.first
+                    SettingsManager.savePreferredCalendar(name)
+                    SettingsManager.updateWebSetting { it.copy(calendarType = id) }
+                    selectedCalendar = name
+                },
+                labelProvider = { it },
+            )
 
-                // D-122: web "Target Attendance Goal" (75/80/85/90). Writes the
-                // same AppState target the attendance derivers read, so the bunk
-                // margin and safe/critical badges change immediately.
-                SectionLabel("Attendance target")
-                val targetOptions = listOf(75, 80, 85, 90)
-                val activeTarget = AppState.effectiveAttendanceTarget(busSubscriber).toInt()
-                M3EConnectedButtonGroup(
-                    items = targetOptions,
-                    selectedItem = activeTarget,
-                    onItemSelected = { pct ->
-                        AppState.setBusSubscriber(false)
-                        AppState.setCustomAttendanceTarget(pct.toFloat())
-                        SettingsManager.updateWebSetting { it.copy(targetAttendance = pct) }
-                    },
-                    labelProvider = { "$it%" },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            // D-122: web "Target Attendance Goal" (75/80/85/90). Writes the
+            // same AppState target the attendance derivers read, so the bunk
+            // margin and safe/critical badges change immediately.
+            val targetOptions = listOf(75, 80, 85, 90)
+            val activeTarget = AppState.effectiveAttendanceTarget(busSubscriber).toInt()
+            SettingsSegmentedRow(
+                title = "Attendance target",
+                items = targetOptions,
+                selectedItem = activeTarget,
+                onItemSelected = { pct ->
+                    AppState.setBusSubscriber(false)
+                    AppState.setCustomAttendanceTarget(pct.toFloat())
+                    SettingsManager.updateWebSetting { it.copy(targetAttendance = pct) }
+                },
+                labelProvider = { "$it%" },
+            )
 
-                // D-122: web "Hostel vs Day Scholar" (settings.residentialStatus).
-                SectionLabel("Residential status")
-                M3EConnectedButtonGroup(
-                    items = listOf("hosteller", "dayscholar"),
-                    selectedItem = residentialStatus.lowercase(),
-                    onItemSelected = { status ->
-                        AppState.setResidentialStatus(status)
-                        SettingsManager.updateWebSetting { it.copy(residentialStatus = status) }
-                    },
-                    labelProvider = { it.replaceFirstChar { c -> c.uppercase() } },
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            // D-122: web "Hostel vs Day Scholar" (settings.residentialStatus).
+            SettingsSegmentedRow(
+                title = "Residential status",
+                items = listOf("hosteller", "dayscholar"),
+                selectedItem = residentialStatus.lowercase(),
+                onItemSelected = { status ->
+                    AppState.setResidentialStatus(status)
+                    SettingsManager.updateWebSetting { it.copy(residentialStatus = status) }
+                },
+                labelProvider = { it.replaceFirstChar { c -> c.uppercase() } },
+            )
 
-                ToggleRow("Hide CGPA", "Mask the CGPA on grades and home", cgpaHidden) { AppState.setCgpaHidden(it) }
+            SettingsToggleRow(
+                title = "Hide CGPA",
+                subtitle = "Mask the CGPA on grades and home",
+                checked = cgpaHidden,
+                onCheckedChange = { AppState.setCgpaHidden(it) },
+            )
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 var goalDraft by remember(gpaGoal) { mutableStateOf(gpaGoal) }
                 OutlinedTextField(
                     value = goalDraft,
@@ -272,14 +281,22 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                         }) { Text("Save") }
                     },
                 )
-                ToggleRow("Bus subscriber", "Use the 85% attendance target", busSubscriber) { AppState.setBusSubscriber(it) }
-                val targetActive = customTarget != null
-                ToggleRow(
-                    "Custom attendance target",
-                    if (targetActive) "Override the default target" else "Using the default target",
-                    targetActive,
-                ) { enabled -> AppState.setCustomAttendanceTarget(if (enabled) 75f else null) }
-                if (targetActive) {
+            }
+            SettingsToggleRow(
+                title = "Bus subscriber",
+                subtitle = "Use the 85% attendance target",
+                checked = busSubscriber,
+                onCheckedChange = { AppState.setBusSubscriber(it) },
+            )
+            val targetActive = customTarget != null
+            SettingsToggleRow(
+                title = "Custom attendance target",
+                subtitle = if (targetActive) "Override the default target" else "Using the default target",
+                checked = targetActive,
+                onCheckedChange = { enabled -> AppState.setCustomAttendanceTarget(if (enabled) 75f else null) },
+            )
+            if (targetActive) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Text("Target · ${(customTarget ?: 75f).toInt()}%", style = MaterialTheme.typography.labelMedium, color = colors.onSurface)
                     Slider(
                         value = customTarget ?: 75f,
@@ -288,23 +305,23 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                         steps = 11,
                     )
                 }
-                SectionLabel("Attendance display")
-                M3EConnectedButtonGroup(
-                    items = AttendanceDisplayMode.entries,
-                    selectedItem = attendanceMode,
-                    onItemSelected = { AppState.setAttendanceDisplayMode(it) },
-                    labelProvider = { if (it == AttendanceDisplayMode.PERCENTAGE) "Percentage" else "Fraction" },
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
+            SettingsSegmentedRow(
+                title = "Attendance display",
+                items = AttendanceDisplayMode.entries,
+                selectedItem = attendanceMode,
+                onItemSelected = { AppState.setAttendanceDisplayMode(it) },
+                labelProvider = { if (it == AttendanceDisplayMode.PERCENTAGE) "Percentage" else "Fraction" },
+            )
 
-            HubCard("Credentials", Icons.Rounded.AccountCircle, colors) {
-                val username = SettingsManager.getString(SettingsManager.KEY_USERNAME)
-                val moodle = SettingsManager.getMoodleCredentials()
-                val library = SettingsManager.getLibraryCredentials()
-                InfoRow("VTOP", if (username.isNotBlank()) username else "Not saved")
-                InfoRow("Moodle", moodle?.first ?: "Not linked")
-                InfoRow("Library", library?.first ?: "Not linked")
+            SettingsGroupHeader("Credentials")
+            val username = SettingsManager.getString(SettingsManager.KEY_USERNAME)
+            val moodle = SettingsManager.getMoodleCredentials()
+            val library = SettingsManager.getLibraryCredentials()
+            SettingsInfoRow(label = "VTOP", value = if (username.isNotBlank()) username else "Not saved")
+            SettingsInfoRow(label = "Moodle", value = moodle?.first ?: "Not linked")
+            SettingsInfoRow(label = "Library", value = library?.first ?: "Not linked")
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                 ElevatedButton(
                     onClick = {
                         SettingsManager.remove(SettingsManager.KEY_USERNAME)
@@ -319,60 +336,67 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                 ) { Text("Forget my logins (keeps local data)") }
             }
 
-            HubCard("Data, Sync & Alerts", Icons.Rounded.Sync, colors) {
-                ToggleRow(
-                    "Manual captcha",
-                    "Type the VTOP captcha yourself instead of auto-solving",
-                    SettingsManager.isVtopManualCaptcha(),
-                ) { SettingsManager.setVtopManualCaptcha(it) }
-                // D-122: the web exposes eleven push categories; Kotlin only
-                // schedules local alarms for the four it can act on. These two
-                // are the ones missing from the M3E surface; the rest are reported
-                // as unported rather than rendered as inert switches.
-                ToggleRow(
-                    "Assignment reminders",
-                    "Local alarm for pending Moodle / VTOP assignments",
-                    SettingsManager.isNotifAssignmentRemindersEnabled(),
-                ) { enabled ->
+            SettingsGroupHeader("Data, Sync & Alerts")
+            SettingsToggleRow(
+                title = "Manual captcha",
+                subtitle = "Type the VTOP captcha yourself instead of auto-solving",
+                checked = SettingsManager.isVtopManualCaptcha(),
+                onCheckedChange = { SettingsManager.setVtopManualCaptcha(it) },
+            )
+            // D-122: the web exposes eleven push categories; Kotlin only
+            // schedules local alarms for the four it can act on. These two
+            // are the ones missing from the M3E surface; the rest are reported
+            // as unported rather than rendered as inert switches.
+            SettingsToggleRow(
+                title = "Assignment reminders",
+                subtitle = "Local alarm for pending Moodle / VTOP assignments",
+                checked = SettingsManager.isNotifAssignmentRemindersEnabled(),
+                onCheckedChange = { enabled ->
                     SettingsManager.setNotifAssignmentRemindersEnabled(enabled)
                     SettingsManager.updateWebSetting { it.copy(notifyAssignments = enabled) }
-                }
-                ToggleRow(
-                    "Task reminders",
-                    "Local alarm for tasks due today",
-                    SettingsManager.isNotifTaskRemindersEnabled(),
-                ) { enabled -> SettingsManager.setNotifTaskRemindersEnabled(enabled) }
-                SectionLabel("VTOP source")
-                M3EConnectedButtonGroup(
-                    items = VtopSource.entries.toList(),
-                    selectedItem = vtopSource,
-                    onItemSelected = {
-                        AmazeClient.setVtopSource(it)
-                        vtopSource = it
-                    },
-                    labelProvider = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
-                    modifier = Modifier.fillMaxWidth(),
+                },
+            )
+            SettingsToggleRow(
+                title = "Task reminders",
+                subtitle = "Local alarm for tasks due today",
+                checked = SettingsManager.isNotifTaskRemindersEnabled(),
+                onCheckedChange = { enabled -> SettingsManager.setNotifTaskRemindersEnabled(enabled) },
+            )
+            SettingsSegmentedRow(
+                title = "VTOP source",
+                items = VtopSource.entries.toList(),
+                selectedItem = vtopSource,
+                onItemSelected = {
+                    AmazeClient.setVtopSource(it)
+                    vtopSource = it
+                },
+                labelProvider = { it.name.lowercase().replaceFirstChar { c -> c.uppercase() } },
+            )
+            SettingsSegmentedRow(
+                title = "API target",
+                items = ApiTarget.entries,
+                selectedItem = ApiTarget.fromName(apiTargetName),
+                onItemSelected = {
+                    AmazeClient.setApiTarget(it)
+                    apiTargetName = SettingsManager.getApiTargetName()
+                },
+                labelProvider = { it.label },
+            )
+            SectionLabel("Sync modules")
+            SyncModule.entries.filter { it.cacheKey != null }.forEach { module ->
+                SettingsToggleRow(
+                    title = module.displayName,
+                    subtitle = "Include in sync profiles",
+                    checked = SyncEngine.isModuleEnabled(module),
+                    onCheckedChange = { SyncEngine.setModuleEnabled(module, it) },
                 )
-                SectionLabel("API target")
-                M3EConnectedButtonGroup(
-                    items = ApiTarget.entries,
-                    selectedItem = ApiTarget.fromName(apiTargetName),
-                    onItemSelected = {
-                        AmazeClient.setApiTarget(it)
-                        apiTargetName = SettingsManager.getApiTargetName()
-                    },
-                    labelProvider = { it.label },
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                SectionLabel("Sync modules")
-                SyncModule.entries.filter { it.cacheKey != null }.forEach { module ->
-                    ToggleRow(module.displayName, "Include in sync profiles", SyncEngine.isModuleEnabled(module)) {
-                        SyncEngine.setModuleEnabled(module, it)
-                    }
-                }
             }
 
-            HubCard("Backup & Transfer", Icons.Rounded.Description, colors) {
+            SettingsGroupHeader("Backup & Transfer")
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 ElevatedButton(
                     onClick = {
                         scope.launch {
@@ -395,19 +419,41 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
             }
 
             // D-002 / D-009 reachability without router changes.
-            HubCard("Account & Tools", Icons.Rounded.Login, colors) {
-                ActionRow("Sign in with Amaze ID", "OIDC device code / PKCE / token entry", Icons.Rounded.Login) { showAuth = true }
-                ActionRow("Document scanner", "Import → crop → edit → PDF", Icons.Rounded.CameraAlt) { showScanner = true }
-            }
+            SettingsGroupHeader("Account & Tools")
+            SettingsActionRow(
+                title = "Sign in with Amaze ID",
+                subtitle = "OIDC device code / PKCE / token entry",
+                icon = Icons.Rounded.Login,
+                onClick = { showAuth = true },
+            )
+            SettingsActionRow(
+                title = "Document scanner",
+                subtitle = "Import → crop → edit → PDF",
+                icon = Icons.Rounded.CameraAlt,
+                onClick = { showScanner = true },
+            )
 
-            HubCard("Danger Zone", Icons.Rounded.DeleteSweep, colors, danger = true) {
-                ActionRow("Clear local caches", "Remove cached academic and module data", Icons.Rounded.DeleteSweep) { showClearConfirm = true }
-                ActionRow("Log out", "End the VTOP session and return to sign-in", Icons.Rounded.Login) { showLogoutConfirm = true }
-            }
+            SettingsGroupHeader("Danger Zone")
+            SettingsActionRow(
+                title = "Clear local caches",
+                subtitle = "Remove cached academic and module data",
+                icon = Icons.Rounded.DeleteSweep,
+                danger = true,
+                onClick = { showClearConfirm = true },
+            )
+            SettingsActionRow(
+                title = "Log out",
+                subtitle = "End the VTOP session and return to sign-in",
+                icon = Icons.Rounded.Login,
+                danger = true,
+                onClick = { showLogoutConfirm = true },
+            )
 
             status?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = colors.primary)
-                TextButton(onClick = { status = null }) { Text("Dismiss") }
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = colors.primary)
+                    TextButton(onClick = { status = null }) { Text("Dismiss") }
+                }
             }
             Spacer(Modifier.height(8.dp))
         }
@@ -505,78 +551,11 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-private fun HubCard(
-    title: String,
-    icon: ImageVector,
-    colors: M3EColorPalette,
-    danger: Boolean = false,
-    content: @Composable () -> Unit,
-) {
-    M3ESurfaceCard(
-        containerLevel = SurfaceContainerLevel.LOW,
-        cornerRadius = 22.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(icon, contentDescription = null, tint = if (danger) colors.error else colors.primary, modifier = Modifier.size(18.dp))
-                Text(title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = if (danger) colors.error else colors.onSurface)
-            }
-            content()
-        }
-    }
-}
-
+/** Sub-section caption for controls that are not themselves a settings row. */
 @Composable
 private fun SectionLabel(text: String) {
-    Text(text, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = M3ETheme.colors.onSurfaceVariant)
-}
-
-@Composable
-private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
-    val colors = M3ETheme.colors
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = colors.onSurface)
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = colors.primary, checkedTrackColor = colors.primaryContainer),
-        )
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    val colors = M3ETheme.colors
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-        Text(value, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = colors.onSurface)
-    }
-}
-
-@Composable
-private fun ActionRow(title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
-    val colors = M3ETheme.colors
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(colors.surfaceContainerLow)
-            .clickable(onClick = onClick)
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Icon(icon, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold), color = colors.onSurface)
-            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
-        }
-        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = colors.onSurfaceVariant, modifier = Modifier.size(18.dp))
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(text, style = MaterialTheme.typography.labelMedium, color = M3ETheme.colors.onSurfaceVariant)
     }
 }
 

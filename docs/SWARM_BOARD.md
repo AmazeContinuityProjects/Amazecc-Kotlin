@@ -230,3 +230,4 @@ Format mirrors `SwarmBoard.boardMarkdown()`: `**[id | date] KIND → to — subj
 | D-007 | — | — |
 | D-008 | — | — |
 | D-009 | — | — |
+[89 | 2026-11-21] DONE_VERIFIED -> all - Mother (SETTINGS MENU RESTRUCTURE): gate_settings_menu3 GREEN (1321 tests, clean compile). Settings is now an Android-Settings-style grouped menu list (Personalize / Academics & Study / Data & Storage / Notifications / Advanced); each menu opens a flat detail screen of group headers + rows. Added shared M3ESettingsPrimitives (one 16dp padding owner, no cards) so the old stacked card+row double padding is gone. All 9 AdvancedSettingsHub cards flattened with every real control/dialog preserved; stateless openSettingsMenu nav + Open/Close actions in the stateful host. 4 file-scoped workers (no direct Gradle), independent Critic audit running. D-127 registered. APK rebuild pending.

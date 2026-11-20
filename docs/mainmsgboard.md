@@ -98,3 +98,30 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 - gate_compilesdk37 EXIT 0 (verifier green, 1319 tests). APK assemble BUILD SUCCESSFUL: debug 29.25 MB (00:38:48), release 4.41 MB (00:39:02) - both include compileSdk fix + session-critic's 00:26 D-118 label edits (verifier compiled with label REQUIRED, proving every call site labeled).
 - Session-critic final gate 9/9 PASS. Its 9 source files (M3EWavyProgress + 8 call-site files) are included in this follow-up commit along with compileSdk bump + register/board docs. Tree clean after this commit; wave is done.
 
+
+### [2026-11-21 01:05] session-mother - CLAIM/EDIT (settings menu restructure wave)
+- User request: restructure M3E Settings into Android-Settings-style grouped menus (master -> detail), remove nested cards, fix double padding. ignoring previous biases.\n- Mother owns (already written): M3ESettingsPrimitives.kt (new shared primitives API), M3EStateModels.kt (openSettingsMenu + OpenSettingsMenu/CloseSettingsMenu actions), M3EStateBridge.kt (nav state + action handling).\n- Dispatching 4 file-scoped workers; they will NOT run Gradle. I will run the single central verifier after all DONE. No other session should build during this window.\n
+
+### [2026-11-21 01:20] session-mother - DONE (all 4 settings workers), VERIFIER NEXT
+- Workers landed: M3ESettingsScreen.kt (grouped menu hub), M3ESettingsDetailScreens.kt (NEW, all detail bodies), AdvancedSettingsHub.kt (flattened, no cards), M3ESettingsScreenUiTest.kt (new menu/nav assertions). Mother already landed primitives + state nav. No worker ran Gradle. Running single central verifier gate_settings_menu1 now; no other session should build.
+
+
+### [2026-11-21 01:28] session-mother - FIX gate_settings_menu1 + RE-GATE
+- gate_settings_menu1 EXIT 1: ONE compile error in mother's M3ESettingsPrimitives.kt:347 - calling a @Composable function-typed parameter (content: @Composable LazyListScope.() -> Unit) from inside LazyColumn's content lambda rejected by this Kotlin 2.4.21 / CMP 1.12.2 compiler setup. FIX: removed the indirection - SettingsDetailScaffold is now just the top bar (no content param), and M3ESettingsScreen owns the detail LazyColumn with top-bar + body items. No test/source behavior changed. Re-running as gate_settings_menu2.
+
+
+### [2026-11-21 01:35] session-mother - FIX gate_settings_menu2 + RE-GATE
+- Compile GREEN, 2 test FAIL (1321 tests): (1) 'Notifications' group header offscreen in LazyColumn - test now scrolls to each assertion target via a ComposeUiTest.expect helper; (2) storage detail row label was 'Clear cache' but original UI copy + test expect 'Clear Cache' - restored the correct capitalisation in M3ESettingsDetailScreens.kt. Re-running as gate_settings_menu3.
+
+
+### [2026-11-21 01:38] session-mother - RESULT gate_settings_menu3 (GREEN)
+- EXIT 0: BUILD SUCCESSFUL in 3m25s, 1321 tests pass, clean compile. Settings menu restructure verified. Launching independent Critic audit now; will commit + rebuild APKs after a clean verdict.
+
+
+### [2026-11-21 01:45] session-mother - CRITIC FIXES + RE-GATE
+- Independent Critic verdict NEEDS_FIXES. Fixed all 4: (MAJOR) added AppBackHandler in M3EStateBridge settings host so system back returns from detail to the grouped menu instead of exiting Settings; (minor) privacy section subtitle corrected to fee-mask-only honest copy; (minor) SettingsActionRow gained danger flag, applied to the two Danger Zone rows to restore error tint; (minor) advanced-menu search now matches against row title/subtitle. Re-running as gate_settings_menu4 before commit.
+
+
+### [2026-11-21 01:50] session-mother - FINAL GREEN gate_settings_menu4
+- EXIT 0: BUILD SUCCESSFUL in 6m03s, 1321 tests pass, clean compile. All 4 Critic findings fixed and verified. Committing settings restructure, then rebuilding debug+release APKs.
+

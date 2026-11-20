@@ -9,6 +9,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -36,13 +37,13 @@ class M3ESettingsScreenUiTest {
         cacheSizeText = "14.2 MB",
         isDiagnosticsRunning = false,
         diagnosticStatus = "All systems operational (Ping: 42ms)",
-        // The reworked M3E Settings screen is driven by the section list; without
-        // it no cards render at all (the host supplies this in production).
+        // The grouped menu is driven by the section list; the host supplies the
+        // full list in production, so tests must do the same to see every group.
         visibleSettingsSections = allSettingsSections()
     )
 
     @Test
-    fun testSettingsRendersThemeAndBackendInfo() = runComposeUiTest {
+    fun testSettingsMenuRendersGroupedCategories() = runComposeUiTest {
         setContent {
             AmazeM3ETheme {
                 M3ESettingsScreen(
@@ -52,20 +53,24 @@ class M3ESettingsScreenUiTest {
             }
         }
 
-        onNodeWithText("Settings").assertExists()
-        onNodeWithText("Theme & Display Mode").assertExists()
-        onNodeWithText("M3 Expressive Color Palette").assertExists()
-        // D-059 renamed the backend card to the API target picker. It is below
-        // the fold in the LazyColumn, so scroll to it before asserting (same as
-        // the storage card below).
-        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("API Target"))
-        onNodeWithText("API Target").assertExists()
-        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Storage & Cache (14.2 MB)"))
-        onNodeWithText("Storage & Cache (14.2 MB)").assertExists()
-        onNodeWithText("All systems operational (Ping: 42ms)").assertExists()
-        // The old "AmazeCC Open Source" card was replaced by Backup / Export Settings.
-        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Backup / Export Settings"))
-        onNodeWithText("Backup / Export Settings").assertExists()
+        // Android-Settings-style menu: category headers plus the navigation rows
+        // sourced from visibleSettingsSections (and the extra advanced entry).
+        // LazyColumn composes offscreen items on demand, so scroll to each target
+        // before asserting it — otherwise lower rows do not exist yet.
+        fun ComposeUiTest.expect(text: String, substring: Boolean = false) {
+            onNode(hasScrollToNodeAction()).performScrollToNode(hasText(text, substring = substring))
+            onNodeWithText(text, substring = substring).assertExists()
+        }
+        expect("Settings")
+        expect("Personalize")
+        expect("Academics & Study")
+        expect("Data & Storage")
+        expect("Appearance & Theme", substring = true)
+        expect("Notifications")
+        expect("Storage & Cache", substring = true)
+        expect("API Target", substring = true)
+        expect("Advanced")
+        expect("Advanced & Developer", substring = true)
     }
 
     @Test
@@ -75,7 +80,8 @@ class M3ESettingsScreenUiTest {
         setContent {
             AmazeM3ETheme {
                 M3ESettingsScreen(
-                    state = sampleSettingsState(),
+                    // The theme-mode segmented control now lives in its detail screen.
+                    state = sampleSettingsState().copy(openSettingsMenu = "theme"),
                     onAction = { capturedActions.add(it) }
                 )
             }
@@ -90,8 +96,8 @@ class M3ESettingsScreenUiTest {
 
     /**
      * D-121 regression: the crash path is the AdvancedSettingsHub item mounted by
-     * M3ESettingsScreen (D-037). LazyColumn does not compose offscreen items, so the
-     * existing tests never reached it. Scroll to it explicitly and assert it composes.
+     * M3ESettingsScreen (D-037). It now lives behind the "Advanced & Developer"
+     * menu entry, so open that detail screen before asserting it composes.
      */
     @Test
     fun testSettingsComposesAdvancedHubWithoutThrowing() = runComposeUiTest {
@@ -99,6 +105,7 @@ class M3ESettingsScreenUiTest {
             AmazeM3ETheme {
                 M3ESettingsScreen(
                     state = sampleSettingsState().copy(
+                        openSettingsMenu = "advanced",
                         quietHoursEnabled = true,
                         appIconTheme = com.amazecc.app.shared.utils.AppIconTheme.FIRE,
                     ),
@@ -107,9 +114,12 @@ class M3ESettingsScreenUiTest {
             }
         }
 
+        onNodeWithContentDescription("Back to Settings").assertExists()
         onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Display & Layout"))
         onNodeWithText("Display & Layout").assertExists()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Academics & Semester"))
         onNodeWithText("Academics & Semester").assertExists()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Danger Zone"))
         onNodeWithText("Danger Zone").assertExists()
     }
 
@@ -209,8 +219,9 @@ class M3ESettingsScreenUiTest {
         }
     }
 
+    /** Master-detail navigation: tapping a grouped menu row emits its section id. */
     @Test
-    fun testClearCacheEmitsAction() = runComposeUiTest {
+    fun testOpeningMenuEmitsOpenSettingsMenuAction() = runComposeUiTest {
         val capturedActions = mutableListOf<M3ESettingsAction>()
 
         setContent {
@@ -222,8 +233,45 @@ class M3ESettingsScreenUiTest {
             }
         }
 
-        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Clear Cache"))
-        onNodeWithText("Clear Cache").performClick()
+        onNodeWithContentDescription("Open Appearance & Theme").performClick()
+        assertEquals(1, capturedActions.size)
+        assertEquals(M3ESettingsAction.OpenSettingsMenu("theme"), capturedActions[0])
+    }
+
+    /** The detail screen's back arrow returns to the grouped menu list. */
+    @Test
+    fun testBackFromSettingsMenuEmitsCloseSettingsMenu() = runComposeUiTest {
+        val capturedActions = mutableListOf<M3ESettingsAction>()
+
+        setContent {
+            AmazeM3ETheme {
+                M3ESettingsScreen(
+                    state = sampleSettingsState().copy(openSettingsMenu = "privacy"),
+                    onAction = { capturedActions.add(it) }
+                )
+            }
+        }
+
+        onNodeWithContentDescription("Back to Settings").performClick()
+        assertEquals(1, capturedActions.size)
+        assertEquals(M3ESettingsAction.CloseSettingsMenu, capturedActions[0])
+    }
+
+    @Test
+    fun testClearCacheEmitsAction() = runComposeUiTest {
+        val capturedActions = mutableListOf<M3ESettingsAction>()
+
+        setContent {
+            AmazeM3ETheme {
+                M3ESettingsScreen(
+                    // Clear Cache now lives in the storage detail, not on the menu list.
+                    state = sampleSettingsState().copy(openSettingsMenu = "storage"),
+                    onAction = { capturedActions.add(it) }
+                )
+            }
+        }
+
+        onNodeWithContentDescription("Clear Cache").performClick()
         assertEquals(1, capturedActions.size)
         assertTrue(capturedActions[0] is M3ESettingsAction.ClearCache)
     }

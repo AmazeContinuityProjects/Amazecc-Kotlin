@@ -15,6 +15,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.api.SyllabusResult
 import com.amazecc.app.shared.domain.ClassStats
@@ -1967,6 +1968,11 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
     // with the launcher after a restart or a change made outside Settings.
     var appIconTheme by remember { mutableStateOf(currentAppIconTheme()) }
     var visibleSettingsSections = com.amazecc.app.shared.domain.overhaul.settingsSectionsForQuery(settingsSearchQuery)
+    // Master-detail settings navigation: null = grouped menu list, otherwise a section id.
+    var openSettingsMenu by remember { mutableStateOf<String?>(null) }
+    // System back must first return from a detail screen to the grouped menu;
+    // only App.kt's global handler should ever navigate away from Settings.
+    AppBackHandler(enabled = openSettingsMenu != null) { openSettingsMenu = null }
     val saveFile = rememberFileSaver()
     val importFile = rememberFileImporter { text ->
         if (text == null) return@rememberFileImporter
@@ -2008,7 +2014,8 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
         quietHoursEnd = quietHoursEnd,
         apiTargetName = apiTargetName,
         appIconTheme = appIconTheme,
-        homePillStyle = AppState.homePillStyle.value
+        homePillStyle = AppState.homePillStyle.value,
+        openSettingsMenu = openSettingsMenu
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -2169,6 +2176,8 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
                     }
                     M3ESettingsAction.ImportSettings -> importFile()
                     M3ESettingsAction.OpenShortcutsHelp -> AppState.openShortcutsHelp()
+                    is M3ESettingsAction.OpenSettingsMenu -> openSettingsMenu = action.id
+                    M3ESettingsAction.CloseSettingsMenu -> openSettingsMenu = null
                 }
             },
             modifier = modifier
