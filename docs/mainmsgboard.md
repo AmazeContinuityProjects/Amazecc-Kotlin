@@ -127,3 +127,22 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 
 ### [2026-11-21 02:00] session-mother - FINAL: SETTINGS WAVE COMPLETE
 - Commit 3d1bc09 (10 files). gate_settings_menu4 EXIT 0 (1321 tests), all 4 Critic findings fixed, debug+release APKs BUILD SUCCESSFUL from final tree. Tree clean after this docs commit. No further edits.
+### [2026-11-21 02:15] session-mother - CLAIM/EDIT (home screen wave D-128..D-130)
+- User request: fix mushy M3E home week strip (7 Monday-first days, hide classless Sat/Sun), keep lab/theory attendance separate for embedded courses per ../AmazeCC simplified mobile home + super calendar, remove carousel pause button, title top + value/sub bottom on both stat card variants. Design: @m3-expressive-unified only. Orchestration: @swarm.
+- Mother owns M3EStateBridge.kt wiring + single verifier + commits. 3 file-scoped workers dispatched (no Gradle). No other session should build during this window.
+### [2026-11-21 02:35] session-mother - DONE (3 workers) VERIFIER NEXT
+- Workers landed: D-128 M3EHomeWeekDays.kt (new) + M3EWeekStrip.kt Monday-first/no-plate/equal-weight/hide classless weekends + test; D-129 M3EHomeAttendance component guard + test; D-130 stat cards top-title/bottom-value + pause button removed + test. Mother wired M3EStateBridge (super-calendar week + merge guard). No worker ran Gradle. Running gate_home_wave1 now.
+### [2026-11-21 02:45] session-mother - gate_home_wave1 RED (timetable-only), re-running
+- EXIT 1: compile GREEN, 8 test FAIL - ALL in M3ETimetableGridsTest/M3ETimetableScreenUiTest (files untouched by this wave; no concurrent edits on board, no new source diffs). All new D-128..D-130 tests PASSED. Likely load-induced UI-test flake (build 7m18s, Gradle daemon 5GB/9400 CPU-s). Re-running gate_home_wave2 to confirm before touching any code.
+### [2026-11-21 02:55] session-mother - FIX gate_home_wave2 + RE-GATE
+- Reproducible: same 8 timetable tests fail on re-run, so NOT flakiness. Root cause found: M3ETimetableScreen passes stats into M3EPageShell -> legacy M3EStatCardsCarousel -> M3EStatCard with UNBOUNDED height. D-130 changed that card to fillMaxSize() + weighted Spacer, which requests infinite height and collapses the page shell, so none of the timetable nodes exist. FIX: M3EStatCard now uses BoxWithConstraints; it fills height + SpaceBetween only when the caller bounded the height (M3EHomeScreen passes 136.dp), and stays wrap-height with plain spacing under unbounded carousels. Removed the weighted spacer. Re-running gate_home_wave3.
+- DIAGNOSTIC: temporarily reverted D-130 stat-card source + test to HEAD to isolate the 8 timetable failures. Will restore after this gate.
+- DIAGNOSTIC 2: restored D-130 sources (with BoxWithConstraints fix), still WITHOUT the new M3EStatCardUiTest, to separate source vs test as the cause.
+- DIAGNOSTIC 3: revert ONLY M3EStatCardsCarousel.kt to HEAD, keep M3EStatCard.kt D-130+fix, to isolate which source file breaks M3EPageShell.
+- FIX: replaced BoxWithConstraints (illegal under the legacy carousel unbounded cross-axis) with a guaranteed bounded 136dp default height, caller-overridable; fillMaxSize + SpaceBetween now safe. Restored D-130 carousel + test. Re-running gate_home_wave4.
+### [2026-11-21 03:05] session-mother - RESULT gate_home_wave4 (GREEN)
+- EXIT 0: BUILD SUCCESSFUL in 1m49s, 1330 tests pass, clean compile. All D-128..D-130 landed. Root cause of the 8 timetable failures was BoxWithConstraints under the legacy carousel unbounded cross-axis - replaced with a guaranteed 136dp default height (caller-overridable). Launching independent Critic audit before commit.
+### [2026-11-21 03:15] session-mother - CRITIC FIXES + RE-GATE
+- Critic verdict NEEDS_FIXES. Fixed: (MAJOR) Moodle deadlines were silently dropped - M3EWeekDay gained hasDeadline, M3EHomeWeekDays propagates it, the bridge now passes deadlineDates(AppState.tasks) and collects academic state for exam freshness, and the strip renders a secondary dot + ", assignment due" a11y hint; (MINOR) stat-card test now asserts title-bottom < value-top bounds in both variants; (NIT) exam state collected as state and added to remember keys. Re-running gate_home_wave5.
+### [2026-11-21 03:20] session-mother - FINAL GREEN gate_home_wave5
+- EXIT 0, all tests pass. All Critic findings fixed and verified. Committing D-128..D-130, then rebuilding APKs.

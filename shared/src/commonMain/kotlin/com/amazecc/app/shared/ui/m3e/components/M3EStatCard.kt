@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -142,6 +143,12 @@ internal fun M3EStatTone.statCardShape(complementary: Boolean = false): Shape = 
  * D-118: the one stat-tile body, shared by [M3EStatCard] and the carousel tile.
  * Keeps label/icon, metric and data-backed subtitle identical everywhere so
  * layout or accessibility fixes cannot be applied to only one of the two.
+ *
+ * D-130: the label row sits at the top; when the caller gives the card a bounded
+ * height, [verticalArrangement] = [Arrangement.SpaceBetween] anchors the hero
+ * value + subtitle to the bottom. No weighted spacer is used: under an unbounded
+ * height (e.g. the legacy carousel inside M3EPageShell) a weight or fillMaxSize
+ * would ask for infinite height and collapse the whole page shell.
  */
 @Composable
 internal fun M3EStatCardContent(
@@ -157,7 +164,8 @@ internal fun M3EStatCardContent(
         modifier = modifier,
         verticalArrangement = verticalArrangement
     ) {
-        // Label row with optional expressive icon container
+        // D-130: label row is anchored to the top; SpaceBetween (set by the
+        // callers with a bounded height) pushes the metric block to the bottom.
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -192,7 +200,8 @@ internal fun M3EStatCardContent(
             }
         }
 
-        // Big Bold Hero Metric Value & Subtitle
+        // Big Bold Hero Metric Value & Subtitle — anchored to the bottom by the
+        // caller's SpaceBetween arrangement when the card height is bounded.
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = stat.value,
@@ -241,8 +250,15 @@ fun M3EStatCard(
         Modifier
     }
 
+    // A bounded card height is guaranteed here (136 dp is the home's tile height).
+    // Caller modifiers are applied after the default, so a caller that specifies
+    // its own height still wins. This keeps the content's fillMaxSize + SpaceBetween
+    // legal everywhere, including the legacy carousel inside M3EPageShell, which
+    // otherwise measures children with an unbounded cross-axis.
     Box(
-        modifier = modifier
+        modifier = Modifier
+            .height(136.dp)
+            .then(modifier)
             .fillMaxWidth()
             .clip(stat.tone.statCardShape())
             .background(colors.surfaceContainerLow)
@@ -253,7 +269,8 @@ fun M3EStatCard(
             stat = stat,
             accentColor = accentColor,
             iconBg = iconBg,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
         )
     }
 }

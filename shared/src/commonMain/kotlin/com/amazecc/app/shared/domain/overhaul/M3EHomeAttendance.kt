@@ -44,6 +44,53 @@ object M3EHomeAttendance {
         return percentOf(half?.attendance ?: course.attendance)
     }
 
+    /**
+     * Which component a slot of an embedded course belongs to: "LAB" or "THEORY".
+     *
+     * VTOP stores a timetable cell such as "L31+L32" as one string, so [slotToken] is split on
+     * '+' first. When [Course.halves] is present the half that owns any atomic token decides,
+     * using the very same lab test [EmbeddedCourseHalf.isLab] that [percentForSlot] relies on —
+     * so the component a card is classified as can never disagree with the percentage it reads.
+     * A token no half owns (a theory-only "TB1", or a standalone course) falls back to the
+     * canonical [AcademicDerivers.isLabCourse] identity test.
+     */
+    fun componentForSlot(course: Course, slotToken: String): String {
+        val atoms = splitAtoms(slotToken)
+        val halves = course.halves
+        if (halves.isNotEmpty()) {
+            val owningHalf = halves.firstOrNull { half ->
+                half.slots.any { cell -> splitAtoms(cell).any { it in atoms } }
+            }
+            if (owningHalf != null) return if (owningHalf.isLab) "LAB" else "THEORY"
+        }
+        val isLab = AcademicDerivers.isLabCourse(
+            course.code,
+            course.type,
+            atoms.ifEmpty { listOf(slotToken) }
+        )
+        return if (isLab) "LAB" else "THEORY"
+    }
+
+    /**
+     * True only when two adjacent slots of the same course are the same component and may merge.
+     *
+     * This is the home-timeline counterpart of the web guard in `attendanceTimetable.ts:122-157`,
+     * which refuses to glue two rows that differ in component. Two meetings of one embedded
+     * course must never merge across halves: doing so would keep the first card's percentage and
+     * discard the other half's. Every atomic token on either side must also belong to the resolved
+     * component, so a mixed cell such as "B1+L55" can never be folded into one card.
+     */
+    fun canMergeAdjacentSlots(course: Course, previousSlot: String, currentSlot: String): Boolean {
+        val component = componentForSlot(course, previousSlot)
+        if (component != componentForSlot(course, currentSlot)) return false
+        return (splitAtoms(previousSlot) + splitAtoms(currentSlot))
+            .all { componentForSlot(course, it) == component }
+    }
+
+    /** A timetable cell ("L31+L32") is a set of atomic slot tokens. */
+    private fun splitAtoms(cell: String): List<String> =
+        cell.split("+").map { it.trim() }.filter { it.isNotBlank() }
+
     private val EmbeddedCourseHalf.isLab: Boolean
         get() = half.equals("L", ignoreCase = true) ||
             AcademicDerivers.isLabCourse(code, type, slots)

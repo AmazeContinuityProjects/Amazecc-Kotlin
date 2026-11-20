@@ -31,7 +31,9 @@ data class M3EWeekDay(
     val hasClasses: Boolean,
     val isHoliday: Boolean,
     val examCount: Int = 0,
-    val holidayName: String? = null
+    val holidayName: String? = null,
+    /** An unfinished assignment is due on this date (super-calendar Moodle source). */
+    val hasDeadline: Boolean = false
 )
 
 data class M3EQuickStatsState(

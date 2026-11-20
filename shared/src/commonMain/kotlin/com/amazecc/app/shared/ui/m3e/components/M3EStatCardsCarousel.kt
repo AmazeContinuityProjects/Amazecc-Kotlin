@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -24,18 +23,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Insights
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.School
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,9 +49,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * Cycles smoothly through secondary insights (Cumulative GPA, Safe Bunks, Credits Earned)
  * with animated pill dot indicators, swipe gesture support, and automatic rotation.
  *
- * D-118: automatic rotation is disabled under [LocalMotionReduced], can be
- * paused by the user at any time (WCAG 2.2.2), and the dots are now decorative
- * indicators rather than 4dp clickable targets.
+ * D-130: there is deliberately no pause control. Automatic rotation is
+ * suppressed under [LocalMotionReduced] (motion sensitivity); the dots are
+ * decorative indicators rather than 4dp clickable targets. Swiping still works.
  */
 @Composable
 fun M3EInsightCarouselCard(
@@ -70,19 +63,19 @@ fun M3EInsightCarouselCard(
 
     val colors = M3ETheme.colors
     val reduceMotion = LocalMotionReduced.current
-    var userPaused by remember { mutableStateOf(false) }
     val pagerState = rememberPagerState(
         initialPage = 0,
         pageCount = { items.size }
     )
 
-    // Auto-advance timer: off entirely for reduced motion or when the user has
-    // paused it, and it never fights an in-progress swipe.
-    LaunchedEffect(pagerState, items.size, reduceMotion, userPaused) {
-        if (items.size <= 1 || reduceMotion || userPaused) return@LaunchedEffect
+    // Auto-advance timer: off entirely for reduced motion, and it never fights
+    // an in-progress swipe. There is no pause control; reduced motion is the
+    // only suppression path.
+    LaunchedEffect(pagerState, items.size, reduceMotion) {
+        if (items.size <= 1 || reduceMotion) return@LaunchedEffect
         while (isActive) {
             delay(autoAdvanceDelayMillis)
-            if (!pagerState.isScrollInProgress && !userPaused && !reduceMotion) {
+            if (!pagerState.isScrollInProgress && !reduceMotion) {
                 val nextPage = (pagerState.currentPage + 1) % items.size
                 pagerState.animateScrollToPage(nextPage)
             }
@@ -92,7 +85,6 @@ fun M3EInsightCarouselCard(
     val currentItem = items[pagerState.currentPage.coerceIn(0, items.size - 1)]
     val cardShape = currentItem.tone.statCardShape(complementary = true)
     val accentColor = currentItem.tone.statAccentAndIconBg(colors).first
-    val canAutoAdvance = items.size > 1 && !reduceMotion
 
     Box(
         modifier = modifier
@@ -132,65 +124,41 @@ fun M3EInsightCarouselCard(
                 )
             }
 
-            // Indicators + visible pause control at the bottom of the card.
+            // Decorative dot indicators at the bottom; no pause control.
             if (items.size > 1) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 8.dp, top = 2.dp, end = 4.dp, bottom = 4.dp),
+                        .padding(top = 2.dp, bottom = 4.dp)
+                        .semantics {
+                            contentDescription = "Slide ${pagerState.currentPage + 1} of ${items.size}"
+                        },
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .semantics {
-                                contentDescription = "Slide ${pagerState.currentPage + 1} of ${items.size}"
-                            },
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        items.forEachIndexed { index, _ ->
-                            val isSelected = index == pagerState.currentPage
-                            val dotWidth by animateDpAsState(
-                                targetValue = if (isSelected) 14.dp else 4.dp,
-                                animationSpec = M3ETheme.motion.effectsDefault(),
-                                label = "MiniDotWidth"
-                            )
-                            val dotBg = if (isSelected) {
-                                accentColor
-                            } else {
-                                colors.outlineVariant.copy(alpha = 0.5f)
-                            }
-
-                            // D-118: decorative indicator, not a 4dp clickable target.
-                            Box(
-                                modifier = Modifier
-                                    .height(4.dp)
-                                    .width(dotWidth)
-                                    .clip(RoundedCornerShape(50.dp))
-                                    .background(dotBg)
-                            )
-                            if (index < items.size - 1) {
-                                Spacer(Modifier.width(4.dp))
-                            }
+                    items.forEachIndexed { index, _ ->
+                        val isSelected = index == pagerState.currentPage
+                        val dotWidth by animateDpAsState(
+                            targetValue = if (isSelected) 14.dp else 4.dp,
+                            animationSpec = M3ETheme.motion.effectsDefault(),
+                            label = "MiniDotWidth"
+                        )
+                        val dotBg = if (isSelected) {
+                            accentColor
+                        } else {
+                            colors.outlineVariant.copy(alpha = 0.5f)
                         }
-                    }
 
-                    // WCAG 2.2.2: only present when there is something to pause.
-                    if (canAutoAdvance) {
-                        IconButton(
-                            onClick = { userPaused = !userPaused },
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (userPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-                                contentDescription = if (userPaused) {
-                                    "Resume automatic slide rotation"
-                                } else {
-                                    "Pause automatic slide rotation"
-                                },
-                                tint = colors.onSurfaceVariant
-                            )
+                        // D-118: decorative indicator, not a 4dp clickable target.
+                        Box(
+                            modifier = Modifier
+                                .height(4.dp)
+                                .width(dotWidth)
+                                .clip(RoundedCornerShape(50.dp))
+                                .background(dotBg)
+                        )
+                        if (index < items.size - 1) {
+                            Spacer(Modifier.width(4.dp))
                         }
                     }
                 }

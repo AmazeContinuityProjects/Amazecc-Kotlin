@@ -77,6 +77,9 @@ import com.amazecc.app.shared.domain.overhaul.M3EEventRegistrationUi
 import com.amazecc.app.shared.domain.overhaul.M3ERegisteredEventItem
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleAction
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleState
+import com.amazecc.app.shared.domain.overhaul.M3EHomeAttendance
+import com.amazecc.app.shared.domain.overhaul.M3EHomeWeekDays
+import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyAction
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyMember
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyState
@@ -117,7 +120,6 @@ import com.amazecc.app.shared.domain.overhaul.M3ETransportAction
 import com.amazecc.app.shared.domain.overhaul.M3ETransportFilter
 import com.amazecc.app.shared.domain.overhaul.M3ETransportState
 import com.amazecc.app.shared.domain.overhaul.M3EUserIdentityState
-import com.amazecc.app.shared.domain.overhaul.M3EWeekDay
 import com.amazecc.app.shared.model.CabShareHub
 import com.amazecc.app.shared.model.CabShareTrip
 import com.amazecc.app.shared.repository.SettingsManager
@@ -230,24 +232,25 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
         )
     }
 
-    val weekDays = remember(todayDate, selectedDate, courses, calendarRes) {
-        (-3..3).map { offset ->
-            val d = LocalDate.fromEpochDays(todayDate.toEpochDays() + offset)
-            val dDayKey = AttendanceTimetable.getAttendanceDayForDate(d, calendarRes).name
-            val hasClassesOnDay = courses.any { c ->
-                val allSlots = c.slots.flatMap { splitSlots(it) }
-                allSlots.any { slotToken -> SlotMap.getTime(dDayKey, slotToken) != null }
-            }
-            M3EWeekDay(
-                date = d,
-                dayName = d.dayOfWeek.name.take(3),
-                dayNumber = d.dayOfMonth,
-                isToday = offset == 0,
-                isSelected = d == selectedDate,
-                hasClasses = hasClassesOnDay,
-                isHoliday = d.dayOfWeek.value in 6..7 && !hasClassesOnDay
-            )
-        }
+    // D-128: the home strip is a Monday-first calendar week built from the same
+    // super-calendar model the web home uses (published calendar holidays / day
+    // order, CAT+FAT exams, unfinished-task deadlines) — not a today±3 window.
+    // Collect academic + tasks as state so a late sync refreshes exam/deadline dots.
+    val academicState by AppDataStore.academic.collectAsState()
+    val homeworkTasks by AppState.tasks.collectAsState()
+    val weekDays = remember(
+        todayDate, selectedDate, courses, calendarRes, selectedSemId, academicState, homeworkTasks
+    ) {
+        M3EHomeWeekDays.build(
+            weekOffset = 0,
+            today = todayDate,
+            exams = academicState.semesters[selectedSemId]?.exams.orEmpty(),
+            calendarMonths = calendarRes?.months.orEmpty(),
+            deadlineDates = com.amazecc.app.shared.ui.screens.home.deadlineDates(homeworkTasks),
+            courses = courses,
+            calendarRes = calendarRes,
+            selectedDate = selectedDate
+        )
     }
 
     val todayClasses = remember(courses, selectedDate, calendarRes) {
@@ -289,7 +292,13 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
         val merged = mutableListOf<MergedSlotEvent>()
         for (current in rawEvents) {
             val prev = merged.lastOrNull()
-            if (prev != null && prev.course.code == current.course.code && (current.startMins - prev.endMins) in 0..5) {
+            // D-129: only merge adjacent slots of the SAME component. An embedded
+            // course carries theory and lab slots on one Course; gluing them would
+            // keep the first half's attendance and silently drop the other half's.
+            if (prev != null && prev.course.code == current.course.code &&
+                M3EHomeAttendance.canMergeAdjacentSlots(current.course, prev.slots.last(), current.slotToken) &&
+                (current.startMins - prev.endMins) in 0..5
+            ) {
                 prev.slots.add(current.slotToken)
                 prev.endMins = current.endMins
             } else {

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,6 +30,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.overhaul.M3EHomeWeekDays
 import com.amazecc.app.shared.domain.overhaul.M3EWeekDay
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -41,32 +43,25 @@ fun M3EWeekStrip(
     onDaySelected: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val colors = M3ETheme.colors
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(CircleShape)
-            .background(colors.surfaceContainerLow)
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+    // D-128: no pill plate behind the row — the discs sit on the page. Seven
+    // equal-width discs share the available width, so none can be squeezed or
+    // mangled on a phone, and classless weekends are dropped before drawing.
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            days.forEach { day ->
-                M3EWeekDayDisc(
-                    day = day,
-                    onClick = { onDaySelected(day.date) }
-                )
-            }
+        M3EHomeWeekDays.visibleInStrip(days).forEach { day ->
+            M3EWeekDayDisc(
+                day = day,
+                onClick = { onDaySelected(day.date) }
+            )
         }
     }
 }
 
 @Composable
-private fun M3EWeekDayDisc(
+private fun RowScope.M3EWeekDayDisc(
     day: M3EWeekDay,
     onClick: () -> Unit
 ) {
@@ -101,17 +96,25 @@ private fun M3EWeekDayDisc(
         label = "DayDiscContent"
     )
 
-    val a11yDescription = "${day.dayName} ${day.dayNumber} · " + when {
+    val dayState = when {
         day.holidayName != null -> day.holidayName
         day.isHoliday -> "Holiday"
         day.examCount > 0 -> "${day.examCount} Exam${if (day.examCount > 1) "s" else ""}"
         day.hasClasses -> "Classes scheduled"
         else -> "No classes"
     }
+    // A deadline is an extra hint, not a day kind: it never replaces the primary
+    // state, so TalkBack still says what the day is and adds that work is due.
+    val a11yDescription = "${day.dayName} ${day.dayNumber} · $dayState" +
+        if (day.hasDeadline) ", assignment due" else ""
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
+            // D-128: weighted discs split the row evenly; a fixed 48dp minimum
+            // width used to overflow seven-across on a phone and squeeze the last
+            // disc. Only the height keeps a 48dp touch target.
+            .weight(1f)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -131,7 +134,7 @@ private fun M3EWeekDayDisc(
                 interactionSource = interactionSource,
                 onClick = onClick
             )
-            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .sizeIn(minWidth = 0.dp, minHeight = 48.dp)
             .padding(horizontal = 8.dp, vertical = 8.dp)
     ) {
         Text(
@@ -148,7 +151,7 @@ private fun M3EWeekDayDisc(
             fontWeight = if (day.isSelected || day.isToday) FontWeight.Bold else FontWeight.SemiBold
         )
 
-        // Event Dot (Exam, Holiday, or Class indicator)
+        // Event Dot (Exam, Holiday, Class, or assignment-deadline indicator)
         Spacer(Modifier.height(3.dp))
         Box(
             modifier = Modifier
@@ -160,6 +163,7 @@ private fun M3EWeekDayDisc(
                         day.examCount > 0 -> colors.warning
                         day.isHoliday -> colors.tertiary
                         day.hasClasses -> colors.primary
+                        day.hasDeadline -> colors.secondary
                         else -> Color.Transparent
                     }
                 )
