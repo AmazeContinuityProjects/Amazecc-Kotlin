@@ -149,6 +149,11 @@ fun OnboardingScreen() {
 
         // ── Flow-backed reads live in the stateful wrapper only ──
         var currentPage by remember { mutableStateOf(0) }
+        // D-051: system back walks the onboarding pages, then returns to login instead of exiting.
+        com.amazecc.app.shared.ui.components.AppBackHandler(enabled = true) {
+            if (currentPage > 0) currentPage -= 1
+            else AppState.navigateTo(com.amazecc.app.shared.state.Screen.LOGIN)
+        }
         val moduleStates by SyncEngine.moduleStates.collectAsState()
         val customAccent by AppState.customAccentColor.collectAsState()
         val semesterMap by AppState.semesterMap.collectAsState()
