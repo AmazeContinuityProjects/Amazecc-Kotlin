@@ -408,6 +408,7 @@ fun DataSyncPage(
         SettingsGroupLabel("Sync Modules")
         SettingsGroupCard {
             val moduleStates by SyncEngine.moduleStates.collectAsState()
+            val moduleActivity by NetworkGate.moduleActivity.collectAsState(emptyMap())
 
             Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
                 val modulesToShow = SyncModule.entries.filter { it.cacheKey != null }
@@ -417,6 +418,7 @@ fun DataSyncPage(
                         SyncStatus.SUCCESS -> colors.success
                         SyncStatus.ERROR -> colors.danger
                         SyncStatus.LOADING -> colors.accent
+                        SyncStatus.SKIPPED -> colors.warning
                         SyncStatus.IDLE -> colors.textMuted
                     }
                     val isLoading = state.status == SyncStatus.LOADING
@@ -430,6 +432,15 @@ fun DataSyncPage(
                         Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(dotColor))
                         Spacer(Modifier.width(AmazeTheme.spacing.sm))
                         Text(module.displayName, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.sm, modifier = Modifier.weight(1f))
+                        val traffic = moduleActivity[module]
+                        if (traffic != null && traffic.requests > 0) {
+                            Text(
+                                "${traffic.requests} req" + if (traffic.inFlight > 0) " · ${traffic.inFlight} live" else "",
+                                color = if (traffic.inFlight > 0) colors.accent else colors.textSecondary,
+                                fontSize = AmazeTheme.fontSize.micro
+                            )
+                            Spacer(Modifier.width(AmazeTheme.spacing.xs))
+                        }
                         if (state.lastSynced != null) {
                             Text(formatModuleTime(state.lastSynced), color = colors.textSecondary, fontSize = AmazeTheme.fontSize.micro)
                             Spacer(Modifier.width(AmazeTheme.spacing.xs))

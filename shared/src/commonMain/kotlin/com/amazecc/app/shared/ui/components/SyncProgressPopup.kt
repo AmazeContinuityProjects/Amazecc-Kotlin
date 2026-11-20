@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.ModuleState
+import com.amazecc.app.shared.state.ModuleNetworkActivity
+import com.amazecc.app.shared.state.NetworkGate
 import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.state.SyncCategory
@@ -54,6 +56,7 @@ fun SyncProgressPopup(
 ) {
     val colors = AmazeTheme.colors
     val moduleStates by SyncEngine.moduleStates.collectAsState()
+    val moduleActivity by NetworkGate.moduleActivity.collectAsState(emptyMap())
     val syncProgress by SyncEngine.syncProgress.collectAsState()
     val logLines by SyncEngine.logLines.collectAsState()
     val showSyncDialog by SyncEngine.showSyncDialog.collectAsState()
@@ -288,6 +291,7 @@ fun SyncProgressPopup(
                 SyncDialogTab.MODULES -> {
                     ModulesTabContent(
                         moduleStates = moduleStates,
+                        moduleActivity = moduleActivity,
                         colors = colors
                     )
                 }
@@ -437,6 +441,7 @@ private fun OverviewTabContent(
 @Composable
 private fun ModulesTabContent(
     moduleStates: Map<SyncModule, ModuleState>,
+    moduleActivity: Map<SyncModule?, ModuleNetworkActivity>,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val groupedModules = remember(moduleStates) {
@@ -461,10 +466,20 @@ private fun ModulesTabContent(
                 )
                 modules.forEach { module ->
                     val state = moduleStates[module] ?: ModuleState()
-                    ModuleSyncRow(module, state, colors)
+                    ModuleSyncRow(module, state, moduleActivity[module], colors)
                     Spacer(Modifier.height(4.dp))
                 }
             }
+        }
+        // Every request must be accounted for: show the unattributed bucket too.
+        val direct = moduleActivity[null]
+        if (direct != null && direct.requests > 0) {
+            Text(
+                text = "Unattributed / direct requests: ${direct.requests}" +
+                    if (direct.inFlight > 0) " (${direct.inFlight} live)" else "",
+                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontSize = AmazeTheme.fontSize.xs),
+                modifier = Modifier.padding(start = 4.dp)
+            )
         }
     }
 }
@@ -473,18 +488,21 @@ private fun ModulesTabContent(
 private fun ModuleSyncRow(
     module: SyncModule,
     state: ModuleState,
+    traffic: ModuleNetworkActivity?,
     colors: com.amazecc.app.shared.theme.AmazeColors
 ) {
     val icon = when (state.status) {
         SyncStatus.LOADING -> Icons.Rounded.Sync
         SyncStatus.SUCCESS -> Icons.Rounded.CheckCircle
         SyncStatus.ERROR -> Icons.Rounded.Error
+        SyncStatus.SKIPPED -> Icons.Rounded.Block
         SyncStatus.IDLE -> Icons.Rounded.RadioButtonUnchecked
     }
     val iconColor = when (state.status) {
         SyncStatus.LOADING -> colors.accent
         SyncStatus.SUCCESS -> colors.success
         SyncStatus.ERROR -> colors.danger
+        SyncStatus.SKIPPED -> colors.warning
         SyncStatus.IDLE -> colors.textMuted.copy(alpha = 0.4f)
     }
 
@@ -515,6 +533,18 @@ private fun ModuleSyncRow(
                 Text(
                     text = state.error,
                     style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.micro, color = colors.danger),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (traffic != null && traffic.requests > 0) {
+                Text(
+                    text = buildString {
+                        append("${traffic.requests} request(s)")
+                        if (traffic.inFlight > 0) append(" · ${traffic.inFlight} in flight")
+                        if (traffic.errors > 0) append(" · ${traffic.errors} error(s)")
+                    },
+                    style = AmazeTheme.typography.caption.copy(fontSize = AmazeTheme.fontSize.micro, color = colors.textSecondary),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -566,6 +596,7 @@ private fun LogsTabContent(
                             SyncStatus.SUCCESS -> colors.success
                             SyncStatus.ERROR -> colors.danger
                             SyncStatus.LOADING -> colors.accent
+                            SyncStatus.SKIPPED -> colors.warning
                             SyncStatus.IDLE -> colors.textMuted
                         }
                         Text(

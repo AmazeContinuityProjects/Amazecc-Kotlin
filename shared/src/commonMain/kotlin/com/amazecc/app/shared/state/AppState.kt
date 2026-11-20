@@ -23,6 +23,7 @@ import com.amazecc.app.shared.utils.DemoData
 import com.amazecc.app.shared.utils.requestNotificationPermissions
 import com.amazecc.app.shared.utils.testLocalNotification
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -1112,16 +1113,25 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     }
 
     private fun launchSweep(modules: Set<SyncModule>, stageProfile: String? = null, block: suspend () -> Unit) {
-        if (sweepJob?.isActive == true) return
+        if (sweepJob?.isActive == true) {
+            _syncMessage.value = "A sync is already running — tap again after it finishes"
+            return
+        }
         sweepJob = scope.launch {
+            val thisJob = currentCoroutineContext()[Job]
             _isLoading.value = true
             _isSyncing.value = true
+            _syncMessage.value = "Starting sync (${modules.size} modules)"
             SyncEngine.beginSweep(modules)
+            if (thisJob != null) SyncEngine.registerJob(thisJob)
             try {
                 // No session means every module below would report the same "No VTOP session"
                 // against itself. Stopping here turns fifteen identical lines into one sentence
                 // that says what to do about it.
-                if (!ensureVtopSessionForSweep(modules)) return@launch
+                val authenticated = SyncEngine.networkScope(null, "VTOP session login") {
+                    ensureVtopSessionForSweep(modules)
+                }
+                if (!authenticated) return@launch
                 if (stageProfile != null) {
                     SyncEngine.withStageProfile(stageProfile) { block() }
                 } else {
@@ -1129,13 +1139,28 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
+            } catch (e: Exception) {
+                _error.value = "Sync failed: ${e::class.simpleName}: ${e.message}"
+                SyncEngine.addLog(SyncModule.STUDENT_PROFILE, "Sync failed: ${e.message}", SyncStatus.ERROR)
             } finally {
+                if (thisJob != null) SyncEngine.unregisterJob(thisJob)
                 SyncEngine.endSweep()
                 _isLoading.value = false
                 _isSyncing.value = false
+                // A semester switch requested mid-sweep must run *after* this sweep finishes.
+                // Calling it from inside the sweep only re-queued it (the _isLoading guard) and
+                // it was never consumed. Do not run it for a cancelled sweep.
+                if (thisJob?.isCancelled == false) consumePendingSemesterSwitch()
             }
         }
-        SyncEngine.registerJob(sweepJob!!)
+    }
+
+    private fun consumePendingSemesterSwitch() {
+        val semester = pendingSemesterSwitch ?: return
+        pendingSemesterSwitch = null
+        sweepJob = null
+        _syncMessage.value = "Refreshing data for new semester..."
+        loadSemesterData(semester)
     }
 
     fun cancelSync() {
@@ -1330,8 +1355,11 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                     jobs.awaitAll()
                 }
                 updateSyncSummary(results)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _error.value = "Sync failed: ${e.message}"
+                _error.value = "Sync failed: ${e::class.simpleName}: ${e.message}"
+                SyncEngine.addLog(SyncModule.STUDENT_PROFILE, "Mode sync failed: ${e.message}", SyncStatus.ERROR)
             } finally {
                 _isLoading.value = false
                 _isSyncing.value = false
@@ -1356,13 +1384,17 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             // Page-local refresh effects are gone: the central sweep is now the only place
             // these campus/academic modules get fetched, so they must be part of it.
             "Free Classrooms", "Documents", "OD Details", "Feedback Status"
-        ).mapNotNull { SyncEngine.moduleOf(it) }.filter { SyncEngine.isModuleEnabled(it) }.toSet()
+            // Do NOT filter by the user's active profile here: a scheduled full/light run applies
+            // its own stage profile *inside* launchSweep. syncModule() gates each module against
+            // that staged profile and records disabled ones as SKIPPED.
+        ).mapNotNull { SyncEngine.moduleOf(it) }.toSet()
 
         launchSweep(sweepModules, stageProfile = stageProfile) {
             _error.value = null
             _syncMessage.value = "Refreshing VTOP session..."
             _syncStatus.value = "Refreshing VTOP session..."
             notificationService.showLoadingNotification("AmazeCC Sync", "Refreshing VTOP session...")
+            var sweepSucceeded = false
             try {
                 _syncMessage.value = "Syncing academic and campus data..."
                 _syncStatus.value = "Syncing academic and campus data..."
@@ -1387,30 +1419,46 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             )
                         },
                         async {
-                            if (!SyncEngine.isModuleEnabled(SyncModule.ALL_SEMESTER_ATTENDANCE)) {
-                                SyncModuleResult("All Semesters Attendance", true)
+                            val module = SyncModule.ALL_SEMESTER_ATTENDANCE
+                            if (!SyncEngine.isModuleEnabled(module)) {
+                                SyncEngine.markModuleSkipped(module, "Disabled by the active sync profile")
+                                SyncModuleResult("All Semesters Attendance", true, "SKIPPED: disabled by active profile")
                             } else if (_pastSemestersSynced.value) {
-                                SyncEngine.markModuleSuccess(SyncModule.ALL_SEMESTER_ATTENDANCE)
-                                SyncModuleResult("All Semesters Attendance", true)
+                                // Honest: no fetch happened, so do not stamp lastSynced = now.
+                                SyncEngine.markModuleSkipped(module, "Already synced in an earlier run; no fetch performed")
+                                SyncModuleResult("All Semesters Attendance", true, "SKIPPED: already synced previously")
                             } else {
-                                var failed = false
-                                val gradeSemIds = AppDataStore.academic.value.semesters.keys
-                                    .filter { it != sem }
+                                var failed = 0
+                                val gradeSemIds = AppDataStore.academic.value.semesters.keys.filter { it != sem }
                                 val allSemIds = (gradeSemIds + semesterIDs).distinct().filter { it != sem }
                                 for (semId in allSemIds) {
                                     try {
-                                        val res = AmazeClient.getAcademicData(semId)
+                                        val res = SyncEngine.networkScope(module, "Past semester $semId") {
+                                            AmazeClient.getAcademicData(semId)
+                                        }
                                         if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
                                             AppDataStore.upsertAttendance(semId, res.attendance)
                                         }
                                         if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
                                             AppDataStore.upsertMarks(semId, res.marks)
                                         }
-                                    } catch (_: Exception) { failed = true }
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        failed++
+                                        SyncEngine.addLog(module, "Past semester $semId failed: ${e.message}", SyncStatus.ERROR)
+                                    }
                                 }
-                                if (failed) SyncEngine.markModuleError(SyncModule.ALL_SEMESTER_ATTENDANCE, "Some past semesters failed")
-                                else SyncEngine.markModuleSuccess(SyncModule.ALL_SEMESTER_ATTENDANCE)
-                                SyncModuleResult("All Semesters Attendance", !failed)
+                                // Only latch success when every semester actually fetched.
+                                if (failed == 0) {
+                                    SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
+                                    _pastSemestersSynced.value = true
+                                    SyncEngine.markModuleSuccess(module, "fetched ${allSemIds.size} past semester(s)")
+                                    SyncModuleResult("All Semesters Attendance", true)
+                                } else {
+                                    SyncEngine.markModuleError(module, "$failed of ${allSemIds.size} past semesters failed")
+                                    SyncModuleResult("All Semesters Attendance", false, "$failed past semester(s) failed")
+                                }
                             }
                         },
                         async {
@@ -1469,22 +1517,39 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             )
                         },
                         async {
+                            // This block only fills *past* semesters. The module's own state is
+                            // owned by the "Exam schedule" syncModule above — writing it here was
+                            // a race that could overwrite a real ERROR with a green SUCCESS.
                             if (!SyncEngine.isModuleEnabled(SyncModule.EXAM_SCHEDULE)) {
-                                SyncModuleResult("All Semesters Exam Schedule", true)
+                                SyncModuleResult("All Semesters Exam Schedule", true, "SKIPPED: disabled by active profile")
                             } else {
-                                var examFailed = false
+                                var failed = 0
+                                var attempted = 0
                                 for (semId in semesterIDs) {
                                     if (semId == sem) continue
+                                    attempted++
                                     try {
-                                        val res = AmazeClient.getExamSchedule(semesterId = semId)
+                                        val res = SyncEngine.networkScope(SyncModule.EXAM_SCHEDULE, "Past exam schedule $semId") {
+                                            AmazeClient.getExamSchedule(semesterId = semId)
+                                        }
                                         if (res.error == null && res.schedule.isNotEmpty()) {
                                             AppDataStore.upsertExams(semId, res)
+                                        } else {
+                                            failed++
+                                            SyncEngine.addLog(SyncModule.EXAM_SCHEDULE, "Past schedule $semId: ${res.error ?: "empty"}", SyncStatus.ERROR)
                                         }
-                                    } catch (_: Exception) { examFailed = true }
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        failed++
+                                        SyncEngine.addLog(SyncModule.EXAM_SCHEDULE, "Past schedule $semId failed: ${e.message}", SyncStatus.ERROR)
+                                    }
                                 }
-                                if (examFailed) SyncEngine.markModuleError(SyncModule.EXAM_SCHEDULE, "Some past semester schedules failed")
-                                else SyncEngine.markModuleSuccess(SyncModule.EXAM_SCHEDULE)
-                                SyncModuleResult("All Semesters Exam Schedule", !examFailed)
+                                if (attempted == 0) {
+                                    SyncModuleResult("All Semesters Exam Schedule", true, "SKIPPED: no past semesters")
+                                } else {
+                                    SyncModuleResult("All Semesters Exam Schedule", failed == 0, if (failed > 0) "$failed past schedule(s) failed" else null)
+                                }
                             }
                         },
                         async {
@@ -1572,8 +1637,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                         async {
                             val moodleCreds = SettingsManager.getMoodleCredentials()
                             if (moodleCreds == null) {
-                                SyncEngine.resetModule(SyncModule.MOODLE)
-                                SyncModuleResult("Moodle Assignments", true)
+                                SyncEngine.markModuleSkipped(SyncModule.MOODLE, "Moodle credentials not configured")
+                                SyncModuleResult("Moodle Assignments", true, "SKIPPED: Moodle credentials not configured")
                             } else {
                                 syncModule(
                                     name = "Moodle Assignments",
@@ -1599,8 +1664,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                     }
                                 )
                             } else {
-                                if (SyncEngine.isModuleEnabled(SyncModule.EVENTS)) SyncEngine.resetModule(SyncModule.EVENTS)
-                                SyncModuleResult("Registered Events", true)
+                                SyncEngine.markModuleSkipped(SyncModule.EVENTS, "EventHub club token not available")
+                                SyncModuleResult("Registered Events", true, "SKIPPED: EventHub club token not available")
                             }
                         },
                         async {
@@ -1662,8 +1727,17 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             )
                         },
                         async {
-                            val profResults = syncIdentityModules()
-                            profResults.firstOrNull { !it.success } ?: SyncModuleResult("Student Profile", true)
+                            val anyIdentityEnabled = ConsolidatedIdentityModuleNames.any { name ->
+                                SyncEngine.moduleOf(name)?.let { SyncEngine.isModuleEnabled(it) } ?: false
+                            }
+                            if (!anyIdentityEnabled) {
+                                SyncModuleResult("Student Profile", true, "SKIPPED: all profile modules disabled")
+                            } else {
+                                val profResults = syncIdentityModules()
+                                profResults.firstOrNull { !it.success }
+                                    ?: profResults.firstOrNull { it.message?.startsWith("SKIPPED: ") == true }
+                                    ?: SyncModuleResult("Student Profile", true)
+                            }
                         },
                         async {
                             syncModule(
@@ -1687,39 +1761,49 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 val semData = AppDataStore.academic.value.semesters[semId]
                                 semData == null || semData.courses.values.none { it.marks != null }
                             }
+                        var gapFailures = 0
                         for (semId in missingSemIds) {
                             try {
-                                val res = AmazeClient.getAcademicData(semId)
+                                val res = SyncEngine.networkScope(SyncModule.ALL_SEMESTER_ATTENDANCE, "Gap-fill $semId") {
+                                    AmazeClient.getAcademicData(semId)
+                                }
                                 if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
                                     AppDataStore.upsertAttendance(semId, res.attendance)
                                 }
                                 if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
                                     AppDataStore.upsertMarks(semId, res.marks)
                                 }
-                            } catch (_: Exception) { }
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                gapFailures++
+                                SyncEngine.addLog(SyncModule.ALL_SEMESTER_ATTENDANCE, "Gap-fill $semId failed: ${e.message}", SyncStatus.ERROR)
+                            }
                         }
-                        SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
-                        _pastSemestersSynced.value = true
+                        if (gapFailures == 0) {
+                            SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
+                            _pastSemestersSynced.value = true
+                        }
                     }
                     syncResults
                 }
                 updateSyncSummary(results)
-                pendingSemesterSwitch?.let {
-                    val semSwitch = it
-                    pendingSemesterSwitch = null
-                    _syncMessage.value = "Refreshing data for new semester..."
-                    loadSemesterData(semSwitch)
-                }
+                sweepSucceeded = results.none { !it.success } && SyncEngine.syncProgress.value.errorCount == 0
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } finally {
                 _syncMessage.value = null
                 if (scheduledFor != null) {
-                    SyncScheduler.markSynced()
+                    // Only a genuinely successful run may stamp "last synced". A failed or
+                    // cancelled run still re-arms so it can retry at the next window.
+                    if (sweepSucceeded) SyncScheduler.markSynced()
                     SyncScheduler.advanceAndArm(scheduledFor)
                 }
                 if (kotlinx.coroutines.currentCoroutineContext().isActive) {
-                    notificationService.showLoadingNotification("AmazeCC Sync", "Sync completed")
+                    notificationService.showLoadingNotification(
+                        "AmazeCC Sync",
+                        if (sweepSucceeded) "Sync completed" else "Sync finished with problems"
+                    )
                     scheduleReminders()
                 }
             }
@@ -1836,24 +1920,39 @@ val results = supervisorScope {
                             )
                         },
                         async {
+                            val module = SyncModule.ALL_SEMESTER_ATTENDANCE
                             if (_pastSemestersSynced.value) {
-                                SyncModuleResult("All Semesters", true)
+                                SyncEngine.markModuleSkipped(module, "Already synced in an earlier run; no fetch performed")
+                                SyncModuleResult("All Semesters", true, "SKIPPED: already synced previously")
                             } else {
-                                var failed = false
+                                var failed = 0
                                 val gradeSemIds = AppDataStore.academic.value.semesters.keys.filter { it != sem }
                                 val allSemIds = (gradeSemIds + semesterIDs).distinct().filter { it != sem }
                                 for (semId in allSemIds) {
                                     try {
-                                        val res = AmazeClient.getAcademicData(semId)
+                                        val res = SyncEngine.networkScope(module, "Past semester $semId") {
+                                            AmazeClient.getAcademicData(semId)
+                                        }
                                         if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
                                             AppDataStore.upsertAttendance(semId, res.attendance)
                                         }
                                         if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
                                             AppDataStore.upsertMarks(semId, res.marks)
                                         }
-                                    } catch (_: Exception) { failed = true }
+                                    } catch (e: kotlinx.coroutines.CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        failed++
+                                        SyncEngine.addLog(module, "Past semester $semId failed: ${e.message}", SyncStatus.ERROR)
+                                    }
                                 }
-                                SyncModuleResult("All Semesters", !failed)
+                                if (failed == 0) {
+                                    SyncEngine.markModuleSuccess(module, "fetched ${allSemIds.size} past semester(s)")
+                                    SyncModuleResult("All Semesters", true)
+                                } else {
+                                    SyncEngine.markModuleError(module, "$failed of ${allSemIds.size} past semesters failed")
+                                    SyncModuleResult("All Semesters", false, "$failed past semester(s) failed")
+                                }
                             }
                         },
                         async {
@@ -1889,19 +1988,29 @@ val results = supervisorScope {
                                 val semData = AppDataStore.academic.value.semesters[semId]
                                 semData == null || semData.courses.values.none { it.marks != null }
                             }
+                        var gapFailures = 0
                         for (semId in missingSemIds) {
                             try {
-                                val res = AmazeClient.getAcademicData(semId)
+                                val res = SyncEngine.networkScope(SyncModule.ALL_SEMESTER_ATTENDANCE, "Gap-fill $semId") {
+                                    AmazeClient.getAcademicData(semId)
+                                }
                                 if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
                                     AppDataStore.upsertAttendance(semId, res.attendance)
                                 }
                                 if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
                                     AppDataStore.upsertMarks(semId, res.marks)
                                 }
-                            } catch (_: Exception) { }
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                throw e
+                            } catch (e: Exception) {
+                                gapFailures++
+                                SyncEngine.addLog(SyncModule.ALL_SEMESTER_ATTENDANCE, "Gap-fill $semId failed: ${e.message}", SyncStatus.ERROR)
+                            }
                         }
-                        SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
-                        _pastSemestersSynced.value = true
+                        if (gapFailures == 0) {
+                            SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
+                            _pastSemestersSynced.value = true
+                        }
                     }
                     syncResults
                 }
@@ -1910,27 +2019,44 @@ val results = supervisorScope {
     }
 
     fun refreshPastSemesters() {
-        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
+        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) {
+            _syncMessage.value = "A sync is already running"
+            return
+        }
         launchSweep(setOf(SyncModule.ALL_SEMESTER_ATTENDANCE)) {
             _syncStatus.value = "Refreshing past semester data..."
+            val module = SyncModule.ALL_SEMESTER_ATTENDANCE
             val sem = _selectedSemester.value
-                val gradeSemIds = AppDataStore.academic.value.semesters.keys.filter { it != sem }
-                val allSemIds = (gradeSemIds + semesterIDs).distinct().filter { it != sem }
-                var failed = false
-                for (semId in allSemIds) {
-                    try {
-                        val res = AmazeClient.getAcademicData(semId)
-                        if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
-                            AppDataStore.upsertAttendance(semId, res.attendance)
-                        }
-                        if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
-                            AppDataStore.upsertMarks(semId, res.marks)
-                        }
-                    } catch (_: Exception) { failed = true }
+            val allSemIds = (AppDataStore.academic.value.semesters.keys + semesterIDs)
+                .distinct().filter { it != sem }
+            var failed = 0
+            for (semId in allSemIds) {
+                try {
+                    val res = SyncEngine.networkScope(module, "Past semester $semId") {
+                        AmazeClient.getAcademicData(semId)
+                    }
+                    if (res.attendance.error == null && res.attendance.attendance?.isNotEmpty() == true) {
+                        AppDataStore.upsertAttendance(semId, res.attendance)
+                    }
+                    if (res.marks?.error == null && res.marks?.marks?.isNotEmpty() == true) {
+                        AppDataStore.upsertMarks(semId, res.marks)
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    failed++
+                    SyncEngine.addLog(module, "Past semester $semId failed: ${e.message}", SyncStatus.ERROR)
                 }
+            }
+            if (failed == 0) {
                 SettingsManager.setBoolean(SettingsManager.PAST_SEMESTER_SYNCED, true)
                 _pastSemestersSynced.value = true
-                updateSyncSummary(listOf(SyncModuleResult("All Semesters Attendance", !failed)))
+                SyncEngine.markModuleSuccess(module, "fetched ${allSemIds.size} past semester(s)")
+                updateSyncSummary(listOf(SyncModuleResult("All Semesters Attendance", true)))
+            } else {
+                SyncEngine.markModuleError(module, "$failed of ${allSemIds.size} past semesters failed")
+                updateSyncSummary(listOf(SyncModuleResult("All Semesters Attendance", false, "$failed past semester(s) failed")))
+            }
         }
     }
 
@@ -2381,6 +2507,13 @@ val results = supervisorScope {
     }
 
 
+    /**
+     * The single fetch → validate → cache → report pipeline. Every network request made by a
+     * module runs inside [SyncEngine.networkScope], so the gate sees it with the right module tag.
+     *
+     * Skips are reported as SKIPPED (never as SUCCESS), failures as ERROR, and cancellation is
+     * re-thrown so it can never be mislabelled as a module failure.
+     */
     private suspend fun <T> syncModule(
         name: String,
         fetch: suspend () -> T,
@@ -2389,31 +2522,30 @@ val results = supervisorScope {
         update: (T) -> Unit
     ): SyncModuleResult {
         val module = SyncEngine.moduleOf(name)
-        if (module != null && !SyncEngine.isModuleEnabled(module)) return SyncModuleResult(name, true)
+        if (module != null && !SyncEngine.isModuleEnabled(module)) {
+            SyncEngine.markModuleSkipped(module, "Disabled by the active sync profile")
+            return SyncModuleResult(name, true, "SKIPPED: disabled by active profile")
+        }
         module?.let { SyncEngine.markModuleLoading(it) }
         return try {
-            val result = fetch()
+            val result = SyncEngine.networkScope(module, "Fetch $name") { fetch() }
             if (isSuccess(result)) {
                 update(result)
-                module?.let {
-                    SyncEngine.markModuleSuccess(it)
-                    SyncEngine.addLog(it, "Synced", SyncStatus.SUCCESS)
-                }
+                module?.let { SyncEngine.markModuleSuccess(it, "fetched via ${module.cacheKey ?: "in-memory cache"}") }
                 SyncModuleResult(name, true)
             } else {
                 val msg = errorMessage(result) ?: "Empty or failed response"
+                val skipped = msg.startsWith("NO_") && msg.endsWith("CREDS")
                 module?.let {
-                    if (msg != "NO_LIB_CREDS") {
-                        SyncEngine.markModuleError(it, msg)
-                        SyncEngine.addLog(it, msg, SyncStatus.ERROR)
-                    } else {
-                        SyncEngine.resetModule(it)
-                    }
+                    if (skipped) SyncEngine.markModuleSkipped(it, msg) else SyncEngine.markModuleError(it, msg)
+                    SyncEngine.addLog(it, msg, if (skipped) SyncStatus.SKIPPED else SyncStatus.ERROR)
                 }
-                SyncModuleResult(name, false, msg)
+                SyncModuleResult(name, skipped, if (skipped) "SKIPPED: $msg" else msg)
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
-            val msg = e.message ?: e.toString()
+            val msg = "${e::class.simpleName}: ${e.message ?: e.toString()}"
             module?.let {
                 SyncEngine.markModuleError(it, msg)
                 SyncEngine.addLog(it, msg, SyncStatus.ERROR)
@@ -2429,7 +2561,9 @@ val results = supervisorScope {
      * is unavailable (old server, demo mode, partial failure).
      */
     private suspend fun syncIdentityModules(): List<SyncModuleResult> {
-        val me = AmazeClient.getMe()
+        val me = SyncEngine.networkScope(SyncModule.STUDENT_PROFILE, "Fetch consolidated identity") {
+            AmazeClient.getMe()
+        }
         // HTTP 200 may still carry a few fetchErrors. Every field that did arrive is
         // authoritative at the ME tier: merge it and surface the warning rather than
         // throwing the whole payload away and falling back to failing per-endpoint scrapes.
@@ -2443,10 +2577,14 @@ val results = supervisorScope {
             val names = ConsolidatedIdentityModuleNames.filter { name ->
                 SyncEngine.moduleOf(name)?.let { SyncEngine.isModuleEnabled(it) } ?: true
             }
-            names.forEach { name ->
-                SyncEngine.moduleOf(name)?.let {
-                    SyncEngine.markModuleSuccess(it)
-                    SyncEngine.addLog(it, "Synced via /api/remote/whoami", SyncStatus.SUCCESS)
+            names.forEachIndexed { index, name ->
+                SyncEngine.moduleOf(name)?.let { module ->
+                    if (warning != null && index > 0) {
+                        // A partial payload does not justify nine green rows with fresh timestamps.
+                        SyncEngine.markModuleSkipped(module, "Partial whoami payload: $warning")
+                    } else {
+                        SyncEngine.markModuleSuccess(module, "via /api/remote/whoami")
+                    }
                 }
             }
             // Registration schedule & university day are not among the ten folded
@@ -2455,22 +2593,36 @@ val results = supervisorScope {
             // the consolidated payload already supplied.
             try {
                 if (identity.registrationFields.isEmpty() && identity.registrationTables.isEmpty()) {
-                    AmazeClient.getRegistrationSchedule().takeIf { it.success }?.let { res ->
+                    SyncEngine.networkScope(SyncModule.REGISTRATION_SCHEDULE, "Fill registration schedule") {
+                        AmazeClient.getRegistrationSchedule()
+                    }.takeIf { it.success }?.let { res ->
                         UserStore.merge(IdentityExtractor.fromRegistrationSchedule(res), IdentitySource.RECORDS)
                         updateFfcsRegistration(parseFfcsRegistration(res))
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (_: Exception) {}
             try {
                 if (identity.universityDayTitle == null && identity.universityDayFields.isEmpty() &&
                     identity.universityDayTables.isEmpty()
                 ) {
-                    AmazeClient.getUniversityDay().takeIf { it.success }?.let { res ->
+                    SyncEngine.networkScope(SyncModule.UNIVERSITY_DAY, "Fill university day") {
+                        AmazeClient.getUniversityDay()
+                    }.takeIf { it.success }?.let { res ->
                         UserStore.merge(IdentityExtractor.fromUniversityDay(res), IdentitySource.RECORDS)
                     }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (_: Exception) {}
-            return names.map { SyncModuleResult(it, true, warning) }
+            return names.mapIndexed { index, name ->
+                if (warning != null && index > 0) {
+                    SyncModuleResult(name, true, "SKIPPED: partial whoami payload — $warning")
+                } else {
+                    SyncModuleResult(name, true, warning)
+                }
+            }
         }
         // Consolidated payload unavailable — sweep each source individually,
         // including the records that whoami would otherwise have carried.
@@ -2559,13 +2711,25 @@ val results = supervisorScope {
     }
 
     private fun updateSyncSummary(results: List<SyncModuleResult>) {
+        val skipped = results.filter { it.message?.startsWith("SKIPPED: ") == true }
         val failures = results.filterNot { it.success }
-            .filter { it.message != "NO_LIB_CREDS" }
-        val successCount = results.size - failures.size
-        _syncStatus.value = "Synced $successCount/${results.size} modules"
+            .filter { it.message?.startsWith("SKIPPED: ") != true }
+        val successCount = results.size - failures.size - skipped.size
+        _syncStatus.value = buildString {
+            append("Synced $successCount/${results.size - skipped.size} modules")
+            if (skipped.isNotEmpty()) append(", ${skipped.size} skipped")
+            if (failures.isNotEmpty()) append(", ${failures.size} failed")
+        }
         _error.value = failures
             .takeIf { it.isNotEmpty() }
             ?.joinToString(separator = "\n") { "${it.name}: ${it.message}" }
+        if (skipped.isNotEmpty()) {
+            SyncEngine.addLog(
+                SyncModule.STUDENT_PROFILE,
+                "Skipped: ${skipped.joinToString { it.message?.removePrefix("SKIPPED: ") ?: it.name }}",
+                SyncStatus.SKIPPED
+            )
+        }
     }
 
     fun dismissError() {
@@ -2760,15 +2924,18 @@ fun updateMoodleData(data: MoodleRes?) {
         if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
         launchSweep(setOf(SyncModule.EVENTS, SyncModule.CLUBS)) {
             try {
-                val eventsRes = AmazeClient.getEvents()
+                val eventsRes = SyncEngine.networkScope(SyncModule.EVENTS, "Fetch events") {
+                    AmazeClient.getEvents()
+                }
                 if (eventsRes.error == null) {
                     AppDataStore.setEvents(eventsRes)
-                    SyncEngine.markModuleSuccess(SyncModule.EVENTS)
-                    SyncEngine.addLog(SyncModule.EVENTS, "Synced", SyncStatus.SUCCESS)
+                    SyncEngine.markModuleSuccess(SyncModule.EVENTS, "events feed")
                 } else {
-                    SyncEngine.markModuleError(SyncModule.EVENTS, eventsRes.error!!)
-                    SyncEngine.addLog(SyncModule.EVENTS, eventsRes.error!!, SyncStatus.ERROR)
+                    SyncEngine.markModuleError(SyncModule.EVENTS, eventsRes.error)
+                    SyncEngine.addLog(SyncModule.EVENTS, eventsRes.error ?: "empty response", SyncStatus.ERROR)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 SyncEngine.markModuleError(SyncModule.EVENTS, e.message ?: "Network error")
                 SyncEngine.addLog(SyncModule.EVENTS, e.message ?: "Network error", SyncStatus.ERROR)
@@ -2777,23 +2944,30 @@ fun updateMoodleData(data: MoodleRes?) {
             // is fetched through VtopEventHub in LOCAL mode and from the cache in OFFLINE_CACHE —
             // only a genuinely successful response may replace the cached list.
             try {
-                val profileRes = AmazeClient.getEventsProfile()
+                val profileRes = SyncEngine.networkScope(SyncModule.EVENTS, "Fetch event registrations") {
+                    AmazeClient.getEventsProfile()
+                }
                 if (profileRes.success && profileRes.error == null) {
                     AppDataStore.setRegisteredEvents(profileRes)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (_: Exception) {
                 // Keep the last known registration list; the profile is best-effort here.
             }
             try {
-                val clubsRes = AmazeClient.getClubsDetails()
+                val clubsRes = SyncEngine.networkScope(SyncModule.CLUBS, "Fetch clubs") {
+                    AmazeClient.getClubsDetails()
+                }
                 if (clubsRes.error == null) {
                     AppDataStore.setClubs(clubsRes)
-                    SyncEngine.markModuleSuccess(SyncModule.CLUBS)
-                    SyncEngine.addLog(SyncModule.CLUBS, "Synced", SyncStatus.SUCCESS)
+                    SyncEngine.markModuleSuccess(SyncModule.CLUBS, "clubs directory")
                 } else {
-                    SyncEngine.markModuleError(SyncModule.CLUBS, clubsRes.error!!)
-                    SyncEngine.addLog(SyncModule.CLUBS, clubsRes.error!!, SyncStatus.ERROR)
+                    SyncEngine.markModuleError(SyncModule.CLUBS, clubsRes.error)
+                    SyncEngine.addLog(SyncModule.CLUBS, clubsRes.error ?: "empty response", SyncStatus.ERROR)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 SyncEngine.markModuleError(SyncModule.CLUBS, e.message ?: "Network error")
                 SyncEngine.addLog(SyncModule.CLUBS, e.message ?: "Network error", SyncStatus.ERROR)
@@ -2985,12 +3159,12 @@ fun updateMoodleData(data: MoodleRes?) {
             "Attendance", "Timetable", "Grade history", "Exam schedule", "Academic calendar",
             "Calendars list", "LMS", "Circulars", "Moodle Assignments"
         ).mapNotNull { SyncEngine.moduleOf(it) }
-            .filter { SyncEngine.isModuleEnabled(it) }
             .toSet()
         launchSweep(dailyModules, stageProfile = SyncScheduler.lightProfileId()) {
             _syncMessage.value = "Running scheduled refresh..."
             _syncStatus.value = "Running scheduled refresh..."
             notificationService.showLoadingNotification("AmazeCC Sync", "Running scheduled refresh...")
+            var sweepSucceeded = false
             try {
                 val sem = _selectedSemester.value
                 val results = supervisorScope {
@@ -3091,8 +3265,8 @@ fun updateMoodleData(data: MoodleRes?) {
                         async {
                             val moodleCreds = SettingsManager.getMoodleCredentials()
                             if (moodleCreds == null) {
-                                SyncEngine.resetModule(SyncModule.MOODLE)
-                                SyncModuleResult("Moodle Assignments", true)
+                                SyncEngine.markModuleSkipped(SyncModule.MOODLE, "Moodle credentials not configured")
+                                SyncModuleResult("Moodle Assignments", true, "SKIPPED: Moodle credentials not configured")
                             } else {
                                 syncModule(
                                     name = "Moodle Assignments",
@@ -3109,11 +3283,17 @@ fun updateMoodleData(data: MoodleRes?) {
                     syncResults
                 }
                 updateSyncSummary(results)
+                sweepSucceeded = results.none { !it.success } && SyncEngine.syncProgress.value.errorCount == 0
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } finally {
-                SyncScheduler.markSynced()
+                if (sweepSucceeded) SyncScheduler.markSynced()
                 SyncScheduler.advanceAndArm(SyncScheduler.LIGHT_KIND)
                 if (kotlinx.coroutines.currentCoroutineContext().isActive) {
-                    notificationService.showLoadingNotification("AmazeCC Sync", "Sync completed")
+                    notificationService.showLoadingNotification(
+                        "AmazeCC Sync",
+                        if (sweepSucceeded) "Sync completed" else "Sync finished with problems"
+                    )
                     scheduleReminders()
                 }
             }
@@ -3408,7 +3588,18 @@ fun updateMoodleData(data: MoodleRes?) {
     fun refreshEventsAndClubs() {
         scope.launch {
             syncEventsAndClubs()
-            try { AmazeClient.eventLogin() } catch (_: Exception) { }
+            try {
+                val result = SyncEngine.userAction("EventHub login") { AmazeClient.eventLogin() }
+                SyncEngine.addLog(
+                    SyncModule.EVENTS,
+                    if (result != null) "EventHub login OK" else "EventHub login failed (no token returned)",
+                    if (result != null) SyncStatus.SUCCESS else SyncStatus.ERROR
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                SyncEngine.addLog(SyncModule.EVENTS, "EventHub login failed: ${e.message}", SyncStatus.ERROR)
+            }
         }
     }
 

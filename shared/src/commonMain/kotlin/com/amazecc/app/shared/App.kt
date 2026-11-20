@@ -217,7 +217,10 @@ fun App() {
                                 onDismiss = { SyncEngine.setShowSyncDialog(false) },
                                 onSaveOffline = { AppState.saveOffline() },
                                 onSyncAll = {
-                                    SyncEngine.resetAllStates()
+                                    // Never wipe the module ledger while a sweep is still writing
+                                    // to it — that made the ring drop to 0% and stay stale.
+                                    // beginSweep() resets the relevant states itself.
+                                    SyncEngine.setShowSyncDialog(true)
                                     AppState.loadAllData()
                                 }
                             )

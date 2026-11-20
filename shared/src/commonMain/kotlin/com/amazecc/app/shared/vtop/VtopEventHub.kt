@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.vtop
 
+import com.amazecc.app.shared.state.AmazeNetworkGatePlugin
 import com.amazecc.app.shared.model.EventHubEvent
 import com.amazecc.app.shared.model.EventHubPreview
 import com.amazecc.app.shared.model.EventHubRegisterRes
@@ -56,6 +57,7 @@ object VtopEventHub {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     private val http = HttpClient {
+        install(AmazeNetworkGatePlugin)
         // AmazeCC-API's LMSClient sets no timeout at all, so axios runs with `timeout: 0`.
         // Not reproduced here.
         install(HttpTimeout) {

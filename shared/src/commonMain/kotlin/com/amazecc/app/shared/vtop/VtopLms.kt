@@ -3,6 +3,7 @@ package com.amazecc.app.shared.vtop
 import com.amazecc.app.shared.model.LMSAssignment
 import com.amazecc.app.shared.model.LMSRes
 import com.amazecc.app.shared.state.AppSanitizers
+import com.amazecc.app.shared.state.AmazeNetworkGatePlugin
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
@@ -54,6 +55,7 @@ object VtopLms {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     private val http = HttpClient {
+        install(AmazeNetworkGatePlugin)
         install(HttpTimeout) {
             requestTimeoutMillis = 25_000
             connectTimeoutMillis = 12_000

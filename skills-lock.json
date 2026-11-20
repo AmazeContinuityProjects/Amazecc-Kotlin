@@ -1,6 +1,20 @@
 {
   "version": 2,
   "skills": {
+    "adaptive": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "jetpack-compose/adaptive/SKILL.md",
+      "computedHash": "7519d3ff62439c00c1af253e0e5ebac2221947a95cc04cd495258be0017ca462"
+    },
+    "agp-9-upgrade": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "build-system/agp/agp-9-upgrade/SKILL.md",
+      "computedHash": "5ea250405ef337c52af03b9342b90fd67a16683c1ea3ff1cc429c2156f926478"
+    },
     "android-benchmark-comparison": {
       "source": "chrisbanes/skills",
       "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
@@ -8,12 +22,131 @@
       "skillPath": "skills/android-benchmark-comparison/SKILL.md",
       "computedHash": "6b9fd4c90515c09b59bedf1fafd30c7cd369ad5779c3ae1af8bb9aae9a91a34a"
     },
+    "android-cli": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "devtools/android-cli/SKILL.md",
+      "computedHash": "8a982e9380aaa40ae06c955308c156942f4937071cd1e12c3d1cf2310d7c00c2"
+    },
+    "android-for-cars-parked-apps": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "cars/android-for-cars-parked-apps/SKILL.md",
+      "computedHash": "9a7bf9d84df34fbd92b8f237158729af58674824b311d369d4a38736f7a6ab30"
+    },
+    "android-intent-security": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "security/android-intent-security/SKILL.md",
+      "computedHash": "41a3b30d26f74c13b6b0471eb750b7a866244a6bd2774e2af5ccbe1ae5cf385f"
+    },
+    "android-permissions-security": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "security/android-permissions-security/SKILL.md",
+      "computedHash": "eb407bbe35d8afe518f7d20d396f097f483657be22f836618169e24edd0712ed"
+    },
+    "android-profiler": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "profilers/android-profiler/SKILL.md",
+      "computedHash": "8dfcfca81310cb187fe61381d3c6f7933f5eb1915ce06a67707fbbb23f318fe1"
+    },
+    "animate": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/animate/SKILL.md",
+      "computedHash": "c622e29fa956aea703dc4e2b8726d9a017d438beb284a60bc3fdb2540c602102"
+    },
+    "animate-expo": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/animate-expo/SKILL.md",
+      "computedHash": "f221c9cfe03d9255ac3e2383bfb8b1481036142fe2fe9567403eb071d21092bb"
+    },
+    "animation-performance": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/animation-performance/SKILL.md",
+      "computedHash": "1ff92f577fc2b7781ed622fd4eb5e514c252cf5cb95c3661743cd127ee01290a"
+    },
+    "animation-vocabulary": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/animation-vocabulary/SKILL.md",
+      "computedHash": "e1d19134dc63dfb09379f7b42557b63b6123becdd36d15bae991d0b6ca5b2110"
+    },
+    "anr-audit-and-fix": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "performance/anr-audit-and-fix/SKILL.md",
+      "computedHash": "ab13efcb3b7816b3a0bcbe54245383c85973c87173cb60f3087ee31f2619a54e"
+    },
+    "appfunctions": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "device-ai/appfunctions/SKILL.md",
+      "computedHash": "0f995faa33d1241fc8e880cfadf6d41bc39fa034e2fe875d8567f1d28608e946"
+    },
+    "apple-design": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/apple-design/SKILL.md",
+      "computedHash": "163ba8b42c7d9d5ccb08674266d4727c9ec610b9d876c906b1f29ce5e0d933da"
+    },
+    "ask-emil": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/ask-emil/SKILL.md",
+      "computedHash": "e7a92fe034a4151a27fbe2fad8813ffd18a9c98d6db8689930a1fdb3a7d536f5"
+    },
+    "ask-sonner": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/ask-sonner/SKILL.md",
+      "computedHash": "9e82788679f5f71c9e0686b66200565c3f4e47037a06b9d1e94567ed42361bbc"
+    },
+    "break-ui": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/break-ui/SKILL.md",
+      "computedHash": "f089f3663e197fb4e106249df70e815a96e3236520a2e1c0919d1694816baca8"
+    },
+    "camerax": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "camera/camerax/SKILL.md",
+      "computedHash": "287fb330c1c5997da46df71ea6a0a6813be8a7a860eb5498ce483b4bf151a71f"
+    },
     "changelog": {
       "source": "chrisbanes/skills",
       "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
       "sourceType": "github",
       "skillPath": "skills/changelog/SKILL.md",
       "computedHash": "1fd891513112bc40f678d55f9f48119c80703172d937d959b38d9698877502d5"
+    },
+    "choreograph": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/choreograph/SKILL.md",
+      "computedHash": "a33a7cf57eacff502f833778eed62244fb5a890bb25124dacde73bcf8716218c"
     },
     "compose-animations": {
       "source": "chrisbanes/skills",
@@ -64,6 +197,69 @@
       "skillPath": "skills/deliver-issue/SKILL.md",
       "computedHash": "1459b888e162eaa5b26d52ca09e26d7a2e54125c69e58b0e022097df3a5094de"
     },
+    "design-taste-frontend": {
+      "source": "Leonxlnx/taste-skill",
+      "commit": "f6b76575f949707b4e3c37cd86cb44b0b98643e8",
+      "sourceType": "github",
+      "skillPath": "skills/taste-skill/SKILL.md",
+      "computedHash": "b10eab0a9684cd09cf34c31ef04a3bf530a5f4404422f9c520d42372d670c7fc"
+    },
+    "display-glasses-with-jetpack-compose-glimmer": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "xr/display-glasses-with-jetpack-compose-glimmer/SKILL.md",
+      "computedHash": "649d7ccda93f0dfd9492953a433d964f8e1bb166ed5eaa38a4894fa43f1a50d6"
+    },
+    "edge-to-edge": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "system/edge-to-edge/SKILL.md",
+      "computedHash": "954c391ab845f97ce160c04c3944d6c6da3c7ad0385970353b314ee2a3aabea2"
+    },
+    "emil-design-eng": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/emil-design-eng/SKILL.md",
+      "computedHash": "e1b377ccde1d32743d1d3f7d8626629deb8055c9114d180c184697928cc66cc6"
+    },
+    "engage-sdk-integration": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "play/engage-sdk-integration/SKILL.md",
+      "computedHash": "dacadf87c68d11fade457e6e0be73985698dc80ceb383252b9bce18e21dd6ce6"
+    },
+    "find-animation-opportunities": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/find-animation-opportunities/SKILL.md",
+      "computedHash": "9ec1c8c622b2c3caf9bda1712440e25dd4f9bc6da1207db4fa80b784aa319186"
+    },
+    "gestures": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/gestures/SKILL.md",
+      "computedHash": "f17aa90d244bed37d09a608f9b8f58cd7a8dd6b9ff1a06fe2217f6f242c624f7"
+    },
+    "glance-appwidget-updates-and-memory": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "system/glance-appwidget-updates-and-memory/SKILL.md",
+      "computedHash": "7fc088da1a6c9bd7a2cbfe341db03c632f4a1854967d32fc8638b0897f413bc9"
+    },
+    "glance-canonical-layouts": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "system/glance-canonical-layouts/SKILL.md",
+      "computedHash": "91f23adf611df9c0447c677012fc3fcca9c8a2715df6be6cb9ed40898702e3a7"
+    },
     "gradle-run": {
       "source": "chrisbanes/skills",
       "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
@@ -85,12 +281,54 @@
       "skillPath": "skills/implement-with-subagents/SKILL.md",
       "computedHash": "f0cc95dd10b7e897caab5413bb58b7e1be781cd6aec59b00c1076c39bc3d28d4"
     },
+    "improve-animations": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/improve-animations/SKILL.md",
+      "computedHash": "5c33add82a79754bec0d7ee3376525e24e77b34575d5ae29d0c204f730356eab"
+    },
+    "ink-app-builder": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "jetpack-compose/ink/ink-app-builder/SKILL.md",
+      "computedHash": "7b5dcc853fd06ce73faac3e85dde5b48ece1b82f156a1d33f8acfca4aac9409e"
+    },
+    "ink-custom-brush-builder": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "jetpack-compose/ink/ink-custom-brush-builder/SKILL.md",
+      "computedHash": "da12388b77540f79e11c310838aa49e7c541770132231d779a42366305d20942"
+    },
+    "ios-to-android": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "migration/ios-to-android/SKILL.md",
+      "computedHash": "54d46a3b0a613f4c342af283730c4b26005efbd7c1854294957855ad41988a07"
+    },
+    "jetpack-compose-performance": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "jetpack-compose/jetpack-compose-performance/SKILL.md",
+      "computedHash": "a66ab42a03f6b559bfd1c8325e242ff65d276c173a7ef8e889837c311d179d49"
+    },
     "kotlin-api-design": {
       "source": "chrisbanes/skills",
       "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
       "sourceType": "github",
       "skillPath": "skills/kotlin-api-design/SKILL.md",
       "computedHash": "06b6e79a06851f2e7c20ac2a35b67cbc31759e3b1816fc4d477f8276feeef3bb"
+    },
+    "kotlin-backend-jpa-entity-mapping": {
+      "source": "Kotlin/kotlin-agent-skills",
+      "commit": "087f5689c1934135ed58718cdf524525e452b7e9",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-backend-jpa-entity-mapping/SKILL.md",
+      "computedHash": "2e4d466161290e85e00266eb67830f11bc0519a64d5a0459893a59319c97b5d6"
     },
     "kotlin-concurrency-and-flow": {
       "source": "chrisbanes/skills",
@@ -106,6 +344,97 @@
       "skillPath": "skills/kotlin-control-flow/SKILL.md",
       "computedHash": "c6d3156fd4cc73504d99108ba19c6d211cde8fbb4ebf6ccefa914e10157d0042"
     },
+    "kotlin-tooling-agp9-migration": {
+      "source": "Kotlin/kotlin-agent-skills",
+      "commit": "087f5689c1934135ed58718cdf524525e452b7e9",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-tooling-agp9-migration/SKILL.md",
+      "computedHash": "c5f205c9d223b1711e81e2dd3b56d02d24894507466582f987ded45ffd9a3d19"
+    },
+    "kotlin-tooling-cocoapods-spm-migration": {
+      "source": "Kotlin/kotlin-agent-skills",
+      "commit": "087f5689c1934135ed58718cdf524525e452b7e9",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-tooling-cocoapods-spm-migration/SKILL.md",
+      "computedHash": "a901aa19b813f356e950deff998051c6c5216a19bdfd9267d8fb1a3283c79d4a"
+    },
+    "kotlin-tooling-gradle-to-kotlin-toolchain-plugin": {
+      "source": "Kotlin/kotlin-agent-skills",
+      "commit": "087f5689c1934135ed58718cdf524525e452b7e9",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-tooling-gradle-to-kotlin-toolchain-plugin/SKILL.md",
+      "computedHash": "cbf37b49faac95021ed1885cf438d63967d3807b969cbb4b04a8d65f99f0bf47"
+    },
+    "kotlin-tooling-gradle-to-kotlin-toolchain-project": {
+      "source": "Kotlin/kotlin-agent-skills",
+      "commit": "087f5689c1934135ed58718cdf524525e452b7e9",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-tooling-gradle-to-kotlin-toolchain-project/SKILL.md",
+      "computedHash": "8ee7b8498b8899ff1b2546535e5505528b084ac145e56cc33dcca4e96fe83a26"
+    },
+    "kotlin-tooling-immutable-collections-0-5-x-migration": {
+      "source": "Kotlin/kotlin-agent-skills",
+      "commit": "087f5689c1934135ed58718cdf524525e452b7e9",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-tooling-immutable-collections-0-5-x-migration/SKILL.md",
+      "computedHash": "fc7f89299011414be787c09cf6411fff8a0a02439990cd0f988955138544bf7d"
+    },
+    "kotlin-tooling-java-to-kotlin": {
+      "source": "Kotlin/kotlin-agent-skills",
+      "commit": "087f5689c1934135ed58718cdf524525e452b7e9",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-tooling-java-to-kotlin/SKILL.md",
+      "computedHash": "b3d737fa5ac816428e240a84cc2ac2b19d406ffece09ece8e7cf0618881de466"
+    },
+    "kotlin-tooling-kotlin-toolchain": {
+      "source": "Kotlin/kotlin-agent-skills",
+      "commit": "087f5689c1934135ed58718cdf524525e452b7e9",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-tooling-kotlin-toolchain/SKILL.md",
+      "computedHash": "4a7a86b17bbc19c0e8d4a1e8060e465ae29cf2fda38e2876237e6fe37d1ba2fe"
+    },
+    "kotlin-tooling-kotlin-toolchain-plugin-authoring": {
+      "source": "Kotlin/kotlin-agent-skills",
+      "commit": "087f5689c1934135ed58718cdf524525e452b7e9",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-tooling-kotlin-toolchain-plugin-authoring/SKILL.md",
+      "computedHash": "d3c02b1b5ccb8ba437abb609f1e1826206cd42b03bf54e144eba5c7dbf26743b"
+    },
+    "kotlin-tooling-native-build-performance": {
+      "source": "Kotlin/kotlin-agent-skills",
+      "commit": "087f5689c1934135ed58718cdf524525e452b7e9",
+      "sourceType": "github",
+      "skillPath": "skills/kotlin-tooling-native-build-performance/SKILL.md",
+      "computedHash": "1dda3f7c49311cef92e3a16df3d0592649c6ed72d0754c8dc7aa57fd0f8e77c1"
+    },
+    "leanback-to-compose-tv-migration": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "tv/leanback-to-compose-tv-migration/SKILL.md",
+      "computedHash": "726f57d45afa7deaa3d0066dc64e08ac028f0ea766a4017f2b0b4ee8f90cc3fb"
+    },
+    "learn-taste": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/learn-taste/SKILL.md",
+      "computedHash": "edaec540d02abdad48727b7d769574d0ee42e79304826c899a7aba90ef0197c1"
+    },
+    "litert-lm": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "device-ai/litert/litert-lm/SKILL.md",
+      "computedHash": "a20d10b41b55c9b043905d90f4b06ed15c0d8f70836b480d7e7db105569ca66a"
+    },
+    "litert-runtime": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "device-ai/litert/litert-runtime/SKILL.md",
+      "computedHash": "1456abc0d1f69db154054b0fdb8a19a271e7713734fb0c71bce347bd76064228"
+    },
     "m3-expressive": {
       "source": "mindcrafter129/m3e-skills",
       "commit": "2d9511bd9afc2ec36a8187f4ed56c7e2d80fcdd4",
@@ -120,12 +449,124 @@
       "skillPath": "skills/material-3-expressive/SKILL.md",
       "computedHash": "29d7a85df6aca1e1518f518b24ac963899105ca6568bbffa1cabcc6ae1d1b9dc"
     },
+    "media3-cast-integration": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "media/media3-cast-integration/SKILL.md",
+      "computedHash": "5dc77b2f9d0c4905326b458662bf17b7ef0182d20c18889cc0aca54cbc7ddbd6"
+    },
+    "migrate-xml-views-to-jetpack-compose": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "jetpack-compose/migration/migrate-xml-views-to-jetpack-compose/SKILL.md",
+      "computedHash": "6a8eac9ddf591078160b21c43458e45969169f58dbd906e551727982c7048223"
+    },
+    "ml-kit-genai-prompt-api": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "device-ai/ml-kit-genai-prompt-api/SKILL.md",
+      "computedHash": "3c3a49cf4d0b5cbff9b5756f1996ce9020c68c7796079a974bda818bd839eadf"
+    },
+    "mlkit-agent-api": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "device-ai/mlkit-agent-api/SKILL.md",
+      "computedHash": "3618de901b3847be5502243d3e485752833f5eacadcb9f032b10f664a1710681"
+    },
+    "mobile-native": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/mobile-native/SKILL.md",
+      "computedHash": "2f55a258f185314d585cb6a3514a66c15e9cfc8cd45c936284c4fb7374603d7e"
+    },
+    "navigation-3": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "navigation/navigation-3/SKILL.md",
+      "computedHash": "ffcdc1382dd5ea750155cade0c9658c838bdaca6600c40dd879405ec97bfd329"
+    },
+    "navigation-event": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "navigation/navigation-event/SKILL.md",
+      "computedHash": "40c0d24c4d12f9bd4303830e2f28a46c51ffaf4748ea2b6585e44aa0cd22eea9"
+    },
+    "pick-ui-library": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/pick-ui-library/SKILL.md",
+      "computedHash": "3bc44e7faccb949583f4af6c8a15b5a50acc04a5e656f5168a96e5aa43e9f3cd"
+    },
+    "play-billing-library-version-upgrade": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "play/play-billing-library-version-upgrade/SKILL.md",
+      "computedHash": "29b6894a47a22cc215da184af5b77a825b9371e49cc94977d48a671575c0a8ac"
+    },
+    "play-policy-insights": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "play/play-policy-insights/SKILL.md",
+      "computedHash": "fac741f7d1fb71b44e8dbfd0c4da9e3a0c95c7543c555565d268d154581857e9"
+    },
+    "projected-hardware": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "xr/projected-hardware/SKILL.md",
+      "computedHash": "59a962557624771b3784506504699a7e8cbfc6699ff74ae5559b4888aeb77ea7"
+    },
+    "prototype": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/prototype/SKILL.md",
+      "computedHash": "00fb13a91dbb746e2be91ae4dd67c4cc1f9907351f2d404a0cc6c849be1ebd95"
+    },
+    "r8-analyzer": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "performance/r8-analyzer/SKILL.md",
+      "computedHash": "fbd0f9f9e434b0732302d0de0ba69606ef3a5806478d35aa128e09fe4828f276"
+    },
     "release-kotlin-library": {
       "source": "chrisbanes/skills",
       "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
       "sourceType": "github",
       "skillPath": "skills/release-kotlin-library/SKILL.md",
       "computedHash": "1140cd4561af0472bc353a9742de65de79d6cf89b568f1d12595237cbc6695e5"
+    },
+    "remove-animations": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/remove-animations/SKILL.md",
+      "computedHash": "22491898575c9eed57fc1add66a072bfb5ed2cc946289c54f41c3d10b6be4204"
+    },
+    "restore-credentials": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "identity/restore-credentials/SKILL.md",
+      "computedHash": "a107a5b59c1e4fab5952916dc74b0f2456a532bc1f158107679727cdbb032bf6"
+    },
+    "review-animations": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/review-animations/SKILL.md",
+      "computedHash": "50f1de2394b88bb3433eca1e30da6866a4e310963d872a66af20ca77fd77f07d"
     },
     "run-project": {
       "source": "chrisbanes/skills",
@@ -148,6 +589,13 @@
       "skillPath": "skills/subagent-delegation/SKILL.md",
       "computedHash": "690f426c39fb7d218dd6ff176ce15ad4a3e55bb5cec4faa14d8295004676c221"
     },
+    "testing-setup": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "testing/testing-setup/SKILL.md",
+      "computedHash": "a9e77fd6f6fb507018d97c3f80af5deaee792c02a19a1d1e56e5fb9bff33ebee"
+    },
     "to-plan": {
       "source": "chrisbanes/skills",
       "commit": "52575618d917e565ac3c47c072d646d0c8f9c140",
@@ -161,6 +609,34 @@
       "sourceType": "github",
       "skillPath": "skills/using-chrisbanes-skills/SKILL.md",
       "computedHash": "bf89d07124e96aaf03eace3ae1c4d29807a5fd75a9ea7132f1aa5750d7880a20"
+    },
+    "verified-email": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "identity/verified-email/SKILL.md",
+      "computedHash": "c504fb556f1814a38996e434405ede4d645cd50de73d8377154a11ce6f625c08"
+    },
+    "wear-compose-m3": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "wear/wear-compose-m3/SKILL.md",
+      "computedHash": "f879d72c23365a78fe54b73f43f560ff6fc95de0604bd20059ac81477aada1c3"
+    },
+    "wear-widgets": {
+      "source": "android/skills",
+      "commit": "c72942584fff970dac86ced78b367fce0c441e52",
+      "sourceType": "github",
+      "skillPath": "wear/wear-widgets/SKILL.md",
+      "computedHash": "faa61cf21e4dc9f2ced35d889e8ac93b14e19df51763c9b9248d70b2ac816a3a"
+    },
+    "write-swift": {
+      "source": "emilkowalski/skills",
+      "commit": "64eb3deb9a5fbfa041faf783e0bc3fd635872e9c",
+      "sourceType": "github",
+      "skillPath": "skills/write-swift/SKILL.md",
+      "computedHash": "8e4baab8638930f60e44545f9cc2ec61b0ee18b1b9b18aafe29ebc0bdd6972b8"
     }
   }
 }

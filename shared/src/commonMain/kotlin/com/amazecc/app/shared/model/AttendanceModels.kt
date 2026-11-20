@@ -15,11 +15,16 @@ data class AttendanceLog(
 data class AttendanceItem(
     val courseCode: String = "",
     val courseTitle: String = "",
+    @Serializable(with = NullableStringAsEmptySerializer::class)
     val courseType: String = "",
     val slotName: String = "",
+    @Serializable(with = NullableStringAsEmptySerializer::class)
     val faculty: String = "",
+    @Serializable(with = NullableIntAsZeroSerializer::class)
     val attendedClasses: Int = 0,
+    @Serializable(with = NullableIntAsZeroSerializer::class)
     val totalClasses: Int = 0,
+    @Serializable(with = NullableStringAsEmptySerializer::class)
     val attendancePercentage: String = "",
     @SerialName("viewLink")
     val viewLinkRaw: JsonElement? = null,
@@ -27,7 +32,14 @@ data class AttendanceItem(
     val slotVenue: String? = null,
     val category: String? = null,
     /** Typed daily history; filled by the store sanitizer (raw [viewLinkRaw] is dropped at the store boundary). */
-    val logs: List<AttendanceLog> = emptyList()
+    val logs: List<AttendanceLog> = emptyList(),
+
+    // Contract fields from ../amazecc-api-hono/src/types/data/attendance.ts and
+    // ../AmazeCC/src/types/data/attendance.d.ts. Additive + nullable so older payloads still decode.
+    val slNo: String? = null,
+    val registrationDate: String? = null,
+    val attendanceDate: String? = null,
+    val classId: String? = null
 )
 
 @Serializable

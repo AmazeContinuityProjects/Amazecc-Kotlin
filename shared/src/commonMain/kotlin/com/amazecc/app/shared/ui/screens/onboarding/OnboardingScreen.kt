@@ -216,6 +216,7 @@ fun OnboardingScreen() {
                             SyncStatus.SUCCESS -> "done"
                             SyncStatus.ERROR -> "failed"
                             SyncStatus.LOADING -> "syncing"
+                            SyncStatus.SKIPPED -> "skipped"
                             else -> "pending"
                         }
                     )

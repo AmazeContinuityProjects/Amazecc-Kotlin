@@ -92,7 +92,9 @@ import androidx.compose.ui.zIndex
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.LogLine
+import com.amazecc.app.shared.state.NetworkGate
 import com.amazecc.app.shared.state.SyncEngine
+import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -136,6 +138,10 @@ fun M3ESyncNotification(
 
     val syncProgress by SyncEngine.syncProgress.collectAsState()
     val logLines by SyncEngine.logLines.collectAsState()
+    val moduleStates by SyncEngine.moduleStates.collectAsState()
+    val networkLog by NetworkGate.log.collectAsState()
+    val activeNetwork by NetworkGate.active.collectAsState()
+    val moduleActivity by NetworkGate.moduleActivity.collectAsState(emptyMap())
     val showSyncDialog by SyncEngine.showSyncDialog.collectAsState()
     val startMinimized by SyncEngine.startMinimized.collectAsState()
     val isAppStateSyncing by AppState.isSyncing.collectAsState()
@@ -157,14 +163,15 @@ fun M3ESyncNotification(
     var isLoggingIn by remember { mutableStateOf(false) }
     var loginError by remember { mutableStateOf<String?>(null) }
 
-    // Classify notice state (Offline, Login, VTOP down)
+    // Classify notice state across ALL recent lines. Reading only the last line let a late
+    // "Synced" from a parallel module hide an earlier "Session expired" from the user.
     val notice: M3ESyncNotice? = remember(syncProgress, logLines, isSyncing) {
-        val lastLog = logLines.lastOrNull()?.message.orEmpty().lowercase()
+        val text = logLines.takeLast(60).joinToString("\n") { it.message }.lowercase()
         when {
-            lastLog.contains("vtop is down") || lastLog.contains("unreachable") -> M3ESyncNotice.VTOP_DOWN
-            lastLog.contains("not authorized") || lastLog.contains("invalid credentials") || lastLog.contains("session expired") -> M3ESyncNotice.LOGIN
-            lastLog.contains("offline") || lastLog.contains("no network") -> M3ESyncNotice.OFFLINE
-            syncProgress.errorCount > 0 && !isSyncing -> null
+            text.contains("vtop is down") || text.contains("unreachable") -> M3ESyncNotice.VTOP_DOWN
+            text.contains("not authorized") || text.contains("invalid credentials") ||
+                text.contains("session expired") || text.contains("sign in again") -> M3ESyncNotice.LOGIN
+            text.contains("offline") || text.contains("no network") -> M3ESyncNotice.OFFLINE
             else -> null
         }
     }
@@ -196,9 +203,14 @@ fun M3ESyncNotification(
 
     val progressPercent = syncProgress.percentage.coerceIn(0f, 100f)
 
-    val cleanHeadline = remember(logLines, syncMessage) {
-        val raw = logLines.lastOrNull()?.message ?: syncMessage ?: "Syncing campus records…"
-        raw.replace(Regex("[✅❌⏳📝•*-]"), "").trim()
+    val cleanHeadline = remember(syncProgress, logLines, syncMessage, isSyncing) {
+        when {
+            isSyncing -> syncProgress.displayText.ifBlank { syncMessage ?: "Syncing campus records…" }
+            syncProgress.errorCount > 0 -> syncProgress.displayText
+            logLines.any { it.status == SyncStatus.ERROR } ->
+                logLines.last { it.status == SyncStatus.ERROR }.message
+            else -> syncProgress.displayText.ifBlank { syncMessage ?: "Sync complete" }
+        }.replace(Regex("[✅❌⏳📝•*-]"), "").trim()
     }
 
     val activeSourceLabel = when (AmazeClient.vtopSource) {
@@ -745,33 +757,59 @@ fun M3ESyncNotification(
                                         modifier = Modifier.fillMaxWidth().height(16.dp)
                                     )
 
-                                    // 4 Milestones List
-                                    val milestones = remember(progressPercent, logLines) {
-                                        listOf(
-                                            MilestoneItem(
-                                                id = "auth",
-                                                label = "Authentication & Session",
-                                                detail = if (progressPercent >= 20f) "Session verified" else "Negotiating VTOP session…",
-                                                status = if (progressPercent >= 20f) MilestoneStatus.COMPLETED else MilestoneStatus.ACTIVE
-                                            ),
-                                            MilestoneItem(
-                                                id = "academics",
-                                                label = "Attendance & Timetable",
-                                                detail = if (progressPercent >= 60f) "Classes & slots updated" else if (progressPercent >= 20f) "Fetching timetable…" else "Waiting",
-                                                status = if (progressPercent >= 60f) MilestoneStatus.COMPLETED else if (progressPercent >= 20f) MilestoneStatus.ACTIVE else MilestoneStatus.PENDING
-                                            ),
-                                            MilestoneItem(
-                                                id = "evaluations",
-                                                label = "Marks & Grades",
-                                                detail = if (progressPercent >= 85f) "Assessments verified" else if (progressPercent >= 60f) "Pulling assessment marks…" else "Waiting",
-                                                status = if (progressPercent >= 85f) MilestoneStatus.COMPLETED else if (progressPercent >= 60f) MilestoneStatus.ACTIVE else MilestoneStatus.PENDING
-                                            ),
-                                            MilestoneItem(
-                                                id = "cache",
-                                                label = "Local Storage & Finalize",
-                                                detail = if (progressPercent >= 100f) "Synchronized" else if (progressPercent >= 85f) "Saving offline database…" else "Waiting",
-                                                status = if (progressPercent >= 100f) MilestoneStatus.COMPLETED else if (progressPercent >= 85f) MilestoneStatus.ACTIVE else MilestoneStatus.PENDING
+                                    // Milestones reflect REAL module outcomes, never a percentage
+                                    // threshold (a sweep where every module failed still reaches 100%).
+                                    val milestones = remember(moduleStates, syncProgress, isSyncing, notice) {
+                                        fun stateFor(modules: Set<SyncModule>): Pair<MilestoneStatus, String> {
+                                            val states = modules.mapNotNull { moduleStates[it] }
+                                            if (states.isEmpty()) return MilestoneStatus.PENDING to "Not part of this run"
+                                            val errors = states.filter { it.status == SyncStatus.ERROR }
+                                            val active = states.filter { it.status == SyncStatus.LOADING }
+                                            val success = states.count { it.status == SyncStatus.SUCCESS }
+                                            val skipped = states.count { it.status == SyncStatus.SKIPPED }
+                                            return when {
+                                                errors.isNotEmpty() -> MilestoneStatus.ERROR to
+                                                    "${errors.size} failed — ${errors.first().error ?: "see log"}"
+                                                active.isNotEmpty() -> MilestoneStatus.ACTIVE to
+                                                    "Syncing ${active.size} of ${states.size} module(s)"
+                                                success == states.size -> MilestoneStatus.COMPLETED to "$success module(s) fetched"
+                                                skipped > 0 && success + skipped == states.size ->
+                                                    MilestoneStatus.COMPLETED to "$success fetched, $skipped skipped"
+                                                else -> MilestoneStatus.PENDING to "$success of ${states.size} done"
+                                            }
+                                        }
+                                        val academicState = stateFor(
+                                            setOf(
+                                                SyncModule.ATTENDANCE, SyncModule.ALL_SEMESTER_ATTENDANCE,
+                                                SyncModule.TIMETABLE, SyncModule.CURRICULUM, SyncModule.CALENDAR,
+                                                SyncModule.CALENDARS_LIST, SyncModule.EXAM_SCHEDULE
                                             )
+                                        )
+                                        val assessmentState = stateFor(
+                                            setOf(
+                                                SyncModule.MARKS, SyncModule.GRADES, SyncModule.QCM_VIEW,
+                                                SyncModule.LMS, SyncModule.MOODLE
+                                            )
+                                        )
+                                        val authState = when {
+                                            notice == M3ESyncNotice.LOGIN -> MilestoneStatus.ERROR to "Session expired — sign in again"
+                                            isSyncing -> MilestoneStatus.ACTIVE to "Establishing VTOP session"
+                                            syncProgress.completedModules > 0 -> MilestoneStatus.COMPLETED to "Session used for last run"
+                                            else -> MilestoneStatus.PENDING to "Not started"
+                                        }
+                                        val cacheState = when {
+                                            syncProgress.errorCount > 0 -> MilestoneStatus.ERROR to
+                                                "${syncProgress.errorCount} module error(s) — cache may be partial"
+                                            isSyncing -> MilestoneStatus.ACTIVE to "Writing local cache"
+                                            syncProgress.completedModules > 0 -> MilestoneStatus.COMPLETED to
+                                                "Local cache written for ${syncProgress.completedModules} module(s)"
+                                            else -> MilestoneStatus.PENDING to "Not started"
+                                        }
+                                        listOf(
+                                            MilestoneItem("auth", "Authentication & Session", authState.second, authState.first),
+                                            MilestoneItem("academics", "Attendance & Timetable", academicState.second, academicState.first),
+                                            MilestoneItem("evaluations", "Marks & Grades", assessmentState.second, assessmentState.first),
+                                            MilestoneItem("cache", "Local Storage & Finalize", cacheState.second, cacheState.first)
                                         )
                                     }
 
@@ -827,7 +865,12 @@ fun M3ESyncNotification(
                                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                                             color = colors.onSurfaceVariant,
                                             modifier = Modifier.clickable {
-                                                val all = logLines.joinToString("\n") { "[${it.status}] ${it.message}" }
+                                                val all = buildString {
+                                                    appendLine("=== NETWORK ===")
+                                                    NetworkGate.recentLines(200).forEach { appendLine(it) }
+                                                    appendLine("=== MODULES ===")
+                                                    logLines.forEach { appendLine("[${it.status}] ${it.message}") }
+                                                }
                                                 clipboard.setText(AnnotatedString(all))
                                                 copiedLogsToast = true
                                                 coroutineScope.launch {
@@ -843,6 +886,89 @@ fun M3ESyncNotification(
                                         modifier = Modifier.fillMaxSize(),
                                         verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
+                                        // Module tab accounting: every request, including ones made
+                                        // directly by screens/bridges, appears under a module.
+                                        item {
+                                            Text(
+                                                text = "MODULES  ·  request accounting",
+                                                fontFamily = FontFamily.Monospace,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = colors.primary
+                                            )
+                                        }
+                                        items(SyncModule.entries.toList()) { module ->
+                                            val traffic = moduleActivity[module]
+                                            val state = moduleStates[module]
+                                            val count = traffic?.requests ?: 0
+                                            if (count > 0 || (traffic?.inFlight == 0 && state?.status == SyncStatus.LOADING)) {
+                                                val detail = buildString {
+                                                    append("${module.displayName}: $count req")
+                                                    if (traffic != null && traffic.inFlight > 0) append(" · ${traffic.inFlight} live")
+                                                    if (traffic != null && traffic.errors > 0) append(" · ${traffic.errors} err")
+                                                    if (state?.status == SyncStatus.SKIPPED) append(" · skipped")
+                                                }
+                                                Text(
+                                                    text = detail,
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontSize = 10.sp,
+                                                    color = when {
+                                                        (traffic?.errors ?: 0) > 0 -> colors.error
+                                                        (traffic?.inFlight ?: 0) > 0 -> colors.primary
+                                                        else -> colors.onSurfaceVariant
+                                                    },
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
+                                        val direct = moduleActivity[null]
+                                        if (direct != null && direct.requests > 0) {
+                                            item {
+                                                Text(
+                                                    text = buildString {
+                                                        append("Unattributed: ${direct.requests} req")
+                                                        if (direct.inFlight > 0) append(" · ${direct.inFlight} live")
+                                                    },
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontSize = 10.sp,
+                                                    color = colors.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        if (networkLog.isNotEmpty()) {
+                                            item {
+                                                Text(
+                                                    text = "NETWORK  ·  ${activeNetwork.size} in flight",
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = colors.primary
+                                                )
+                                            }
+                                            items(networkLog.takeLast(80)) { net ->
+                                                val duration = net.durationMs?.let { "  ${it}ms" }.orEmpty()
+                                                Text(
+                                                    text = "${net.level.name} ${net.module?.displayName ?: net.label}: ${net.detail}$duration",
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontSize = 10.sp,
+                                                    color = when (net.level) {
+                                                        com.amazecc.app.shared.state.NetworkLogLevel.ERROR -> colors.error
+                                                        com.amazecc.app.shared.state.NetworkLogLevel.WARN -> colors.warning
+                                                        com.amazecc.app.shared.state.NetworkLogLevel.INFO -> colors.onSurfaceVariant
+                                                    },
+                                                    maxLines = 2
+                                                )
+                                            }
+                                            item {
+                                                Text(
+                                                    text = "MODULE EVENTS",
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = colors.primary
+                                                )
+                                            }
+                                        }
                                         items(logLines) { line ->
                                             Text(
                                                 text = line.message,
@@ -852,6 +978,7 @@ fun M3ESyncNotification(
                                                     SyncStatus.SUCCESS -> colors.success
                                                     SyncStatus.ERROR -> colors.error
                                                     SyncStatus.LOADING -> colors.primary
+                                                    SyncStatus.SKIPPED -> colors.warning
                                                     SyncStatus.IDLE -> colors.onSurfaceVariant
                                                 },
                                                 maxLines = 2
@@ -869,8 +996,9 @@ fun M3ESyncNotification(
                         ) {
                             OutlinedButton(
                                 onClick = {
+                                    // Actually stop the sweep and every gated HTTP/WebView request.
+                                    AppState.cancelSync()
                                     userDismissed = true
-                                    SyncEngine.setShowSyncDialog(false)
                                     onDismiss()
                                 },
                                 modifier = Modifier.weight(1f),

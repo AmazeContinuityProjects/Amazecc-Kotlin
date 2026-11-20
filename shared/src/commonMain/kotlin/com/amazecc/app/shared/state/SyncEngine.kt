@@ -4,10 +4,14 @@ import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.vtop.AutoCaptchaHandler
 import com.amazecc.app.shared.vtop.UiCaptchaHandler
 import com.amazecc.app.shared.utils.canRunInteractiveVtop
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 import androidx.compose.runtime.Immutable
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -65,13 +69,15 @@ enum class SyncModule(
     FEEDBACK_STATUS("Feedback Status", null, SyncCategory.ACADEMICS),
 }
 
-enum class SyncStatus { IDLE, LOADING, SUCCESS, ERROR }
+enum class SyncStatus { IDLE, LOADING, SUCCESS, ERROR, SKIPPED }
 
 @Immutable
 data class ModuleState(
     val status: SyncStatus = SyncStatus.IDLE,
     val lastSynced: Instant? = null,
     val error: String? = null,
+    /** Why a module was SKIPPED (profile off, no credentials, no session). Never set on SUCCESS. */
+    val detail: String? = null,
 )
 
 @Immutable
@@ -88,7 +94,8 @@ data class SyncProgress(
     val completedModules: Int = 0,
     val activeModules: Set<SyncModule> = emptySet(),
     val successCount: Int = 0,
-    val errorCount: Int = 0
+    val errorCount: Int = 0,
+    val skippedCount: Int = 0,
 ) {
     val percentage: Float
         get() = if (totalModules == 0) 0f else ((completedModules.toFloat() / totalModules.toFloat()).coerceIn(0f, 1f)) * 100f
@@ -96,7 +103,9 @@ data class SyncProgress(
     val displayText: String
         get() = when {
             activeModules.isNotEmpty() -> "Syncing ${activeModules.first().displayName} (${completedModules + 1}/$totalModules)"
-            totalModules > 0 && completedModules == totalModules && errorCount > 0 -> "Completed with $errorCount errors"
+            errorCount > 0 && skippedCount > 0 -> "Completed: $successCount synced, $errorCount failed, $skippedCount skipped"
+            errorCount > 0 -> "Completed: $successCount synced, $errorCount failed"
+            skippedCount > 0 -> "Completed: $successCount synced, $skippedCount skipped"
             totalModules > 0 && completedModules == totalModules -> "All $totalModules modules updated"
             totalModules > 0 -> "$completedModules / $totalModules modules"
             completedModules > 0 -> "$completedModules modules ready"
@@ -260,7 +269,7 @@ val BUILT_IN_MODES: List<SyncMode> = listOf(
     SyncMode(
         id = "full",
         label = "Full Sync",
-        description = "All 28 modules refreshed with background tasks awaited.",
+        description = "All ${SyncModule.entries.size} modules refreshed with background tasks awaited.",
         isBuiltIn = true,
         steps = SyncModule.entries.map { step(it, background = false) }
     ),
@@ -346,7 +355,7 @@ data class SyncConfigProfile(
 val DEFAULT_SYNC_PROFILES = listOf(
     SyncConfigProfile(
         id = "full_sync",
-        name = "Full Sync (28 Modules)",
+        name = "Full Sync (${SyncModule.entries.size} Modules)",
         enabledModules = SyncModule.entries.toSet(),
         isBuiltIn = true
     ),
@@ -362,7 +371,7 @@ val DEFAULT_SYNC_PROFILES = listOf(
     ),
     SyncConfigProfile(
         id = "balanced_sync",
-        name = "Balanced Sync (16 Modules)",
+        name = "Balanced Sync (19 Modules)",
         enabledModules = setOf(
             SyncModule.ATTENDANCE,
             SyncModule.TIMETABLE,
@@ -388,7 +397,7 @@ val DEFAULT_SYNC_PROFILES = listOf(
     ),
     SyncConfigProfile(
         id = "academics_only",
-        name = "Academics Only (12 Modules)",
+        name = "Academics Only (15 Modules)",
         enabledModules = setOf(
             SyncModule.ATTENDANCE,
             SyncModule.ALL_SEMESTER_ATTENDANCE,
@@ -442,8 +451,22 @@ val DEFAULT_SYNC_PROFILES = listOf(
 )
 
 object SyncEngine {
-    private val activeJobs = mutableSetOf<Job>()
+    private val _activeJobs = MutableStateFlow<Set<Job>>(emptySet())
     private var sweepActive = false
+
+    /**
+     * Tags all network work started inside [block] with [module]/[label]. The Ktor gate plugin
+     * reads this from the coroutine context, so every request is attributed — including the
+     * sub-requests of a single module (calendar fan-out, identity fallback scrapes, WebView XHRs).
+     */
+    suspend fun <T> networkScope(module: SyncModule?, label: String, block: suspend () -> T): T =
+        withContext(currentCoroutineContext() + NetworkScope(module, label)) {
+            block()
+        }
+
+    /** Run a user-initiated action (search, login, upload) through the same visible gate. */
+    suspend fun <T> userAction(label: String, block: suspend () -> T): T =
+        networkScope(null, "User action: $label", block)
 
     private val _moduleStates = MutableStateFlow(
         SyncModule.entries.associateWith { ModuleState() }
@@ -475,10 +498,28 @@ object SyncEngine {
     // untouched. Used by onboarding and scheduled sync runs.
     private var profileOverride: String? = null
 
+    /**
+     * Mode ids (`quick`, `full`, `academics`, …) and profile ids (`quick_sync`, `full_sync`, …)
+     * are different namespaces. `loadMode` applies a *mode* as a stage override, so without this
+     * alias table the lookup silently fell through to the first profile (full_sync) and gating
+     * lied. Keep both namespaces resolvable here.
+     */
+    private fun canonicalProfileId(id: String): String = when (id) {
+        "quick" -> "quick_sync"
+        "balanced" -> "balanced_sync"
+        "full" -> "full_sync"
+        "academics" -> "academics_only"
+        "campus" -> "campus_life"
+        "daily" -> "daily_reload"
+        "weekly", "monthly", "quarterly" -> "full_sync"
+        else -> id
+    }
+
     val activeProfile: SyncConfigProfile
         get() {
             val id = profileOverride ?: _activeProfileId.value
             return _profiles.value.firstOrNull { it.id == id }
+                ?: _profiles.value.firstOrNull { it.id == canonicalProfileId(id) }
                 ?: _profiles.value.firstOrNull()
                 ?: DEFAULT_SYNC_PROFILES.first()
         }
@@ -621,27 +662,34 @@ object SyncEngine {
     // ── Sweep lifecycle ──
     fun beginSweep(modules: Set<SyncModule>) {
         sweepActive = true
+        NetworkGate.openGate()
         _moduleStates.value = SyncModule.entries.associateWith { m ->
             if (m in modules) ModuleState(status = SyncStatus.LOADING) else ModuleState()
         }
         recalculateProgress()
+        addLog(SyncModule.ATTENDANCE, "Sweep started: ${modules.size} module(s) — ${modules.joinToString { it.displayName }}", SyncStatus.LOADING)
     }
 
     fun endSweep() {
         sweepActive = false
-        val updated = _moduleStates.value.mapValues { (_, s) ->
-            if (s.status == SyncStatus.LOADING) ModuleState() else s
+        _moduleStates.update { states ->
+            states.mapValues { (_, s) ->
+                // A module still LOADING here never reported an outcome: that is a failure to report,
+                // not a silent success. Surface it as an error instead of quietly reverting to IDLE.
+                if (s.status == SyncStatus.LOADING) {
+                    ModuleState(status = SyncStatus.ERROR, error = "No result reported by module")
+                } else s
+            }
         }
-        _moduleStates.value = updated
         recalculateProgress()
     }
 
     fun registerJob(job: Job) {
-        activeJobs += job
+        _activeJobs.update { it + job }
     }
 
     fun unregisterJob(job: Job) {
-        activeJobs -= job
+        _activeJobs.update { it - job }
     }
 
     // ── Module Enablement & Profile Management ──
@@ -772,23 +820,31 @@ object SyncEngine {
     // ── Module state mutations ──
 
     fun updateModuleState(module: SyncModule, state: ModuleState) {
-        _moduleStates.value = _moduleStates.value + (module to state)
+        _moduleStates.update { it + (module to state) }
         recalculateProgress()
     }
 
     fun markModuleLoading(module: SyncModule) = updateModuleState(module, ModuleState(status = SyncStatus.LOADING))
 
-    fun markModuleSuccess(module: SyncModule) {
+    fun markModuleSuccess(module: SyncModule, detail: String? = null) {
         val now = Clock.System.now()
-        updateModuleState(
-            module, ModuleState(status = SyncStatus.SUCCESS, lastSynced = now)
-        )
+        updateModuleState(module, ModuleState(status = SyncStatus.SUCCESS, lastSynced = now, detail = detail))
         recordSyncTime(module, now)
+        addLog(module, detail?.let { "Synced — $it" } ?: "Synced (network fetch succeeded)", SyncStatus.SUCCESS)
     }
 
     fun markModuleError(module: SyncModule, error: String?) = updateModuleState(
         module, ModuleState(status = SyncStatus.ERROR, error = error)
     )
+
+    /**
+     * The honest counterpart of [markModuleSuccess]: no fetch happened, so there is no freshness
+     * timestamp and the module must not count as a success in the progress ring.
+     */
+    fun markModuleSkipped(module: SyncModule, reason: String) {
+        updateModuleState(module, ModuleState(status = SyncStatus.SKIPPED, detail = reason))
+        addLog(module, "SKIPPED: $reason", SyncStatus.SKIPPED)
+    }
 
     fun resetModule(module: SyncModule) {
         updateModuleState(module, ModuleState())
@@ -804,7 +860,7 @@ object SyncEngine {
     // ── Logging ──
 
     fun addLog(module: SyncModule, message: String, status: SyncStatus) {
-        _logLines.value = (_logLines.value + LogLine(module, message, status, Clock.System.now())).takeLast(500)
+        _logLines.update { (it + LogLine(module, message, status, Clock.System.now())).takeLast(500) }
     }
 
     fun resetLogs() {
@@ -814,8 +870,12 @@ object SyncEngine {
     // ── Sync execution ──
 
     fun cancelAll() {
-        activeJobs.forEach { it.cancel() }
-        activeJobs.clear()
+        // Close first: this cancels every in-flight HTTP/WebView request in NetworkGate, then we
+        // reopen so ordinary user actions (login, search) still work after a cancelled sweep.
+        NetworkGate.closeGate("sync cancelled by user")
+        _activeJobs.value.forEach { it.cancel(CancellationException("sync cancelled by user")) }
+        _activeJobs.value = emptySet()
+        NetworkGate.openGate()
         resetAllStates()
         sweepActive = false
         _syncProgress.value = SyncProgress()
@@ -827,9 +887,12 @@ object SyncEngine {
         val states = _moduleStates.value
         val active = states.filter { (_, s) -> s.status == SyncStatus.LOADING }.keys
         val total = states.count { (_, s) -> s.status != SyncStatus.IDLE }
-        val completed = states.count { (_, s) -> s.status == SyncStatus.SUCCESS || s.status == SyncStatus.ERROR }
+        val completed = states.count { (_, s) ->
+            s.status == SyncStatus.SUCCESS || s.status == SyncStatus.ERROR || s.status == SyncStatus.SKIPPED
+        }
         val successCount = states.count { (_, s) -> s.status == SyncStatus.SUCCESS }
         val errorCount = states.count { (_, s) -> s.status == SyncStatus.ERROR }
+        val skippedCount = states.count { (_, s) -> s.status == SyncStatus.SKIPPED }
 
         // Keep the final total after a sweep ends: the UI still shows "All N modules updated"
         // (or "Completed with N errors") until the next sweep begins. Only an explicit
@@ -839,7 +902,8 @@ object SyncEngine {
             completedModules = completed,
             activeModules = active,
             successCount = successCount,
-            errorCount = errorCount
+            errorCount = errorCount,
+            skippedCount = skippedCount
         )
     }
 

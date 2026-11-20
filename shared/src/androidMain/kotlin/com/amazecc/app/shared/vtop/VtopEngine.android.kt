@@ -107,42 +107,55 @@ actual class VtopEngine actual constructor() {
     }
 
     actual suspend fun load(path: String) {
-        val wv = ensureWebView()
-        val url = when {
-            path.startsWith("http://") || path.startsWith("https://") -> path
-            path.startsWith("/vtop") -> "https://vtopcc.vit.ac.in$path"
-            path.startsWith("/") -> "${VtopSession.BASE_URL}$path"
-            path.isEmpty() -> VtopSession.BASE_URL
-            else -> "${VtopSession.BASE_URL}/$path"
-        }
-        withContext(Dispatchers.Main) {
-            wv.clearCache(true)
-            wv.clearHistory()
-            val signal = CompletableDeferred<Boolean>()
-            loadSignal = signal
-            wv.loadUrl(url)
-            val finished = withTimeoutOrNull(NAV_TIMEOUT_MS) { signal.await() }
-            loadSignal = null
-            // A timeout does not throw: the page may still be usable, and the caller's next
-            // PAGE_STATE probe reports the truth. Surfacing it as a failure here would mask the
-            // more useful "could not read the captcha" style diagnosis.
-            lastNavigationCompleted = finished == true
+        com.amazecc.app.shared.state.NetworkGate.run(
+            transport = "webview",
+            method = "LOAD",
+            url = path,
+            label = "VTOP page load",
+        ) {
+            val wv = ensureWebView()
+            val url = when {
+                path.startsWith("http://") || path.startsWith("https://") -> path
+                path.startsWith("/vtop") -> "https://vtopcc.vit.ac.in$path"
+                path.startsWith("/") -> "${VtopSession.BASE_URL}$path"
+                path.isEmpty() -> VtopSession.BASE_URL
+                else -> "${VtopSession.BASE_URL}/$path"
+            }
+            withContext(Dispatchers.Main) {
+                wv.clearCache(true)
+                wv.clearHistory()
+                val signal = CompletableDeferred<Boolean>()
+                loadSignal = signal
+                wv.loadUrl(url)
+                val finished = withTimeoutOrNull(NAV_TIMEOUT_MS) { signal.await() }
+                loadSignal = null
+                // A timeout does not throw: the page may still be usable, and the caller's next
+                // PAGE_STATE probe reports the truth. Surfacing it as a failure here would mask the
+                // more useful "could not read the captcha" style diagnosis.
+                lastNavigationCompleted = finished == true
+            }
         }
     }
 
-    actual suspend fun evaluate(script: String, timeoutMs: Long): String {
-        val wv = ensureWebView()
-        return withContext(Dispatchers.Main) {
-            val result = withTimeoutOrNull(timeoutMs) {
-                CompletableDeferred<String>().also { deferred ->
-                    wv.evaluateJavascript(script) { raw ->
-                        deferred.complete(unescape(raw))
-                    }
-                }.await()
+    actual suspend fun evaluate(script: String, timeoutMs: Long): String =
+        com.amazecc.app.shared.state.NetworkGate.run(
+            transport = "webview",
+            method = "EVAL",
+            url = "javascript:${script.take(80)}",
+            label = "VTOP script",
+        ) {
+            val wv = ensureWebView()
+            withContext(Dispatchers.Main) {
+                val result = withTimeoutOrNull(timeoutMs) {
+                    CompletableDeferred<String>().also { deferred ->
+                        wv.evaluateJavascript(script) { raw ->
+                            deferred.complete(unescape(raw))
+                        }
+                    }.await()
+                }
+                result ?: throw IllegalStateException("evaluateJavascript timed out after ${timeoutMs}ms")
             }
-            result ?: throw IllegalStateException("evaluateJavascript timed out after ${timeoutMs}ms")
         }
-    }
 
     actual suspend fun setUserAgent(userAgent: String) {
         val wv = ensureWebView()

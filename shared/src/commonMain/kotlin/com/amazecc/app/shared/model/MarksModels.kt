@@ -11,7 +11,9 @@ data class AssessmentItem(
     val scoredMark: String = "",
     val weightageMark: String = "",
     /** "ETH" / "ELA" / "Theory Only" / "Lab Only" — which component this assessment belongs to. */
-    val component: String? = null
+    val component: String? = null,
+    /** Contract field from ../amazecc-api-hono/src/types/data/marks.ts. */
+    val slNo: String? = null
 )
 
 @Serializable
@@ -23,7 +25,8 @@ data class MarksCourseItem(
     val courseSystem: String = "",
     val faculty: String = "",
     val slot: String = "",
-    /** Credit count for this component, used to weight an embedded pair's combined mark. */
+    /** Credit count for this component. marks.ts declares `number`; older payloads send string. */
+    @Serializable(with = FlexibleStringSerializer::class)
     val credits: String? = null,
     val component: String? = null,
     /**
@@ -33,5 +36,9 @@ data class MarksCourseItem(
      */
     val totalMark: Double? = null,
     val maxMark: Double? = null,
-    val assessments: List<AssessmentItem> = emptyList()
+    val assessments: List<AssessmentItem> = emptyList(),
+
+    // Contract fields from ../amazecc-api-hono/src/types/data/marks.ts.
+    val slNo: String? = null,
+    val courseMode: String? = null
 )

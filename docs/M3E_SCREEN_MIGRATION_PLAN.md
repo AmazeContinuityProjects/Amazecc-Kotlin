@@ -20,9 +20,14 @@ The migration adheres strictly to:
 ---
 
 ## 2. API & Data Layer: `../AmazeCC-API-hono` Integration
-Data structures are backed by the high-performance Hono API server in `../AmazeCC-API-hono`:
-- **Client**: `HonoApiClient.kt` in `com.amazecc.app.shared.network.hono`
-- **Models**: Strongly-typed Kotlin multiplatform data classes matching the Hono API payloads (`HonoAttendanceResponse`, `HonoTimetableResponse`, `HonoMarksResponse`, `HonoProfileResponse`, etc.).
+Data structures are backed by the high-performance Hono API server in `../amazecc-api-hono`:
+- **Client**: `AmazeClient.kt` is the single HTTP client. The planned `HonoApiClient` scaffold was
+  removed (zero callers, wrong bearer-token auth model for `/api/remote/*`).
+- **Models**: Strongly-typed Kotlin `@Serializable` DTOs in `shared/.../model/` mirror the
+  authoritative TS contracts. See [TYPED_API_CONTRACTS.md](TYPED_API_CONTRACTS.md) for the
+  source-of-truth mapping and the rules for keeping them aligned.
+- **Network gate**: every HTTP and WebView request passes through `NetworkGate` for attribution,
+  cancellation and logs.
 - **Cache & Offline**: Clean serialization via `kotlinx.serialization` with local encrypted persistence.
 
 ---
