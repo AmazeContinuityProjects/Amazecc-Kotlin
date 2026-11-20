@@ -10,14 +10,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.FactCheck
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
@@ -29,12 +32,12 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
-import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -58,10 +61,25 @@ data class M3EDocumentCard(
     val error: String? = null
 )
 
+/** One admissions-acknowledgement record, mapped from whoami `acknowledgement.documents`. */
+@Immutable
+data class M3EAcknowledgementCard(
+    val id: String,
+    val serialNo: String,
+    val documentName: String,
+    val status: String
+)
+
+/** Stable tags for the two record types this page owns. */
+object M3EDocumentsTestTags {
+    const val ACKNOWLEDGEMENT_CARD = "m3e_documents_ack_card"
+}
+
 /** Immutable, screen-owned state for [M3EDocumentsScreen]. */
 @Immutable
 data class M3EDocumentsState(
     val documents: List<M3EDocumentCard> = emptyList(),
+    val acknowledgements: List<M3EAcknowledgementCard> = emptyList(),
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )
@@ -74,10 +92,13 @@ sealed interface M3EDocumentsAction {
 }
 
 /**
- * Material 3 Expressive Documents screen — a simple, flat list of documents.
- * No tabs and no per-endpoint scrapers: the host feeds [M3EDocumentCard]s from
- * `AppState.documents`, which flattens the existing circulars folder tree.
- * 100% stateless: receives [M3EDocumentsState] and emits [M3EDocumentsAction].
+ * Material 3 Expressive Documents screen — official records only.
+ *
+ * Circulars are deliberately not rendered here (D-110): they belong on the Circulars
+ * page. The host feeds [M3EDocumentCard]s (the static official documents) and
+ * [M3EAcknowledgementCard]s (from whoami `acknowledgement.documents`). Each acknowledgement
+ * is its own card with its status. 100% stateless: receives [M3EDocumentsState] and emits
+ * [M3EDocumentsAction].
  */
 @Composable
 fun M3EDocumentsScreen(
@@ -90,7 +111,8 @@ fun M3EDocumentsScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.surface),
+            .background(colors.surface)
+            .testTag("documents_list"),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -110,7 +132,7 @@ fun M3EDocumentsScreen(
                         color = colors.onSurface
                     )
                     Text(
-                        text = "Bonafide, transcripts & learning records",
+                        text = "Official records and admissions acknowledgements",
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.onSurfaceVariant
                     )
@@ -173,7 +195,24 @@ fun M3EDocumentsScreen(
             )
         }
 
-        if (!state.isLoading && state.documents.isEmpty() && state.errorMessage.isNullOrBlank()) {
+        if (state.acknowledgements.isNotEmpty()) {
+            // More space above the heading than below it — a new section, not another card.
+            item(key = "ack_spacer") { Spacer(Modifier.height(12.dp)) }
+            item(key = "ack_heading") {
+                Text(
+                    text = "Acknowledgements",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = colors.onSurface
+                )
+            }
+            items(state.acknowledgements, key = { it.id }) { acknowledgement ->
+                AcknowledgementCard(acknowledgement = acknowledgement)
+            }
+        }
+
+        if (!state.isLoading && state.documents.isEmpty() && state.acknowledgements.isEmpty() &&
+            state.errorMessage.isNullOrBlank()
+        ) {
             item(key = "empty") {
                 M3ESurfaceCard(
                     modifier = Modifier.fillMaxWidth(),
@@ -199,7 +238,7 @@ fun M3EDocumentsScreen(
                         }
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = "No documents available",
+                            text = "No documents or acknowledgements available",
                             style = MaterialTheme.typography.bodyMedium,
                             color = colors.onSurfaceVariant
                         )
@@ -320,6 +359,64 @@ private fun DocumentCard(
     }
 }
 
+/** One whoami acknowledgement record — its status is data, never a fabricated claim. */
+@Composable
+private fun AcknowledgementCard(
+    acknowledgement: M3EAcknowledgementCard,
+    modifier: Modifier = Modifier
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(M3EDocumentsTestTags.ACKNOWLEDGEMENT_CARD),
+        containerLevel = SurfaceContainerLevel.LOW
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(colors.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.FactCheck,
+                    contentDescription = null,
+                    tint = colors.onPrimaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "${orDash(acknowledgement.serialNo.trim())}. ${orDash(acknowledgement.documentName.trim())}",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = colors.onSurface
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.secondaryContainer)
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = orDash(acknowledgement.status.trim()),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = colors.onSecondaryContainer
+                )
+            }
+        }
+    }
+}
+
+/** Missing record data renders as an em dash, never a plausible-looking placeholder. */
+private fun orDash(value: String): String = value.ifBlank { "—" }
+
 // ==========================================
 // PREVIEWS
 // ==========================================
@@ -345,6 +442,10 @@ private fun previewDocumentsState() = M3EDocumentsState(
             title = "Additional Learning",
             subtitle = "Certified electives"
         )
+    ),
+    acknowledgements = listOf(
+        M3EAcknowledgementCard("ack-1", "1", "Undertaking", "Accepted"),
+        M3EAcknowledgementCard("ack-2", "2", "Bonafide", "Pending")
     )
 )
 

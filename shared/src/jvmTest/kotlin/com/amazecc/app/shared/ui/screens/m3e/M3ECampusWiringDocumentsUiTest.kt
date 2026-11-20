@@ -1,9 +1,15 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import kotlin.test.Test
@@ -86,7 +92,7 @@ class M3ECampusWiringDocumentsUiTest {
             }
         }
 
-        onNodeWithText("No documents available").assertExists()
+        onNodeWithText("No documents or acknowledgements available").assertExists()
     }
 
     @Test
@@ -101,5 +107,43 @@ class M3ECampusWiringDocumentsUiTest {
         }
 
         onNodeWithText("Could not load documents").assertExists()
+    }
+
+    @Test
+    fun oneAcknowledgementCardPerRecordWithStatus() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3EDocumentsScreen(
+                    state = M3EDocumentsState(
+                        acknowledgements = listOf(
+                            M3EAcknowledgementCard("1", "1", "Undertaking", "Accepted"),
+                            M3EAcknowledgementCard("2", "2", " Bonafide ", "Pending")
+                        )
+                    ),
+                    onAction = {}
+                )
+            }
+        }
+
+        // The section sits below the document cards; scroll it into composition first.
+        onNodeWithTag("documents_list").performScrollToNode(hasText("Acknowledgements"))
+        onAllNodesWithTag(M3EDocumentsTestTags.ACKNOWLEDGEMENT_CARD).assertCountEquals(2)
+        onNodeWithText("Acknowledgements").assertExists()
+        onNodeWithText("1. Undertaking").assertExists()
+        onNodeWithText("Accepted").assertExists()
+        onNodeWithText("2. Bonafide").assertExists()
+        onNodeWithText("Pending").assertExists()
+    }
+
+    @Test
+    fun acknowledgementSectionOmittedWhenAbsent() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3EDocumentsScreen(state = sampleState(), onAction = {})
+            }
+        }
+
+        onAllNodesWithTag(M3EDocumentsTestTags.ACKNOWLEDGEMENT_CARD).assertCountEquals(0)
+        onNodeWithText("Acknowledgements").assertDoesNotExist()
     }
 }

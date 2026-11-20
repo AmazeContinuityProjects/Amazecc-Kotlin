@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,7 +28,6 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Payment
 import androidx.compose.material.icons.rounded.Pending
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
@@ -50,6 +50,7 @@ import com.amazecc.app.shared.domain.FormattingParity
 import com.amazecc.app.shared.model.ArrearResponse
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -292,17 +293,20 @@ private fun ReceiptDetailDialog(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
-    AlertDialog(
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
         modifier = modifier,
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Payment Receipt",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                color = colors.onSurface
-            )
-        },
-        text = {
+        title = "Payment Receipt"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp)) {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (response.keyValuePairs.isNotEmpty()) {
                     item(key = "fields") {
@@ -399,13 +403,17 @@ private fun ReceiptDetailDialog(
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(text = "Close", color = colors.primary)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(text = "Close", color = colors.primary)
+                }
             }
         }
-    )
+    }
 }
 
 /**

@@ -1,15 +1,14 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
-import com.amazecc.app.shared.domain.overhaul.M3EContactItem
 import com.amazecc.app.shared.domain.overhaul.M3EProfileAction
 import com.amazecc.app.shared.domain.overhaul.M3EProfileState
 import com.amazecc.app.shared.domain.overhaul.M3EResidenceStatus
@@ -24,8 +23,7 @@ class M3EProfileResidenceActionsTest {
 
     private fun state(
         residence: M3EResidenceStatus,
-        isRegisteredForBus: Boolean = false,
-        contacts: List<M3EContactItem> = emptyList()
+        isRegisteredForBus: Boolean = false
     ) = M3EProfileState(
         studentName = "Aditya Sharma",
         registrationNumber = "22BCE1045",
@@ -44,8 +42,7 @@ class M3EProfileResidenceActionsTest {
         cgpa = 9.24,
         attendancePercentage = 91.5,
         residence = residence,
-        isRegisteredForBus = isRegisteredForBus,
-        contacts = contacts
+        isRegisteredForBus = isRegisteredForBus
     )
 
     @Test
@@ -113,31 +110,24 @@ class M3EProfileResidenceActionsTest {
     }
 
     @Test
-    fun contactEmailFromWhoamiContactEmitsOpenEmail() = runComposeUiTest {
-        val actions = mutableListOf<M3EProfileAction>()
+    fun contactsMenuCardEmitsNavigationInsteadOfInlineEmail() = runComposeUiTest {
+        var opened = 0
         setContent {
             AmazeM3ETheme {
                 M3EProfileScreen(
-                    state = state(
-                        residence = M3EResidenceStatus.DAYSCHOLAR,
-                        contacts = listOf(
-                            M3EContactItem(
-                                office = "Transport Office",
-                                description = "Bus pass queries",
-                                email = "transport@vit.ac.in"
-                            )
-                        )
-                    ),
-                    onAction = { actions.add(it) }
+                    state = state(M3EResidenceStatus.DAYSCHOLAR),
+                    onAction = {},
+                    onOpenContacts = { opened++ }
                 )
             }
         }
 
-        // The contact section sits down the LazyColumn; scroll the icon into view before clicking.
-        onNode(hasScrollToNodeAction()).performScrollToNode(hasContentDescription("Email transport@vit.ac.in"))
-        // The email icon (not the card itself) emits the action.
-        onNodeWithContentDescription("Email transport@vit.ac.in").performClick()
-        assertTrue(actions.any { it is M3EProfileAction.OpenEmail && it.email == "transport@vit.ac.in" })
+        // D-110: the profile no longer renders contact rows or their email actions.
+        onNodeWithTag("profile_list").performScrollToNode(
+            hasTestTag(M3EProfileTestTags.CONTACTS_MENU_CARD)
+        )
+        onNodeWithTag(M3EProfileTestTags.CONTACTS_MENU_CARD).performClick()
+        assertEquals(1, opened)
     }
 
     @Test

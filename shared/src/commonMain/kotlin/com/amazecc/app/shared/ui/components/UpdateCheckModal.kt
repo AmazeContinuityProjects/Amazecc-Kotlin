@@ -25,12 +25,22 @@ fun UpdateCheckModal(onDismiss: () -> Unit) {
     val updateStatus by AppState.updateStatus.collectAsState()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
+    // D-112 follow-up: callers (AboutScreen / SettingsAccountPages) only clear their
+    // local `showUpdateCheck` flag on dismissal. Reset AppState's status as well so a
+    // settled check — notably an Error — cannot reappear the next time the sheet is
+    // opened. The Available hand-off below deliberately keeps the plain onDismiss:
+    // that path must stay in AppState long enough for UpdateDialog to render.
+    val dismissCheck: () -> Unit = {
+        AppState.clearUpdateStatus()
+        onDismiss()
+    }
+
     LaunchedEffect(updateStatus) {
         if (updateStatus is AppState.UpdateStatus.Available) onDismiss()
     }
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = dismissCheck,
         sheetState = sheetState,
         containerColor = colors.background,
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
@@ -95,7 +105,7 @@ fun UpdateCheckModal(onDismiss: () -> Unit) {
                     Spacer(Modifier.height(20.dp))
                     AmazeButton(
                         text = "OK",
-                        onClick = onDismiss,
+                        onClick = dismissCheck,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -122,7 +132,7 @@ fun UpdateCheckModal(onDismiss: () -> Unit) {
                     Spacer(Modifier.height(20.dp))
                     AmazeButton(
                         text = "OK",
-                        onClick = onDismiss,
+                        onClick = dismissCheck,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -153,7 +163,7 @@ fun UpdateCheckModal(onDismiss: () -> Unit) {
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(4.dp))
-                    TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = dismissCheck, modifier = Modifier.fillMaxWidth()) {
                         Text("Close", color = colors.textSecondary)
                     }
                 }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -79,6 +80,12 @@ fun M3EDismissibleSheet(
 ) {
     if (!isOpen) return
 
+    // Self-provide the active app palette: several global call sites (App.kt overlays) do not
+    // wrap sheets in AmazeM3ETheme, so without this the chrome would fall back to the dark
+    // default and render dark-on-light in the Classic Light scheme.
+    com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme(
+        isDark = com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge.isDarkThemeActive()
+    ) {
     val colors = M3ETheme.colors
     var dragY by remember { mutableFloatStateOf(0f) }
 
@@ -103,7 +110,7 @@ fun M3EDismissibleSheet(
     ) {
         Box(
             modifier = Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .background(Color.Black.copy(alpha = 0.5f))
                 .clickableA11y(
                     onClickLabel = "Dismiss sheet",
@@ -204,5 +211,6 @@ fun M3EDismissibleSheet(
                 content()
             }
         }
+    }
     }
 }

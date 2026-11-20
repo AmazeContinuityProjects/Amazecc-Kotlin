@@ -22,6 +22,7 @@ import com.amazecc.app.shared.model.PaymentItem
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ChangelogEntry
@@ -737,20 +738,23 @@ fun M3EMoodleScreenHost(modifier: Modifier = Modifier) {
 /**
  * Stateful host for [M3EDocumentsScreen].
  *
- * There is no documents listing endpoint: `AppState.documents` is the data
- * worker's flattened view of the existing `/api/circulars` folder tree. The host
- * collects that flow, refreshes when empty, maps each `DocumentItem` into an
- * immutable [M3EDocumentCard], and forwards user intents. No tabs.
+ * D-110: circulars do not belong on this page. `AppState.documents` is the data worker's
+ * flattened view of `/api/circulars` **plus** the small set of static official-document
+ * entries, so this host keeps only those official records (identified by their stable ids)
+ * and leaves the circular tree to `M3ECircularsScreenHost`. Admissions acknowledgements
+ * come from the real whoami snapshot — no entries are invented when it is absent.
  *
- * Only `id` and `title` are read from `DocumentItem` (owned by the data-layer
- * worker). `OpenDocument(id)` delegates the credentialed circular download to
- * `AppState.downloadDocument`; the resulting [AppState.circularDownload] value is
- * handed to the platform's `openDocumentBytes` from a `LaunchedEffect`.
+ * `OpenDocument(id)` delegates the credentialed download to `AppState.downloadDocument`;
+ * the resulting [AppState.circularDownload] value is handed to the platform's
+ * `openDocumentBytes` from a `LaunchedEffect`.
  */
+private val OFFICIAL_DOCUMENT_IDS = setOf("bonafide", "e-transcript", "additional-learning")
+
 @Composable
 fun M3EDocumentsScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val documents by AppState.documents.collectAsState()
+    val identity by UserStore.identity.collectAsState()
     val downloadResult by AppState.circularDownload.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
     val error by AppState.error.collectAsState()
@@ -770,18 +774,37 @@ fun M3EDocumentsScreenHost(modifier: Modifier = Modifier) {
     }
     AppBackHandler { navigateBackOrMore() }
 
+    // Only the static official documents belong here; the flattened circulars stay on
+    // the Circulars page. The id is the discriminator the data layer gives those entries.
     val cards = remember(documents) {
-        documents.map { document ->
+        documents.filter { it.id in OFFICIAL_DOCUMENT_IDS }.map { document ->
             M3EDocumentCard(
                 id = document.id,
-                title = document.title
+                title = document.title,
+                subtitle = document.description.orEmpty(),
+                details = document.rows.map { M3EDocumentRow(it.label, it.value) },
+                messages = document.messages,
+                error = document.error
+            )
+        }
+    }
+
+    // Real whoami acknowledgement records only — an absent block renders no cards.
+    val acknowledgements = remember(identity.acknowledgement) {
+        identity.acknowledgement?.documents.orEmpty().mapIndexed { index, doc ->
+            M3EAcknowledgementCard(
+                id = "${doc.serialNo.orEmpty()}-$index",
+                serialNo = doc.serialNo.orEmpty(),
+                documentName = doc.documentName.orEmpty(),
+                status = doc.status.orEmpty()
             )
         }
     }
 
     val state = M3EDocumentsState(
         documents = cards,
-        isLoading = isLoading && documents.isEmpty(),
+        acknowledgements = acknowledgements,
+        isLoading = isLoading && cards.isEmpty() && acknowledgements.isEmpty(),
         errorMessage = error
     )
 

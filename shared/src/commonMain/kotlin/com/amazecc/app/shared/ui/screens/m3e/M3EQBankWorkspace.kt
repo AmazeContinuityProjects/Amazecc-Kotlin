@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -31,7 +32,6 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.OutlinedFlag
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.components.LatexViewer
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -895,33 +896,42 @@ private fun SwotConfigDialog(state: M3EQBankWorkspaceState, onAction: (M3EQBankW
     fun parse(value: String, fallback: Int) = value.toIntOrNull()?.coerceIn(1, 100) ?: fallback
     fun digitsOnly(value: String) = value.filter { ch -> ch.isDigit() }
 
-    AlertDialog(
-        onDismissRequest = { onAction(M3EQBankWorkspaceAction.CloseSwotConfig) },
-        title = { Text("SWOT thresholds") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = strengthAttempts, onValueChange = { strengthAttempts = digitsOnly(it) }, label = { Text("Strengths — min attempts") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(value = strengthAccuracy, onValueChange = { strengthAccuracy = digitsOnly(it) }, label = { Text("Strengths — accuracy %") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(value = weaknessAttempts, onValueChange = { weaknessAttempts = digitsOnly(it) }, label = { Text("Weaknesses — min attempts") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-                OutlinedTextField(value = weaknessAccuracy, onValueChange = { weaknessAccuracy = digitsOnly(it) }, label = { Text("Weaknesses — accuracy %") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                onAction(
-                    M3EQBankWorkspaceAction.SaveSwotConfig(
-                        M3EQBankSwotConfigItem(
-                            strengthMinAttempts = parse(strengthAttempts, cfg.strengthMinAttempts),
-                            strengthAccuracy = parse(strengthAccuracy, cfg.strengthAccuracy),
-                            weaknessMinAttempts = parse(weaknessAttempts, cfg.weaknessMinAttempts),
-                            weaknessAccuracy = parse(weaknessAccuracy, cfg.weaknessAccuracy)
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = { onAction(M3EQBankWorkspaceAction.CloseSwotConfig) },
+        title = "SWOT thresholds"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(value = strengthAttempts, onValueChange = { strengthAttempts = digitsOnly(it) }, label = { Text("Strengths — min attempts") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            OutlinedTextField(value = strengthAccuracy, onValueChange = { strengthAccuracy = digitsOnly(it) }, label = { Text("Strengths — accuracy %") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            OutlinedTextField(value = weaknessAttempts, onValueChange = { weaknessAttempts = digitsOnly(it) }, label = { Text("Weaknesses — min attempts") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            OutlinedTextField(value = weaknessAccuracy, onValueChange = { weaknessAccuracy = digitsOnly(it) }, label = { Text("Weaknesses — accuracy %") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = { onAction(M3EQBankWorkspaceAction.CloseSwotConfig) }) { Text("Cancel") }
+                TextButton(onClick = {
+                    onAction(
+                        M3EQBankWorkspaceAction.SaveSwotConfig(
+                            M3EQBankSwotConfigItem(
+                                strengthMinAttempts = parse(strengthAttempts, cfg.strengthMinAttempts),
+                                strengthAccuracy = parse(strengthAccuracy, cfg.strengthAccuracy),
+                                weaknessMinAttempts = parse(weaknessAttempts, cfg.weaknessMinAttempts),
+                                weaknessAccuracy = parse(weaknessAccuracy, cfg.weaknessAccuracy)
+                            )
                         )
                     )
-                )
-            }) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = { onAction(M3EQBankWorkspaceAction.CloseSwotConfig) }) { Text("Cancel") } }
-    )
+                }) { Text("Save") }
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -945,28 +955,41 @@ private fun SessionSummaryDialog(state: M3EQBankWorkspaceState, onAction: (M3EQB
         .toList()
         .sortedByDescending { if (it.second.first == 0) 0f else it.second.second.toFloat() / it.second.first }
 
-    AlertDialog(
-        onDismissRequest = { onAction(M3EQBankWorkspaceAction.DismissSummary) },
-        title = { Text("Practice session done") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("You got $correct of $total right${if (reviewed > 0) " and reviewed $reviewed descriptive" else ""}.", fontSize = 13.sp, color = colors.onSurfaceVariant)
-                breakdown.forEach { (topic, pair) ->
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(topic, fontSize = 12.sp, color = colors.onSurface, modifier = Modifier.weight(1f))
-                        Text("${pair.second}/${pair.first}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
-                    }
-                }
-                if (missedCount > 0) {
-                    Button(onClick = { onAction(M3EQBankWorkspaceAction.ReviewMissed) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Review $missedCount missed")
-                    }
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = { onAction(M3EQBankWorkspaceAction.DismissSummary) },
+        title = "Practice session done"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 480.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text("You got $correct of $total right${if (reviewed > 0) " and reviewed $reviewed descriptive" else ""}.", fontSize = 13.sp, color = colors.onSurfaceVariant)
+            breakdown.forEach { (topic, pair) ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(topic, fontSize = 12.sp, color = colors.onSurface, modifier = Modifier.weight(1f))
+                    Text("${pair.second}/${pair.first}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurfaceVariant)
                 }
             }
-        },
-        confirmButton = { TextButton(onClick = { onAction(M3EQBankWorkspaceAction.FinishSession) }) { Text("Finish") } },
-        dismissButton = { TextButton(onClick = { onAction(M3EQBankWorkspaceAction.DismissSummary) }) { Text("Keep practising") } }
-    )
+            if (missedCount > 0) {
+                Button(onClick = { onAction(M3EQBankWorkspaceAction.ReviewMissed) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Review $missedCount missed")
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = { onAction(M3EQBankWorkspaceAction.DismissSummary) }) { Text("Keep practising") }
+                TextButton(onClick = { onAction(M3EQBankWorkspaceAction.FinishSession) }) { Text("Finish") }
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

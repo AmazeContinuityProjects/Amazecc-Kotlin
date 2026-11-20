@@ -44,6 +44,7 @@ import com.amazecc.app.shared.state.FriendsViewModel
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.ui.strings.Strings
@@ -258,31 +259,45 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
         var showScanDialog by remember { mutableStateOf(false) }
         var scannedCode by remember { mutableStateOf("") }
         var importError by remember { mutableStateOf<String?>(null) }
-        if (showScanDialog) {
-            AlertDialog(
-                onDismissRequest = { showScanDialog = false },
-                title = { Text("Import Friend's Code", fontWeight = FontWeight.Bold) },
-                text = {
-                    Column {
-                        Text(
-                            "Camera scanning is not available on this platform. Paste the code your friend shared (v5/v6 code or amazecc://share link) to add them to your comparison list.",
-                            style = AmazeTheme.typography.caption
-                        )
-                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                        OutlinedTextField(
-                            value = scannedCode,
-                            onValueChange = { scannedCode = it; importError = null },
-                            label = { Text("Friend's schedule code") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
-                        )
-                        if (importError != null) {
-                            Spacer(Modifier.height(AmazeTheme.spacing.xs))
-                            Text(importError!!, color = colors.dangerText, style = AmazeTheme.typography.caption)
-                        }
-                    }
-                },
-                confirmButton = {
+        M3EDismissibleSheet(
+            isOpen = showScanDialog,
+            onDismiss = {
+                showScanDialog = false
+                scannedCode = ""
+                importError = null
+            },
+            title = "Import Friend's Code"
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
+            ) {
+                Text(
+                    "Camera scanning is not available on this platform. Paste the code your friend shared (v5/v6 code or amazecc://share link) to add them to your comparison list.",
+                    style = AmazeTheme.typography.caption
+                )
+                OutlinedTextField(
+                    value = scannedCode,
+                    onValueChange = { scannedCode = it; importError = null },
+                    label = { Text("Friend's schedule code") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                if (importError != null) {
+                    Text(importError!!, color = colors.dangerText, style = AmazeTheme.typography.caption)
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = {
+                        showScanDialog = false
+                        scannedCode = ""
+                        importError = null
+                    }) { Text(Strings.cancel, color = colors.textSecondary) }
                     TextButton(onClick = {
                         if (com.amazecc.app.shared.state.FriendsViewModel.addFriendFromCode(scannedCode.trim())) {
                             showScanDialog = false
@@ -292,14 +307,8 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                             importError = "Could not read that code. Check it and try again."
                         }
                     }) { Text(Strings.save, color = colors.accent) }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showScanDialog = false }) { Text(Strings.cancel, color = colors.textSecondary) }
-                },
-                containerColor = colors.surface,
-                titleContentColor = colors.textPrimary,
-                textContentColor = colors.textSecondary
-            )
+                }
+            }
         }
 
         AmazeCard(
@@ -439,23 +448,36 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     
     var selectedFriend by remember { mutableStateOf<com.amazecc.app.shared.utils.Friend?>(null) }
 
-    if (showAddDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            title = { Text("Add Friend", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold)) },
-            text = {
-                Column {
-                    Text("Paste your friend's schedule code here to add them to your timetable matches.", style = AmazeTheme.typography.caption)
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    OutlinedTextField(
-                        value = codeInput,
-                        onValueChange = { codeInput = it },
-                        label = { Text("Schedule Code") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            },
-            confirmButton = {
+    M3EDismissibleSheet(
+        isOpen = showAddDialog,
+        onDismiss = {
+            showAddDialog = false
+            codeInput = ""
+        },
+        title = "Add Friend"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
+        ) {
+            Text("Paste your friend's schedule code here to add them to your timetable matches.", style = AmazeTheme.typography.caption)
+            OutlinedTextField(
+                value = codeInput,
+                onValueChange = { codeInput = it },
+                label = { Text("Schedule Code") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = {
+                    showAddDialog = false
+                    codeInput = ""
+                }) { Text(Strings.cancel, color = colors.textSecondary) }
                 TextButton(onClick = {
                     val success = com.amazecc.app.shared.state.FriendsViewModel.addFriendFromCode(codeInput)
                     if (success) {
@@ -465,52 +487,53 @@ private fun FriendsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                 }) {
                     Text("Add", color = colors.accent)
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) { Text(Strings.cancel, color = colors.textSecondary) }
-            },
-            containerColor = colors.surface,
-            titleContentColor = colors.textPrimary,
-            textContentColor = colors.textSecondary
-        )
+            }
+        }
     }
 
-    if (selectedFriend != null) {
-        AlertDialog(
-            onDismissRequest = { selectedFriend = null },
-            title = { Text("${selectedFriend!!.name}'s Timetable", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    FriendTimetableGrid(friend = selectedFriend!!, colors = colors)
-                    Spacer(Modifier.height(AmazeTheme.spacing.md))
-                    Text("Course Details", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    selectedFriend!!.classSlots.sortedBy { listOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday").indexOf(it.day) }.forEach { slot ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.background).padding(8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(slot.courseCode, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                                Text(slot.courseTitle, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                            Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(slot.slotId, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
-                                Text(slot.venue, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
-                            }
+    M3EDismissibleSheet(
+        isOpen = selectedFriend != null,
+        onDismiss = { selectedFriend = null },
+        title = "${selectedFriend?.name ?: "Friend"}'s Timetable"
+    ) {
+        val friend = selectedFriend
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 500.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
+        ) {
+            if (friend != null) {
+                FriendTimetableGrid(friend = friend, colors = colors)
+                Text("Course Details", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                friend.classSlots.sortedBy { listOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday").indexOf(it.day) }.forEach { slot ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(AmazeTheme.radius.xs)).background(colors.background).padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(slot.courseCode, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                            Text(slot.courseTitle, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        Spacer(modifier = Modifier.width(AmazeTheme.spacing.sm))
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(slot.slotId, style = AmazeTheme.typography.caption.copy(fontWeight = FontWeight.Bold, color = colors.accent))
+                            Text(slot.venue, style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary))
                         }
                     }
                 }
-            },
-            confirmButton = {
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 TextButton(onClick = { selectedFriend = null }) { Text(Strings.close, color = colors.accent) }
-            },
-            containerColor = colors.surface,
-            titleContentColor = colors.textPrimary,
-            textContentColor = colors.textSecondary
-        )
+            }
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
@@ -605,108 +628,123 @@ private fun GroupsTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
     var selectedRegNumbers by remember { mutableStateOf(friends.map { it.regNumber }) }
     var editingGroup by remember { mutableStateOf<FriendGroup?>(null) }
 
-    if (showCreateDialog) {
-        AlertDialog(
-            onDismissRequest = { showCreateDialog = false },
-            title = { Text("Create Group", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text("Groups let you share schedules with multiple friends at once.", style = AmazeTheme.typography.caption)
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    OutlinedTextField(
-                        value = newGroupName,
-                        onValueChange = { newGroupName = it },
-                        label = { Text("Group Name") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (friends.isNotEmpty()) {
-                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                        Text("Select members:", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                        Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                        friends.forEach { friend ->
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
-                                selectedRegNumbers = if (friend.regNumber in selectedRegNumbers)
-                                    selectedRegNumbers - friend.regNumber else selectedRegNumbers + friend.regNumber
-                            }.padding(vertical = 4.dp)) {
-                                Checkbox(
-                                    checked = friend.regNumber in selectedRegNumbers,
-                                    onCheckedChange = { checked ->
-                                        selectedRegNumbers = if (checked) selectedRegNumbers + friend.regNumber
-                                        else selectedRegNumbers - friend.regNumber
-                                    },
-                                    colors = CheckboxDefaults.colors(checkedColor = colors.accent)
-                                )
-                                Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                                Text(friend.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
-                            }
-                        }
+    M3EDismissibleSheet(
+        isOpen = showCreateDialog,
+        onDismiss = {
+            showCreateDialog = false
+            newGroupName = ""
+            selectedRegNumbers = friends.map { it.regNumber }
+        },
+        title = "Create Group"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 480.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
+        ) {
+            Text("Groups let you share schedules with multiple friends at once.", style = AmazeTheme.typography.caption)
+            OutlinedTextField(
+                value = newGroupName,
+                onValueChange = { newGroupName = it },
+                label = { Text("Group Name") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (friends.isNotEmpty()) {
+                Text("Select members:", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                friends.forEach { friend ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
+                        selectedRegNumbers = if (friend.regNumber in selectedRegNumbers)
+                            selectedRegNumbers - friend.regNumber else selectedRegNumbers + friend.regNumber
+                    }.padding(vertical = 4.dp)) {
+                        Checkbox(
+                            checked = friend.regNumber in selectedRegNumbers,
+                            onCheckedChange = { checked ->
+                                selectedRegNumbers = if (checked) selectedRegNumbers + friend.regNumber
+                                else selectedRegNumbers - friend.regNumber
+                            },
+                            colors = CheckboxDefaults.colors(checkedColor = colors.accent)
+                        )
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                        Text(friend.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                     }
                 }
-            },
-            confirmButton = {
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = {
+                    showCreateDialog = false
+                    newGroupName = ""
+                    selectedRegNumbers = friends.map { it.regNumber }
+                }) { Text(Strings.cancel, color = colors.textSecondary) }
                 TextButton(enabled = newGroupName.isNotBlank() && selectedRegNumbers.isNotEmpty(), onClick = {
                     FriendsViewModel.createGroup(newGroupName, selectedRegNumbers)
                     newGroupName = ""
                     selectedRegNumbers = friends.map { it.regNumber }
                     showCreateDialog = false
                 }) { Text("Create", color = colors.accent) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCreateDialog = false }) { Text(Strings.cancel, color = colors.textSecondary) }
-            },
-            containerColor = colors.surface,
-            titleContentColor = colors.textPrimary,
-            textContentColor = colors.textSecondary
-        )
+            }
+        }
     }
 
-    if (editingGroup != null) {
-        val group = editingGroup!!
+    val editingGroupForSheet = editingGroup
+    if (editingGroupForSheet != null) {
+        val group = editingGroupForSheet
         var editMembers by remember(group.id) { mutableStateOf(group.memberRegNumbers) }
-        AlertDialog(
-            onDismissRequest = { editingGroup = null },
-            title = { Text("Edit ${group.name}", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Text("Add or remove members:", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    Spacer(Modifier.height(AmazeTheme.spacing.sm))
-                    friends.forEach { friend ->
-                        val isMember = friend.regNumber in editMembers
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
-                            editMembers = if (isMember) editMembers - friend.regNumber else editMembers + friend.regNumber
-                        }.padding(vertical = 4.dp)) {
-                            Checkbox(
-                                checked = isMember,
-                                onCheckedChange = { checked ->
-                                    editMembers = if (checked) editMembers + friend.regNumber else editMembers - friend.regNumber
-                                },
-                                colors = CheckboxDefaults.colors(checkedColor = colors.accent)
-                            )
-                            Spacer(Modifier.width(AmazeTheme.spacing.sm))
-                            Text(friend.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
-                        }
+        M3EDismissibleSheet(
+            isOpen = true,
+            onDismiss = { editingGroup = null },
+            title = "Edit ${group.name}"
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
+            ) {
+                Text("Add or remove members:", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
+                friends.forEach { friend ->
+                    val isMember = friend.regNumber in editMembers
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable {
+                        editMembers = if (isMember) editMembers - friend.regNumber else editMembers + friend.regNumber
+                    }.padding(vertical = 4.dp)) {
+                        Checkbox(
+                            checked = isMember,
+                            onCheckedChange = { checked ->
+                                editMembers = if (checked) editMembers + friend.regNumber else editMembers - friend.regNumber
+                            },
+                            colors = CheckboxDefaults.colors(checkedColor = colors.accent)
+                        )
+                        Spacer(Modifier.width(AmazeTheme.spacing.sm))
+                        Text(friend.name, style = AmazeTheme.typography.body.copy(color = colors.textPrimary))
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    // Update group: remove members not in editMembers, add new ones
-                    editMembers.forEach { reg ->
-                        if (reg !in group.memberRegNumbers) FriendsViewModel.addFriendToGroup(group.id, reg)
-                    }
-                    group.memberRegNumbers.forEach { reg ->
-                        if (reg !in editMembers) FriendsViewModel.removeFriendFromGroup(group.id, reg)
-                    }
-                    editingGroup = null
-                }) { Text(Strings.save, color = colors.accent) }
-            },
-            dismissButton = {
-                TextButton(onClick = { editingGroup = null }) { Text(Strings.cancel, color = colors.textSecondary) }
-            },
-            containerColor = colors.surface,
-            titleContentColor = colors.textPrimary,
-            textContentColor = colors.textSecondary
-        )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { editingGroup = null }) { Text(Strings.cancel, color = colors.textSecondary) }
+                    TextButton(onClick = {
+                        // Update group: remove members not in editMembers, add new ones
+                        editMembers.forEach { reg ->
+                            if (reg !in group.memberRegNumbers) FriendsViewModel.addFriendToGroup(group.id, reg)
+                        }
+                        group.memberRegNumbers.forEach { reg ->
+                            if (reg !in editMembers) FriendsViewModel.removeFriendFromGroup(group.id, reg)
+                        }
+                        editingGroup = null
+                    }) { Text(Strings.save, color = colors.accent) }
+                }
+            }
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {

@@ -33,7 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,8 +84,7 @@ fun M3EHomeScreen(
             item(key = "header") {
                 M3EHomeHeader(
                     name = state.identity.name,
-                    regNumber = state.identity.regNumber,
-                    campus = state.identity.campus,
+                    semesterName = state.semesterName,
                     onRefresh = { onAction(M3EHomeAction.RefreshData) },
                     isRefreshing = state.isRefreshing
                 )
@@ -249,8 +249,7 @@ fun M3EHomeScreen(
 @Composable
 private fun M3EHomeHeader(
     name: String,
-    regNumber: String,
-    campus: String,
+    semesterName: String,
     onRefresh: () -> Unit,
     isRefreshing: Boolean = false
 ) {
@@ -274,12 +273,15 @@ private fun M3EHomeHeader(
                 color = colors.onBackground,
                 fontWeight = FontWeight.Bold
             )
-            Text(
-                text = "$regNumber · $campus Campus",
-                fontSize = 12.sp,
-                color = colors.primary,
-                fontWeight = FontWeight.Medium
-            )
+            // Only the real selected-semester name; never a reg-no/campus fallback.
+            if (semesterName.isNotBlank()) {
+                Text(
+                    text = semesterName,
+                    fontSize = 12.sp,
+                    color = colors.primary,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
 
         IconButton(
@@ -430,19 +432,26 @@ private fun M3EClassTimelineCard(
                     )
                 }
 
-                if (item.isHappeningNow) {
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(colors.successContainer)
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "NOW",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.success
-                        )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Real component attendance, hidden entirely when the source published none.
+                    item.attendancePercentage?.let { M3EClassAttendanceBadge(it) }
+                    if (item.isHappeningNow) {
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(colors.successContainer)
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "NOW",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.success
+                            )
+                        }
                     }
                 }
             }
@@ -491,6 +500,40 @@ private fun M3EClassTimelineCard(
                 }
             }
         }
+    }
+}
+
+private fun formatClassAttendance(percentage: Double): String =
+    if (percentage % 1.0 == 0.0) "${percentage.toInt()}%" else "${percentage.toFixed(1)}%"
+
+@Composable
+private fun M3EClassAttendanceBadge(percentage: Double) {
+    val colors = M3ETheme.colors
+    val text = formatClassAttendance(percentage)
+    // Same 75% line the home headline stat already uses, so the two never disagree.
+    val isSafe = percentage >= 75.0
+    val tone = if (isSafe) colors.success else colors.error
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(if (isSafe) colors.successContainer else colors.errorContainer)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .semantics { contentDescription = "Attendance $text" }
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Insights,
+            contentDescription = null,
+            tint = tone,
+            modifier = Modifier.size(12.dp)
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = tone
+        )
     }
 }
 
@@ -543,10 +586,12 @@ private fun createMockHomeState() = M3EHomeState(
             faculty = "Prof. Sundar",
             startTime = "09:00",
             endTime = "09:50",
-            isHappeningNow = true
+            isHappeningNow = true,
+            attendancePercentage = 88.5
         )
     ),
-    insights = emptyList()
+    insights = emptyList(),
+    semesterName = "Fall Sem 2025-2026"
 )
 
 @Preview

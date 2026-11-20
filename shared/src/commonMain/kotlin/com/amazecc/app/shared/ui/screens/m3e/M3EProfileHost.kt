@@ -11,9 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
-import com.amazecc.app.shared.domain.overhaul.M3EAcknowledgementDocument
 import com.amazecc.app.shared.domain.overhaul.M3EAddressItem
-import com.amazecc.app.shared.domain.overhaul.M3EContactItem
 import com.amazecc.app.shared.domain.overhaul.M3EFieldItem
 import com.amazecc.app.shared.domain.overhaul.M3EMentorItem
 import com.amazecc.app.shared.domain.overhaul.M3EProfileAction
@@ -23,6 +21,7 @@ import com.amazecc.app.shared.model.StudentIdentity
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.IdentitySource
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 
@@ -71,26 +70,6 @@ fun M3EProfileHost(modifier: Modifier = Modifier) {
             // Legacy on-device hint, used only while both raw sources are absent/unrecognised.
             identityState.isHosteller -> M3EResidenceStatus.HOSTELLER
             else -> M3EResidenceStatus.UNKNOWN
-        }
-    }
-
-    val contacts = remember(identityState.contacts) {
-        identityState.contacts.map { c ->
-            M3EContactItem(
-                office = c.office,
-                description = c.description,
-                email = c.email?.takeIf { it.isNotBlank() }
-            )
-        }
-    }
-
-    val acknowledgementDocuments = remember(identityState.acknowledgement) {
-        identityState.acknowledgement?.documents.orEmpty().map { d ->
-            M3EAcknowledgementDocument(
-                serialNo = d.serialNo.orEmpty(),
-                documentName = d.documentName.orEmpty(),
-                status = d.status.orEmpty()
-            )
         }
     }
 
@@ -254,14 +233,13 @@ fun M3EProfileHost(modifier: Modifier = Modifier) {
         addresses = addresses,
         personalRecords = personalRecords,
         residence = residence,
-        contacts = contacts,
-        acknowledgementDocuments = acknowledgementDocuments,
         isRegisteredForBus = isBusSubscriber
     )
 
     AmazeM3ETheme(isDark = isDark) {
         M3EProfileScreen(
             state = state,
+            onOpenContacts = { AppState.navigateTo(Screen.CONTACTS) },
             onAction = { action ->
                 when (action) {
                     is M3EProfileAction.FlipIdCard -> isFlipped = !isFlipped

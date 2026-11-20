@@ -148,6 +148,14 @@ fun M3EAmazeIdSignInScreen(modifier: Modifier = Modifier) {
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.onSurfaceVariant,
                     )
+                    // D-109: Amaze ID is a different auth from VTOP. Signing in here does NOT store VTOP
+                    // credentials, so sync would still fail with "session expired" — say so up front.
+                    Text(
+                        text = "Note: Amaze ID is separate from your VTOP login. Timetable/attendance/marks sync requires " +
+                            "a separate VTOP sign-in from the main Sign In screen; signing in here does not enable sync.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant,
+                    )
                     if (isSignedIn) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Rounded.CheckCircle, contentDescription = null, tint = colors.primary, modifier = Modifier.size(18.dp))

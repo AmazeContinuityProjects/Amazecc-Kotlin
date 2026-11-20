@@ -92,6 +92,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.domain.ApiTarget
+import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.LogLine
@@ -725,10 +726,27 @@ fun M3ESyncNotification(
                                                 isLoggingIn = true
                                                 coroutineScope.launch {
                                                     val res = AmazeClient.login(loginUsername, loginPassword)
-                                                    if (res.success) {
+                                                    if (res.success && res.cookies != null && res.csrf != null && res.authorizedID != null) {
+                                                        // D-109: finish the sign-in instead of only looking successful. The old code
+                                                        // called loadAllData() but saved neither the session nor the credentials, so
+                                                        // the next sweep re-authenticated with getCredentials() == null and every
+                                                        // module reported "Your VTOP session has expired". AmazeClient.login now
+                                                        // persists credentials centrally; save them explicitly here as well so this
+                                                        // modal is correct even if that guarantee ever changes.
+                                                        AmazeClient.setUseMockData(false)
+                                                        SessionManager.saveSession(res.cookies, res.csrf, res.authorizedID, res.clubToken)
+                                                        SettingsManager.setString(SettingsManager.SESSION_COOKIES, res.cookies)
+                                                        SettingsManager.setString(SettingsManager.SESSION_CSRF, res.csrf)
+                                                        SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, res.authorizedID)
+                                                        res.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
+                                                        SettingsManager.saveCredentials(loginUsername.trim().uppercase(), loginPassword)
                                                         AppState.loadAllData()
                                                     } else {
-                                                        loginError = res.message ?: "Authentication failed"
+                                                        loginError = if (res.success) {
+                                                            "VTOP sign-in did not return a complete session. Please try again."
+                                                        } else {
+                                                            res.message.ifBlank { "Authentication failed" }
+                                                        }
                                                     }
                                                     isLoggingIn = false
                                                 }

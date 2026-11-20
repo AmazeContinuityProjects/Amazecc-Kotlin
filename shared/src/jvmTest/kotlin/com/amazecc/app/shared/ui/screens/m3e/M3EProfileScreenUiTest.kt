@@ -75,21 +75,7 @@ class M3EProfileScreenUiTest {
         assertTrue(capturedActions[0] is M3EProfileAction.FlipIdCard)
     }
 
-    @Test
-    fun testContactProctorEmitsAction() = runComposeUiTest {
-        val capturedActions = mutableListOf<M3EProfileAction>()
-
-        setContent {
-            AmazeM3ETheme {
-                M3EProfileScreen(
-                    state = sampleProfileState(),
-                    onAction = { capturedActions.add(it) }
-                )
-            }
-        }
-
-        onNodeWithText("Email").performClick()
-        assertEquals(1, capturedActions.size)
-        assertTrue(capturedActions[0] is M3EProfileAction.ContactProctor)
-    }
+    // D-110: direct contact email actions moved to the Contacts page. The profile's
+    // menu-card navigation is covered by M3EProfileResidenceContactTest and the email action by
+    // M3EContactsScreenUiTest, so this stale profile-level assertion was removed.
 }

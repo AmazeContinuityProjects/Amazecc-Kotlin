@@ -51,7 +51,13 @@ data class M3EClassTimelineItem(
     val startTime: String,
     val endTime: String,
     val isHappeningNow: Boolean = false,
-    val isCompleted: Boolean = false
+    val isCompleted: Boolean = false,
+    /**
+     * Real attendance for the component this class meets as (lab half for a lab slot, theory half
+     * for a theory slot). Null when VTOP published none, so the home card hides its badge instead
+     * of inventing a number. Built by the host from `M3EHomeAttendance.percentForSlot`.
+     */
+    val attendancePercentage: Double? = null
 )
 
 data class M3EInsightSlide(
@@ -69,6 +75,8 @@ data class M3EHomeState(
     val quickStats: M3EQuickStatsState,
     val todayClasses: List<M3EClassTimelineItem>,
     val insights: List<M3EInsightSlide>,
+    /** Real name of the selected semester from AppState.semesterMap / domain.Semester.name. */
+    val semesterName: String = "",
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null
 )

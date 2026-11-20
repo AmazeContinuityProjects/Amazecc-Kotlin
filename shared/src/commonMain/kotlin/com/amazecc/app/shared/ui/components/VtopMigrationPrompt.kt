@@ -2,15 +2,19 @@ package com.amazecc.app.shared.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.vtop.VtopSource
 import com.amazecc.app.shared.vtop.vtopEngineSupported
 
@@ -30,57 +34,61 @@ fun VtopMigrationPrompt(
 ) {
     val colors = AmazeTheme.colors
 
-    AlertDialog(
-        onDismissRequest = {},
-        confirmButton = {
-            AmazeButton(
-                text = "Use on-device",
-                onClick = { onChoose(VtopSource.LOCAL) }
-            )
-        },
-        dismissButton = {
-            TextButton(onClick = { onChoose(VtopSource.REMOTE) }) {
-                Text("Keep server", color = colors.textSecondary)
-            }
-        },
-        title = {
+    // D-112: bottom-sheet modal. This is a forced first-run choice, so the sheet is
+    // non-dismissable — no X / swipe / backdrop / Escape / back. Both explicit actions
+    // call onChoose, which clears the caller's showMigrationPrompt flag.
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = {},
+        title = "Fetch VTOP on this device",
+        dismissable = false
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
+        ) {
             Text(
-                "Fetch VTOP on this device",
-                fontWeight = FontWeight.SemiBold,
-                color = colors.textPrimary
+                "VTOP only accepts connections from Indian networks, so it can no longer be " +
+                    "read through AmazeCC's server. This app can now fetch it directly instead.",
+                color = colors.textSecondary
             )
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(AmazeTheme.spacing.sm)
-            ) {
+            Text(
+                "Your VTOP password and session stay on this device. Features backed by " +
+                    "AmazeCC's own database — question bank, clubs, cab share, transport — " +
+                    "are unaffected either way.",
+                color = colors.textSecondary
+            )
+            if (!vtopEngineSupported) {
                 Text(
-                    "VTOP only accepts connections from Indian networks, so it can no longer be " +
-                        "read through AmazeCC's server. This app can now fetch it directly instead.",
-                    color = colors.textSecondary
-                )
-                Text(
-                    "Your VTOP password and session stay on this device. Features backed by " +
-                        "AmazeCC's own database — question bank, clubs, cab share, transport — " +
-                        "are unaffected either way.",
-                    color = colors.textSecondary
-                )
-                if (!vtopEngineSupported) {
-                    Text(
-                        "On-device fetching is not available on this platform, so the server " +
-                            "option will be used.",
-                        color = colors.warningText
-                    )
-                }
-                Text(
-                    "You can change this any time in Settings, and the diagnostics page will tell " +
-                        "you which source is working.",
-                    color = colors.textMuted
+                    "On-device fetching is not available on this platform, so the server " +
+                        "option will be used.",
+                    color = colors.warningText
                 )
             }
-        },
-        containerColor = colors.surface,
-        shape = RoundedCornerShape(AmazeTheme.radius.large)
-    )
+            Text(
+                "You can change this any time in Settings, and the diagnostics page will tell " +
+                    "you which source is working.",
+                color = colors.textMuted
+            )
+            Spacer(Modifier.height(4.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                AmazeButton(
+                    text = "Use on-device",
+                    onClick = { onChoose(VtopSource.LOCAL) },
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    onClick = { onChoose(VtopSource.REMOTE) },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Keep server", color = colors.textSecondary, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
 }

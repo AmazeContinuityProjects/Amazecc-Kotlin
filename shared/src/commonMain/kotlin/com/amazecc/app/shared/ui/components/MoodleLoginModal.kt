@@ -1,8 +1,6 @@
 package com.amazecc.app.shared.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Person
@@ -10,12 +8,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.strings.Strings
 import kotlinx.coroutines.launch
 
@@ -31,96 +28,96 @@ fun MoodleLoginModal(
     val scope = rememberCoroutineScope()
     val colors = AmazeTheme.colors
 
-    Dialog(onDismissRequest = onDismiss) {
-        Box(
+    // D-112: bottom-sheet modal. X / swipe-down / backdrop / Escape / system back
+    // all route through onDismiss, which clears the caller's showMoodleModal flag
+    // (CalendarScreen). A failed login keeps the sheet open with its inline error.
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
+        title = "LMS / Moodle Login"
+    ) {
+        Column(
             modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(colors.surface)
-                .padding(24.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "Enter your Moodle credentials to sync assignments.",
+                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+
+            val msg = errorMsg
+            if (msg != null) {
                 Text(
-                    text = "LMS / Moodle Login",
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
+                    text = msg,
+                    color = androidx.compose.ui.graphics.Color.Red,
+                    style = AmazeTheme.typography.caption,
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Enter your Moodle credentials to sync assignments.",
-                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                    modifier = Modifier.padding(bottom = 16.dp)
+            }
+
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
+                label = { Text("Username") },
+                leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = colors.accent,
+                    focusedLabelColor = colors.accent,
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary
                 )
+            )
 
-                val msg = errorMsg
-                if (msg != null) {
-                    Text(
-                        text = msg,
-                        color = androidx.compose.ui.graphics.Color.Red,
-                        style = AmazeTheme.typography.caption,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
+            Spacer(modifier = Modifier.height(12.dp))
 
-                OutlinedTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = { Text("Username") },
-                    leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = colors.accent,
-                        focusedLabelColor = colors.accent,
-                        focusedTextColor = colors.textPrimary,
-                        unfocusedTextColor = colors.textPrimary
-                    )
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Password") },
+                leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = colors.accent,
+                    focusedLabelColor = colors.accent,
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary
                 )
+            )
 
-                Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = colors.accent,
-                        focusedLabelColor = colors.accent,
-                        focusedTextColor = colors.textPrimary,
-                        unfocusedTextColor = colors.textPrimary
-                    )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AmazeButton(
+                    text = Strings.cancel,
+                    onClick = onDismiss,
+                    variant = ButtonVariant.SECONDARY,
+                    modifier = Modifier.weight(1f)
                 )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    AmazeButton(
-                        text = Strings.cancel,
-                        onClick = onDismiss,
-                        variant = ButtonVariant.SECONDARY,
-                        modifier = Modifier.weight(1f)
-                    )
-                    AmazeButton(
-                        text = if (loading) Strings.loading else Strings.login,
-                        onClick = {
-                            if (username.isNotBlank() && password.isNotBlank()) {
-                                scope.launch {
-                                    loading = true
-                                    val success = onLogin(username, password)
-                                    loading = false
-                                    if (success) {
-                                        onDismiss()
-                                    } else {
-                                        errorMsg = "Login failed. Please check credentials."
-                                    }
+                AmazeButton(
+                    text = if (loading) Strings.loading else Strings.login,
+                    onClick = {
+                        if (username.isNotBlank() && password.isNotBlank()) {
+                            scope.launch {
+                                loading = true
+                                val success = onLogin(username, password)
+                                loading = false
+                                if (success) {
+                                    onDismiss()
+                                } else {
+                                    errorMsg = "Login failed. Please check credentials."
                                 }
                             }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

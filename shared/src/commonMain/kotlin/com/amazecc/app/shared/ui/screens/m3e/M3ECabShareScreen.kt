@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,7 +36,6 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Train
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.FilterChip
@@ -63,6 +64,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ECabShareRide
 import com.amazecc.app.shared.domain.overhaul.M3ECabShareState
 import com.amazecc.app.shared.domain.overhaul.M3EGenderPreference
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -398,14 +400,20 @@ private fun M3ECreateRideDialog(
     val colors = M3ETheme.colors
     var draft by remember { mutableStateOf(M3ECabRideDraft()) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Offer a ride", color = colors.onSurface, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
+        title = "Offer a ride"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
                 if (hubs.isEmpty()) {
                     Text(
                         text = "No hubs are available right now. Pull to refresh and try again.",
@@ -472,26 +480,28 @@ private fun M3ECreateRideDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
-                OutlinedTextField(
-                    value = draft.notes,
-                    onValueChange = { draft = draft.copy(notes = it) },
-                    label = { Text("Notes (optional)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+            OutlinedTextField(
+                value = draft.notes,
+                onValueChange = { draft = draft.copy(notes = it) },
+                label = { Text("Notes (optional)") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(
+                    onClick = { onCreate(draft) },
+                    enabled = draft.fromHubId.isNotBlank() &&
+                        draft.toHubId.isNotBlank() &&
+                        draft.fromHubId != draft.toHubId &&
+                        draft.date.isNotBlank() &&
+                        draft.time.isNotBlank()
+                ) { Text("Create") }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onCreate(draft) },
-                enabled = draft.fromHubId.isNotBlank() &&
-                    draft.toHubId.isNotBlank() &&
-                    draft.fromHubId != draft.toHubId &&
-                    draft.date.isNotBlank() &&
-                    draft.time.isNotBlank()
-            ) { Text("Create") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
+        }
+    }
 }
 
 @Composable

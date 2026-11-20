@@ -34,9 +34,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3EListSkeleton
 import com.amazecc.app.shared.ui.m3e.components.SkeletonLeading
 import com.amazecc.app.shared.ui.m3e.components.clickableA11y
@@ -128,6 +128,14 @@ fun CommandPalette(
 
     val listState = rememberLazyListState()
 
+    // D-112: one complete dismissal path. onClose clears AppState.commandPaletteOpen
+    // (App.kt's LaunchedEffect also pops the overlay), and popOverlay is defensive:
+    // a stale overlay id can never keep the sheet alive across recomposition.
+    val dismissPalette: () -> Unit = {
+        AppState.popOverlay(AppState.COMMAND_PALETTE_OVERLAY_ID)
+        onClose()
+    }
+
     val runSelect: (CommandItem) -> Unit = { item ->
         if (item.subSearch != null) {
             // Open the sub-search stage instead of closing
@@ -138,7 +146,7 @@ fun CommandPalette(
             item.onSelect()
         } else {
             item.onSelect()
-            onClose()
+            dismissPalette()
         }
     }
 
@@ -151,11 +159,11 @@ fun CommandPalette(
             subCtx = null
             subResults = emptyList()
         } else {
-            onClose()
+            dismissPalette()
         }
     }
 
-    // Handle keyboard navigation globally inside the dialog
+    // Handle keyboard navigation globally inside the sheet content
     val handleKeyEvent: (KeyEvent) -> Boolean = { event ->
         if (event.type == KeyEventType.KeyDown) {
             when (event.key) {
@@ -182,20 +190,20 @@ fun CommandPalette(
         } else false
     }
 
-    Dialog(
-        onDismissRequest = onClose,
-        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = true)
+    // D-112: bottom-sheet modal. The sheet's grabber / backdrop / Escape /
+    // system-back routes all land on dismissPalette; the "Esc" chip and keyboard
+    // Escape stay handled by handleEscape (two-stage sub-search back, then close).
+    M3EDismissibleSheet(
+        isOpen = isOpen,
+        onDismiss = dismissPalette,
+        overlayId = AppState.COMMAND_PALETTE_OVERLAY_ID,
+        showClose = false,
+        modifier = Modifier.heightIn(max = 620.dp)
     ) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .background(colors.background.copy(alpha = 0.6f))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClose
-                )
-                .padding(horizontal = 16.dp, vertical = 48.dp)
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
                 .onKeyEvent(handleKeyEvent),
             contentAlignment = Alignment.TopCenter
         ) {
@@ -209,7 +217,7 @@ fun CommandPalette(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                        onClick = { /* consume click to prevent closing */ }
+                        onClick = { /* consume click; the sheet's backdrop owns dismissal */ }
                     )
             ) {
                 // Search Input

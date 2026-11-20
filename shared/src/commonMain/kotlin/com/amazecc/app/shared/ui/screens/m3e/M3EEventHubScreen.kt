@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,7 +30,6 @@ import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
@@ -54,6 +56,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EEventPreviewUi
 import com.amazecc.app.shared.domain.overhaul.M3EEventRegistrationUi
 import com.amazecc.app.shared.domain.overhaul.M3ERegisteredEventItem
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -400,20 +403,20 @@ private fun EventPreviewDialog(
     onOpenPoster: (String) -> Unit
 ) {
     val colors = M3ETheme.colors
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = preview.title.ifBlank { "Event details" },
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = colors.onSurface
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
+        title = preview.title.ifBlank { "Event details" }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
                 val posterUrl = preview.imageUrl
                 if (!posterUrl.isNullOrBlank()) {
                     M3ESurfaceCard(
@@ -457,19 +460,21 @@ private fun EventPreviewDialog(
                         )
                     }
                 }
-                if (description.isNullOrBlank() && preview.metaDetails.isEmpty() && posterUrl.isNullOrBlank()) {
-                    Text(
-                        text = "No further details are available for this event.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = colors.onSurfaceVariant
-                    )
-                }
+            if (description.isNullOrBlank() && preview.metaDetails.isEmpty() && posterUrl.isNullOrBlank()) {
+                Text(
+                    text = "No further details are available for this event.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
+                )
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close", color = colors.primary) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) { Text("Close", color = colors.primary) }
+            }
         }
-    )
+    }
 }
 
 /** Inline event poster using the project's existing Kamel dependency (no new deps). */
@@ -529,35 +534,36 @@ private fun EventRegistrationDialog(
         isRedirect -> "Continue"
         else -> "OK"
     }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = colors.onSurface
-            )
-        },
-        text = {
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
+        title = title
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Text(
                 text = body,
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant
             )
-        },
-        confirmButton = {
-            if ((isPayment || isRedirect) && paymentUrl != null) {
-                TextButton(onClick = { onOpenPayment(paymentUrl) }) { Text(actionLabel, color = colors.primary) }
-            } else {
-                TextButton(onClick = onDismiss) { Text(actionLabel, color = colors.primary) }
-            }
-        },
-        dismissButton = {
-            if ((isPayment || isRedirect) && paymentUrl != null) {
-                TextButton(onClick = onDismiss) { Text("Later", color = colors.onSurfaceVariant) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                if ((isPayment || isRedirect) && paymentUrl != null) {
+                    TextButton(onClick = onDismiss) { Text("Later", color = colors.onSurfaceVariant) }
+                    TextButton(onClick = { onOpenPayment(paymentUrl) }) { Text(actionLabel, color = colors.primary) }
+                } else {
+                    TextButton(onClick = onDismiss) { Text(actionLabel, color = colors.primary) }
+                }
             }
         }
-    )
+    }
 }
 
 @Composable

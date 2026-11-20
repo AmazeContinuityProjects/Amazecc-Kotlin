@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.SyncCategory
@@ -30,6 +29,7 @@ import com.amazecc.app.shared.state.SyncConfigProfile
 import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.vtop.VtopSource
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,7 +55,14 @@ fun SyncSettingsDialog(
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    // D-112: bottom-sheet modal. X (the Card's own close button) / swipe-down /
+    // backdrop / Escape / system back all route through onDismiss, which clears
+    // SyncProgressPopup's showSettingsDialog flag.
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
+        showClose = false
+    ) {
         Card(
             colors = CardDefaults.cardColors(containerColor = colors.surface),
             shape = RoundedCornerShape(24.dp),
@@ -409,34 +416,34 @@ fun SyncSettingsDialog(
         }
     }
 
-    // New Profile Dialog
+    // New Profile Dialog — D-112 bottom sheet; every dismiss path clears
+    // showNewProfileDialog by routing through onDismiss.
     if (showNewProfileDialog) {
-        AlertDialog(
-            onDismissRequest = { showNewProfileDialog = false },
-            containerColor = colors.surface,
-            titleContentColor = colors.textPrimary,
-            textContentColor = colors.textSecondary,
-            title = { Text("New Sync Config Profile", color = colors.textPrimary) },
-            text = {
-                OutlinedTextField(
-                    value = newProfileName,
-                    onValueChange = { newProfileName = it },
-                    label = { Text("Profile Name") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = colors.textPrimary,
-                        unfocusedTextColor = colors.textPrimary,
-                        focusedContainerColor = colors.background.copy(alpha = 0.5f),
-                        unfocusedContainerColor = colors.background.copy(alpha = 0.3f),
-                        focusedBorderColor = colors.accent,
-                        unfocusedBorderColor = colors.border,
-                        focusedLabelColor = colors.accent,
-                        unfocusedLabelColor = colors.textSecondary,
-                        cursorColor = colors.accent
-                    )
+        M3EDismissibleSheet(
+            isOpen = true,
+            onDismiss = { showNewProfileDialog = false },
+            title = "New Sync Config Profile"
+        ) {
+            OutlinedTextField(
+                value = newProfileName,
+                onValueChange = { newProfileName = it },
+                label = { Text("Profile Name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary,
+                    focusedContainerColor = colors.background.copy(alpha = 0.5f),
+                    unfocusedContainerColor = colors.background.copy(alpha = 0.3f),
+                    focusedBorderColor = colors.accent,
+                    unfocusedBorderColor = colors.border,
+                    focusedLabelColor = colors.accent,
+                    unfocusedLabelColor = colors.textSecondary,
+                    cursorColor = colors.accent
                 )
-            },
-            confirmButton = {
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     onClick = {
                         if (newProfileName.isNotBlank()) {
@@ -444,63 +451,61 @@ fun SyncSettingsDialog(
                             selectedProfileId = created.id
                             showNewProfileDialog = false
                         }
-                    }
+                    },
+                    modifier = Modifier.weight(1f)
                 ) {
                     Text("Create & Use", color = colors.accent, fontWeight = FontWeight.Bold)
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showNewProfileDialog = false }) {
+                TextButton(onClick = { showNewProfileDialog = false }, modifier = Modifier.weight(1f)) {
                     Text("Cancel", color = colors.textMuted)
                 }
             }
-        )
+        }
     }
 
-    // Rename Profile Dialog
+    // Rename Profile Dialog — D-112 bottom sheet; every dismiss path clears
+    // showRenameDialog by routing through onDismiss.
     if (showRenameDialog) {
-        AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
-            containerColor = colors.surface,
-            titleContentColor = colors.textPrimary,
-            textContentColor = colors.textSecondary,
-            title = { Text("Rename Profile", color = colors.textPrimary) },
-            text = {
-                OutlinedTextField(
-                    value = renameInputText,
-                    onValueChange = { renameInputText = it },
-                    label = { Text("Profile Name") },
-                    singleLine = true,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = colors.textPrimary,
-                        unfocusedTextColor = colors.textPrimary,
-                        focusedContainerColor = colors.background.copy(alpha = 0.5f),
-                        unfocusedContainerColor = colors.background.copy(alpha = 0.3f),
-                        focusedBorderColor = colors.accent,
-                        unfocusedBorderColor = colors.border,
-                        focusedLabelColor = colors.accent,
-                        unfocusedLabelColor = colors.textSecondary,
-                        cursorColor = colors.accent
-                    )
+        M3EDismissibleSheet(
+            isOpen = true,
+            onDismiss = { showRenameDialog = false },
+            title = "Rename Profile"
+        ) {
+            OutlinedTextField(
+                value = renameInputText,
+                onValueChange = { renameInputText = it },
+                label = { Text("Profile Name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary,
+                    focusedContainerColor = colors.background.copy(alpha = 0.5f),
+                    unfocusedContainerColor = colors.background.copy(alpha = 0.3f),
+                    focusedBorderColor = colors.accent,
+                    unfocusedBorderColor = colors.border,
+                    focusedLabelColor = colors.accent,
+                    unfocusedLabelColor = colors.textSecondary,
+                    cursorColor = colors.accent
                 )
-            },
-            confirmButton = {
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TextButton(
                     onClick = {
                         if (renameInputText.isNotBlank()) {
                             SyncEngine.updateProfileName(selectedProfile.id, renameInputText.trim())
                             showRenameDialog = false
                         }
-                    }
+                    },
+                    modifier = Modifier.weight(1f)
                 ) {
                     Text("Save", color = colors.accent, fontWeight = FontWeight.Bold)
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) {
+                TextButton(onClick = { showRenameDialog = false }, modifier = Modifier.weight(1f)) {
                     Text("Cancel", color = colors.textMuted)
                 }
             }
-        )
+        }
     }
 }

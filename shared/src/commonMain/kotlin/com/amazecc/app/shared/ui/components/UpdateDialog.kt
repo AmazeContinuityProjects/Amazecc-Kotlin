@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalUriHandler
 import com.amazecc.app.shared.model.GitHubRelease
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.utils.isAndroid
 
 @Composable
@@ -44,11 +45,21 @@ fun UpdateDialog(
             ?.browserDownloadUrl ?: release.htmlUrl
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = colors.surface,
-        shape = RoundedCornerShape(28.dp),
-        title = {
+    // D-112: bottom-sheet modal. The caller's onDismiss is AppState.dismissUpdateDialog(),
+    // which clears UpdateStatus.Available -> Idle and records the dismissed version, so
+    // UpdateCheckModal drops this sheet from composition. X / swipe-down / backdrop /
+    // Escape / system back all funnel through that same onDismiss.
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
+        title = "Update Available"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp)
+        ) {
+            // Header — kept verbatim from the old AlertDialog title slot.
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 Box(
                     modifier = Modifier
@@ -60,11 +71,6 @@ fun UpdateDialog(
                     Icon(Icons.Rounded.NewReleases, null, tint = colors.background, modifier = Modifier.size(32.dp))
                 }
                 Spacer(Modifier.height(12.dp))
-                Text(
-                    "Update Available",
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary, fontSize = AmazeTheme.fontSize.xl)
-                )
-                Spacer(Modifier.height(4.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -78,8 +84,10 @@ fun UpdateDialog(
                     Text("v${release.tagName.removePrefix("v").removePrefix("V")}", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
                 }
             }
-        },
-        text = {
+
+            Spacer(Modifier.height(16.dp))
+
+            // Notes — kept verbatim from the old AlertDialog text slot.
             Column(modifier = Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState())) {
                 if (isAndroid) {
                     Text(
@@ -105,8 +113,10 @@ fun UpdateDialog(
                     )
                 }
             }
-        },
-        confirmButton = {
+
+            Spacer(Modifier.height(20.dp))
+
+            // Actions — kept verbatim from the old AlertDialog button slots.
             if (isAndroid) {
                 Button(
                     onClick = { onDownload(); uriHandler.openUri(apkAssetUrl) },
@@ -130,13 +140,11 @@ fun UpdateDialog(
                     Text("View Release Notes", fontWeight = FontWeight.Bold)
                 }
             }
-        },
-        dismissButton = {
             TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Rounded.Close, null, modifier = Modifier.size(16.dp), tint = colors.textSecondary)
                 Spacer(Modifier.width(6.dp))
                 Text("Remind Later", color = colors.textSecondary)
             }
         }
-    )
+    }
 }

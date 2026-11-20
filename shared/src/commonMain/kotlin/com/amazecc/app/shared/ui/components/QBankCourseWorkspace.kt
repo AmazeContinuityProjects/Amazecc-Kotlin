@@ -38,6 +38,7 @@ import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.utils.toFixed
 import kotlinx.coroutines.delay
@@ -1319,45 +1320,53 @@ private fun SwotConfigDialog(
         )
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("SWOT Analysis Settings", color = colors.textPrimary, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    "Tune the thresholds used to classify topics into Strengths, Weaknesses, Opportunities and Threats.",
-                    color = colors.textSecondary
-                )
-                ConfigField("Strengths — min attempts (${defaults.strengthMinAttempts})", strengthMinAttempts, { strengthMinAttempts = it })
-                ConfigField("Strengths — accuracy % (${defaults.strengthAccuracy})", strengthAccuracy, { strengthAccuracy = it })
-                ConfigField("Weaknesses — min attempts (${defaults.weaknessMinAttempts})", weaknessMinAttempts, { weaknessMinAttempts = it })
-                ConfigField("Weaknesses — accuracy % (${defaults.weaknessAccuracy})", weaknessAccuracy, { weaknessAccuracy = it })
-                TextButton(onClick = { resetToDefaults() }) {
-                    Text("Reset to Defaults", color = colors.accent, fontWeight = FontWeight.SemiBold)
+    // D-112: bottom-sheet modal. X / swipe-down / backdrop / Escape / system back
+    // all route through onDismiss, which clears AnalysisView's showConfigDialog flag.
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
+        title = "SWOT Analysis Settings"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Tune the thresholds used to classify topics into Strengths, Weaknesses, Opportunities and Threats.",
+                color = colors.textSecondary
+            )
+            ConfigField("Strengths — min attempts (${defaults.strengthMinAttempts})", strengthMinAttempts, { strengthMinAttempts = it })
+            ConfigField("Strengths — accuracy % (${defaults.strengthAccuracy})", strengthAccuracy, { strengthAccuracy = it })
+            ConfigField("Weaknesses — min attempts (${defaults.weaknessMinAttempts})", weaknessMinAttempts, { weaknessMinAttempts = it })
+            ConfigField("Weaknesses — accuracy % (${defaults.weaknessAccuracy})", weaknessAccuracy, { weaknessAccuracy = it })
+            TextButton(onClick = { resetToDefaults() }) {
+                Text("Reset to Defaults", color = colors.accent, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(
+                    onClick = {
+                        onSave(
+                            SettingsManager.SwotConfig(
+                                strengthMinAttempts = parse(strengthMinAttempts, defaults.strengthMinAttempts, 1, 20),
+                                strengthAccuracy = parse(strengthAccuracy, defaults.strengthAccuracy, 1, 100),
+                                weaknessMinAttempts = parse(weaknessMinAttempts, defaults.weaknessMinAttempts, 1, 20),
+                                weaknessAccuracy = parse(weaknessAccuracy, defaults.weaknessAccuracy, 1, 100)
+                            )
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Save", color = colors.accent, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
+                    Text("Cancel", color = colors.textSecondary)
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                onSave(
-                    SettingsManager.SwotConfig(
-                        strengthMinAttempts = parse(strengthMinAttempts, defaults.strengthMinAttempts, 1, 20),
-                        strengthAccuracy = parse(strengthAccuracy, defaults.strengthAccuracy, 1, 100),
-                        weaknessMinAttempts = parse(weaknessMinAttempts, defaults.weaknessMinAttempts, 1, 20),
-                        weaknessAccuracy = parse(weaknessAccuracy, defaults.weaknessAccuracy, 1, 100)
-                    )
-                )
-            }) {
-                Text("Save", color = colors.accent, fontWeight = FontWeight.Bold)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel", color = colors.textSecondary)
-            }
-        },
-        containerColor = colors.surface
-    )
+        }
+    }
 }
 
 @Composable
@@ -1385,53 +1394,59 @@ private fun SessionSummaryDialog(
     }
     val topicRows = topicMap.entries.sortedByDescending { if (it.value.first == 0) 0f else it.value.second.toFloat() / it.value.first }
 
-    AlertDialog(
-        onDismissRequest = onKeepPracticing,
-        title = { Text("Practice Session Done", color = colors.textPrimary, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    "You got $correct of $total right${if (reviewed > 0) " and reviewed $reviewed descriptive" else ""} in ${formatTime((totalMs / 1000L).toInt())}.",
-                    color = colors.textSecondary
-                )
-                if (topicRows.isEmpty()) {
-                    Text("No answers recorded this session.", color = colors.textMuted)
-                } else {
-                    Text("Per-topic breakdown", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.Bold))
-                    topicRows.forEach { (topic, pair) ->
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(topic, style = AmazeTheme.typography.caption.copy(color = colors.textPrimary), modifier = Modifier.weight(1f))
-                            Text(
-                                "${pair.second}/${pair.first}",
-                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontWeight = FontWeight.SemiBold)
-                            )
-                        }
-                    }
-                }
-                if (missedCount > 0) {
-                    Spacer(Modifier.height(4.dp))
-                    Button(
-                        onClick = onReviewMissed,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = colors.danger, contentColor = Color.White)
-                    ) {
-                        Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Review $missedCount Missed Question${if (missedCount != 1) "s" else ""}")
+    // D-112: bottom-sheet modal. Outward gestures route through onKeepPracticing,
+    // which clears the caller's showSessionSummary flag. Explicit actions still
+    // call onReviewMissed / onFinish, each of which also clears that flag.
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onKeepPracticing,
+        title = "Practice Session Done"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "You got $correct of $total right${if (reviewed > 0) " and reviewed $reviewed descriptive" else ""} in ${formatTime((totalMs / 1000L).toInt())}.",
+                color = colors.textSecondary
+            )
+            if (topicRows.isEmpty()) {
+                Text("No answers recorded this session.", color = colors.textMuted)
+            } else {
+                Text("Per-topic breakdown", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontWeight = FontWeight.Bold))
+                topicRows.forEach { (topic, pair) ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(topic, style = AmazeTheme.typography.caption.copy(color = colors.textPrimary), modifier = Modifier.weight(1f))
+                        Text(
+                            "${pair.second}/${pair.first}",
+                            style = AmazeTheme.typography.caption.copy(color = colors.textSecondary, fontWeight = FontWeight.SemiBold)
+                        )
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onFinish) {
-                Text("Finish", color = colors.accent, fontWeight = FontWeight.Bold)
+            if (missedCount > 0) {
+                Spacer(Modifier.height(4.dp))
+                Button(
+                    onClick = onReviewMissed,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.danger, contentColor = Color.White)
+                ) {
+                    Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Review $missedCount Missed Question${if (missedCount != 1) "s" else ""}")
+                }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onKeepPracticing) {
-                Text("Keep Practicing", color = colors.textSecondary)
+            Spacer(Modifier.height(4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TextButton(onClick = onFinish, modifier = Modifier.weight(1f)) {
+                    Text("Finish", color = colors.accent, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = onKeepPracticing, modifier = Modifier.weight(1f)) {
+                    Text("Keep Practicing", color = colors.textSecondary)
+                }
             }
-        },
-        containerColor = colors.surface
-    )
+        }
+    }
 }

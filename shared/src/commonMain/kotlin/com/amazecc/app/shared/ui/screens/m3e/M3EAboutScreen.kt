@@ -10,7 +10,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,7 +25,6 @@ import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Star
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
@@ -39,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -283,50 +286,68 @@ fun M3EAboutScreen(
         }
     }
 
-    if (state.showChangelog) {
-        AlertDialog(
-            onDismissRequest = { onAction(M3EAboutAction.DismissDialog) },
-            title = { Text("What's New in v${state.version}", color = colors.onSurface) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (state.releaseHighlights.isNotEmpty()) {
-                        state.releaseHighlights.forEach { line ->
-                            Text("• $line", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                        }
-                    } else {
-                        Text(
-                            text = "No release notes available.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.onSurfaceVariant
-                        )
-                    }
+    M3EDismissibleSheet(
+        isOpen = state.showChangelog,
+        onDismiss = { onAction(M3EAboutAction.DismissDialog) },
+        title = "What's New in v${state.version}"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 480.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (state.releaseHighlights.isNotEmpty()) {
+                state.releaseHighlights.forEach { line ->
+                    Text("• $line", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                 }
-            },
-            confirmButton = {
+            } else {
+                Text(
+                    text = "No release notes available.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 TextButton(onClick = { onAction(M3EAboutAction.DismissDialog) }) {
                     Text("Close", color = colors.primary)
                 }
             }
-        )
+        }
     }
 
-    if (state.showUpdateCheck) {
-        AlertDialog(
-            onDismissRequest = { onAction(M3EAboutAction.DismissDialog) },
-            title = { Text("Update Check", color = colors.onSurface) },
-            text = {
-                Text(
-                    text = state.updateStatusText ?: "Checking for updates...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.onSurfaceVariant
-                )
-            },
-            confirmButton = {
+    M3EDismissibleSheet(
+        isOpen = state.showUpdateCheck,
+        onDismiss = { onAction(M3EAboutAction.DismissDialog) },
+        title = "Update Check"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = state.updateStatusText ?: "Checking for updates...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 TextButton(onClick = { onAction(M3EAboutAction.DismissDialog) }) {
                     Text("OK", color = colors.primary)
                 }
             }
-        )
+        }
     }
 }
 

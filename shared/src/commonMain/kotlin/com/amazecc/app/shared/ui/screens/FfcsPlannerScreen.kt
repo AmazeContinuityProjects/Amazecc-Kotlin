@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -41,6 +42,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.FfcsViewModel
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.ui.strings.Strings
@@ -549,21 +551,30 @@ private fun ResultsTab(
         }
     }
 
-    if (showSaveDialog) {
-        AlertDialog(
-            onDismissRequest = { showSaveDialog = false },
-            title = { Text("Timetable Saved") },
-            text = { Text("This timetable has been saved as your current attendance schedule.") },
-            confirmButton = {
+    M3EDismissibleSheet(
+        isOpen = showSaveDialog,
+        onDismiss = { showSaveDialog = false },
+        title = "Timetable Saved"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("This timetable has been saved as your current attendance schedule.")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = { showSaveDialog = false }) { Text("Stay") }
                 TextButton(onClick = {
                     showSaveDialog = false
                     com.amazecc.app.shared.state.AppState.switchTopLevel(com.amazecc.app.shared.state.Screen.ATTENDANCE)
                 }) { Text("View Attendance") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showSaveDialog = false }) { Text("Stay") }
             }
-        )
+        }
     }
 }
 
@@ -612,13 +623,20 @@ private fun GeneratorModal(
     var morningPref by remember { mutableStateOf(false) }
     var maxResults by remember { mutableStateOf(50) }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text("Auto Generator Settings", style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
+        title = "Auto Generator Settings"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
                 Text(
                     "Generating for ${selectedCodes.size} course(s):",
                     style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
@@ -691,23 +709,23 @@ private fun GeneratorModal(
                         }
                     }
                 }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) { Text(Strings.cancel, color = colors.textSecondary) }
+                AmazeButton(
+                    text = "Generate",
+                    icon = Icons.Rounded.AutoAwesome,
+                    variant = ButtonVariant.PRIMARY,
+                    onClick = {
+                        FfcsViewModel.setUniqueFaculty(uniqueFaculty)
+                        FfcsViewModel.setMorningPreference(morningPref)
+                        FfcsViewModel.setMaxResults(maxResults)
+                        onGenerate()
+                    }
+                )
             }
-        },
-        confirmButton = {
-            AmazeButton(
-                text = "Generate",
-                icon = Icons.Rounded.AutoAwesome,
-                variant = ButtonVariant.PRIMARY,
-                onClick = {
-                    FfcsViewModel.setUniqueFaculty(uniqueFaculty)
-                    FfcsViewModel.setMorningPreference(morningPref)
-                    FfcsViewModel.setMaxResults(maxResults)
-                    onGenerate()
-                }
-            )
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(Strings.cancel, color = colors.textSecondary) }
         }
-    )
+    }
 }

@@ -61,6 +61,12 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showSyncButton = true,
         onRefresh = AppState::refreshProfile
     )
+    Screen.CONTACTS -> HeaderConfig(
+        title = "Contacts",
+        description = "University contact directory",
+        showBackButton = true,
+        showSyncButton = false
+    )
     Screen.CABSHARE -> HeaderConfig(
         title = "Cab Share",
         description = "Verify VTOP + phone to get started",

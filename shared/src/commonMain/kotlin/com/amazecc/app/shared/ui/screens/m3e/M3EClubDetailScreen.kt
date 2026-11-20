@@ -21,7 +21,6 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.SearchOff
 import androidx.compose.material.icons.rounded.WorkOutline
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EEventRegistrationUi
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -247,49 +247,69 @@ fun M3EClubDetailScreen(
                 else -> "Registration update"
             }
             val paymentUrl = status.paymentUrl?.takeIf { it.isNotBlank() }
-            AlertDialog(
-                onDismissRequest = { onAction(M3EClubDetailAction.DismissStatus) },
-                title = { Text(title, fontWeight = FontWeight.Bold, color = colors.onSurface) },
-                text = {
+            M3EDismissibleSheet(
+                isOpen = true,
+                onDismiss = { onAction(M3EClubDetailAction.DismissStatus) },
+                title = title
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     Text(
                         status.message?.takeIf { it.isNotBlank() }
                             ?: if (isPayment) "Complete payment to confirm your seat." else "The event hub returned an update for your registration.",
                         color = colors.onSurfaceVariant
                     )
-                },
-                confirmButton = {
-                    if ((isPayment || isRedirect) && paymentUrl != null) {
-                        TextButton(onClick = { onAction(M3EClubDetailAction.OpenLink(paymentUrl)) }) {
-                            Text(if (isPayment) "Pay now" else "Continue", color = colors.primary)
-                        }
-                    } else {
-                        TextButton(onClick = { onAction(M3EClubDetailAction.DismissStatus) }) {
-                            Text("OK", color = colors.primary)
-                        }
-                    }
-                },
-                dismissButton = {
-                    if ((isPayment || isRedirect) && paymentUrl != null) {
-                        TextButton(onClick = { onAction(M3EClubDetailAction.DismissStatus) }) {
-                            Text("Later", color = colors.onSurfaceVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        if ((isPayment || isRedirect) && paymentUrl != null) {
+                            TextButton(onClick = { onAction(M3EClubDetailAction.DismissStatus) }) {
+                                Text("Later", color = colors.onSurfaceVariant)
+                            }
+                            TextButton(onClick = { onAction(M3EClubDetailAction.OpenLink(paymentUrl)) }) {
+                                Text(if (isPayment) "Pay now" else "Continue", color = colors.primary)
+                            }
+                        } else {
+                            TextButton(onClick = { onAction(M3EClubDetailAction.DismissStatus) }) {
+                                Text("OK", color = colors.primary)
+                            }
                         }
                     }
                 }
-            )
+            }
         }
 
         val notice = state.notice
         if (!notice.isNullOrBlank()) {
-            AlertDialog(
-                onDismissRequest = { onAction(M3EClubDetailAction.DismissNotice) },
-                title = { Text("Club applications", fontWeight = FontWeight.Bold, color = colors.onSurface) },
-                text = { Text(notice, color = colors.onSurfaceVariant) },
-                confirmButton = {
-                    TextButton(onClick = { onAction(M3EClubDetailAction.DismissNotice) }) {
-                        Text("OK", color = colors.primary)
+            M3EDismissibleSheet(
+                isOpen = true,
+                onDismiss = { onAction(M3EClubDetailAction.DismissNotice) },
+                title = "Club applications"
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(notice, color = colors.onSurfaceVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { onAction(M3EClubDetailAction.DismissNotice) }) {
+                            Text("OK", color = colors.primary)
+                        }
                     }
                 }
-            )
+            }
         }
     }
 }

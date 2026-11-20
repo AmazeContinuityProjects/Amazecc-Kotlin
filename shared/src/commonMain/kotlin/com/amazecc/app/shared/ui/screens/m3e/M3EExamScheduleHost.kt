@@ -1,6 +1,10 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -12,6 +16,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -23,6 +28,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleAction
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleState
 import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.openExternalUrl
 import com.amazecc.app.shared.utils.rememberFileSaver
@@ -180,22 +186,38 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
         )
     }
 
-    selectedExam?.let { exam ->
-        AlertDialog(
-            onDismissRequest = { selectedExam = null },
-            title = { Text("${exam.courseCode} — ${exam.examSeries.label}") },
-            text = {
-                androidx.compose.foundation.layout.Column {
-                    Text(exam.courseTitle)
-                    Text("Date: ${exam.date}")
-                    if (exam.examTime.isNotBlank()) Text("Time: ${exam.examTime}")
-                    if (exam.venue.isNotBlank()) Text("Venue: ${exam.venue}")
-                    if (exam.seatNumber.isNotBlank()) Text("Seat: ${exam.seatNumber}")
-                    if (exam.reportingTime.isNotBlank()) Text("Reporting: ${exam.reportingTime}")
+    if (selectedExam != null) {
+        AmazeM3ETheme(isDark = isDark) {
+            M3EDismissibleSheet(
+                isOpen = true,
+                onDismiss = { selectedExam = null },
+                title = "${selectedExam?.courseCode} — ${selectedExam?.examSeries?.label}"
+            ) {
+                val exam = selectedExam
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (exam != null) {
+                        Text(exam.courseTitle)
+                        Text("Date: ${exam.date}")
+                        if (exam.examTime.isNotBlank()) Text("Time: ${exam.examTime}")
+                        if (exam.venue.isNotBlank()) Text("Venue: ${exam.venue}")
+                        if (exam.seatNumber.isNotBlank()) Text("Seat: ${exam.seatNumber}")
+                        if (exam.reportingTime.isNotBlank()) Text("Reporting: ${exam.reportingTime}")
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { selectedExam = null }) { Text("Close") }
+                    }
                 }
-            },
-            confirmButton = { TextButton(onClick = { selectedExam = null }) { Text("Close") } }
-        )
+            }
+        }
     }
 }
 

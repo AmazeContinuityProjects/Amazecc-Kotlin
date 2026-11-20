@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +32,9 @@ import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
 import com.amazecc.app.shared.theme.verdantAccentFor
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.vtop.VtopDiagnosticResult
 import com.amazecc.app.shared.vtop.VtopDiagnosticStatus
 import com.amazecc.app.shared.vtop.VtopDiagnostics
@@ -262,18 +267,19 @@ fun DashboardPage() {
     var showPillStyleDialog by remember { mutableStateOf(false) }
 
     if (showPillStyleDialog) {
-        AlertDialog(
-            onDismissRequest = { showPillStyleDialog = false },
-            containerColor = colors.surface,
-            shape = RoundedCornerShape(24.dp),
-            title = {
-                Text(
-                    "Session Card Density",
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        AmazeM3ETheme(isDark = M3EStateBridge.isDarkThemeActive()) {
+            M3EDismissibleSheet(
+                isOpen = showPillStyleDialog,
+                onDismiss = { showPillStyleDialog = false },
+                title = "Session Card Density"
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     com.amazecc.app.shared.state.HomePillStyle.entries.forEach { option ->
                         HomeViewModeOption(
                             title = if (option == com.amazecc.app.shared.state.HomePillStyle.COMPACT) "Compact" else "Detailed",
@@ -289,14 +295,17 @@ fun DashboardPage() {
                             }
                         )
                     }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showPillStyleDialog = false }) {
-                    Text("Close", color = colors.accent)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showPillStyleDialog = false }) {
+                            Text("Close", color = colors.accent)
+                        }
+                    }
                 }
             }
-        )
+        }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -534,11 +543,21 @@ fun BottomNavPage() {
 
     if (showAddModuleDialog) {
         val unpinned = availableTabs.filter { !selectedTabsList.contains(it) }
-        AlertDialog(
-            onDismissRequest = { showAddModuleDialog = false },
-            title = { Text("Add Module to Bottom Bar", color = colors.textPrimary, fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        AmazeM3ETheme(isDark = M3EStateBridge.isDarkThemeActive()) {
+            M3EDismissibleSheet(
+                isOpen = showAddModuleDialog,
+                onDismiss = { showAddModuleDialog = false },
+                title = "Add Module to Bottom Bar"
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 480.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     if (unpinned.isEmpty()) {
                         Text("All available modules are already pinned.", color = colors.textSecondary)
                     } else {
@@ -563,15 +582,17 @@ fun BottomNavPage() {
                             }
                         }
                     }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showAddModuleDialog = false }) {
+                            Text("Close", color = colors.accent, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAddModuleDialog = false }) {
-                    Text("Close", color = colors.accent, fontWeight = FontWeight.Bold)
-                }
-            },
-            containerColor = colors.surface
-        )
+            }
+        }
     }
 }
 

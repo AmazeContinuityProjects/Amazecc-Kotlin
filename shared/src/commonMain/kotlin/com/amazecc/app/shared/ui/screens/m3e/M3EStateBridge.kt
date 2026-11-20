@@ -169,6 +169,7 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
     val selectedSemId by AppState.selectedSemester.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
     val errorMsg by AppState.error.collectAsState()
+    val semesterMap by AppState.semesterMap.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
     val allGrades by AppState.allGrades.collectAsState()
     val attendanceTarget = rememberEffectiveAttendanceTarget()
@@ -308,7 +309,10 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
                 faculty = event.course.faculty?.takeIf { it.isNotBlank() } ?: "Faculty",
                 startTime = SlotMap.minutesToTimeStr(event.startMins),
                 endTime = SlotMap.minutesToTimeStr(event.endMins),
-                isHappeningNow = isHappeningNow
+                isHappeningNow = isHappeningNow,
+                attendancePercentage = com.amazecc.app.shared.domain.overhaul.M3EHomeAttendance.percentForSlot(
+                    event.course, event.slots.firstOrNull()
+                )
             )
         }
     }
@@ -321,7 +325,8 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
         todayClasses = todayClasses,
         insights = emptyList(),
         isRefreshing = isLoading,
-        errorMessage = errorMsg
+        errorMessage = errorMsg,
+        semesterName = semesterMap[selectedSemId] ?: currentSem?.name ?: selectedSemId
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -1845,7 +1850,8 @@ fun M3ETasksScreen(modifier: Modifier = Modifier) {
 @Composable
 fun M3EProfileScreen(modifier: Modifier = Modifier) {
     // The tab pager and the direct destination must behave identically: both use the
-    // full Profile host (residence, bus, contacts, acknowledgement docs, identity warm-up).
+    // full Profile host (residence, bus, contacts menu card, identity warm-up).
+    // Contacts and acknowledgements now live on their own destinations (D-110).
     M3EProfileHost(modifier)
 }
 

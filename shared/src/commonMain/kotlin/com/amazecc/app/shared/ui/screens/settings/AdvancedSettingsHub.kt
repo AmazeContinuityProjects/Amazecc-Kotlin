@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -27,7 +28,6 @@ import androidx.compose.material.icons.rounded.Navigation
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Visibility
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.FilterChip
@@ -53,7 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.domain.ApiTarget
 import com.amazecc.app.shared.repository.SettingsManager
@@ -335,50 +335,94 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
         }
 
         if (showAuth) {
-            Dialog(onDismissRequest = { showAuth = false }) {
-                M3ESurfaceCard(containerLevel = SurfaceContainerLevel.HIGH, cornerRadius = 24.dp, modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        M3EAmazeIdSignInScreen()
-                        TextButton(onClick = { showAuth = false }, modifier = Modifier.align(Alignment.End)) { Text("Close") }
-                    }
+            M3EDismissibleSheet(
+                isOpen = showAuth,
+                onDismiss = { showAuth = false },
+                title = "Sign in with Amaze ID"
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 520.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp)
+                ) {
+                    M3EAmazeIdSignInScreen()
+                    TextButton(onClick = { showAuth = false }, modifier = Modifier.align(Alignment.End)) { Text("Close") }
                 }
             }
         }
         if (showScanner) {
-            Dialog(onDismissRequest = { showScanner = false }) {
-                M3ESurfaceCard(containerLevel = SurfaceContainerLevel.HIGH, cornerRadius = 24.dp, modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        M3EDocumentScannerScreen()
-                        TextButton(onClick = { showScanner = false }, modifier = Modifier.align(Alignment.End)) { Text("Close") }
-                    }
+            M3EDismissibleSheet(
+                isOpen = showScanner,
+                onDismiss = { showScanner = false },
+                title = "Document scanner"
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 520.dp)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp)
+                ) {
+                    M3EDocumentScannerScreen()
+                    TextButton(onClick = { showScanner = false }, modifier = Modifier.align(Alignment.End)) { Text("Close") }
                 }
             }
         }
         if (showLogoutConfirm) {
-            AlertDialog(
-                onDismissRequest = { showLogoutConfirm = false },
-                title = { Text("Log out?") },
-                text = { Text("You will be returned to the sign-in screen.") },
-                confirmButton = {
-                    TextButton(onClick = { showLogoutConfirm = false; AppState.logout() }) { Text("Log out") }
-                },
-                dismissButton = { TextButton(onClick = { showLogoutConfirm = false }) { Text("Cancel") } },
-            )
+            M3EDismissibleSheet(
+                isOpen = showLogoutConfirm,
+                onDismiss = { showLogoutConfirm = false },
+                title = "Log out?"
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("You will be returned to the sign-in screen.")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showLogoutConfirm = false }) { Text("Cancel") }
+                        TextButton(onClick = { showLogoutConfirm = false; AppState.logout() }) { Text("Log out") }
+                    }
+                }
+            }
         }
         if (showClearConfirm) {
-            AlertDialog(
-                onDismissRequest = { showClearConfirm = false },
-                title = { Text("Clear local cache?") },
-                text = { Text("Removes cached attendance, marks, calendar and module data but keeps credentials and preferences.") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        SettingsManager.clearLocalCache()
-                        status = "Local cache cleared."
-                        showClearConfirm = false
-                    }) { Text("Clear") }
-                },
-                dismissButton = { TextButton(onClick = { showClearConfirm = false }) { Text("Cancel") } },
-            )
+            M3EDismissibleSheet(
+                isOpen = showClearConfirm,
+                onDismiss = { showClearConfirm = false },
+                title = "Clear local cache?"
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Removes cached attendance, marks, calendar and module data but keeps credentials and preferences.")
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showClearConfirm = false }) { Text("Cancel") }
+                        TextButton(onClick = {
+                            SettingsManager.clearLocalCache()
+                            status = "Local cache cleared."
+                            showClearConfirm = false
+                        }) { Text("Clear") }
+                    }
+                }
+            }
         }
     }
 }

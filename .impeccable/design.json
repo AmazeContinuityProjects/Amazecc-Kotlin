@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-20T00:00:00Z",
+  "title": "Design System: AmazeCC",
+  "extensions": {
+    "colorMeta": {
+      "periwinkle-signal": { "role": "primary", "displayName": "Periwinkle Signal", "canonical": "#A8C7FA", "tonalRamp": ["#0A1F42", "#122E5A", "#1B4076", "#2A5593", "#3E6BB0", "#6786C6", "#96B2E0", "#D3E3FD"] },
+      "periwinkle-on": { "role": "primary", "displayName": "Periwinkle On", "canonical": "#003062" },
+      "periwinkle-container": { "role": "primary", "displayName": "Periwinkle Container", "canonical": "#0842A0", "tonalRamp": ["#03152F", "#062546", "#0A3564", "#0842A0", "#1B57B5", "#4176C8", "#7BA0DC", "#D3E3FD"] },
+      "periwinkle-container-on": { "role": "primary", "displayName": "Periwinkle Container On", "canonical": "#D3E3FD" },
+      "sky-signal": { "role": "secondary", "displayName": "Sky Signal", "canonical": "#7FCFFF", "tonalRamp": ["#082A3C", "#0D4059", "#125877", "#1C7598", "#3994B4", "#61B2CB", "#94D2E7", "#D8F1FF"] },
+      "sky-on": { "role": "secondary", "displayName": "Sky On", "canonical": "#00344F" },
+      "sky-container": { "role": "secondary", "displayName": "Sky Container", "canonical": "#004C70", "tonalRamp": ["#032333", "#06384F", "#0A506C", "#004C70", "#166787", "#3B86A2", "#74B2C8", "#C2E7FF"] },
+      "sky-container-on": { "role": "secondary", "displayName": "Sky Container On", "canonical": "#C2E7FF" },
+      "blush-signal": { "role": "tertiary", "displayName": "Blush Signal", "canonical": "#EFB8C8", "tonalRamp": ["#3B1E29", "#5A2C3D", "#7A3D52", "#99546B", "#B9758A", "#D296A8", "#E6BDC9", "#FFD8E4"] },
+      "blush-on": { "role": "tertiary", "displayName": "Blush On", "canonical": "#492532" },
+      "blush-container": { "role": "tertiary", "displayName": "Blush Container", "canonical": "#633B48", "tonalRamp": ["#2A141C", "#3F202B", "#54303D", "#633B48", "#7E5261", "#9C7482", "#C4A0AC", "#FFD8E4"] },
+      "blush-container-on": { "role": "tertiary", "displayName": "Blush Container On", "canonical": "#FFD8E4" },
+      "ink-background": { "role": "neutral", "displayName": "Midnight Ink Background", "canonical": "#000000", "tonalRamp": ["#000000", "#050506", "#0A0A0C", "#0F1014", "#16171D", "#1E2028", "#282B36", "#3A3E4B"] },
+      "ink-surface": { "role": "neutral", "displayName": "Midnight Ink Surface", "canonical": "#0B0B0E", "tonalRamp": ["#000000", "#050506", "#0B0B0E", "#0F1014", "#16171D", "#1E2028", "#282B36", "#3A3E4B"] },
+      "ink-lowest": { "role": "neutral", "displayName": "Ink Lowest", "canonical": "#000000" },
+      "ink-low": { "role": "neutral", "displayName": "Ink Low", "canonical": "#0F1014" },
+      "ink-container": { "role": "neutral", "displayName": "Ink Container", "canonical": "#16171D" },
+      "ink-high": { "role": "neutral", "displayName": "Ink High", "canonical": "#1E2028" },
+      "ink-highest": { "role": "neutral", "displayName": "Ink Highest", "canonical": "#282B36" },
+      "ink-on": { "role": "neutral", "displayName": "Ink On", "canonical": "#E3E2E6" },
+      "ink-on-variant": { "role": "neutral", "displayName": "Ink On Variant", "canonical": "#C4C6D0" },
+      "outline": { "role": "neutral", "displayName": "Outline", "canonical": "#8E9099" },
+      "outline-variant": { "role": "neutral", "displayName": "Outline Variant", "canonical": "#33353E" },
+      "mint-safe": { "role": "success", "displayName": "Mint Safe", "canonical": "#6DD58C", "tonalRamp": ["#0A2E18", "#104526", "#175E34", "#1E8E3E", "#3FAE5E", "#63C77D", "#94DDA6", "#D5F2E3"] },
+      "mint-safe-on": { "role": "success", "displayName": "Mint Safe On", "canonical": "#003919" },
+      "mint-safe-container": { "role": "success", "displayName": "Mint Safe Container", "canonical": "#0F5228" },
+      "amber-caution": { "role": "warning", "displayName": "Amber Caution", "canonical": "#FFBA28", "tonalRamp": ["#3A2600", "#5A3B00", "#7A5200", "#A66A00", "#D18600", "#E9A315", "#F5C15A", "#FFE7A8"] },
+      "amber-caution-on": { "role": "warning", "displayName": "Amber Caution On", "canonical": "#422C00" },
+      "amber-caution-container": { "role": "warning", "displayName": "Amber Caution Container", "canonical": "#5F4100" },
+      "coral-alert": { "role": "error", "displayName": "Coral Alert", "canonical": "#FFB4AB", "tonalRamp": ["#3D0E0A", "#5E1712", "#82231B", "#BA1A1A", "#D7443E", "#EB736B", "#F5A8A1", "#FFDAD6"] },
+      "coral-alert-on": { "role": "error", "displayName": "Coral Alert On", "canonical": "#690005" },
+      "coral-alert-container": { "role": "error", "displayName": "Coral Alert Container", "canonical": "#93000A" },
+      "light-primary": { "role": "primary", "displayName": "Light Periwinkle", "canonical": "#0B57D0", "tonalRamp": ["#02152F", "#062A55", "#0B3F7E", "#0B57D0", "#3A76DC", "#6999E6", "#9FBBEF", "#D3E3FD"] },
+      "light-on-primary": { "role": "primary", "displayName": "Light Periwinkle On", "canonical": "#FFFFFF" },
+      "light-primary-container": { "role": "primary", "displayName": "Light Periwinkle Container", "canonical": "#D3E3FD", "tonalRamp": ["#0B2144", "#173761", "#265084", "#0B57D0", "#5B85D8", "#8AACE8", "#B4C9F2", "#FFFFFF"] },
+      "light-primary-container-on": { "role": "primary", "displayName": "Light Periwinkle Container On", "canonical": "#041E49" },
+      "light-secondary": { "role": "secondary", "displayName": "Light Sky", "canonical": "#00639B", "tonalRamp": ["#052A41", "#094362", "#0E5A82", "#00639B", "#2C82AF", "#5FA4C6", "#98C4DC", "#C2E7FF"] },
+      "light-on-secondary": { "role": "secondary", "displayName": "Light Sky On", "canonical": "#FFFFFF" },
+      "light-secondary-container": { "role": "secondary", "displayName": "Light Sky Container", "canonical": "#C2E7FF", "tonalRamp": ["#0A3448", "#144E69", "#1E6A8A", "#00639B", "#4088AF", "#78AEC9", "#A8D2E6", "#FFFFFF"] },
+      "light-secondary-container-on": { "role": "secondary", "displayName": "Light Sky Container On", "canonical": "#001D32" },
+      "light-tertiary": { "role": "tertiary", "displayName": "Light Blush", "canonical": "#7D5260", "tonalRamp": ["#2E1A22", "#4A2B37", "#673D4C", "#7D5260", "#9A6E7E", "#B8929F", "#D6B9C2", "#FFD8E4"] },
+      "light-on-tertiary": { "role": "tertiary", "displayName": "Light Blush On", "canonical": "#FFFFFF" },
+      "light-tertiary-container": { "role": "tertiary", "displayName": "Light Blush Container", "canonical": "#FFD8E4", "tonalRamp": ["#3A202B", "#5C3543", "#7E4D5D", "#A06A7C", "#C293A2", "#DFBAC5", "#F0D8DE", "#FFFFFF"] },
+      "light-tertiary-container-on": { "role": "tertiary", "displayName": "Light Blush Container On", "canonical": "#31111D" },
+      "light-background": { "role": "neutral", "displayName": "Classic Light Background", "canonical": "#F8F9FA", "tonalRamp": ["#FFFFFF", "#FFFFFF", "#F8F9FA", "#F3F4F6", "#EDEEF2", "#E7E8EC", "#E1E3E8", "#C4C7C5"] },
+      "light-on-background": { "role": "neutral", "displayName": "Light On Background", "canonical": "#1F1F1F" },
+      "light-surface": { "role": "neutral", "displayName": "Classic Light Surface", "canonical": "#FFFFFF", "tonalRamp": ["#FFFFFF", "#FFFFFF", "#F8F9FA", "#F3F4F6", "#EDEEF2", "#E7E8EC", "#E1E3E8", "#C4C7C5"] },
+      "light-on-surface": { "role": "neutral", "displayName": "Light On Surface", "canonical": "#1F1F1F" },
+      "light-on-surface-variant": { "role": "neutral", "displayName": "Light On Surface Variant", "canonical": "#444746" },
+      "light-lowest": { "role": "neutral", "displayName": "Light Ink Lowest", "canonical": "#FFFFFF" },
+      "light-low": { "role": "neutral", "displayName": "Light Ink Low", "canonical": "#F3F4F6" },
+      "light-container": { "role": "neutral", "displayName": "Light Ink Container", "canonical": "#EDEEF2" },
+      "light-high": { "role": "neutral", "displayName": "Light Ink High", "canonical": "#E7E8EC" },
+      "light-highest": { "role": "neutral", "displayName": "Light Ink Highest", "canonical": "#E1E3E8" },
+      "light-outline": { "role": "neutral", "displayName": "Light Outline", "canonical": "#74777F" },
+      "light-outline-variant": { "role": "neutral", "displayName": "Light Outline Variant", "canonical": "#C4C7C5" },
+      "light-mint-safe": { "role": "success", "displayName": "Light Mint Safe", "canonical": "#1E8E3E", "tonalRamp": ["#0A2A16", "#11442A", "#18603B", "#1E8E3E", "#3FA45C", "#6ABF80", "#9BD7A9", "#CEEAD6"] },
+      "light-mint-safe-on": { "role": "success", "displayName": "Light Mint Safe On", "canonical": "#FFFFFF" },
+      "light-mint-safe-container": { "role": "success", "displayName": "Light Mint Safe Container", "canonical": "#CEEAD6" },
+      "light-amber-caution": { "role": "warning", "displayName": "Light Amber Caution", "canonical": "#E37400", "tonalRamp": ["#3A2500", "#5A3A00", "#7A5000", "#A66200", "#E37400", "#ED9633", "#F5BC72", "#FEEFC3"] },
+      "light-amber-caution-on": { "role": "warning", "displayName": "Light Amber Caution On", "canonical": "#FFFFFF" },
+      "light-amber-caution-container": { "role": "warning", "displayName": "Light Amber Caution Container", "canonical": "#FEEFC3" },
+      "light-coral-alert": { "role": "error", "displayName": "Light Coral Alert", "canonical": "#BA1A1A", "tonalRamp": ["#3D0E0E", "#5E1717", "#822323", "#A93030", "#BA1A1A", "#D75454", "#EC9292", "#FFDAD6"] },
+      "light-coral-alert-on": { "role": "error", "displayName": "Light Coral Alert On", "canonical": "#FFFFFF" },
+      "light-coral-alert-container": { "role": "error", "displayName": "Light Coral Alert Container", "canonical": "#FFDAD6" }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Metric Headline", "purpose": "Oversized stat values in the tone accent; Black weight, tight tracking." },
+      "title": { "displayName": "Title", "purpose": "Section and card titles via Material titleMedium." },
+      "body": { "displayName": "Body", "purpose": "Supporting copy via Material bodySmall with local 11px overrides in dense cards." },
+      "label": { "displayName": "Micro Label", "purpose": "Uppercase category and stat labels with wide tracking; navigation uses labelLarge at 14px." }
+    },
+    "shadows": [
+      { "name": "nav-lift", "value": "0 8px 24px rgba(0,0,0,0.35)", "purpose": "8dp elevation on the floating bottom navigation pill only." },
+      { "name": "sync-sheet-lift", "value": "0 16px 40px rgba(0,0,0,0.45)", "purpose": "16dp elevation on the sync notification card above the sheet." }
+    ],
+    "motion": [
+      { "name": "spatialDefault", "value": "spring(DampingRatioMediumBouncy, StiffnessMedium)", "purpose": "Cards, buttons, dialogs, and progress values; press scales to 0.97." },
+      { "name": "spatialFast", "value": "spring(DampingRatioLowBouncy, StiffnessHigh)", "purpose": "Switches and icon micro-interactions." },
+      { "name": "spatialSlow", "value": "spring(DampingRatioMediumBouncy, StiffnessLow)", "purpose": "Hero transitions and sheet expansions." },
+      { "name": "effectsDefault", "value": "spring(DampingRatioNoBouncy, StiffnessMedium)", "purpose": "Color and alpha fades, including connected-group selection." },
+      { "name": "tabSwitch", "value": "180ms crossfade with scale 0.98 to 1", "purpose": "Tab-to-tab AnimatedContent switch." },
+      { "name": "reducedMotion", "value": "spring(DampingRatioNoBouncy, StiffnessHigh), instant", "purpose": "All specs collapse to this when OS Reduce Motion or the in-app animation toggle is on." }
+    ],
+    "breakpoints": [
+      { "name": "compact", "value": "<600dp", "purpose": "Phone: bottom navigation pill, single-column content." },
+      { "name": "medium", "value": "600-839dp", "purpose": "Large phone / small tablet: same language, wider grid." },
+      { "name": "expanded", "value": ">=840dp", "purpose": "Tablet: adapt Material navigation and grid density; never stretch the phone pill." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Surface Card",
+      "kind": "card",
+      "refersTo": "surface-card",
+      "description": "Tonal container with a hairline border; interactive variants compress on press.",
+      "html": "<div class=\"ds-surface-card\" tabindex=\"0\" role=\"button\"><span class=\"ds-surface-card-label\">ATTENDANCE</span><div class=\"ds-surface-card-value\">82%</div></div>",
+      "css": ".ds-surface-card{background:#16171D;color:#E3E2E6;border:1px solid rgba(51,53,62,0.5);border-radius:20px;padding:16px;transition:transform 260ms cubic-bezier(0.34,1.56,0.64,1);cursor:pointer}.ds-surface-card:hover{background:#1E2028;border-color:rgba(142,144,153,0.7)}.ds-surface-card:focus-visible{outline:2px solid #A8C7FA;outline-offset:2px}.ds-surface-card:active{transform:scale(0.97)}.ds-surface-card-label{font:700 10px Roboto,sans-serif;letter-spacing:1px;color:#C4C6D0;text-transform:uppercase}.ds-surface-card-value{font:900 24px Roboto,sans-serif;letter-spacing:-0.5px;margin-top:6px}"
+    },
+    {
+      "name": "Stat Card",
+      "kind": "card",
+      "refersTo": "stat-card",
+      "description": "Sculptural asymmetric tile for a single hero metric and its status.",
+      "html": "<div class=\"ds-stat-card\"><div class=\"ds-stat-card-top\"><span class=\"ds-stat-label\">CGPA</span><span class=\"ds-stat-icon\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#A8C7FA\" stroke-width=\"2\"><path d=\"M12 3L2 9l10 6 10-6-10-6z\"/></svg></span></div><div class=\"ds-stat-value\">8.74</div><div class=\"ds-stat-sub\">6.8 credits earned</div></div>",
+      "css": ".ds-stat-card{background:#0F1014;border-radius:26px 10px 26px 10px;padding:12px 14px;min-width:180px}.ds-stat-card-top{display:flex;justify-content:space-between;align-items:center}.ds-stat-label{font:700 10px Roboto,sans-serif;letter-spacing:1px;text-transform:uppercase;color:#C4C6D0}.ds-stat-icon{width:26px;height:26px;border-radius:9999px;background:#0842A0;display:flex;align-items:center;justify-content:center}.ds-stat-value{font:900 24px Roboto,sans-serif;letter-spacing:-0.5px;color:#A8C7FA;margin-top:6px}.ds-stat-sub{font:500 11px/13px Roboto,sans-serif;color:#C4C6D0}"
+    },
+    {
+      "name": "Connected Button Group",
+      "kind": "chip",
+      "refersTo": "connected-group-selected",
+      "description": "Scrollable segmented control; selected segment becomes a pill with a check.",
+      "html": "<div class=\"ds-group\"><button class=\"ds-group-segment ds-group-selected\"><svg width=\"15\" height=\"15\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#003062\" stroke-width=\"3\"><path d=\"M20 6L9 17l-5-5\"/></svg>All Courses</button><button class=\"ds-group-segment\">Theory</button><button class=\"ds-group-segment\">Lab</button></div>",
+      "css": ".ds-group{display:inline-flex;gap:4px;background:#0F1014;border-radius:24px;padding:4px}.ds-group-segment{background:transparent;color:#C4C6D0;border:none;border-radius:20px 8px 8px 20px;padding:9px 16px;font:500 13px Roboto,sans-serif;cursor:pointer;transition:background 200ms,color 200ms}.ds-group-segment:last-child{border-radius:8px 20px 20px 8px}.ds-group-segment:hover{color:#E3E2E6}.ds-group-segment:focus-visible{outline:2px solid #A8C7FA;outline-offset:2px}.ds-group-selected,.ds-group-selected:hover{background:#A8C7FA;color:#003062;border-radius:18px;font-weight:600;display:flex;align-items:center;gap:6px}"
+    },
+    {
+      "name": "Bottom Navigation Pill",
+      "kind": "nav",
+      "refersTo": "nav-pill",
+      "description": "Floating, lifted pill with a growing circular selected indicator.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item ds-nav-active\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#A8C7FA\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg><span>Home</span></button><button class=\"ds-nav-item\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#C4C6D0\" stroke-width=\"2\"><path d=\"M4 19V5m0 14h16M8 15l4-5 4 3 4-6\"/></svg><span>Marks</span></button></nav>",
+      "css": ".ds-nav{display:inline-flex;align-items:center;gap:8px;background:rgba(40,43,54,0.98);border:1.5px solid rgba(51,53,62,0.5);border-radius:9999px;padding:8px 10px;box-shadow:0 8px 24px rgba(0,0,0,0.35)}.ds-nav-item{display:flex;flex-direction:column;align-items:center;gap:4px;background:transparent;border:none;color:#C4C6D0;font:500 14px Roboto,sans-serif;cursor:pointer;padding:6px 10px;border-radius:9999px}.ds-nav-item:hover{color:#E3E2E6}.ds-nav-item:focus-visible{outline:2px solid #A8C7FA;outline-offset:2px}.ds-nav-active{color:#A8C7FA;font-weight:700;background:rgba(168,199,250,0.12)}"
+    },
+    {
+      "name": "Wavy Progress Indicator",
+      "kind": "custom",
+      "refersTo": "stat-card",
+      "description": "Signature 3dp sine wave with a 4dp stop dot and flat remaining track.",
+      "html": "<div class=\"ds-wave\"><svg viewBox=\"0 0 200 14\" width=\"200\" height=\"14\" preserveAspectRatio=\"none\"><path d=\"M2 7 Q 12 1 22 7 T 42 7 T 62 7 T 82 7 T 102 7 T 122 7 T 142 7\" fill=\"none\" stroke=\"#A8C7FA\" stroke-width=\"4\" stroke-linecap=\"round\"/><line x1=\"148\" y1=\"7\" x2=\"194\" y2=\"7\" stroke=\"rgba(0,76,112,0.5)\" stroke-width=\"4\" stroke-linecap=\"round\"/><circle cx=\"198\" cy=\"7\" r=\"2\" fill=\"#A8C7FA\"/></svg></div>",
+      "css": ".ds-wave{height:14px;width:200px;padding:0 4px}"
+    },
+    {
+      "name": "Floating Toolbar",
+      "kind": "nav",
+      "refersTo": "floating-toolbar",
+      "description": "Flat pill sibling of the navigation bar: no shadow, tonal base, hairline border.",
+      "html": "<div class=\"ds-toolbar\"><button class=\"ds-toolbar-item ds-toolbar-active\">Week</button><button class=\"ds-toolbar-item\">Day</button><button class=\"ds-toolbar-item\">List</button></div>",
+      "css": ".ds-toolbar{display:inline-flex;gap:8px;background:rgba(40,43,54,0.95);border:1px solid rgba(51,53,62,0.4);border-radius:9999px;padding:6px 12px}.ds-toolbar-item{background:transparent;border:none;color:#C4C6D0;font:600 12px Roboto,sans-serif;padding:6px 14px;border-radius:9999px;cursor:pointer}.ds-toolbar-item:hover{color:#E3E2E6}.ds-toolbar-item:focus-visible{outline:2px solid #A8C7FA;outline-offset:2px}.ds-toolbar-active{background:#A8C7FA;color:#003062}"
+    },
+    {
+      "name": "Dismissible Sheet",
+      "kind": "card",
+      "refersTo": "surface-card",
+      "description": "28px-top-corner sheet with a short handle and 20px horizontal padding.",
+      "html": "<section class=\"ds-sheet\"><div class=\"ds-sheet-handle\"></div><h3 class=\"ds-sheet-title\">Sync status</h3><p class=\"ds-sheet-body\">All academic records are up to date.</p></section>",
+      "css": ".ds-sheet{background:#16171D;border-radius:28px 28px 0 0;padding:12px 20px 24px}.ds-sheet-handle{width:32px;height:4px;border-radius:2px;background:#8E9099;margin:0 auto 16px}.ds-sheet-title{font:700 18px Roboto,sans-serif;color:#E3E2E6;margin:0 0 8px}.ds-sheet-body{font:400 14px Roboto,sans-serif;color:#C4C6D0;margin:0}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Living Ledger",
+    "overview": "AmazeCC's Material 3 Expressive language treats the screen as a ledger that is quietly alive. On an absolute-black canvas, records are laid out with accounting clarity — five tonal strata, hairline separators, uppercase micro-labels — and then made tactile: cards compress under a finger, connected tabs crossfade into a selected pill with a checkmark, and the wavy progress meter gives attendance and marks a visible pulse. The system is precise and calm at rest, sculptural and optimistic in motion.\n\nColor is scarce and semantic. Periwinkle, sky, and blush are roles for primary, secondary, and tertiary actions; mint, amber, and coral carry success, caution, and error. They never decorate. Depth comes first from the tonal ladder and only then from a controlled pair of lift shadows. Type stays inside Material 3 roles, with local overrides only for the two moments that matter: the uppercase micro-label and the oversized metric.\n\nThe migration plan retires the legacy AmazeTheme/AccentTheme pill-and-glow interface and forbids amazeui, shadcn, and Tailwind web styles. Material 3 governs structure, navigation, and interaction; iOS/Cupertino controls are not part of this language, and the same design carries across the KMP targets without an OS-specific redesign. Midnight OLED and Classic Light are two first-class appearances of the same language with their own role values; neither is an inversion or a reduced version of the other.",
+    "keyCharacteristics": [
+      "Pitch-black, five-tier tonal canvas with hairline borders instead of generalized shadows.",
+      "Spring physics on every interactive element; a 3dp sine wave is the signature meter.",
+      "Sculptural asymmetric corners on stat cards, regular large radii on containers, full pills on navigation.",
+      "Semantic-only color: status and selection are the only reasons an accent appears."
+    ],
+    "rules": [
+      { "name": "The Two Appearances Rule", "body": "Midnight and Classic Light are parallel schemes with their own role values. Never derive one by inverting the other, and never let a component hard-code a value that only works in one.", "section": "colors" },
+      { "name": "The Signal Rule", "body": "An accent appears only to show state, selection, or amount. A decorative accent is a bug.", "section": "colors" },
+      { "name": "The Ink Rule", "body": "The canvas is pure black. Depth is earned through tonal tiers, never by tinting the background.", "section": "colors" },
+      { "name": "The Two-Voice Rule", "body": "Give every number a Black-weight headline with tight tracking and every label an uppercase, wide-tracked micro-size. Everything in between stays quiet.", "section": "typography" },
+      { "name": "The Tonal First Rule", "body": "If a layer can be separated with a tonal step and a hairline border, do not add a shadow.", "section": "elevation" },
+      { "name": "The Asymmetry Rule", "body": "Never normalize a stat card to a uniform radius. Its uneven corners are what make the ledger feel sculptural rather than generic.", "section": "shapes" }
+    ],
+    "dos": [
+      "Do use the five tonal tiers and a hairline border before reaching for a shadow.",
+      "Do drive interaction feedback with the spring specs: spatialDefault, spatialFast, spatialSlow, and effectsDefault.",
+      "Do clip dynamic text to one line with ellipsis; course codes, room names, and labels must never wrap into a card.",
+      "Do collapse every spec to an instant, non-bouncy spring when the OS Reduce Motion setting or the in-app animation toggle is off.",
+      "Do give clickable cards and chips an explicit button role, focus, and Enter/Space activation.",
+      "Do verify every component in both Midnight and Classic Light; each appearance uses its own role tokens and neither is an afterthought."
+    ],
+    "donts": [
+      "Don't use raw hex values in components; reference the named tokens.",
+      "Don't port iOS/Cupertino controls or bring back amazeui, shadcn, or Tailwind web styles.",
+      "Don't resurrect the legacy neon-glow, uniformly-pilled AmazeTheme/AccentTheme look.",
+      "Don't tint the pure-black canvas or stack shadows on ordinary cards.",
+      "Don't hand-pick per-screen font families or reintroduce the legacy Outfit/Geist pairing in M3E screens."
+    ]
+  }
+}

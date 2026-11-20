@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -32,7 +34,6 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Warning
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.FilterChip
@@ -62,6 +63,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ETasksAction
 import com.amazecc.app.shared.domain.overhaul.M3ETasksFilter
 import com.amazecc.app.shared.domain.overhaul.M3ETasksState
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -307,14 +309,20 @@ private fun M3ETaskEditorDialog(
     val types = listOf("homework", "assignment", "quiz", "exam", "project", "lab", "study", "reminder")
     val priorities = listOf("low", "medium", "high")
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("New Task", color = colors.onSurface, fontWeight = FontWeight.Bold) },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
+        title = "New Task"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
                 OutlinedTextField(
                     value = draft.title,
                     onValueChange = { draft = draft.copy(title = it) },
@@ -399,28 +407,30 @@ private fun M3ETaskEditorDialog(
                         modifier = Modifier.weight(1f)
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FilterChip(
-                        selected = draft.showOnCalendar,
-                        onClick = { draft = draft.copy(showOnCalendar = !draft.showOnCalendar) },
-                        label = { Text("Show on calendar", fontSize = 11.sp) }
-                    )
-                    FilterChip(
-                        selected = draft.showOnTimetable,
-                        onClick = { draft = draft.copy(showOnTimetable = !draft.showOnTimetable) },
-                        label = { Text("Show on timetable", fontSize = 11.sp) }
-                    )
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(
+                    selected = draft.showOnCalendar,
+                    onClick = { draft = draft.copy(showOnCalendar = !draft.showOnCalendar) },
+                    label = { Text("Show on calendar", fontSize = 11.sp) }
+                )
+                FilterChip(
+                    selected = draft.showOnTimetable,
+                    onClick = { draft = draft.copy(showOnTimetable = !draft.showOnTimetable) },
+                    label = { Text("Show on timetable", fontSize = 11.sp) }
+                )
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onSave(draft) },
-                enabled = draft.title.isNotBlank() && draft.dueDate.isNotBlank()
-            ) { Text("Create") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+                TextButton(
+                    onClick = { onSave(draft) },
+                    enabled = draft.title.isNotBlank() && draft.dueDate.isNotBlank()
+                ) { Text("Create") }
+            }
+        }
+    }
 }
 
 @Composable

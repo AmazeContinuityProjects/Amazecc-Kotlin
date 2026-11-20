@@ -715,23 +715,45 @@ object AmazeClient {
             )
         }
 
-        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
-            return loginLocal(username, password, captchaHandler)
+        // D-109: every real VTOP credential login funnels through this single public choke point,
+        // so this is the one place that can guarantee a successful sign-in never leaves
+        // SettingsManager.getCredentials() null. Callers no longer have to remember to persist.
+        // `loginResponseOverride` is a test-only seam that still exercises the persistence step.
+        val response = loginResponseOverride?.invoke(username, password) ?: when {
+            vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL ->
+                loginLocal(username, password, captchaHandler)
+            else -> try {
+                val httpResponse: HttpResponse = httpClient.post("$baseUrl/api/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest(username, password))
+                }
+                if (httpResponse.status == HttpStatusCode.OK) {
+                    jsonConfig.decodeFromString<LoginResponse>(httpResponse.bodyAsText())
+                } else {
+                    LoginResponse(success = false, message = "Server returned status ${httpResponse.status}", error = "HTTP ${httpResponse.status}")
+                }
+            } catch (e: Exception) {
+                LoginResponse(success = false, message = "Network error: ${e.message}", error = e.toString())
+            }
         }
 
-        return try {
-            val response: HttpResponse = httpClient.post("$baseUrl/api/login") {
-                contentType(ContentType.Application.Json)
-                setBody(LoginRequest(username, password))
-            }
-            if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString(response.bodyAsText())
-            } else {
-                LoginResponse(success = false, message = "Server returned status ${response.status}", error = "HTTP ${response.status}")
-            }
-        } catch (e: Exception) {
-            LoginResponse(success = false, message = "Network error: ${e.message}", error = e.toString())
-        }
+        if (response.success) persistVtopCredentialsOnSuccess(username, password)
+        return response
+    }
+
+    /**
+     * D-109 — a successful VTOP credential login is not complete until the credentials are
+     * persisted. Both the sweep gate ([ensureSession] via `refreshSession`/`loginLocal`) and
+     * per-module re-auth read `SettingsManager.getCredentials()`; a sign-in that returned
+     * success but skipped persistence left that lookup null and reported "Your VTOP session has
+     * expired" on every module. Mock/demo and offline-cache logins are deliberately excluded —
+     * they are not real credential sign-ins. Passwords go through [SettingsManager.saveCredentials],
+     * which keeps the existing `Encryption.encryptOrPlain` protection (never plain text).
+     */
+    private fun persistVtopCredentialsOnSuccess(username: String, password: String) {
+        if (useMockData || vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) return
+        if (username.isBlank() || password.isBlank()) return
+        SettingsManager.saveCredentials(username.trim(), password)
     }
 
     /**
@@ -766,14 +788,18 @@ object AmazeClient {
         }
 
         return when (val result = com.amazecc.app.shared.vtop.Vtop.login(username, password, captchaHandler, forceFresh = forceFresh)) {
-            is com.amazecc.app.shared.vtop.LoginResult.Success -> LoginResponse(
-                success = true,
-                message = "Login successful!",
-                cookies = SessionManager.LOCAL_SESSION_MARKER,
-                csrf = result.csrf,
-                authorizedID = result.authorizedID,
-                clubToken = null
-            )
+            is com.amazecc.app.shared.vtop.LoginResult.Success -> {
+                // D-109: mirror the public login() guarantee for the direct ensureSession path.
+                persistVtopCredentialsOnSuccess(username, password)
+                LoginResponse(
+                    success = true,
+                    message = "Login successful!",
+                    cookies = SessionManager.LOCAL_SESSION_MARKER,
+                    csrf = result.csrf,
+                    authorizedID = result.authorizedID,
+                    clubToken = null
+                )
+            }
             is com.amazecc.app.shared.vtop.LoginResult.InvalidCaptcha ->
                 LoginResponse(false, "Invalid Captcha", error = "invalid_captcha")
             is com.amazecc.app.shared.vtop.LoginResult.InvalidCredentials ->
@@ -3325,6 +3351,14 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
      * login. Null in production. Set/cleared only by auth-gate tests.
      */
     internal var sessionLoginOverride: (suspend (forceFresh: Boolean) -> Boolean)? = null
+
+    /**
+     * Test seam for D-109: when non-null, [login] returns this response instead of performing a
+     * network/local VTOP login, while still running the credential-persistence step on success.
+     * Lets a JVM test drive the "login response -> credentials available" contract offline.
+     * Null in production. Set/cleared only by login-persistence tests.
+     */
+    internal var loginResponseOverride: (suspend (username: String, password: String) -> LoginResponse)? = null
 
     /**
      * Guarantees that [com.amazecc.app.shared.vtop.VtopSession] and [SessionManager] hold valid,

@@ -40,7 +40,6 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import com.amazecc.app.shared.model.HomeworkTask
 import com.amazecc.app.shared.model.Subtask
 import com.amazecc.app.shared.model.WorkSession
@@ -66,6 +65,9 @@ import com.amazecc.app.shared.ui.components.HeroChip
 import com.amazecc.app.shared.ui.components.HeroPalette
 import com.amazecc.app.shared.ui.components.HeroPanel
 import com.amazecc.app.shared.ui.components.HeroStat
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import kotlinx.coroutines.delay
 import kotlinx.datetime.*
 
@@ -1931,47 +1933,47 @@ private fun AddTaskBottomSheet(
     }
 
     if (showDiscardDialog) {
-        AlertDialog(
-            onDismissRequest = { showDiscardDialog = false },
-            title = {
-                Text(
-                    if (taskToEdit == null) "Discard new task?" else "Discard changes?",
-                    color = colors.textPrimary,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    "You have unsaved changes. Save them or go back to keep editing.",
-                    color = colors.textSecondary
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDiscardDialog = false
-                    val t = buildTask()
-                    if (t.title.isNotBlank()) {
-                        onSave(t)
-                        onDismiss()
+        AmazeM3ETheme(isDark = M3EStateBridge.isDarkThemeActive()) {
+            M3EDismissibleSheet(
+                isOpen = showDiscardDialog,
+                onDismiss = { showDiscardDialog = false },
+                title = if (taskToEdit == null) "Discard new task?" else "Discard changes?"
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "You have unsaved changes. Save them or go back to keep editing.",
+                        color = colors.textSecondary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = { showDiscardDialog = false }) {
+                            Text("Keep Editing", color = colors.textPrimary)
+                        }
+                        TextButton(onClick = { showDiscardDialog = false; onDismiss() }) {
+                            Text("Discard", color = colors.danger, fontWeight = FontWeight.Bold)
+                        }
+                        TextButton(onClick = {
+                            showDiscardDialog = false
+                            val t = buildTask()
+                            if (t.title.isNotBlank()) {
+                                onSave(t)
+                                onDismiss()
+                            }
+                        }) {
+                            Text("Save", color = colors.success, fontWeight = FontWeight.Bold)
+                        }
                     }
-                }) {
-                    Text("Save", color = colors.success, fontWeight = FontWeight.Bold)
                 }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = { showDiscardDialog = false }) {
-                        Text("Keep Editing", color = colors.textPrimary)
-                    }
-                    TextButton(onClick = { showDiscardDialog = false; onDismiss() }) {
-                        Text("Discard", color = colors.danger, fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            containerColor = colors.surface,
-            titleContentColor = colors.textPrimary,
-            textContentColor = colors.textSecondary
-        )
+            }
+        }
     }
 
     if (showCoursePicker) {
@@ -2291,28 +2293,22 @@ private fun AmazeFocusTimerModal(
     val timeFormatted = "${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}"
     val progress = 1f - (timerSeconds.toFloat() / (focusMinutes * 60f))
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = colors.surface),
-            shape = RoundedCornerShape(24.dp),
-            modifier = Modifier.fillMaxWidth().padding(16.dp).border(1.dp, colors.border, RoundedCornerShape(24.dp))
+    AmazeM3ETheme(isDark = M3EStateBridge.isDarkThemeActive()) {
+        M3EDismissibleSheet(
+            isOpen = true,
+            onDismiss = onDismiss,
+            title = "Focus Session"
         ) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Focus Session", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Rounded.Close, "Close", tint = colors.textMuted)
-                    }
-                }
-
-                Spacer(Modifier.height(10.dp))
                 Text(task.title, style = AmazeTheme.typography.body.copy(fontWeight = FontWeight.Bold, color = colors.accent))
                 Text(task.courseCode, style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
-
-                Spacer(Modifier.height(20.dp))
 
                 // Progress Circle & Timer Text
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(160.dp)) {
@@ -2328,8 +2324,6 @@ private fun AmazeFocusTimerModal(
                         Text(if (isRunning) "FOCUSING" else "PAUSED", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted, fontSize = AmazeTheme.fontSize.micro))
                     }
                 }
-
-                Spacer(Modifier.height(20.dp))
 
                 // Controls
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

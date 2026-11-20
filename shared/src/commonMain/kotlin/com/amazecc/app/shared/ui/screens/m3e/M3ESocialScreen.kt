@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -27,7 +30,6 @@ import androidx.compose.material.icons.rounded.PersonSearch
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.School
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -632,118 +635,155 @@ fun M3ESocialScreen(
         }
     }
 
-    if (state.isAddFriendDialogOpen) {
-        AlertDialog(
-            onDismissRequest = { onAction(M3ESocialAction.CloseAddFriendDialog) },
-            title = { Text("Add Friend") },
-            text = {
-                OutlinedTextField(
-                    value = state.addFriendCode,
-                    onValueChange = { onAction(M3ESocialAction.UpdateAddFriendCode(it)) },
-                    placeholder = { Text("Paste a schedule code") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { onAction(M3ESocialAction.AddFriend) }) { Text("Add") }
-            },
-            dismissButton = {
+    M3EDismissibleSheet(
+        isOpen = state.isAddFriendDialogOpen,
+        onDismiss = { onAction(M3ESocialAction.CloseAddFriendDialog) },
+        title = "Add Friend"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = state.addFriendCode,
+                onValueChange = { onAction(M3ESocialAction.UpdateAddFriendCode(it)) },
+                placeholder = { Text("Paste a schedule code") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 TextButton(onClick = { onAction(M3ESocialAction.CloseAddFriendDialog) }) { Text("Cancel") }
+                TextButton(onClick = { onAction(M3ESocialAction.AddFriend) }) { Text("Add") }
             }
-        )
+        }
     }
 
-    if (state.isAddHandleDialogOpen) {
-        AlertDialog(
-            onDismissRequest = { onAction(M3ESocialAction.CloseAddHandleDialog) },
-            title = { Text("Pair with a classmate") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Paste their AMZ handle or invite link. Pairing is mutual and revocable.", fontSize = 13.sp)
-                    OutlinedTextField(
-                        value = state.addHandleInput,
-                        onValueChange = { onAction(M3ESocialAction.UpdateAddHandleInput(it)) },
-                        placeholder = { Text("AMZ-XXXX-XXXX") },
-                        singleLine = true
-                    )
-                    state.formError?.let { Text(it, fontSize = 12.sp, color = colors.error) }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { onAction(M3ESocialAction.AddHandle) }) { Text("Look up") }
-            },
-            dismissButton = {
+    M3EDismissibleSheet(
+        isOpen = state.isAddHandleDialogOpen,
+        onDismiss = { onAction(M3ESocialAction.CloseAddHandleDialog) },
+        title = "Pair with a classmate"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Paste their AMZ handle or invite link. Pairing is mutual and revocable.", fontSize = 13.sp)
+            OutlinedTextField(
+                value = state.addHandleInput,
+                onValueChange = { onAction(M3ESocialAction.UpdateAddHandleInput(it)) },
+                placeholder = { Text("AMZ-XXXX-XXXX") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            state.formError?.let { Text(it, fontSize = 12.sp, color = colors.error) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 TextButton(onClick = { onAction(M3ESocialAction.CloseAddHandleDialog) }) { Text("Cancel") }
+                TextButton(onClick = { onAction(M3ESocialAction.AddHandle) }) { Text("Look up") }
             }
-        )
+        }
     }
 
-    if (state.isImportDialogOpen) {
-        AlertDialog(
-            onDismissRequest = { onAction(M3ESocialAction.CloseImportDialog) },
-            title = { Text("Import schedule code") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Paste a v5/v6 code or an amazecc share link. This imports a local comparison copy; pairing still needs a handle.", fontSize = 13.sp)
-                    OutlinedTextField(
-                        value = state.importCodeInput,
-                        onValueChange = { onAction(M3ESocialAction.UpdateImportCode(it)) },
-                        placeholder = { Text("v5|… or amazecc://share#s=…") },
-                        singleLine = true
-                    )
-                    state.formError?.let { Text(it, fontSize = 12.sp, color = colors.error) }
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { onAction(M3ESocialAction.ImportCode) }) { Text("Import") }
-            },
-            dismissButton = {
+    M3EDismissibleSheet(
+        isOpen = state.isImportDialogOpen,
+        onDismiss = { onAction(M3ESocialAction.CloseImportDialog) },
+        title = "Import schedule code"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text("Paste a v5/v6 code or an amazecc share link. This imports a local comparison copy; pairing still needs a handle.", fontSize = 13.sp)
+            OutlinedTextField(
+                value = state.importCodeInput,
+                onValueChange = { onAction(M3ESocialAction.UpdateImportCode(it)) },
+                placeholder = { Text("v5|… or amazecc://share#s=…") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            state.formError?.let { Text(it, fontSize = 12.sp, color = colors.error) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 TextButton(onClick = { onAction(M3ESocialAction.CloseImportDialog) }) { Text("Cancel") }
+                TextButton(onClick = { onAction(M3ESocialAction.ImportCode) }) { Text("Import") }
             }
-        )
+        }
     }
 
-    if (state.isCreateGroupDialogOpen) {
-        AlertDialog(
-            onDismissRequest = { onAction(M3ESocialAction.CloseCreateGroupDialog) },
-            title = { Text("Create Group") },
-            text = {
-                OutlinedTextField(
-                    value = state.newGroupName,
-                    onValueChange = { onAction(M3ESocialAction.UpdateNewGroupName(it)) },
-                    placeholder = { Text("Group name") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { onAction(M3ESocialAction.CreateGroup) }) { Text("Create") }
-            },
-            dismissButton = {
+    M3EDismissibleSheet(
+        isOpen = state.isCreateGroupDialogOpen,
+        onDismiss = { onAction(M3ESocialAction.CloseCreateGroupDialog) },
+        title = "Create Group"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedTextField(
+                value = state.newGroupName,
+                onValueChange = { onAction(M3ESocialAction.UpdateNewGroupName(it)) },
+                placeholder = { Text("Group name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 TextButton(onClick = { onAction(M3ESocialAction.CloseCreateGroupDialog) }) { Text("Cancel") }
+                TextButton(onClick = { onAction(M3ESocialAction.CreateGroup) }) { Text("Create") }
             }
-        )
+        }
     }
 
-    if (state.openPeerHandle != null) {
-        AlertDialog(
-            onDismissRequest = { onAction(M3ESocialAction.ClosePeer) },
-            title = { Text(state.peerTimetable?.title ?: "Peer timetable") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val tt = state.peerTimetable
-                    when {
-                        tt == null -> Text("Loading the timetable through your grant…", fontSize = 13.sp)
-                        tt.coarse -> Text("This peer shares only busy/free slots (coarse visibility).", fontSize = 13.sp)
-                        tt.courses.isEmpty() -> Text("No courses are published for ${tt.semesterLabel}.", fontSize = 13.sp)
-                        else -> tt.courses.forEach { Text(it, fontSize = 12.sp) }
-                    }
-                    if (tt?.stale == true) Text("This timetable is stale — ask the peer to re-sync.", fontSize = 12.sp, color = colors.error)
-                }
-            },
-            confirmButton = {
+    M3EDismissibleSheet(
+        isOpen = state.openPeerHandle != null,
+        onDismiss = { onAction(M3ESocialAction.ClosePeer) },
+        title = state.peerTimetable?.title ?: "Peer timetable"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 480.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val tt = state.peerTimetable
+            when {
+                tt == null -> Text("Loading the timetable through your grant…", fontSize = 13.sp)
+                tt.coarse -> Text("This peer shares only busy/free slots (coarse visibility).", fontSize = 13.sp)
+                tt.courses.isEmpty() -> Text("No courses are published for ${tt.semesterLabel}.", fontSize = 13.sp)
+                else -> tt.courses.forEach { Text(it, fontSize = 12.sp) }
+            }
+            if (tt?.stale == true) Text("This timetable is stale — ask the peer to re-sync.", fontSize = 12.sp, color = colors.error)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 TextButton(onClick = { onAction(M3ESocialAction.ClosePeer) }) { Text("Close") }
             }
-        )
+        }
     }
 }
 

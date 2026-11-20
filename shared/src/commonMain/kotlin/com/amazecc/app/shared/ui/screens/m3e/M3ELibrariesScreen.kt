@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,7 +29,6 @@ import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedButton
@@ -68,6 +70,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EKohaHolding
 import com.amazecc.app.shared.model.KohaBook
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -905,21 +908,21 @@ private fun BookDetailDialog(
 ) {
     val colors = M3ETheme.colors
 
-    AlertDialog(
+    M3EDismissibleSheet(
+        isOpen = true,
+        onDismiss = onDismiss,
         modifier = modifier,
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = detail?.title ?: "Book details",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = colors.onSurface
-            )
-        },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
+        title = detail?.title ?: "Book details"
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
                 if (isLoading) {
                     Text(
                         text = "Loading book details...",
@@ -962,14 +965,16 @@ private fun BookDetailDialog(
                             color = colors.onSurfaceVariant
                         )
                     }
-                    detail.holdings.forEach { holding -> HoldingRow(holding = holding) }
-                }
+                detail.holdings.forEach { holding -> HoldingRow(holding = holding) }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) { Text("Close", color = colors.primary) }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) { Text("Close", color = colors.primary) }
+            }
         }
-    )
+    }
 }
 
 @Composable

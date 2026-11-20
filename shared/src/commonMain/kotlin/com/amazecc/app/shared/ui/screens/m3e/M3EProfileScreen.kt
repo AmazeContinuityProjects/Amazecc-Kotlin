@@ -23,6 +23,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.AccountBalance
 import androidx.compose.material.icons.rounded.Badge
+import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Contacts
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.EmojiEvents
@@ -62,8 +64,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EAddressItem
-import com.amazecc.app.shared.domain.overhaul.M3EAcknowledgementDocument
-import com.amazecc.app.shared.domain.overhaul.M3EContactItem
 import com.amazecc.app.shared.domain.overhaul.M3EFieldItem
 import com.amazecc.app.shared.domain.overhaul.M3EMentorItem
 import com.amazecc.app.shared.domain.overhaul.M3EProfileAction
@@ -87,8 +87,7 @@ object M3EProfileTestTags {
     const val RESIDENCE_SEGMENT_HOSTELLER = "m3e_profile_segment_hosteller"
     const val RESIDENCE_SEGMENT_DAYSCHOLAR = "m3e_profile_segment_dayscholar"
     const val BUS_CHECKBOX = "m3e_profile_bus_checkbox"
-    const val CONTACT_CARD = "m3e_profile_contact_card"
-    const val ACK_DOCUMENT = "m3e_profile_ack_document"
+    const val CONTACTS_MENU_CARD = "m3e_profile_contacts_menu_card"
 }
 
 /**
@@ -100,6 +99,7 @@ object M3EProfileTestTags {
 fun M3EProfileScreen(
     state: M3EProfileState,
     onAction: (M3EProfileAction) -> Unit,
+    onOpenContacts: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
@@ -107,7 +107,8 @@ fun M3EProfileScreen(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.surface),
+            .background(colors.surface)
+            .testTag("profile_list"),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 140.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -193,11 +194,6 @@ fun M3EProfileScreen(
                     value = profileMetricValue(state.attendancePercentage, "%"),
                     modifier = Modifier.weight(1f)
                 )
-                MetricTile(
-                    title = "CAMPUS",
-                    value = orDash(state.campus),
-                    modifier = Modifier.weight(1f)
-                )
             }
         }
 
@@ -230,24 +226,12 @@ fun M3EProfileScreen(
             )
         }
 
-        // 7. Contact cards from whoami `contact`
-        if (state.contacts.isNotEmpty()) {
-            item {
-                ContactsSection(
-                    contacts = state.contacts,
-                    onEmail = { onAction(M3EProfileAction.OpenEmail(it)) }
-                )
-            }
+        // 7. Contacts live on their own page; the profile only offers the way in.
+        item {
+            ContactsMenuCard(onOpenContacts = onOpenContacts)
         }
 
-        // 8. Acknowledgement documents from whoami `acknowledgement.documents`
-        if (state.acknowledgementDocuments.isNotEmpty()) {
-            item {
-                AcknowledgementSection(documents = state.acknowledgementDocuments)
-            }
-        }
-
-        // 9. Proctor Contact Card
+        // 8. Proctor Contact Card
         item {
             ProctorContactCard(
                 state = state,
@@ -256,7 +240,7 @@ fun M3EProfileScreen(
             )
         }
 
-        // 10. Faculty Mentors & Leadership (proctor + HoD/Dean)
+        // 9. Faculty Mentors & Leadership (proctor + HoD/Dean)
         val leadershipMentors = state.mentors.filter { it.role != "Proctor" }
         if (leadershipMentors.isNotEmpty()) {
             item {
@@ -268,12 +252,12 @@ fun M3EProfileScreen(
             }
         }
 
-        // 11. Personal Information grid (records folded in + Hostel Status cell)
+        // 10. Personal Information grid (records folded in + Hostel Status cell)
         item {
             PersonalInformationCard(state = state)
         }
 
-        // 12. Address Records — Current + Permanent as separate cards
+        // 11. Address Records — Current + Permanent as separate cards
         if (state.addresses.isNotEmpty()) {
             items(
                 count = state.addresses.size,
@@ -283,7 +267,7 @@ fun M3EProfileScreen(
             }
         }
 
-        // 13. VTOP Credentials Card
+        // 12. VTOP Credentials Card
         if (!state.vtopUsername.isNullOrBlank()) {
             item {
                 CredentialsCard(
@@ -781,104 +765,61 @@ private fun ResidencePreferenceCard(
     }
 }
 
+/**
+ * One tappable row that opens the dedicated Contacts page. The card's own press morph
+ * (M3ESurfaceCard/onClick) is this surface's only motion — no per-item effects here.
+ */
 @Composable
-private fun ContactsSection(
-    contacts: List<M3EContactItem>,
-    onEmail: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colors = M3ETheme.colors
-    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = "Contact",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = colors.onSurface
-        )
-        contacts.forEach { contact ->
-            M3ESurfaceCard(
-                containerLevel = SurfaceContainerLevel.LOW,
-                cornerRadius = 16.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(M3EProfileTestTags.CONTACT_CARD)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = orDash(contact.office),
-                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                        color = colors.primary
-                    )
-                    ProfileDataRow(label = "Description", value = contact.description)
-                    contact.email?.takeIf { it.isNotBlank() }?.let { email ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = email,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                color = colors.onSurface
-                            )
-                            IconButton(onClick = { onEmail(email) }) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Email,
-                                    contentDescription = "Email $email",
-                                    tint = colors.primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AcknowledgementSection(
-    documents: List<M3EAcknowledgementDocument>,
+private fun ContactsMenuCard(
+    onOpenContacts: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
     M3ESurfaceCard(
         containerLevel = SurfaceContainerLevel.LOW,
         cornerRadius = 20.dp,
-        modifier = modifier.fillMaxWidth()
+        onClick = onOpenContacts,
+        modifier = modifier
+            .fillMaxWidth()
+            .testTag(M3EProfileTestTags.CONTACTS_MENU_CARD)
     ) {
-        Column(
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(
-                text = "Acknowledgement",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = colors.onSurface
-            )
-            documents.forEach { doc ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag(M3EProfileTestTags.ACK_DOCUMENT),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${orDash(doc.serialNo.trim())}. ${orDash(doc.documentName.trim())}",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.onSurface
-                    )
-                    Text(
-                        text = orDash(doc.status.trim()),
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colors.primary
-                    )
-                }
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(colors.primaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Contacts,
+                    contentDescription = null,
+                    tint = colors.onPrimaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
             }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Contacts",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = colors.onSurface
+                )
+                Text(
+                    text = "Campus offices and who to reach",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
+                )
+            }
+            Icon(
+                imageVector = Icons.Rounded.ChevronRight,
+                contentDescription = "Open contacts",
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

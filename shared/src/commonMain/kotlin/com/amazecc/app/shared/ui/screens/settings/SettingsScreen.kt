@@ -9,7 +9,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,6 +19,9 @@ import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.*
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import androidx.compose.runtime.collectAsState
 
 @Composable
@@ -145,47 +147,71 @@ fun SettingsScreen() {
         }
     }
 
-    if (showClearCacheConfirm) {
-        AlertDialog(
-            onDismissRequest = { showClearCacheConfirm = false },
-            title = { Text("Clear Local Cache?", color = colors.textPrimary, fontWeight = FontWeight.Bold) },
-            text = { Text("This will remove all cached attendance, marks, calendar, and module data from device storage.", color = colors.textSecondary) },
-            confirmButton = {
-                TextButton(onClick = {
-                    SettingsManager.clearAll()
-                    UserStore.clear()
-                    showClearCacheConfirm = false
-                }) {
-                    Text("Clear All", color = colors.danger, fontWeight = FontWeight.Bold)
+    if (showClearCacheConfirm || showLogoutConfirm) {
+        // This legacy screen is composed outside App.kt's per-screen M3E theme wrapper;
+        // provide the palette so the shared sheet follows the app's light/dark setting.
+        AmazeM3ETheme(isDark = M3EStateBridge.isDarkThemeActive()) {
+            if (showClearCacheConfirm) {
+                M3EDismissibleSheet(
+                    isOpen = showClearCacheConfirm,
+                    onDismiss = { showClearCacheConfirm = false },
+                    title = "Clear Local Cache?"
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .padding(bottom = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("This will remove all cached attendance, marks, calendar, and module data from device storage.", color = colors.textSecondary)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showClearCacheConfirm = false }) {
+                                Text("Cancel", color = colors.textSecondary)
+                            }
+                            TextButton(onClick = {
+                                SettingsManager.clearAll()
+                                UserStore.clear()
+                                showClearCacheConfirm = false
+                            }) {
+                                Text("Clear All", color = colors.danger, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearCacheConfirm = false }) {
-                    Text("Cancel", color = colors.textSecondary)
-                }
-            },
-            containerColor = colors.surface,
-            shape = RoundedCornerShape(AmazeTheme.radius.large)
-        )
-    }
+            }
 
-    if (showLogoutConfirm) {
-        AlertDialog(
-            onDismissRequest = { showLogoutConfirm = false },
-            title = { Text("Log Out Session?", color = colors.textPrimary, fontWeight = FontWeight.Bold) },
-            text = { Text("You will be logged out of AmazeCC and returned to the login screen.", color = colors.textSecondary) },
-            confirmButton = {
-                TextButton(onClick = { AppState.logout(); showLogoutConfirm = false }) {
-                    Text("Log Out", color = colors.danger, fontWeight = FontWeight.Bold)
+            if (showLogoutConfirm) {
+                M3EDismissibleSheet(
+                    isOpen = showLogoutConfirm,
+                    onDismiss = { showLogoutConfirm = false },
+                    title = "Log Out Session?"
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .padding(bottom = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("You will be logged out of AmazeCC and returned to the login screen.", color = colors.textSecondary)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showLogoutConfirm = false }) {
+                                Text("Cancel", color = colors.textSecondary)
+                            }
+                            TextButton(onClick = { AppState.logout(); showLogoutConfirm = false }) {
+                                Text("Log Out", color = colors.danger, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                 }
-            },
-            dismissButton = {
-                TextButton(onClick = { showLogoutConfirm = false }) {
-                    Text("Cancel", color = colors.textSecondary)
-                }
-            },
-            containerColor = colors.surface,
-            shape = RoundedCornerShape(AmazeTheme.radius.large)
-        )
+            }
+        }
     }
 }

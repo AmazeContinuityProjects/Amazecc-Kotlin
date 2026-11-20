@@ -40,6 +40,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -77,6 +80,13 @@ data class M3ECalendarMonth(
     val days: List<M3ECalendarDay> = emptyList(),
     val leadingBlankDays: Int = 0
 )
+
+/** Semantics hooks used by the headless JVM calendar UI tests. */
+object M3ECalendarTestTags {
+    const val WEEK_ROW = "m3e_calendar_week_row"
+    /** Applied to every grid cell — real day or trailing/leading blank. */
+    const val CELL = "m3e_calendar_cell"
+}
 
 /** Immutable, screen-owned state for [M3ECalendarScreen]. */
 @Immutable
@@ -290,14 +300,24 @@ fun M3ECalendarScreen(
                             }
                         }
                         Spacer(Modifier.height(8.dp))
-                        val leadingBlanks = activeMonth?.leadingBlankDays?.coerceAtLeast(0) ?: 0
-                        val cells = (0 until leadingBlanks).map { null } +
-                            activeMonth?.days.orEmpty().map { it }
+                        val cells = buildCalendarCells(
+                            leadingBlanks = activeMonth?.leadingBlankDays ?: 0,
+                            days = activeMonth?.days.orEmpty()
+                        )
                         cells.chunked(7).forEach { week ->
-                            Row(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag(M3ECalendarTestTags.WEEK_ROW)
+                            ) {
                                 week.forEach { day ->
                                     if (day == null) {
-                                        Spacer(Modifier.weight(1f).height(36.dp))
+                                        Spacer(
+                                            Modifier
+                                                .weight(1f)
+                                                .height(36.dp)
+                                                .testTag(M3ECalendarTestTags.CELL)
+                                        )
                                     } else {
                                         CalendarDayCell(
                                             day = day,
@@ -406,6 +426,12 @@ fun M3ECalendarScreen(
 /**
  * One M3E calendar day: springy selection morph, emphasized date and semantic event dots.
  * The scale uses the Expressive spatial-fast spring so selecting a day feels physical.
+ *
+ * Day-state tint (D-113) is tonal and semantic, never a saturated primary: instructional days
+ * use the success container, while non-instructional/holiday/no-marking days use the error
+ * container. Text stays on the matching on-container role, the edge is a 1px `outlineVariant`
+ * hairline at half alpha, and there is no shadow. Selection stays visible as a 2dp primary ring
+ * plus the spring scale so it cannot be swallowed by either tint.
  */
 @Composable
 private fun CalendarDayCell(
@@ -420,6 +446,13 @@ private fun CalendarDayCell(
         animationSpec = M3ETheme.motion.spatialFast(),
         label = "CalendarDaySelection"
     )
+    val tone = day.dayTone()
+    val isInstructional = tone == M3ECalendarDayTone.INSTRUCTIONAL
+    // success/error are the bright on-container roles in this palette and read clearly on the
+    // dark successContainer/errorContainer fills (same convention used by other M3E status UI).
+    val containerColor = if (isInstructional) colors.successContainer else colors.errorContainer
+    val onContainerColor = if (isInstructional) colors.success else colors.error
+
     val dotColors = day.events.take(3).map { event ->
         when {
             event.type.contains("exam", ignoreCase = true) ||
@@ -429,25 +462,28 @@ private fun CalendarDayCell(
             else -> colors.primary
         }
     }
+    val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = modifier
             .scale(scale)
             .height(42.dp)
             .padding(2.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                when {
-                    isSelected -> colors.primary
-                    day.isToday -> colors.primaryContainer
-                    day.events.isNotEmpty() -> colors.surfaceContainerHigh
-                    else -> colors.surfaceContainerLow
-                }
-            )
+            .clip(shape)
+            .background(containerColor)
             .border(
-                width = if (day.isToday && !isSelected) 1.dp else 0.dp,
-                color = colors.primary,
-                shape = RoundedCornerShape(12.dp)
+                width = if (isSelected) 2.dp else 1.dp,
+                color = when {
+                    isSelected -> colors.primary
+                    day.isToday -> colors.primary.copy(alpha = 0.7f)
+                    else -> colors.outlineVariant.copy(alpha = 0.5f)
+                },
+                shape = shape
             )
+            .testTag(M3ECalendarTestTags.CELL)
+            .semantics {
+                contentDescription = "Day ${day.date}, " +
+                    if (isInstructional) "instructional" else "non-instructional"
+            }
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -455,7 +491,7 @@ private fun CalendarDayCell(
             Text(
                 text = "${day.date}",
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                color = if (isSelected) colors.onPrimary else colors.onSurface
+                color = onContainerColor
             )
             if (dotColors.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
@@ -472,6 +508,48 @@ private fun CalendarDayCell(
 // ==========================================
 // PRIVATE HELPERS
 // ==========================================
+
+/** Semantic day-state used for the calendar tint (D-113). */
+internal enum class M3ECalendarDayTone { INSTRUCTIONAL, NON_INSTRUCTIONAL }
+
+/**
+ * Builds an exact 7-column grid: leading blanks + real days + trailing blanks. Trailing spacers
+ * guarantee the final, partial week has seven cells too, so no pill is stretched to fill the row.
+ */
+internal fun buildCalendarCells(
+    leadingBlanks: Int,
+    days: List<M3ECalendarDay>
+): List<M3ECalendarDay?> {
+    val leading: List<M3ECalendarDay?> = List(leadingBlanks.coerceAtLeast(0)) { null }
+    val cells: List<M3ECalendarDay?> = leading + days
+    val trailing = (7 - cells.size % 7) % 7
+    return cells + List(trailing) { null }
+}
+
+/** Mirrors the "instructional" detection used by the Classes event filter. */
+private fun isInstructionalEvent(event: M3ECalendarEvent): Boolean =
+    event.type.contains("instructional", ignoreCase = true) ||
+        event.category.contains("class", ignoreCase = true)
+
+/** Explicit non-instructional / holiday marking on the real scraped text, type or category. */
+private fun isNonInstructionalEvent(event: M3ECalendarEvent): Boolean {
+    val fields = listOf(event.title, event.type, event.category)
+    return fields.any { field ->
+        field.contains("non-instructional", ignoreCase = true) ||
+            field.contains("non instructional", ignoreCase = true) ||
+            field.contains("noninstructional", ignoreCase = true) ||
+            field.contains("holiday", ignoreCase = true)
+    }
+}
+
+/** Instructional (green) only when marked so with no non-instructional marker; everything else red. */
+internal fun M3ECalendarDay.dayTone(): M3ECalendarDayTone {
+    if (events.isEmpty()) return M3ECalendarDayTone.NON_INSTRUCTIONAL
+    val hasInstructional = events.any(::isInstructionalEvent)
+    val hasNonInstructional = events.any(::isNonInstructionalEvent)
+    return if (hasInstructional && !hasNonInstructional) M3ECalendarDayTone.INSTRUCTIONAL
+    else M3ECalendarDayTone.NON_INSTRUCTIONAL
+}
 
 /**
  * Header action button (44dp touch target, M3E surface token).

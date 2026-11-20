@@ -13,7 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.BugReport
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.HowToReg
 import androidx.compose.material3.*
@@ -234,6 +233,7 @@ fun App() {
                                 Screen.FEEDBACK_STATUS -> M3EFeedbackStatusScreenHost()
                                 Screen.FRESHER_WELCOME -> M3EFresherWelcomeScreenHost()
                                 Screen.DOCUMENTS -> M3EDocumentsScreenHost()
+                                Screen.CONTACTS -> M3EContactsHost()
                                 Screen.ABOUT -> M3EAboutScreenHost()
                                 Screen.CLUB_HUB -> M3EClubHubScreen()
                                 Screen.CLUB_DETAIL -> M3EClubDetailScreenHost()
@@ -329,258 +329,195 @@ fun App() {
 
                     // One-time alert for newly added exam venue/seat entries from credentials
                     val pendingSeatAlerts by AppState.pendingExamSeatAlerts.collectAsState()
-                    if (pendingSeatAlerts.isNotEmpty() && currentScreen != Screen.LOGIN) {
-                        AlertDialog(
-                            onDismissRequest = { AppState.dismissExamSeatAlerts() },
-                            containerColor = colors.surface,
-                            shape = RoundedCornerShape(24.dp),
-                            title = {
+                    com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet(
+                        isOpen = pendingSeatAlerts.isNotEmpty() && currentScreen != Screen.LOGIN,
+                        onDismiss = { AppState.dismissExamSeatAlerts() },
+                        title = "Exam Venue & Seat",
+                        dismissable = true
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                            Text(
+                                "Your exam venue and seat details were updated:",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            pendingSeatAlerts.forEach { alert ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(
-                                        "Exam Venue & Seat",
-                                        style = AmazeTheme.typography.subheading.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = colors.textPrimary
-                                        )
-                                    )
-                                    IconButton(onClick = { AppState.dismissExamSeatAlerts() }) {
-                                        Icon(Icons.Rounded.Close, "Dismiss", tint = colors.textSecondary)
-                                    }
-                                }
-                            },
-                            text = {
-                                Column {
-                                    Text(
-                                        "Your exam venue and seat details were updated:",
-                                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                                    )
-                                    Spacer(Modifier.height(12.dp))
-                                    pendingSeatAlerts.forEach { alert ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(36.dp)
-                                                    .background(colors.accent.copy(alpha = 0.10f), RoundedCornerShape(10.dp)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    Icons.Rounded.Event,
-                                                    null,
-                                                    tint = colors.accent,
-                                                    modifier = Modifier.size(18.dp)
-                                                )
-                                            }
-                                            Spacer(Modifier.width(12.dp))
-                                            Column {
-                                                Text(
-                                                    alert.account,
-                                                    style = AmazeTheme.typography.body.copy(
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = colors.textPrimary
-                                                    )
-                                                )
-                                                if (alert.venueDate.isNotBlank() || alert.seatLocation.isNotBlank()) {
-                                                    Text(
-                                                        buildString {
-                                                            if (alert.venueDate.isNotBlank()) append(alert.venueDate)
-                                                            if (alert.seatLocation.isNotBlank()) {
-                                                                if (isNotEmpty()) append("  •  ")
-                                                                append("Seat: ${alert.seatLocation}")
-                                                            }
-                                                        },
-                                                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                Button(
-                                    onClick = { AppState.dismissExamSeatAlerts() },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Got it", style = AmazeTheme.typography.smallLabel)
-                                }
-                            }
-                        )
-                    }
-
-                    // One-time alert when the FFCS registration slot appears or changes
-                    val pendingFfcs by AppState.pendingFfcsAlert.collectAsState()
-                    if (pendingFfcs != null && currentScreen != Screen.LOGIN) {
-                        AlertDialog(
-                            onDismissRequest = { AppState.dismissFfcsAlert() },
-                            containerColor = colors.surface,
-                            shape = RoundedCornerShape(24.dp),
-                            title = {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "FFCS Registration Coming Up",
-                                        style = AmazeTheme.typography.subheading.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = colors.textPrimary
-                                        )
-                                    )
-                                    IconButton(onClick = { AppState.dismissFfcsAlert() }) {
-                                        Icon(Icons.Rounded.Close, "Dismiss", tint = colors.textSecondary)
-                                    }
-                                }
-                            },
-                            text = {
-                                Column {
-                                    Text(
-                                        "Your FFCS course registration slot has been scheduled:",
-                                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                                    )
-                                    Spacer(Modifier.height(12.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .background(colors.accent.copy(alpha = 0.10f), RoundedCornerShape(10.dp)),
+                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .background(colors.accent.copy(alpha = 0.10f), RoundedCornerShape(10.dp)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                Icons.Rounded.HowToReg,
-                                                null,
-                                                tint = colors.accent,
-                                                modifier = Modifier.size(18.dp)
+                                        Icon(
+                                            Icons.Rounded.Event,
+                                            null,
+                                            tint = colors.accent,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(Modifier.width(12.dp))
+                                    Column {
+                                        Text(
+                                            alert.account,
+                                            style = AmazeTheme.typography.body.copy(
+                                                fontWeight = FontWeight.Bold,
+                                                color = colors.textPrimary
                                             )
-                                        }
-                                        Spacer(Modifier.width(12.dp))
-                                        Column {
-                                            Text(
-                                                pendingFfcs?.date.orEmpty(),
-                                                style = AmazeTheme.typography.body.copy(
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = colors.textPrimary
-                                                )
-                                            )
+                                        )
+                                        if (alert.venueDate.isNotBlank() || alert.seatLocation.isNotBlank()) {
                                             Text(
                                                 buildString {
-                                                    append("Registration slot: ")
-                                                    if (!pendingFfcs?.fromTime.isNullOrBlank()) append(pendingFfcs?.fromTime)
-                                                    if (!pendingFfcs?.toTime.isNullOrBlank()) {
-                                                        if (isNotEmpty()) append(" - ")
-                                                        append(pendingFfcs?.toTime)
+                                                    if (alert.venueDate.isNotBlank()) append(alert.venueDate)
+                                                    if (alert.seatLocation.isNotBlank()) {
+                                                        if (isNotEmpty()) append("  •  ")
+                                                        append("Seat: ${alert.seatLocation}")
                                                     }
                                                 },
                                                 style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                                             )
                                         }
                                     }
-                                    Spacer(Modifier.height(12.dp))
-                                    Text(
-                                        "You'll be reminded a day before and on the day of registration.",
-                                        style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
-                                    )
-                                }
-                            },
-                            confirmButton = {
-                                Button(
-                                    onClick = { AppState.dismissFfcsAlert() },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text("Got it", style = AmazeTheme.typography.smallLabel)
                                 }
                             }
-                        )
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = { AppState.dismissExamSeatAlerts() },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Got it", style = AmazeTheme.typography.smallLabel)
+                            }
+                        }
                     }
 
-                    if (!isLoading && syncError != null && currentScreen != Screen.LOGIN) {
-                        AlertDialog(
-                            onDismissRequest = { AppState.dismissError() },
-                            containerColor = colors.surface,
-                            shape = RoundedCornerShape(24.dp),
-                            title = {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
+                    // One-time alert when the FFCS registration slot appears or changes
+                    val pendingFfcs by AppState.pendingFfcsAlert.collectAsState()
+                    com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet(
+                        isOpen = pendingFfcs != null && currentScreen != Screen.LOGIN,
+                        onDismiss = { AppState.dismissFfcsAlert() },
+                        title = "FFCS Registration Coming Up",
+                        dismissable = true
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                            Text(
+                                "Your FFCS course registration slot has been scheduled:",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .background(colors.accent.copy(alpha = 0.10f), RoundedCornerShape(10.dp)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        "Sync Error",
-                                        style = AmazeTheme.typography.subheading.copy(
-                                            fontWeight = FontWeight.Bold,
-                                            color = colors.dangerText
-                                        )
+                                    Icon(
+                                        Icons.Rounded.HowToReg,
+                                        null,
+                                        tint = colors.accent,
+                                        modifier = Modifier.size(18.dp)
                                     )
-                                    IconButton(onClick = { AppState.dismissError() }) {
-                                        Icon(Icons.Rounded.Close, "Dismiss", tint = colors.textSecondary)
-                                    }
                                 }
-                            },
-                            text = {
+                                Spacer(Modifier.width(12.dp))
                                 Column {
                                     Text(
-                                        "Some data failed to sync. You can copy the details below or report the issue to the developer.",
+                                        pendingFfcs?.date.orEmpty(),
+                                        style = AmazeTheme.typography.body.copy(
+                                            fontWeight = FontWeight.Bold,
+                                            color = colors.textPrimary
+                                        )
+                                    )
+                                    Text(
+                                        buildString {
+                                            append("Registration slot: ")
+                                            if (!pendingFfcs?.fromTime.isNullOrBlank()) append(pendingFfcs?.fromTime)
+                                            if (!pendingFfcs?.toTime.isNullOrBlank()) {
+                                                if (isNotEmpty()) append(" - ")
+                                                append(pendingFfcs?.toTime)
+                                            }
+                                        },
                                         style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
                                     )
-                                    Spacer(Modifier.height(12.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .heightIn(max = 250.dp)
-                                            .background(colors.background, RoundedCornerShape(12.dp))
-                                            .padding(12.dp)
-                                            .verticalScroll(rememberScrollState())
-                                    ) {
-                                        Text(
-                                            text = syncError ?: "",
-                                            style = AmazeTheme.typography.smallLabel.copy(
-                                                fontFamily = FontFamily.Monospace,
-                                                fontSize = AmazeTheme.fontSize.xs,
-                                                color = colors.dangerText
-                                            )
-                                        )
-                                    }
-                                }
-                            },
-                            confirmButton = {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            clipboardManager.setText(AnnotatedString(syncError ?: ""))
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Copy", style = AmazeTheme.typography.smallLabel)
-                                    }
-                                    Button(
-                                        onClick = {
-                                            val report = "AmazeCC Error Report\n\n${syncError ?: ""}\n\n---\nApp: AmazeCC\nPlatform: Android"
-                                            clipboardManager.setText(AnnotatedString(report))
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    ) {
-                                        Icon(Icons.Rounded.BugReport, null, modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(6.dp))
-                                        Text("Report", style = AmazeTheme.typography.smallLabel)
-                                    }
                                 }
                             }
-                        )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "You'll be reminded a day before and on the day of registration.",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Button(
+                                onClick = { AppState.dismissFfcsAlert() },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Got it", style = AmazeTheme.typography.smallLabel)
+                            }
+                        }
+                    }
+
+                    com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet(
+                        isOpen = !isLoading && syncError != null && currentScreen != Screen.LOGIN,
+                        onDismiss = { AppState.dismissError() },
+                        title = "Sync Error",
+                        dismissable = true
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+                            Text(
+                                "Some data failed to sync. You can copy the details below or report the issue to the developer.",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 250.dp)
+                                    .background(colors.background, RoundedCornerShape(12.dp))
+                                    .padding(12.dp)
+                                    .verticalScroll(rememberScrollState())
+                            ) {
+                                Text(
+                                    text = syncError ?: "",
+                                    style = AmazeTheme.typography.smallLabel.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = AmazeTheme.fontSize.xs,
+                                        color = colors.dangerText
+                                    )
+                                )
+                            }
+                            Spacer(Modifier.height(16.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                OutlinedButton(
+                                    onClick = {
+                                        clipboardManager.setText(AnnotatedString(syncError ?: ""))
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Rounded.ContentCopy, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Copy", style = AmazeTheme.typography.smallLabel)
+                                }
+                                Button(
+                                    onClick = {
+                                        val report = "AmazeCC Error Report\n\n${syncError ?: ""}\n\n---\nApp: AmazeCC\nPlatform: Android"
+                                        clipboardManager.setText(AnnotatedString(report))
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Rounded.BugReport, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Report", style = AmazeTheme.typography.smallLabel)
+                                }
+                            }
+                        }
                     }
                 }
             }

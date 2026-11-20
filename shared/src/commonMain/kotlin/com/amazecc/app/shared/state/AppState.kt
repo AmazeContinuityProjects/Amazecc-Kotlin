@@ -67,7 +67,7 @@ enum class Screen { SPLASH,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
     COURSE_ATTENDANCE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
     FACULTY_INFO,
-    FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, CLUB_DETAIL,
+    FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, CONTACTS, ABOUT, CLUB_DETAIL,
     COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB, TASKS, EXAM_SCHEDULE,
     CHANGELOG, HALL_OF_FAME
 }
@@ -227,6 +227,17 @@ object AppState {
             SettingsManager.setString(SettingsManager.KEY_UPDATE_DISMISSED_VERSION, ver)
             _updateStatus.value = UpdateStatus.Idle
         }
+    }
+
+    /**
+     * D-112: clear a settled update status when its check sheet is dismissed. The
+     * sheet's callers only clear their own local visibility flag, so without this
+     * an Error (or UpToDate) status survives in AppState and reappears the next
+     * time the sheet opens. Deliberately does not touch updateDialogDismissedVersion
+     * or the Available hand-off owned by [dismissUpdateDialog].
+     */
+    fun clearUpdateStatus() {
+        _updateStatus.value = UpdateStatus.Idle
     }
 
     fun checkForUpdate(force: Boolean = false) {

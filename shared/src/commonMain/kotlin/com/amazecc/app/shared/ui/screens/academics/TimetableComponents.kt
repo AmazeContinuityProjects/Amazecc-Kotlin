@@ -8,8 +8,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,6 +23,9 @@ import com.amazecc.app.shared.state.AcademicDerivers.embeddedComponentLabel
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeCard
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 
 @Composable
 fun TimetableCard(code: String, title: String, faculty: String, venue: String, slotCode: String, onClick: () -> Unit = {}) {
@@ -65,36 +66,24 @@ fun TimetableDialog(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.5f))
-            .clickable(onClick = onDismiss),
-        contentAlignment = Alignment.Center
-    ) {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .heightIn(max = 600.dp)
-                .clickable(enabled = false) {},
-            shape = RoundedCornerShape(AmazeTheme.radius.large),
-            color = colors.background,
-            tonalElevation = 4.dp
+    // D-112 follow-up: replace the hand-rolled centered Box modal with the shared
+    // bottom-sheet primitive. X, swipe-down, backdrop tap, Escape and system back
+    // all funnel through onDismiss, so the caller's visibility flag is cleared on
+    // every dismissal route. No call site currently exists in Kotlin source — the
+    // legacy screen that used it was removed in commit 9003933.
+    AmazeM3ETheme(isDark = M3EStateBridge.isDarkThemeActive()) {
+        M3EDismissibleSheet(
+            isOpen = true,
+            onDismiss = onDismiss,
+            title = "Weekly Timetable"
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Weekly Timetable", style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary))
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Rounded.Close, null, tint = colors.textSecondary)
-                    }
-                }
-
-                Spacer(Modifier.height(AmazeTheme.spacing.sm))
-
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 600.dp)
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 16.dp)
+            ) {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(days, key = { it }) { day ->
                         val isSelected = selectedDay == day
