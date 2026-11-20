@@ -3,7 +3,6 @@ package com.amazecc.app.shared.ui.screens.m3e
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.amazecc.app.shared.state.AttendanceDisplayMode
-import com.amazecc.app.shared.state.DashboardWidget
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AppTheme
@@ -48,7 +47,6 @@ data class M3EOnboardingState(
     // Modules & home screen
     val availableModules: List<Screen>,
     val selectedModules: List<Screen>,
-    val widgetOrder: List<DashboardWidget>,
 
     // Optional account linking
     val moodleUser: String,
@@ -133,9 +131,8 @@ sealed interface M3EOnboardingAction {
     data class SetExamNotif(val enabled: Boolean) : M3EOnboardingAction
     data class SetNotifOffset(val minutes: Int) : M3EOnboardingAction
 
-    // Modules & widgets
+    // Modules
     data class ToggleModule(val module: Screen) : M3EOnboardingAction
-    data class ToggleWidget(val widget: DashboardWidget) : M3EOnboardingAction
 
     // Accounts
     data class SetMoodleUser(val value: String) : M3EOnboardingAction

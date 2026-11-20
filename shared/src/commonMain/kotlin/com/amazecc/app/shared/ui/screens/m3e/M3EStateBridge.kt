@@ -17,6 +17,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.api.SyllabusResult
+import com.amazecc.app.shared.domain.ClassStats
+import com.amazecc.app.shared.domain.asCurveStats
+import com.amazecc.app.shared.model.batchClassStats
 import com.amazecc.app.shared.utils.ExportImportManager
 import com.amazecc.app.shared.utils.currentAppIconTheme
 import com.amazecc.app.shared.utils.rememberFileImporter
@@ -881,16 +884,32 @@ fun M3EMarksPredictorScreen(modifier: Modifier = Modifier) {
     val currentSem = domain.academics.semesters[selectedSemId]
     val rawCourses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
 
+    // Real cohort curves (D-012). No class data -> the derivation keeps the absolute ladder.
+    var curveStats by remember { mutableStateOf<Map<String, ClassStats>>(emptyMap()) }
+    val curveClassIds = remember(rawCourses) {
+        rawCourses.mapNotNull { c -> c.marks?.classNbr ?: c.classId }.distinct().take(100)
+    }
+    LaunchedEffect(curveClassIds) {
+        if (curveClassIds.isEmpty()) return@LaunchedEffect
+        val envelope = AmazeClient.getServiceCurvesByClassIds(curveClassIds)
+        curveStats = envelope?.batchClassStats()
+            ?.mapValues { it.value.asCurveStats() }
+            ?.filterValues { it != null }
+            ?.mapValues { it.value!! }
+            ?: emptyMap()
+    }
+
     var selectedCourseCode by remember { mutableStateOf<String?>(null) }
     // Only explicit user overrides live here. Reset returns to the grade VTOP actually published,
     // never to a made-up default letter.
     val gradesMap = remember { mutableStateMapOf<String, String>() }
 
     // Copy real marks out of the snapshot; the pure derivation owns every displayed number.
-    val predictorInputs = remember(rawCourses) {
+    val predictorInputs = remember(rawCourses, curveStats) {
         rawCourses.map { c ->
             M3EPredictorDerivation.CourseInput(
                 code = c.code,
+                classStats = curveStats[c.marks?.classNbr ?: c.classId],
                 title = c.title,
                 credits = c.credits?.toIntOrNull() ?: 3,
                 publishedGrade = c.grade?.letter,
@@ -918,7 +937,7 @@ fun M3EMarksPredictorScreen(modifier: Modifier = Modifier) {
             val internal = M3EPredictorDerivation.internalMarks(input.assessments)
             val requiredFat = internal?.let { (scored, max) ->
                 if (grade.isBlank()) null
-                else M3EPredictorDerivation.requiredFatPercentage(scored, max, grade)
+                else M3EPredictorDerivation.requiredFatPercentage(scored, max, grade, input.classStats)
             }
             M3ECoursePredictionItem(
                 courseCode = input.code,

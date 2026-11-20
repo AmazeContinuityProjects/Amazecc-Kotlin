@@ -1,6 +1,8 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import com.amazecc.app.shared.domain.ClassStats
 import com.amazecc.app.shared.domain.GradeHistory
+import com.amazecc.app.shared.domain.buildGradeBoundaries
 import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
 import kotlin.math.max
@@ -22,7 +24,9 @@ internal object M3EPredictorDerivation {
         val title: String,
         val credits: Int,
         val publishedGrade: String?,
-        val assessments: List<M3EAssessmentItem>
+        val assessments: List<M3EAssessmentItem>,
+        /** Real cohort curve from /api/services/curves; null keeps the absolute ladder. */
+        val classStats: ClassStats? = null
     )
 
     private val gradeCutoffs = mapOf(
@@ -33,7 +37,19 @@ internal object M3EPredictorDerivation {
     fun pointsFor(grade: String?): Int? = GradeHistory.gradePoints(grade)
 
     /** Cutoff used by the web predictor for a target letter, or null for an unknown letter. */
-    fun cutoffFor(grade: String?): Double? = grade?.trim()?.uppercase()?.let { gradeCutoffs[it] }
+    fun cutoffFor(grade: String?): Double? = cutoffFor(grade, null)
+
+    /**
+     * Cutoff for [grade], relative to the real cohort curve when one is available.
+     * With no usable class data this is the absolute v5.0 ladder, never a made-up number.
+     */
+    fun cutoffFor(grade: String?, classStats: ClassStats?): Double? {
+        val letter = grade?.trim()?.uppercase() ?: return null
+        if (classStats != null) {
+            return buildGradeBoundaries(classStats).firstOrNull { it.grade == letter }?.limit
+        }
+        return gradeCutoffs[letter]
+    }
 
     /**
      * Weighted internal marks actually scored vs the maximum obtainable from the published
@@ -68,9 +84,10 @@ internal object M3EPredictorDerivation {
     fun requiredFatPercentage(
         internalScored: Double,
         internalMax: Double,
-        targetGrade: String
+        targetGrade: String,
+        classStats: ClassStats? = null
     ): Double? {
-        val cutoff = cutoffFor(targetGrade) ?: return null
+        val cutoff = cutoffFor(targetGrade, classStats) ?: return null
         val fatWeight = 100.0 - internalMax
         val deficit = max(0.0, cutoff - internalScored)
         val required = if (fatWeight <= 0.0) 0.0 else (deficit / fatWeight) * 100.0

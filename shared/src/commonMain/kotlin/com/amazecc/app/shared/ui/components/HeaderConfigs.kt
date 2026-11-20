@@ -257,12 +257,5 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showSyncButton = false,
         onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
-    Screen.HOME_LEGACY -> HeaderConfig(
-        title = "Classic Dashboard",
-        description = "The original widget home — tap the tiles to rearrange them",
-        showBackButton = true,
-        showSyncButton = true,
-        onRefresh = AppState::refreshCurrentSemester
-    )
     Screen.SPLASH, Screen.LOGIN, Screen.ONBOARDING, Screen.HOME, Screen.MORE -> null
 }

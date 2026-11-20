@@ -48,18 +48,28 @@ import com.amazecc.app.shared.config.SlotMap
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
-/** Legacy Next.js API host. The Hono host does not mount the Koha routes, so Koha calls
- * probe this host as a failover when the primary returns a non-2xx status or a
- * `success: false` body (the classic `{"success":false,"error":"Not found"}` 404). */
+/** Legacy Next.js API host. Hono mounts no Koha router (D-094), so Koha calls probe this host
+ * directly; a 4xx from it is an authoritative answer and is never re-asked elsewhere. */
 private const val LEGACY_API_BASE_URL = "https://api.amazecc.com"
 
-/** One host's outcome for a Koha probe. Kept public to the module so headless JVM tests can
- * drive the failover ordering without touching the network. */
+/** One host's outcome for a Koha probe. `httpStatus == 0` means a transport/timeout exception.
+ * Kept internal so headless JVM tests can drive failover ordering without touching the network. */
 internal data class KohaProbe<T>(val httpStatus: Int, val value: T?, val error: String?)
 
-/** Pure gate: a response is only usable on a 2xx status AND a success-looking payload. */
+/** 5xx statuses the web registry fails over on (`FAIL_STATUSES` in `src/lib/apis/registry.ts`). */
+internal val KOHA_FAILOVER_STATUSES: Set<Int> = setOf(500, 502, 503, 504)
+
+/**
+ * D-014: only a transport failure (status 0) or a 5xx justifies trying another host.
+ *
+ * A 401/4xx is an answer — re-asking it elsewhere burns VTOP login attempts — and a 2xx whose
+ * body reports `success:false` is likewise an answer. [reportedSuccess] is therefore deliberately
+ * *not* a failover trigger; it is kept in the signature so callers/tests can state the payload's
+ * usability at the decision point.
+ */
+@Suppress("UNUSED_PARAMETER")
 internal fun kohaShouldFailOver(httpStatus: Int, reportedSuccess: Boolean): Boolean =
-    httpStatus !in 200..299 || !reportedSuccess
+    httpStatus == 0 || httpStatus in KOHA_FAILOVER_STATUSES
 
 /** Prefer the server's `error`, then its `message`, then a stable local fallback. */
 internal fun kohaErrorMessage(error: String?, message: String?): String =
@@ -84,9 +94,13 @@ internal fun effectiveSemester(
         ?: firstAcademic?.takeIf { it.isNotBlank() }
 
 /**
- * Try each host in order and return the first usable decoded value. A transport exception on
- * one host only moves us to the next. When every host fails, [fallback] receives the last real
- * error message so the UI can render why the request failed instead of a blank screen.
+ * Try each host in order and return the first 2xx with a usable decoded value.
+ *
+ * D-014: only 5xx / transport failures move to the next host. A 4xx (including 401) and an
+ * unusable 2xx are authoritative answers — we stop and hand their error to [fallback] rather
+ * than burning another VTOP request elsewhere. When every tried host fails, [fallback] receives
+ * the last real error message so the UI can render why the request failed instead of a blank
+ * screen.
  */
 internal suspend fun <T> kohaWithFailover(
     hosts: List<String>,
@@ -97,10 +111,15 @@ internal suspend fun <T> kohaWithFailover(
     var lastError: String? = null
     for (host in hosts) {
         val probe = try { fetch(host) } catch (_: Exception) { null }
-        if (probe == null) continue
+        if (probe == null) {
+            // No response at all: a transport failure, not an answer.
+            lastError = kohaErrorMessage(null, null)
+            continue
+        }
         val value = probe.value
-        if (value != null && !kohaShouldFailOver(probe.httpStatus, isUsable(value))) return value
+        if (probe.httpStatus in 200..299 && value != null && isUsable(value)) return value
         lastError = kohaErrorMessage(probe.error, null)
+        if (!kohaShouldFailOver(probe.httpStatus, value?.let(isUsable) ?: false)) break
     }
     return fallback(lastError)
 }
@@ -638,9 +657,9 @@ object AmazeClient {
      */
     fun setApiTarget(target: com.amazecc.app.shared.domain.ApiTarget) {
         target.url?.let { baseUrl = it }
-        if (target != com.amazecc.app.shared.domain.ApiTarget.CUSTOM) {
-            SettingsManager.setApiTargetName(target.name)
-        }
+        // Persist CUSTOM too: mountedPost reads getApiTargetName() to decide whether to inject the
+        // custom URL. Skipping it made the CUSTOM picker option a no-op for mount-routed ops.
+        SettingsManager.setApiTargetName(target.name)
     }
 
     fun setUseMockData(enable: Boolean) {
@@ -3479,16 +3498,79 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
         return out
     }
 
-    // ── D-108: service endpoints that previously had no Kotlin callers ──────────
-    // These return the raw JSON envelope intentionally: typed curve/grade models belong to the
-    // D-005/D-012 work. Having callers here keeps the mounts exercised and testable.
+    // ── Declarative mount routing (D-015) ────────────────────────────────────────
+
+    /**
+     * Resolve the ordered mounts for one operation and try each in turn.
+     *
+     * Only a 5xx or a transport failure moves to the next mount — a 4xx (including 401) is a
+     * final answer, the same rule [kohaWithFailover] uses (D-014). [auth] both selects the
+     * credential strategy (VTOP body credentials vs Amaze ID Authorization header) and filters
+     * which mounts are eligible via [com.amazecc.app.shared.domain.ApiMounts.resolve].
+     */
+    internal suspend fun <T> mountedPost(
+        op: String,
+        auth: com.amazecc.app.shared.domain.ApiAuth,
+        body: () -> JsonObject?,
+        decode: (String) -> T?,
+    ): T? {
+        val target = com.amazecc.app.shared.domain.ApiTarget.fromName(SettingsManager.getApiTargetName())
+        val candidates = com.amazecc.app.shared.domain.ApiMounts.resolve(
+            op = op,
+            auth = auth,
+            preferredId = target.mountId,
+            customBaseUrl = if (target == com.amazecc.app.shared.domain.ApiTarget.CUSTOM) baseUrl else null,
+        )
+        for (candidate in candidates) {
+            // No VTOP session means this auth strategy cannot be honoured by any mount.
+            val payload = if (candidate.method == "GET") null else (body() ?: continue)
+            val status = try {
+                val response: HttpResponse = httpClient.request(candidate.url) {
+                    method = if (candidate.method == "GET") HttpMethod.Get else HttpMethod.Post
+                    contentType(ContentType.Application.Json)
+                    if (auth == com.amazecc.app.shared.domain.ApiAuth.AMAZE_ID) attachAmazeIdAuth()
+                    if (payload != null) setBody(payload.toString())
+                }
+                val code = response.status.value
+                if (code == 401) markAmazeAuthRequired(response.status)
+                if (code in 200..299) {
+                    val text = response.bodyAsText()
+                    if (text.isNotBlank()) decode(text)?.let { return it }
+                }
+                code
+            } catch (_: Exception) {
+                0
+            }
+            if (!kohaShouldFailOver(status, false)) break
+        }
+        return null
+    }
+
+    /** VTOP credentials in the body for service ops that use the classic session contract. */
+    private fun vtopServiceBody(extra: JsonObjectBuilder.() -> Unit): JsonObject? {
+        if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
+        if (!SessionManager.hasRemoteCookies) return null
+        val cookies = SessionManager.cookies.value ?: return null
+        val authorizedID = SessionManager.authorizedID.value ?: return null
+        val csrf = SessionManager.csrf.value ?: return null
+        return buildJsonObject {
+            put("cookies", cookies)
+            put("authorizedID", authorizedID)
+            put("csrf", csrf)
+            extra()
+        }
+    }
+
+    // ── D-108 service endpoints, now typed through the mount list (D-012/D-015) ──
 
     suspend fun getServiceEnroll(semesterId: String? = null): JsonObject? {
         if (useMockData || vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
-        return try {
-            val params = semesterId?.let { mapOf("semesterId" to it) }.orEmpty()
-            postAuthorized<JsonObject>("services/enroll", params)
-        } catch (_: Exception) { null }
+        return mountedPost(
+            op = "enroll",
+            auth = com.amazecc.app.shared.domain.ApiAuth.VTOP,
+            body = { vtopServiceBody { semesterId?.let { put("semesterId", it) } } },
+            decode = { runCatching { jsonConfig.decodeFromString<JsonObject>(it) }.getOrNull() },
+        )
     }
 
     /**
@@ -3496,31 +3578,59 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
      * `courseCode` field. The legacy parameter name is kept for source compatibility but is sent
      * as `classId` so the request is actually accepted.
      */
-    suspend fun getServiceCurves(courseCode: String, semesterId: String? = null): JsonObject? {
+    suspend fun getServiceCurves(courseCode: String, semesterId: String? = null): CurvesEnvelopeDto? {
         if (useMockData || vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
-        return try {
-            postAuthorized<JsonObject>("services/curves", curvesParams(courseCode, semesterId))
-        } catch (_: Exception) { null }
+        val useAmazeId = SessionManager.hasAmazeIdAuth
+        return mountedPost(
+            op = "curves",
+            auth = if (useAmazeId) com.amazecc.app.shared.domain.ApiAuth.AMAZE_ID
+                   else com.amazecc.app.shared.domain.ApiAuth.VTOP,
+            body = authBody@ {
+                val creds = (if (useAmazeId) JsonObject(emptyMap()) else vtopServiceBody { })
+                    ?: return@authBody null
+                buildJsonObject {
+                    creds.forEach { (k, v) -> put(k, v) }
+                    put("classId", courseCode)
+                    semesterId?.let { put("semesterId", it) }
+                }
+            },
+            decode = { runCatching { jsonConfig.decodeFromString<CurvesEnvelopeDto>(it) }.getOrNull() },
+        )
     }
 
     /** Batch variant using the API's `classIds: string[]` field (max 100 ids server-side). */
-    suspend fun getServiceCurvesByClassIds(classIds: List<String>, semesterId: String? = null): JsonObject? {
+    suspend fun getServiceCurvesByClassIds(
+        classIds: List<String>,
+        semesterId: String? = null,
+    ): CurvesEnvelopeDto? {
         if (useMockData || vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
-        return try {
-            val body = buildJsonObject {
-                put("classIds", buildJsonArray { classIds.take(100).forEach { add(JsonPrimitive(it)) } })
-                semesterId?.let { put("semesterId", it) }
-            }.toString()
-            postAuthorizedBody<JsonObject>("services/curves", body)
-        } catch (_: Exception) { null }
+        val useAmazeId = SessionManager.hasAmazeIdAuth
+        return mountedPost(
+            op = "curves",
+            auth = if (useAmazeId) com.amazecc.app.shared.domain.ApiAuth.AMAZE_ID
+                   else com.amazecc.app.shared.domain.ApiAuth.VTOP,
+            body = authBody@ {
+                val creds = (if (useAmazeId) JsonObject(emptyMap()) else vtopServiceBody { })
+                    ?: return@authBody null
+                buildJsonObject {
+                    creds.forEach { (k, v) -> put(k, v) }
+                    put("classIds", buildJsonArray { classIds.take(100).forEach { add(JsonPrimitive(it)) } })
+                    semesterId?.let { put("semesterId", it) }
+                }
+            },
+            decode = { runCatching { jsonConfig.decodeFromString<CurvesEnvelopeDto>(it) }.getOrNull() },
+        )
     }
 
-    suspend fun getMarksTokens(semesterId: String? = null): JsonObject? {
+    /** `POST /api/services/marks/tokens` — the server-held HMAC presence tokens. */
+    suspend fun getMarksTokens(semesterId: String? = null): MarksTokensEnvelopeDto? {
         if (useMockData || vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
-        return try {
-            val params = semesterId?.let { mapOf("semesterId" to it) }.orEmpty()
-            postAuthorized<JsonObject>("services/marks/tokens", params)
-        } catch (_: Exception) { null }
+        return mountedPost(
+            op = "marks/tokens",
+            auth = com.amazecc.app.shared.domain.ApiAuth.VTOP,
+            body = { vtopServiceBody { semesterId?.let { put("semesterId", it) } } },
+            decode = { runCatching { jsonConfig.decodeFromString<MarksTokensEnvelopeDto>(it) }.getOrNull() },
+        )
     }
 
     suspend fun getCoursePage(courseCode: String, semesterId: String? = null): JsonObject? {

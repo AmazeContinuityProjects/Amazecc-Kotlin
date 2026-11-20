@@ -23,7 +23,6 @@ fun SettingsHub(
     val activeAccent by AppState.accent.collectAsState()
     val uiScale by AppState.uiScale.collectAsState()
     val pinnedTabs by AppState.pinnedNavTabs.collectAsState()
-    val widgetOrder by AppState.widgetOrder.collectAsState()
     val selectedSemester by AppState.selectedSemester.collectAsState()
     val semesterMap by AppState.semesterMap.collectAsState()
     var version by remember { mutableStateOf("") }
@@ -35,7 +34,7 @@ fun SettingsHub(
         SettingsSubScreen.APPEARANCE -> "${themeLabel(activeTheme)} · ${accentLabel(activeAccent)}"
         SettingsSubScreen.PALETTE -> null
         SettingsSubScreen.DISPLAY -> "${(uiScale * 100).toInt()}%"
-        SettingsSubScreen.DASHBOARD -> "${widgetOrder.size} widget${if (widgetOrder.size != 1) "s" else ""}"
+        SettingsSubScreen.DASHBOARD -> null
         SettingsSubScreen.BOTTOM_NAV -> "${pinnedTabs.size}/4 tabs"
         SettingsSubScreen.ACADEMICS -> semesterMap[selectedSemester] ?: selectedSemester
         SettingsSubScreen.DATA_SYNC -> {

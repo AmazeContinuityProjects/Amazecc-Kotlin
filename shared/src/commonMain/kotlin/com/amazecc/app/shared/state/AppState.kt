@@ -63,32 +63,13 @@ enum class AttendanceDisplayMode(val value: String) {
 private val REG_FIELD_NAMES = setOf("username", "date", "fromtime", "totime")
 
 enum class Screen { SPLASH,
-    LOGIN, ONBOARDING, HOME, HOME_LEGACY, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
+    LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
     EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
     COURSE_ATTENDANCE, CIRCULARS, CURRICULUM, OD_TRACKER, COURSE_DASHBOARD,
     FACULTY_INFO,
     FEEDBACK_STATUS, FRESHER_WELCOME, DOCUMENTS, ABOUT, CLUB_DETAIL,
     COURSE_DETAIL, SETTINGS, MOODLE, CLUB_HUB, TASKS, EXAM_SCHEDULE,
     CHANGELOG, HALL_OF_FAME
-}
-
-/**
- * Which home the Home tab opens.
- *
- * [SIMPLIFIED] is the current default: a greeting, two stat tiles, the week
- * strip and the day's sessions. [CLASSIC] is the widget dashboard it replaced —
- * deprecate means deprecate, not delete, so it stays a first-class screen
- * ([Screen.HOME_LEGACY]) with its own widget ordering intact and is reachable
- * from the App Library and from Settings → Dashboard Layout.
- */
-enum class HomeViewMode(val value: String) {
-    SIMPLIFIED("simplified"),
-    CLASSIC("classic");
-
-    companion object {
-        fun fromString(raw: String?): HomeViewMode =
-            entries.firstOrNull { it.value == raw } ?: SIMPLIFIED
-    }
 }
 
 /**
@@ -197,22 +178,6 @@ object AppState {
     val heroColorEnabled: StateFlow<Boolean> = _heroColorEnabled.asStateFlow()
 
     // ── Home screen ──
-
-    private val _homeViewMode = MutableStateFlow(
-        HomeViewMode.fromString(SettingsManager.getString(SettingsManager.KEY_HOME_VIEW_MODE).takeIf { it.isNotBlank() })
-    )
-    val homeViewMode: StateFlow<HomeViewMode> = _homeViewMode.asStateFlow()
-
-    /** True when the Home tab should render the simplified screen rather than the widget dashboard. */
-    val homeUsesSimplified: Boolean get() = _homeViewMode.value == HomeViewMode.SIMPLIFIED
-
-    fun setHomeViewMode(mode: HomeViewMode) {
-        _homeViewMode.value = mode
-        SettingsManager.setString(SettingsManager.KEY_HOME_VIEW_MODE, mode.value)
-    }
-
-    /** Opens the widget dashboard directly, leaving the Home tab's default alone. */
-    fun openClassicHome() = navigateTo(Screen.HOME_LEGACY)
 
     private val _homePillStyle = MutableStateFlow(
         HomePillStyle.fromString(SettingsManager.getString(SettingsManager.KEY_HOME_PILL_STYLE).takeIf { it.isNotBlank() })
@@ -1009,6 +974,19 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             AppBackStack.pop()
         }
         _currentScreen.value = screen
+    }
+
+    /**
+     * D-055: second tap on the active tab returns to that section's root.
+     * [collapseFirstTap] folds the first-tap history entry; either way the section's sub-view
+     * is reset to its landing value, so the user never lands in a stale detail screen.
+     */
+    fun goToSectionRoot(screen: Screen, collapseFirstTap: Boolean) {
+        if (collapseFirstTap) navigateBackTo(screen) else navigateTo(screen)
+        when (screen) {
+            Screen.ATTENDANCE -> resetAttendanceView()
+            else -> Unit
+        }
     }
 
     fun navigateBack(): Boolean {
@@ -3810,103 +3788,6 @@ fun updateMoodleData(data: MoodleRes?) {
         }
     }
 
-    private val _widgetOrder = MutableStateFlow<List<DashboardWidget>>(loadWidgetOrder())
-    val widgetOrder: StateFlow<List<DashboardWidget>> = _widgetOrder.asStateFlow()
-
-    private val _dashboardEditMode = MutableStateFlow(false)
-    val dashboardEditMode: StateFlow<Boolean> = _dashboardEditMode.asStateFlow()
-    val isDashboardEditMode: StateFlow<Boolean> = _dashboardEditMode.asStateFlow()
-
-    fun toggleDashboardEditMode() {
-        _dashboardEditMode.value = !_dashboardEditMode.value
-    }
-
-    fun updateWidgetOrder(newOrder: List<DashboardWidget>) {
-        _widgetOrder.value = newOrder
-        saveWidgetOrder(newOrder)
-    }
-
-    fun moveWidgetUp(widget: DashboardWidget) {
-        val current = _widgetOrder.value.toMutableList()
-        val index = current.indexOf(widget)
-        if (index > 0) {
-            val item = current.removeAt(index)
-            current.add(index - 1, item)
-            updateWidgetOrder(current)
-        }
-    }
-
-    fun moveWidgetDown(widget: DashboardWidget) {
-        val current = _widgetOrder.value.toMutableList()
-        val index = current.indexOf(widget)
-        if (index >= 0 && index < current.size - 1) {
-            val item = current.removeAt(index)
-            current.add(index + 1, item)
-            updateWidgetOrder(current)
-        }
-    }
-
-    fun removeWidget(widget: DashboardWidget) {
-        val current = _widgetOrder.value.filter { it != widget }
-        updateWidgetOrder(current)
-    }
-
-    fun reorderWidget(fromIndex: Int, toIndex: Int) {
-        val current = _widgetOrder.value.toMutableList()
-        if (fromIndex in current.indices && toIndex in current.indices) {
-            val item = current.removeAt(fromIndex)
-            current.add(toIndex, item)
-            updateWidgetOrder(current)
-        }
-    }
-
-    fun resetWidgetsToDefault() {
-        updateWidgetOrder(DashboardWidget.entries)
-    }
-
-    fun setWidgetEnabled(widget: DashboardWidget, enabled: Boolean) {
-        if (enabled) {
-            restoreWidget(widget)
-        } else {
-            removeWidget(widget)
-        }
-    }
-
-    fun restoreWidget(widget: DashboardWidget) {
-        if (widget !in _widgetOrder.value) {
-            val newOrder = _widgetOrder.value + widget
-            _widgetOrder.value = newOrder
-            saveWidgetOrder(newOrder)
-        }
-    }
-
-    private fun loadWidgetOrder(): List<DashboardWidget> {
-        val raw = SettingsManager.getString(SettingsManager.KEY_DASHBOARD_WIDGETS) ?: return DashboardWidget.entries
-        if (raw.isBlank()) return DashboardWidget.entries
-        return try {
-            raw.split(",").mapNotNull { name ->
-                when (name.trim()) {
-                    // CURRENT_NEXT_CLASS + EXAM_ALERT merged into one widget
-                    "CURRENT_NEXT_CLASS" -> DashboardWidget.EXAM_AND_CLASS
-                    "EXAM_ALERT" -> null
-                    else -> try { DashboardWidget.valueOf(name.trim()) } catch (_: Exception) { null }
-                }
-            }.distinct().ifEmpty { DashboardWidget.entries }
-        } catch (_: Exception) {
-            DashboardWidget.entries
-        }
-    }
-
-    private fun saveWidgetOrder(order: List<DashboardWidget>) {
-        val raw = order.joinToString(",") { it.name }
-        SettingsManager.setString(SettingsManager.KEY_DASHBOARD_WIDGETS, raw)
-    }
-
-    /** Re-reads the persisted widget order (e.g. after importing a backup). */
-    fun reloadWidgetOrder() {
-        _widgetOrder.value = loadWidgetOrder()
-    }
-
     fun setHeaderOverride(
         config: com.amazecc.app.shared.ui.components.HeaderConfig,
         enabledScreens: Set<Screen>? = null
@@ -3971,17 +3852,6 @@ fun updateMoodleData(data: MoodleRes?) {
             updateSyncSummary(listOf(result))
         }
     }
-}
-
-enum class DashboardWidget {
-    PROFILE_HEADER,
-    METRIC_CARDS,
-    EXAM_AND_CLASS,
-    ATTENDANCE_BUNK,
-    TODAYS_CLASSES,
-    COURSE_ATTENDANCE,
-    QUICK_ACTIONS,
-    FREE_CLASSROOMS
 }
 
 /**

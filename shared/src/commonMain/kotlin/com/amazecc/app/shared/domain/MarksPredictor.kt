@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.domain
 
+import com.amazecc.app.shared.model.CurvesClassStatsDto
 import kotlin.math.PI
 import kotlin.math.ceil
 import kotlin.math.exp
@@ -608,6 +609,38 @@ fun estimateGrade(score: Double): EstimatedGrade = estimated(gradeAt(score))
 fun estimateGrade(score: Double, classStats: ClassStats?): EstimatedGrade =
     estimated(gradeAt(score, buildGradeBoundaries(classStats, relative = true)))
 
+// ── Curve input from the cohort-statistics API (D-012) ────────────────────────
+
+/**
+ * Bridge from the [CurvesClassStatsDto] fetched from `POST /api/services/curves` into the
+ * predictor's curve input. The API publishes `{count, mean: 0, sd: 0}` for classes below
+ * [MIN_CURVE_SAMPLE]; that is *no data*, not a curve centred on zero, so it maps to null and the
+ * caller falls back to the absolute ladder.
+ */
+fun CurvesClassStatsDto.asCurveStats(): ClassStats? {
+    if (count < MIN_CURVE_SAMPLE) return null
+    if (!mean.isFinite() || !sd.isFinite() || sd < 0.0) return null
+    return ClassStats(count = count, mean = mean, sd = sd)
+}
+
+/**
+ * The single seam a UI/caller uses to turn a course total into a grade with cohort data.
+ *
+ * Curves apply only to relative-graded courses (theory / embedded, per [isRelativeGrading]).
+ * Passing a [courseSystem] of `null` opts out of curving entirely — that is the historic,
+ * absolute-ladder behaviour every pre-curve caller keeps. A missing/unusable [stats] also falls
+ * back to absolute, so this function is total over any API payload.
+ */
+fun estimateGradeWithCurve(
+    score: Double,
+    stats: CurvesClassStatsDto?,
+    courseSystem: String?,
+    courseType: String?,
+): EstimatedGrade {
+    if (courseSystem == null || !isRelativeGrading(courseSystem, courseType)) return estimateGrade(score)
+    return estimateGrade(score, stats?.asCurveStats())
+}
+
 // ── Course-level prediction ───────────────────────────────────────────────────
 
 /**
@@ -631,7 +664,22 @@ fun computeCoursePrediction(
     theoryCredits: Double = 3.0,
     labCredits: Double = 1.0,
     projectCredits: Double = 0.0,
+    /**
+     * The grading system VTOP publishes (e.g. "ACE"), as the web predictor's `courseSystem`.
+     * `null` keeps the historic absolute ladder. A non-null value opts a curve-eligible course
+     * into [classStats] — see D-005/D-012.
+     */
+    courseSystem: String? = null,
+    /** Cohort curve for this course's class, from `CurvesClassStatsDto.asCurveStats()`. */
+    classStats: ClassStats? = null,
 ): CoursePredictionResult {
+    // One ladder for the whole prediction, exactly like the web `computeCoursePrediction`.
+    // buildGradeBoundaries falls back to ABSOLUTE_GRADE_BOUNDARIES when there is no curve data
+    // or the course is not relative-graded, so every existing caller keeps its old grades.
+    val relativeEligible = courseSystem != null && isRelativeGrading(courseSystem, courseType)
+    val boundaries = buildGradeBoundaries(classStats, relative = relativeEligible)
+    val gradeOf: (Double) -> EstimatedGrade = { estimated(gradeAt(it, boundaries)) }
+
     val hasTheory = theoryAssessments.isNotEmpty()
     val hasLab = labAssessments.isNotEmpty()
     val hasProject = projectAssessments.isNotEmpty()
@@ -684,8 +732,8 @@ fun computeCoursePrediction(
     val releasedWeight = currentScoredScaled + pointsLostScaled
     val pacePct = if (releasedWeight > 0.0) round2((currentScoredScaled / releasedWeight) * 100.0) else 0.0
     val currentStandingPct = if (releasedWeight > 0.0) round2((currentScoredScaled / releasedWeight) * 100.0) else 0.0
-    val optimalGrade = if (releasedWeight > 0.0) estimateGrade(pacePct) else null
-    val maximisableGrade = estimateGrade(maxPossibleScaled)
+    val optimalGrade = if (releasedWeight > 0.0) gradeOf(pacePct) else null
+    val maximisableGrade = gradeOf(maxPossibleScaled)
 
     return CoursePredictionResult(
         courseCode = courseCode,
@@ -703,9 +751,9 @@ fun computeCoursePrediction(
         labStats = labStats,
         projectStats = projectStats,
         // What you have if every pending assessment scores full marks.
-        estimatedGrade = estimateGrade(currentScoredScaled + potentialPendingScaled),
+        estimatedGrade = gradeOf(currentScoredScaled + potentialPendingScaled),
         // What you could still reach if you aced everything still to come.
-        ceilingGrade = estimateGrade(maxPossibleScaled),
+        ceilingGrade = gradeOf(maxPossibleScaled),
         riskLevel = riskLevelFor(pointsLostScaled),
         pacePct = pacePct,
         currentStandingPct = currentStandingPct,

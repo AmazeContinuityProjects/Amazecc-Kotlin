@@ -22,7 +22,6 @@ object SettingsManager {
     const val KEY_SYNC_PROFILE = "sync_profile"
     const val KEY_SYNC_ADDITIONAL = "sync_additional"
     const val KEY_NAVBAR_ITEMS = "navbar_items"
-    const val KEY_DASHBOARD_WIDGETS = "dashboard_widgets"
     const val KEY_SHOW_ATTENDANCE_IN_STATS = "show_attendance_in_stats"
     const val KEY_STATS_CARDS_ORDER = "stats_cards_order"
     const val KEY_ENABLED_STATS_CARDS = "enabled_stats_cards"
@@ -248,15 +247,6 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
     fun setApiTargetName(name: String) = setString(KEY_API_TARGET, name)
 
     // ── Home screen ──
-
-    /**
-     * Which home the Home tab opens: [HomeViewMode] names.
-     *
-     * Defaults to `SIMPLIFIED`. The widget dashboard is not gone — it is a screen
-     * in its own right (see `AppState.homeViewMode`) and every existing
-     * `KEY_DASHBOARD_WIDGETS` order is still honoured when it is showing.
-     */
-    const val KEY_HOME_VIEW_MODE = "home_view_mode"
 
     /** [HomePillStyle] names: how dense a session card is on the simplified home. */
     const val KEY_HOME_PILL_STYLE = "home_pill_style"

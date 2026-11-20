@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -71,7 +70,6 @@ import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.AttendanceDisplayMode
-import com.amazecc.app.shared.state.DashboardWidget
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.state.SyncModule
@@ -104,7 +102,6 @@ import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingSwitchRow
 import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingTimePickerSheet
 import com.amazecc.app.shared.ui.screens.m3e.M3EOnboardingTone
 import com.amazecc.app.shared.ui.screens.m3e.m3eScreenIconAndLabel
-import com.amazecc.app.shared.ui.screens.m3e.m3eWidgetTitle
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalTime
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -125,7 +122,6 @@ private val ONBOARDING_PAGES = listOf(
     M3EOnboardingPage("Academic Preferences", "Semester & default calendar type", Icons.Rounded.CalendarMonth, ONBOARDING_PHASES[1]),
     M3EOnboardingPage("Residence & Alerts", "Notifications & residential info", Icons.Rounded.Notifications, ONBOARDING_PHASES[1]),
     M3EOnboardingPage("Choose Your Modules", "Pin your most-used sections", Icons.Rounded.Apps, ONBOARDING_PHASES[2]),
-    M3EOnboardingPage("Dashboard Widgets", "Pick what your home screen shows", Icons.Rounded.DashboardCustomize, ONBOARDING_PHASES[2]),
     M3EOnboardingPage("Link Accounts", "Optional: Moodle & Library login", Icons.Rounded.Link, ONBOARDING_PHASES[2]),
     M3EOnboardingPage("Auto Sync", "Keep data fresh on a schedule", Icons.Rounded.Timelapse, ONBOARDING_PHASES[2]),
     M3EOnboardingPage("You're All Set!", "Your data is loading in the background", Icons.Rounded.CheckCircle, ONBOARDING_PHASES[2])
@@ -139,7 +135,7 @@ private val PINNABLE_MODULES = listOf(
 
 /**
  * Public entry point. This is the ONLY composable that reads singletons or writes settings.
- * All ten inner pages are stateless and communicate exclusively through [M3EOnboardingState]
+ * All nine inner pages are stateless and communicate exclusively through [M3EOnboardingState]
  * and [M3EOnboardingAction].
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -181,9 +177,8 @@ fun OnboardingScreen() {
         var examNotif by remember { mutableStateOf(SettingsManager.isNotifExamRemindersEnabled()) }
         var offsetMinutes by remember { mutableStateOf(SettingsManager.getNotifOffsetMinutes()) }
 
-        // Modules & widgets
+        // Modules
         var selectedModules by remember { mutableStateOf(AppState.pinnedNavTabs.value) }
-        var widgetOrder by remember { mutableStateOf(AppState.widgetOrder.value) }
 
         // Optional accounts
         var moodleUser by remember { mutableStateOf("") }
@@ -255,7 +250,6 @@ fun OnboardingScreen() {
             notifOffsetMinutes = offsetMinutes,
             availableModules = PINNABLE_MODULES,
             selectedModules = selectedModules,
-            widgetOrder = widgetOrder,
             moodleUser = moodleUser,
             moodlePass = moodlePass,
             libraryUser = libUser,
@@ -372,12 +366,6 @@ fun OnboardingScreen() {
                         selectedModules
                     }
                 }
-                is M3EOnboardingAction.ToggleWidget -> {
-                    val enabled = action.widget !in widgetOrder
-                    AppState.setWidgetEnabled(action.widget, enabled)
-                    widgetOrder = if (enabled) widgetOrder + action.widget else widgetOrder - action.widget
-                }
-
                 is M3EOnboardingAction.SetMoodleUser -> moodleUser = action.value
                 is M3EOnboardingAction.SetMoodlePass -> moodlePass = action.value
                 is M3EOnboardingAction.SetLibraryUser -> libUser = action.value
@@ -490,10 +478,9 @@ private fun M3EOnboardingContent(
                     3 -> M3EOnboardingAcademicPrefsPage(state = state, onAction = onAction)
                     4 -> M3EOnboardingResidentialNotifPage(state = state, onAction = onAction)
                     5 -> M3EOnboardingModulesPage(state = state, onAction = onAction)
-                    6 -> M3EOnboardingWidgetsPage(state = state, onAction = onAction)
-                    7 -> M3EOnboardingAccountsPage(state = state, onAction = onAction)
-                    8 -> M3EOnboardingAutoSyncPage(state = state, onAction = onAction)
-                    9 -> M3EOnboardingCompletionPage(state = state, onAction = onAction)
+                    6 -> M3EOnboardingAccountsPage(state = state, onAction = onAction)
+                    7 -> M3EOnboardingAutoSyncPage(state = state, onAction = onAction)
+                    8 -> M3EOnboardingCompletionPage(state = state, onAction = onAction)
                 }
             }
         }
@@ -1115,47 +1102,7 @@ private fun M3EOnboardingModulesPage(
     }
 }
 
-// ─── Page 6: Dashboard Widgets ───
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun M3EOnboardingWidgetsPage(
-    state: M3EOnboardingState,
-    onAction: (M3EOnboardingAction) -> Unit
-) {
-    val colors = M3ETheme.colors
-    val scroll = rememberScrollState()
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(scroll)
-            .padding(horizontal = 20.dp, vertical = 16.dp)
-    ) {
-        M3EOnboardingSectionLabel("HOME SCREEN WIDGETS")
-        Spacer(Modifier.height(4.dp))
-        Text("Toggle the widgets you want on your home screen — reorder them later in Settings", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-        Spacer(Modifier.height(16.dp))
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            DashboardWidget.entries.forEach { widget ->
-                M3EOnboardingChoiceChip(
-                    label = m3eWidgetTitle(widget),
-                    selected = widget in state.widgetOrder,
-                    onClick = { onAction(M3EOnboardingAction.ToggleWidget(widget)) }
-                )
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Text(
-            "${state.widgetOrder.size} of ${DashboardWidget.entries.size} widgets visible",
-            style = MaterialTheme.typography.bodySmall,
-            color = colors.onSurfaceVariant
-        )
-    }
-}
-
-// ─── Page 7: Accounts ───
+// ─── Page 6: Accounts ───
 @Composable
 private fun M3EOnboardingAccountsPage(
     state: M3EOnboardingState,
@@ -1306,7 +1253,7 @@ private fun M3EOnboardingAccountCard(
     }
 }
 
-// ─── Page 8: Auto Sync ───
+// ─── Page 7: Auto Sync ───
 private fun formatClock(hour: Int, minute: Int): String {
     val h = if (hour % 12 == 0) 12 else hour % 12
     return "$h:${minute.toString().padStart(2, '0')} ${if (hour < 12) "AM" else "PM"}"
@@ -1463,7 +1410,7 @@ private fun M3EOnboardingAutoSyncPage(
     }
 }
 
-// ─── Page 9: Completion ───
+// ─── Page 8: Completion ───
 @Composable
 private fun M3EOnboardingCompletionPage(
     state: M3EOnboardingState,
@@ -1558,7 +1505,6 @@ private fun previewOnboardingState(page: Int) = M3EOnboardingState(
     notifOffsetMinutes = 10,
     availableModules = PINNABLE_MODULES,
     selectedModules = listOf(Screen.ATTENDANCE, Screen.ACADEMICS),
-    widgetOrder = listOf(DashboardWidget.METRIC_CARDS),
     moodleUser = "",
     moodlePass = "",
     libraryUser = "",

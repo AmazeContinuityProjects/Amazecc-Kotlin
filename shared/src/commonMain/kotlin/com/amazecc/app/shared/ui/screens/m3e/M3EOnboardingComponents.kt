@@ -58,7 +58,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.state.DashboardWidget
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -467,18 +466,6 @@ internal fun m3eScreenIconAndLabel(screen: Screen): Pair<ImageVector, String> = 
     Screen.FREE_CLASSROOMS -> Icons.Rounded.MeetingRoom to "Classes"
     Screen.CALENDAR -> Icons.Rounded.CalendarMonth to "Calendar"
     else -> Icons.Rounded.Circle to "Unknown"
-}
-
-/** Human-readable title for a dashboard widget. */
-internal fun m3eWidgetTitle(widget: DashboardWidget): String = when (widget) {
-    DashboardWidget.PROFILE_HEADER -> "Profile Header & Actions"
-    DashboardWidget.METRIC_CARDS -> "Quick Stats (CGPA & Credits)"
-    DashboardWidget.EXAM_AND_CLASS -> "Exam & Live Class Tracker"
-    DashboardWidget.ATTENDANCE_BUNK -> "Attendance & Bunk Calculator"
-    DashboardWidget.TODAYS_CLASSES -> "Today's Schedule & Live Tracker"
-    DashboardWidget.COURSE_ATTENDANCE -> "Course Attendance Breakdown"
-    DashboardWidget.QUICK_ACTIONS -> "Quick Action Shortcuts"
-    DashboardWidget.FREE_CLASSROOMS -> "Free Classrooms Finder"
 }
 
 @Preview

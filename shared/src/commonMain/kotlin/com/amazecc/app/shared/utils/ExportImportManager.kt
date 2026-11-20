@@ -47,7 +47,6 @@ object ExportImportManager {
         SettingsManager.KEY_SYNC_PROFILE,
         SettingsManager.KEY_SYNC_ADDITIONAL,
         SettingsManager.KEY_NAVBAR_ITEMS,
-        SettingsManager.KEY_DASHBOARD_WIDGETS,
         SettingsManager.KEY_SYNC_ENABLED_MODULES,
         SettingsManager.KEY_SYNC_PROFILES,
         SettingsManager.KEY_ACTIVE_SYNC_PROFILE_ID,
@@ -152,7 +151,6 @@ object ExportImportManager {
         if (backup.tasks.isNotEmpty()) {
             AppState.applyImportedTasks(backup.tasks)
         }
-        AppState.reloadWidgetOrder()
         AppState.loadAllData()
         ImportResult(backup.settings.size, backup.tasks.size)
     }

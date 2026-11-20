@@ -41,7 +41,6 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.window.Dialog
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
@@ -76,7 +75,6 @@ fun App() {
     val currentScreen by AppState.currentScreen.collectAsState()
     // Which home the Home tab renders. Read as a flow so switching the style in
     // Settings repaints the tab rather than waiting for the next navigation.
-    val homeViewMode by AppState.homeViewMode.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
     val syncError by AppState.error.collectAsState()
 
@@ -196,7 +194,7 @@ fun App() {
                             targetState = currentScreen,
                             transitionSpec = {
                                 if (targetState in tabList && initialState in tabList) {
-                                    fadeIn(animationSpec = tween(0)) togetherWith fadeOut(animationSpec = tween(0))
+                                    com.amazecc.app.shared.ui.m3e.theme.M3EMotion.tabSwitchTransform()
                                 } else {
                                     fadeIn() togetherWith fadeOut()
                                 }
@@ -215,7 +213,7 @@ fun App() {
                                 Screen.ONBOARDING -> OnboardingScreen()
                                 Screen.PAYMENTS -> M3EPaymentsScreenHost()
                                 Screen.HOSTEL -> M3EHostelScreen()
-                                Screen.CABSHARE -> M3ECabShareScreen()
+                                Screen.CABSHARE -> M3ECabShareHost()
                                 Screen.TRANSPORT -> M3ETransportScreen()
                                 Screen.EVENTS -> M3EEventHubScreen()
                                 Screen.SETTINGS -> M3ESettingsScreen()
@@ -232,7 +230,7 @@ fun App() {
                                 Screen.CURRICULUM -> M3ECurriculumScreen()
                                 Screen.OD_TRACKER -> M3EODTrackerScreenHost()
                                 Screen.COURSE_DASHBOARD -> M3ECourseDashboardScreenHost()
-                                Screen.FACULTY_INFO -> M3EFacultyScreen()
+                                Screen.FACULTY_INFO -> M3EFacultyDirectoryHost()
                                 Screen.FEEDBACK_STATUS -> M3EFeedbackStatusScreenHost()
                                 Screen.FRESHER_WELCOME -> M3EFresherWelcomeScreenHost()
                                 Screen.DOCUMENTS -> M3EDocumentsScreenHost()
@@ -245,7 +243,6 @@ fun App() {
                                 Screen.CHANGELOG -> M3EChangelogScreenHost()
                                 Screen.HALL_OF_FAME -> M3EHallOfFameScreenHost()
                                 Screen.HOME -> M3EHomeScreen()
-                                Screen.HOME_LEGACY -> M3EHomeScreen()
                                 Screen.ATTENDANCE -> M3EAttendanceScreen()
                                 Screen.ACADEMICS -> M3EAcademicsScreen()
                                 Screen.LIBRARIES -> M3ELibrariesScreenHost()
@@ -306,7 +303,11 @@ fun App() {
                                     .navigationBarsPadding()
                                     .padding(bottom = 12.dp)
                             ) {
-                                M3ENavigationBar()
+                                M3ENavigationBar(
+                                    onTabReselected = { screen, collapseFirstTap ->
+                                        AppState.goToSectionRoot(screen, collapseFirstTap)
+                                    }
+                                )
                             }
                         }
 
@@ -740,24 +741,13 @@ private fun GuestLanding() {
 
 @Composable
 private fun ShortcutsHelpSheet(isOpen: Boolean, onClose: () -> Unit) {
-    if (!isOpen) return
     val colors = AmazeTheme.colors
-    Dialog(onDismissRequest = onClose) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(colors.surface, RoundedCornerShape(24.dp))
-                .padding(20.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                "Keyboard shortcuts",
-                style = AmazeTheme.typography.subheading.copy(
-                    fontWeight = FontWeight.Bold,
-                    color = colors.textPrimary
-                )
-            )
+    com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet(
+        isOpen = isOpen,
+        onDismiss = onClose,
+        title = "Keyboard shortcuts",
+        overlayId = AppState.SHORTCUTS_HELP_OVERLAY_ID
+    ) {
             Text("g, then a letter", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
             Text("Home, Attendance, Academics, Grades, OD hours, Events, Library, Payments, Tasks, Free classrooms, Settings.", style = AmazeTheme.typography.caption.copy(color = colors.textSecondary))
             Text("Alt + letter", style = AmazeTheme.typography.smallLabel.copy(fontWeight = FontWeight.Bold, color = colors.accent))
@@ -772,6 +762,5 @@ private fun ShortcutsHelpSheet(isOpen: Boolean, onClose: () -> Unit) {
             Button(onClick = onClose, modifier = Modifier.fillMaxWidth()) {
                 Text("Got it", style = AmazeTheme.typography.smallLabel)
             }
-        }
     }
 }

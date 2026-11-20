@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.AttendanceDisplayMode
-import com.amazecc.app.shared.state.DashboardWidget
 import com.amazecc.app.shared.theme.AccentTheme
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.theme.AppTheme
@@ -258,57 +257,9 @@ fun DisplayPage() {
 @Composable
 fun DashboardPage() {
     val colors = AmazeTheme.colors
-    val widgetOrder by AppState.widgetOrder.collectAsState()
-    val homeViewMode by AppState.homeViewMode.collectAsState()
     val homePillStyle by AppState.homePillStyle.collectAsState()
     val homeTasksInline by AppState.homeTasksInline.collectAsState()
-    var showViewModeDialog by remember { mutableStateOf(false) }
     var showPillStyleDialog by remember { mutableStateOf(false) }
-    val hiddenWidgets = remember(widgetOrder) {
-        DashboardWidget.entries.filter { it !in widgetOrder }
-    }
-    val isClassicHome = homeViewMode == com.amazecc.app.shared.state.HomeViewMode.CLASSIC
-
-    if (showViewModeDialog) {
-        AlertDialog(
-            onDismissRequest = { showViewModeDialog = false },
-            containerColor = colors.surface,
-            shape = RoundedCornerShape(24.dp),
-            title = {
-                Text(
-                    "Home Screen",
-                    style = AmazeTheme.typography.subheading.copy(fontWeight = FontWeight.Bold, color = colors.textPrimary)
-                )
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HomeViewModeOption(
-                        title = "Simplified",
-                        subtitle = "Greeting, two stat tiles, the week strip and today's sessions",
-                        selected = homeViewMode == com.amazecc.app.shared.state.HomeViewMode.SIMPLIFIED,
-                        onClick = {
-                            AppState.setHomeViewMode(com.amazecc.app.shared.state.HomeViewMode.SIMPLIFIED)
-                            showViewModeDialog = false
-                        }
-                    )
-                    HomeViewModeOption(
-                        title = "Classic widgets",
-                        subtitle = "The original dashboard, with configurable widgets",
-                        selected = isClassicHome,
-                        onClick = {
-                            AppState.setHomeViewMode(com.amazecc.app.shared.state.HomeViewMode.CLASSIC)
-                            showViewModeDialog = false
-                        }
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showViewModeDialog = false }) {
-                    Text("Close", color = colors.accent)
-                }
-            }
-        )
-    }
 
     if (showPillStyleDialog) {
         AlertDialog(
@@ -353,15 +304,6 @@ fun DashboardPage() {
         SettingsGroupCard {
             Column(modifier = Modifier.padding(vertical = 4.dp)) {
                 SettingsRow(
-                    icon = Icons.Rounded.DashboardCustomize,
-                    title = "Home Layout",
-                    subtitle = if (isClassicHome) "Classic widgets" else "Simplified",
-                    value = if (isClassicHome) "Widgets" else "Minimal",
-                    tint = colors.accent,
-                    onClick = { showViewModeDialog = true }
-                )
-                SettingsRowDivider()
-                SettingsRow(
                     icon = Icons.Rounded.FormatListBulleted,
                     title = "Session Card Density",
                     subtitle = "How much a timetable session shows at once",
@@ -381,58 +323,6 @@ fun DashboardPage() {
             }
         }
 
-        SettingsGroupLabel(if (isClassicHome) "Home Screen Widgets" else "Classic Widgets")
-        SettingsGroupCard {
-            Column(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    if (isClassicHome) {
-                        "Toggle widgets on/off and reorder them for your home screen."
-                    } else {
-                        "The classic dashboard is still here. These settings apply when you switch to it, or open it from the App Library."
-                    },
-                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                DashboardWidgetRows()
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        "${widgetOrder.size} of ${DashboardWidget.entries.size} widgets visible",
-                        color = colors.textSecondary,
-                        fontSize = AmazeTheme.fontSize.xs
-                    )
-                    TextButton(onClick = { AppState.resetWidgetsToDefault() }) {
-                        Text("Reset Default", color = colors.accent, fontSize = AmazeTheme.fontSize.xs, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-
-        if (hiddenWidgets.isNotEmpty()) {
-            SettingsGroupLabel("Hidden Widgets")
-            SettingsGroupCard {
-                Column(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    hiddenWidgets.forEach { widget ->
-                        SettingsRow(
-                            icon = Icons.Rounded.Add,
-                            title = getWidgetTitle(widget),
-                            subtitle = getWidgetDescription(widget),
-                            tint = colors.accent,
-                            onClick = { AppState.restoreWidget(widget) }
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 
