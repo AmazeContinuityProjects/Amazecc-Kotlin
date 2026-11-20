@@ -260,6 +260,7 @@ private fun M3EDashboardCourseCard(course: M3EDashboardCourse, onClick: () -> Un
             if (pct != null) {
                 M3EWavyLinearProgress(
                     progress = (pct / 100.0).toFloat(),
+                    label = "Course attendance",
                     activeColor = tone,
                     trackColor = colors.surfaceContainerHighest
                 )

@@ -557,6 +557,7 @@ private fun M3EOnboardingHeader(state: M3EOnboardingState) {
             Spacer(Modifier.height(16.dp))
             M3EWavyLinearProgress(
                 progress = (state.currentPage + 1).toFloat() / ONBOARDING_PAGES.size,
+                label = "Onboarding progress",
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(12.dp))
@@ -698,6 +699,7 @@ private fun M3EOnboardingWelcomePage(
                 val total = state.syncSteps.size
                 M3EWavyLinearProgress(
                     progress = if (total > 0) done.toFloat() / total else 0f,
+                    label = "Sync progress",
                     modifier = Modifier.fillMaxWidth()
                 )
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

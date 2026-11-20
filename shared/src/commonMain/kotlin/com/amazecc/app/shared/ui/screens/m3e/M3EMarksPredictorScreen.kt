@@ -280,6 +280,7 @@ private fun M3EPredictionCourseCard(
 
                 M3EWavyLinearProgress(
                     progress = progress,
+                    label = "Predictor progress",
                     activeColor = colors.primary,
                     trackColor = colors.surfaceContainerHighest
                 )

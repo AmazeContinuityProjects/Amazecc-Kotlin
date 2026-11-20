@@ -348,6 +348,7 @@ private fun LazyListScope.gradeInsightsContent(state: M3EGradesHistoryState) {
                     val barColor = gradeToneAccent(row.tone)
                     M3EWavyLinearProgress(
                         progress = (row.share.toFloat() / 100f).coerceIn(0f, 1f),
+                        label = "Grade distribution",
                         activeColor = barColor,
                         modifier = Modifier.weight(1f)
                     )
@@ -411,6 +412,7 @@ private fun LazyListScope.gradeInsightsContent(state: M3EGradesHistoryState) {
                     ) {
                         M3EWavyLinearProgress(
                             progress = (avg.avg.toFloat() / 100f).coerceIn(0f, 1f),
+                            label = "Average grade",
                             activeColor = gradeToneAccent(hue),
                             modifier = Modifier.weight(1f)
                         )
@@ -456,6 +458,7 @@ private fun LazyListScope.gradeInsightsContent(state: M3EGradesHistoryState) {
                 }
                 M3EWavyLinearProgress(
                     progress = (score.avgScore.toFloat() / 100f).coerceIn(0f, 1f),
+                    label = "Assessment average",
                     activeColor = gradeToneAccent(hue),
                     modifier = Modifier.weight(1f)
                 )
@@ -997,6 +1000,7 @@ private fun M3EGradeTermRowItem(
             )
             M3EWavyLinearProgress(
                 progress = (term.gpa.toFloat() / 10f).coerceIn(0f, 1f),
+                label = "Semester GPA progress",
                 activeColor = gradePointColor(term.pointTone),
                 trackColor = colors.surfaceContainerHighest,
                 modifier = Modifier.weight(1f)

@@ -164,6 +164,7 @@ fun M3ECurriculumScreen(
 
                         M3EWavyLinearProgress(
                             progress = (completionPct / 100.0).toFloat(),
+                            label = "Credit completion",
                             activeColor = colors.primary,
                             trackColor = colors.surfaceContainerHighest
                         )

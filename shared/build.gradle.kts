@@ -127,7 +127,8 @@ kotlin {
 
     android {
         namespace = "com.amazecc.app.shared"
-        compileSdk = 35
+        // Compose 1.12.x AARs declare minCompileSdk 37 (D-123 follow-up).
+        compileSdk = 37
         minSdk = 24
         androidResources {
             enable = true

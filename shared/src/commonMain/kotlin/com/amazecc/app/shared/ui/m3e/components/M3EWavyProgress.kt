@@ -49,8 +49,8 @@ const val M3E_WAVY_INDETERMINATE = -1f
  *
  * @param label Announced name of the measured quantity, e.g. "Attendance",
  *   "Assignment accuracy" or "Exam preparation". Callers must supply a
- *   quantity-specific label; the generic default exists only so legacy call
- *   sites keep compiling and should not be relied upon in new code.
+ *   quantity-specific label. It is required so the compiler blocks any new
+ *   generic-label regression.
  * @param safetyThreshold Fraction at which the value is considered safe.
  *   Pass a value outside 0..1 is clamped; the default 0.75 matches the
  *   attendance target used across AmazeCC.
@@ -61,7 +61,7 @@ fun M3EWavyLinearProgress(
     modifier: Modifier = Modifier,
     activeColor: Color? = null,
     trackColor: Color? = null,
-    label: String = "Progress",
+    label: String,
     safetyThreshold: Float = 0.75f
 ) {
     val colors = M3ETheme.colors

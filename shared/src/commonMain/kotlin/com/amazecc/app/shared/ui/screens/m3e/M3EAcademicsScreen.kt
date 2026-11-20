@@ -442,6 +442,7 @@ private fun M3EAcademicCourseCard(
                     val progress = (course.internalScored / course.internalMax).toFloat()
                     M3EWavyLinearProgress(
                         progress = progress,
+                        label = "Assessment progress",
                         activeColor = colors.primary,
                         trackColor = colors.surfaceContainerHighest
                     )

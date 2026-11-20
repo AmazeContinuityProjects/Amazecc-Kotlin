@@ -227,6 +227,7 @@ private fun CourseOverviewSection(state: M3ECourseDetailState) {
 
                 M3EWavyLinearProgress(
                     progress = (state.attendancePct / 100.0).toFloat(),
+                    label = "Course attendance",
                     activeColor = when (state.tone) {
                         M3ECardTone.GOOD -> colors.success
                         M3ECardTone.WARNING -> colors.warning

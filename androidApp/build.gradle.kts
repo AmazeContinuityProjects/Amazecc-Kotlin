@@ -72,7 +72,9 @@ val signingData = resolveSigningConfig()
 
 android {
     namespace = "com.amazecc.app.android"
-    compileSdk = 35
+    // Compose 1.12.x AARs declare minCompileSdk 37; compileSdk is independent of
+    // targetSdk (kept at 35 to preserve current edge-to-edge runtime behavior).
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.amazecc.app.android"

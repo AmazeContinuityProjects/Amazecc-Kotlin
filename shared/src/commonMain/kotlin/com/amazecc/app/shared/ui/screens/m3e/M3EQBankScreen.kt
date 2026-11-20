@@ -116,6 +116,7 @@ fun M3EQBankScreen(
                             Text(state.stats.accuracyPct.toFixed(2, "%"), fontSize = 34.sp, fontWeight = FontWeight.Black, color = colors.primary)
                             M3EWavyLinearProgress(
                                 progress = (state.stats.accuracyPct / 100.0).toFloat(),
+                                label = "Answer accuracy",
                                 activeColor = colors.primary,
                                 trackColor = colors.surfaceContainerHighest
                             )
