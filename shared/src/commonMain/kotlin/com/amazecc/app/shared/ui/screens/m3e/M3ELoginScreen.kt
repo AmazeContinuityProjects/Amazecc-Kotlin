@@ -137,7 +137,7 @@ fun M3ELoginScreen(
     LaunchedEffect(Unit) {
         val creds = SettingsManager.getCredentials()
         if (creds != null) {
-            username = creds.first
+            username = creds.first.uppercase()
             password = creds.second
         }
         if (creds != null && AppState.restoreSession()) {
@@ -288,6 +288,7 @@ fun M3ELoginScreen(
                         // Registration Number Field
                         OutlinedTextField(
                             value = username,
+                            enabled = !isSubmitting,
                             onValueChange = {
                                 username = it.uppercase()
                                 errorMessage = null
@@ -329,6 +330,7 @@ fun M3ELoginScreen(
                         // Password Field
                         OutlinedTextField(
                             value = password,
+                            enabled = !isSubmitting,
                             onValueChange = {
                                 password = it
                                 errorMessage = null
@@ -344,7 +346,10 @@ fun M3ELoginScreen(
                                 )
                             },
                             trailingIcon = {
-                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                IconButton(
+                                    onClick = { passwordVisible = !passwordVisible },
+                                    enabled = !isSubmitting
+                                ) {
                                     Icon(
                                         imageVector = if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
                                         contentDescription = if (passwordVisible) "Hide password" else "Show password",
@@ -420,7 +425,8 @@ fun M3ELoginScreen(
                                         val newSource = if (isLocalVtop) VtopSource.REMOTE else VtopSource.LOCAL
                                         AmazeClient.setVtopSource(newSource)
                                         vtopSource = newSource
-                                    }
+                                    },
+                                    enabled = !isSubmitting
                                 ) {
                                     Text(
                                         text = if (isLocalVtop) "Switch to Remote" else "Switch to Local",
@@ -459,7 +465,8 @@ fun M3ELoginScreen(
                                     onClick = {
                                         manualCaptcha = !manualCaptcha
                                         if (!manualCaptcha) captchaText = ""
-                                    }
+                                    },
+                                    enabled = !isSubmitting
                                 ) {
                                     Text(
                                         text = if (manualCaptcha) "Solve for me" else "Type manually",
@@ -472,6 +479,7 @@ fun M3ELoginScreen(
                             if (manualCaptcha) {
                                 OutlinedTextField(
                                     value = captchaText,
+                                    enabled = !isSubmitting,
                                     onValueChange = {
                                         captchaText = it.uppercase().filter(Char::isLetterOrDigit).take(8)
                                     },
@@ -509,15 +517,19 @@ fun M3ELoginScreen(
                         Button(
                             onClick = {
                                 if (username.isBlank() || password.isBlank()) {
-                                    errorMessage = "Registration number and password are required"
+                                    errorMessage = "Please enter both your VTOP username and password."
                                     return@Button
                                 }
+                                // Normalise on submit as well as on input, so restored credentials
+                                // and programmatic fills cannot bypass the uppercase contract.
+                                val normalizedUsername = username.trim().uppercase()
+                                username = normalizedUsername
 
                                 scope.launch {
                                     isSubmitting = true
                                     errorMessage = null
                                     try {
-                                        val response = AmazeClient.login(username, password, captchaHandler)
+                                        val response = AmazeClient.login(normalizedUsername, password, captchaHandler)
                                         if (response.success && response.cookies != null && response.csrf != null && response.authorizedID != null) {
                                             AmazeClient.setUseMockData(false)
                                             SessionManager.saveSession(
@@ -530,7 +542,7 @@ fun M3ELoginScreen(
                                             SettingsManager.setString(SettingsManager.SESSION_CSRF, response.csrf)
                                             SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, response.authorizedID)
                                             response.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
-                                            SettingsManager.saveCredentials(username, password)
+                                            SettingsManager.saveCredentials(normalizedUsername, password)
                                             AppState.navigateTo(if (SettingsManager.isOnboardingComplete()) Screen.HOME else Screen.ONBOARDING)
                                         } else {
                                             errorMessage = if (response.message.contains("401") || response.message.contains("Unauthorized", ignoreCase = true)) {
@@ -597,6 +609,7 @@ fun M3ELoginScreen(
                             }
                         }
                     },
+                    enabled = !isSubmitting,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(48.dp),
@@ -606,8 +619,7 @@ fun M3ELoginScreen(
                     ),
                     border = ButtonDefaults.outlinedButtonBorder.copy(
                         brush = androidx.compose.ui.graphics.SolidColor(colors.outlineVariant)
-                    ),
-                    enabled = !isSubmitting
+                    )
                 ) {
                     Text(
                         text = "Explore in Demo Mode",

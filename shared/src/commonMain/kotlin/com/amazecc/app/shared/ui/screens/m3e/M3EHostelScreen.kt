@@ -206,7 +206,10 @@ fun M3EHostelScreen(
                         )
 
                         ElevatedButton(
-                            onClick = { onAction(M3EHostelAction.ApplyNewLeave) },
+                            // VTOP exposes leave history only; there is no apply-leave action.
+                            // Keep the affordance visible but honestly disabled.
+                            onClick = {},
+                            enabled = false,
                             shape = CircleShape,
                             colors = ButtonDefaults.elevatedButtonColors(
                                 containerColor = colors.primaryContainer,
@@ -220,7 +223,7 @@ fun M3EHostelScreen(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Apply Leave",
+                                text = "Apply Leave (unavailable)",
                                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                             )
                         }

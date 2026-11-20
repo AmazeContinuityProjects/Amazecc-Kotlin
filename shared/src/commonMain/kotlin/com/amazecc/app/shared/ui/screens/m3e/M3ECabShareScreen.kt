@@ -2,6 +2,8 @@ package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,15 +33,22 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Train
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,14 +77,19 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun M3ECabShareScreen(
     state: M3ECabShareState,
     onAction: (M3ECabShareAction) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Receives a validated ride draft; the host performs the real create request. */
+    onCreateRide: (M3ECabRideDraft) -> Unit = {}
 ) {
     val colors = M3ETheme.colors
 
-    LazyColumn(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.surface),
+            .background(colors.surface)
+    ) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -137,6 +151,18 @@ fun M3ECabShareScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                }
+            }
+        }
+
+        // Create/join feedback is a real result from the host, never a fabricated success.
+        state.errorMessage?.let { message ->
+            item {
+                M3ESurfaceCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    containerLevel = SurfaceContainerLevel.LOW
+                ) {
+                    Text(text = message, color = colors.onSurface, fontSize = 13.sp)
                 }
             }
         }
@@ -272,6 +298,132 @@ fun M3ECabShareScreen(
             Spacer(Modifier.height(140.dp))
         }
     }
+
+        if (state.isCreateDialogOpen) {
+            M3ECreateRideDialog(
+                hubs = state.hubs,
+                onDismiss = { onAction(M3ECabShareAction.CloseCreateDialog) },
+                onCreate = onCreateRide
+            )
+        }
+    }
+}
+
+/** Draft carrying only values the real `cabCreateTripNew` endpoint accepts. */
+data class M3ECabRideDraft(
+    val fromHubId: String = "",
+    val toHubId: String = "",
+    val date: String = "",
+    val time: String = "",
+    val tolerance: String = "1",
+    val seats: String = "3",
+    val gender: String = "any",
+    val notes: String = ""
+)
+
+@Composable
+private fun M3ECreateRideDialog(
+    hubs: List<M3ECabShareHub>,
+    onDismiss: () -> Unit,
+    onCreate: (M3ECabRideDraft) -> Unit
+) {
+    val colors = M3ETheme.colors
+    var draft by remember { mutableStateOf(M3ECabRideDraft()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Offer a ride", color = colors.onSurface, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (hubs.isEmpty()) {
+                    Text(
+                        text = "No hubs are available right now. Pull to refresh and try again.",
+                        color = colors.onSurfaceVariant,
+                        fontSize = 13.sp
+                    )
+                } else {
+                    Text("From", color = colors.onSurfaceVariant, fontSize = 12.sp)
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        hubs.forEach { hub ->
+                            FilterChip(
+                                selected = draft.fromHubId == hub.id,
+                                onClick = { draft = draft.copy(fromHubId = hub.id) },
+                                label = { Text(hub.name, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                    Text("To", color = colors.onSurfaceVariant, fontSize = 12.sp)
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        hubs.forEach { hub ->
+                            FilterChip(
+                                selected = draft.toHubId == hub.id,
+                                onClick = { draft = draft.copy(toHubId = hub.id) },
+                                label = { Text(hub.name, fontSize = 11.sp) }
+                            )
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = draft.date,
+                        onValueChange = { draft = draft.copy(date = it) },
+                        label = { Text("Date (YYYY-MM-DD)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = draft.time,
+                        onValueChange = { draft = draft.copy(time = it) },
+                        label = { Text("Time (HH:mm)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = draft.seats,
+                        onValueChange = { draft = draft.copy(seats = it.filter(Char::isDigit)) },
+                        label = { Text("Seats") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = draft.tolerance,
+                        onValueChange = { draft = draft.copy(tolerance = it.filter { c -> c.isDigit() || c == '.' }) },
+                        label = { Text("Tolerance (h)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                OutlinedTextField(
+                    value = draft.notes,
+                    onValueChange = { draft = draft.copy(notes = it) },
+                    label = { Text("Notes (optional)") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onCreate(draft) },
+                enabled = draft.fromHubId.isNotBlank() &&
+                    draft.toHubId.isNotBlank() &&
+                    draft.fromHubId != draft.toHubId &&
+                    draft.date.isNotBlank() &&
+                    draft.time.isNotBlank()
+            ) { Text("Create") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable

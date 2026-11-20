@@ -21,6 +21,10 @@ import kotlinx.datetime.toLocalDateTime
  * slot maps never schedule before 8 AM and always write the meridian nowhere. [toMilitaryMinutes]
  * deliberately has no such rule - `TaskModels.startTime` is documented as `HH:mm`, and running the
  * heuristic over it would turn 07:00 into 19:00.
+ *
+ * [parseTimeToMinutes] is the one **web-parity** entry point, mirroring `timeUtils.ts`. It has no
+ * VIT heuristic: a bare `08:00` is 08:00, and an explicit `am`/`pm` is honoured. New callers that
+ * consume web-shaped data should use it rather than picking one of the three legacy formats.
  */
 object TimeMath {
 
@@ -68,6 +72,46 @@ object TimeMath {
         if (meridian == "AM" && h == 12) h = 0
         return h * 60 + m
     }
+
+    /**
+     * The single web-parity parser (`timeUtils.ts parseTimeToMinutes`).
+     *
+     * Accepts an explicit meridian (`"8:00 AM"`, `"08:30pm"`), a bare 24-hour clock (`"08:00"`),
+     * or a raw number of minutes; results are clamped to 0..1439. Unlike [toMinutes], a bare
+     * `"07:00"` is 07:00 — no VIT afternoon shift.
+     */
+    fun parseTimeToMinutes(value: Any?): Int? {
+        if (value == null) return null
+        if (value is Number) {
+            val minutes = value.toDouble()
+            if (minutes.isNaN()) return null
+            return clampMinutes(kotlin.math.floor(minutes).toInt())
+        }
+
+        val trimmed = value.toString().trim()
+        if (trimmed.isEmpty()) return null
+
+        TWELVE_HOUR.matchEntire(trimmed)?.let { match ->
+            var hours = match.groupValues[1].toInt()
+            val mins = match.groupValues[2].toInt()
+            val isPm = match.groupValues[3].equals("pm", ignoreCase = true)
+            if (hours == 12) hours = 0
+            return clampMinutes((if (isPm) hours + 12 else hours) * 60 + mins)
+        }
+
+        TWENTY_FOUR_HOUR.matchEntire(trimmed)?.let { match ->
+            val hours = match.groupValues[1].toInt()
+            val mins = match.groupValues[2].toInt()
+            return clampMinutes(hours * 60 + mins)
+        }
+
+        return null
+    }
+
+    private fun clampMinutes(value: Int): Int = maxOf(0, minOf(1439, value))
+
+    private val TWELVE_HOUR = Regex("""^(\d{1,2}):(\d{2})\s*(am|pm)$""", RegexOption.IGNORE_CASE)
+    private val TWENTY_FOUR_HOUR = Regex("""^(\d{1,2}):(\d{2})$""")
 
     /** `"9:00 - 9:50"` -> (540, 590), via [toMinutes]. Either side may fall back to 0. */
     fun toRange(timeRange: String?): Pair<Int, Int> {

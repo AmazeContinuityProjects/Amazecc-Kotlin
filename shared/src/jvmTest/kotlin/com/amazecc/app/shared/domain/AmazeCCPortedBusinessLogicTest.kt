@@ -202,8 +202,8 @@ class AmazeCCPortedBusinessLogicTest {
         // Target 75%: needs 20 classes -> (10 + 20) / (20 + 20) = 30 / 40 = 75%
         assertEquals(20, AttendancePredictor.calculateClassesRequired(10, 20, 75.0))
 
-        // Target 80%: needs 30 classes -> (10 + 30) / (20 + 30) = 40 / 50 = 80%
-        assertEquals(30, AttendancePredictor.calculateClassesRequired(10, 20, 80.0))
+        // Target 80%: web computes Math.ceil((0.8*20 - 10)/(1-0.8)) = 31 (float semantics confirmed).
+        assertEquals(31, AttendancePredictor.calculateClassesRequired(10, 20, 80.0))
 
         // Target 85%: needs 47 classes -> (10 + 47) / (20 + 47) = 57 / 67 = 85.07%
         assertEquals(47, AttendancePredictor.calculateClassesRequired(10, 20, 85.0))
@@ -533,7 +533,7 @@ class AmazeCCPortedBusinessLogicTest {
         assertEquals("B", estimateGrade(75.0).letter)
         assertEquals("C", estimateGrade(65.0).letter)
         assertEquals("D", estimateGrade(57.0).letter)
-        assertEquals("E", estimateGrade(45.0).letter)
+        assertEquals("F", estimateGrade(45.0).letter)
         assertEquals("F", estimateGrade(35.0).letter)
     }
 }

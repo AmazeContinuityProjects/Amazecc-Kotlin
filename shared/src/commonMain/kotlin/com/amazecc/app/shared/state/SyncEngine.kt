@@ -78,6 +78,8 @@ data class ModuleState(
     val error: String? = null,
     /** Why a module was SKIPPED (profile off, no credentials, no session). Never set on SUCCESS. */
     val detail: String? = null,
+    /** Per-op progress deltas (D-029): short strings the progress sheet shows live. */
+    val progressDeltas: List<String> = emptyList(),
 )
 
 @Immutable
@@ -96,6 +98,8 @@ data class SyncProgress(
     val successCount: Int = 0,
     val errorCount: Int = 0,
     val skippedCount: Int = 0,
+    /** Per-op last-synced stamps (D-029): the sheet shows each module's own timestamp. */
+    val moduleLastSynced: Map<SyncModule, Instant?> = emptyMap(),
 ) {
     val percentage: Float
         get() = if (totalModules == 0) 0f else ((completedModules.toFloat() / totalModules.toFloat()).coerceIn(0f, 1f)) * 100f
@@ -903,9 +907,24 @@ object SyncEngine {
             activeModules = active,
             successCount = successCount,
             errorCount = errorCount,
-            skippedCount = skippedCount
+            skippedCount = skippedCount,
+            moduleLastSynced = states.mapValues { it.value.lastSynced }
         )
     }
+
+    // ── Per-op progress deltas (D-029) ──
+
+    /** Append a progress delta for [module] (progress sheet, live). */
+    fun addProgressDelta(module: SyncModule, delta: String) {
+        if (delta.isBlank()) return
+        _moduleStates.update { map ->
+            val st = map[module] ?: ModuleState()
+            map + (module to st.copy(progressDeltas = (st.progressDeltas + delta).takeLast(50)))
+        }
+    }
+
+    fun progressDeltas(module: SyncModule): List<String> =
+        _moduleStates.value[module]?.progressDeltas ?: emptyList()
 
     // ── Sync Modes & Cadence Tiers ──
 

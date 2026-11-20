@@ -2,6 +2,8 @@ package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,15 +32,22 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,14 +77,19 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun M3ETasksScreen(
     state: M3ETasksState,
     onAction: (M3ETasksAction) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Receives a validated draft; the host owns persistence and closes the dialog. */
+    onCreateTask: (M3ETaskDraft) -> Unit = {}
 ) {
     val colors = M3ETheme.colors
 
-    LazyColumn(
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.surface),
+            .background(colors.surface)
+    ) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -125,6 +139,7 @@ fun M3ETasksScreen(
 
                     IconButton(
                         onClick = { onAction(M3ETasksAction.Refresh) },
+                        enabled = !state.isLoading,
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
@@ -251,6 +266,161 @@ fun M3ETasksScreen(
             Spacer(Modifier.height(140.dp))
         }
     }
+
+        if (state.isCreateDialogOpen) {
+            M3ETaskEditorDialog(
+                onDismiss = { onAction(M3ETasksAction.CloseCreateDialog) },
+                onSave = onCreateTask
+            )
+        }
+    }
+}
+
+/**
+ * Editor draft mirroring only fields the local [com.amazecc.app.shared.model.HomeworkTask] model
+ * actually stores. Fields the model has no home for (three lead reminders, study chunks) are not
+ * invented here; the host persists this into a real task.
+ */
+data class M3ETaskDraft(
+    val title: String = "",
+    val courseCode: String = "",
+    val courseTitle: String = "",
+    val description: String = "",
+    val dueDate: String = "",
+    val dueTime: String = "23:59",
+    val type: String = "homework",
+    val priority: String = "medium",
+    val estimatedMinutes: String = "",
+    val reminderAt: String = "",
+    val reminderRepeat: String = "none",
+    val showOnCalendar: Boolean = false,
+    val showOnTimetable: Boolean = false
+)
+
+@Composable
+private fun M3ETaskEditorDialog(
+    onDismiss: () -> Unit,
+    onSave: (M3ETaskDraft) -> Unit
+) {
+    val colors = M3ETheme.colors
+    var draft by remember { mutableStateOf(M3ETaskDraft()) }
+    val types = listOf("homework", "assignment", "quiz", "exam", "project", "lab", "study", "reminder")
+    val priorities = listOf("low", "medium", "high")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("New Task", color = colors.onSurface, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = draft.title,
+                    onValueChange = { draft = draft.copy(title = it) },
+                    label = { Text("Task title") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = draft.courseCode,
+                        onValueChange = { draft = draft.copy(courseCode = it.uppercase()) },
+                        label = { Text("Course code") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = draft.courseTitle,
+                        onValueChange = { draft = draft.copy(courseTitle = it) },
+                        label = { Text("Course title") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = draft.dueDate,
+                        onValueChange = { draft = draft.copy(dueDate = it) },
+                        label = { Text("Due date (YYYY-MM-DD)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = draft.dueTime,
+                        onValueChange = { draft = draft.copy(dueTime = it) },
+                        label = { Text("Due time (HH:mm)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                OutlinedTextField(
+                    value = draft.description,
+                    onValueChange = { draft = draft.copy(description = it) },
+                    label = { Text("Notes") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Text("Type", color = colors.onSurfaceVariant, fontSize = 12.sp)
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    types.forEach { type ->
+                        FilterChip(
+                            selected = draft.type == type,
+                            onClick = { draft = draft.copy(type = type) },
+                            label = { Text(type, fontSize = 11.sp) }
+                        )
+                    }
+                }
+                Text("Priority", color = colors.onSurfaceVariant, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    priorities.forEach { priority ->
+                        FilterChip(
+                            selected = draft.priority == priority,
+                            onClick = { draft = draft.copy(priority = priority) },
+                            label = { Text(priority, fontSize = 11.sp) }
+                        )
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = draft.estimatedMinutes,
+                        onValueChange = { draft = draft.copy(estimatedMinutes = it.filter(Char::isDigit)) },
+                        label = { Text("Estimate (min)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    OutlinedTextField(
+                        value = draft.reminderAt,
+                        onValueChange = { draft = draft.copy(reminderAt = it) },
+                        label = { Text("Reminder (YYYY-MM-DD HH:mm)") },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FilterChip(
+                        selected = draft.showOnCalendar,
+                        onClick = { draft = draft.copy(showOnCalendar = !draft.showOnCalendar) },
+                        label = { Text("Show on calendar", fontSize = 11.sp) }
+                    )
+                    FilterChip(
+                        selected = draft.showOnTimetable,
+                        onClick = { draft = draft.copy(showOnTimetable = !draft.showOnTimetable) },
+                        label = { Text("Show on timetable", fontSize = 11.sp) }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSave(draft) },
+                enabled = draft.title.isNotBlank() && draft.dueDate.isNotBlank()
+            ) { Text("Create") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 @Composable

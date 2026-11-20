@@ -1,5 +1,8 @@
 package com.amazecc.app.shared.model
 
+import com.amazecc.app.shared.state.AcademicDerivers
+import com.amazecc.app.shared.state.StoredAttendance
+import com.amazecc.app.shared.state.StoredCourse
 import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -104,6 +107,21 @@ class ApiContractParityTest {
         """.trimIndent()
 
         assertEquals("4", json.decodeFromString<MarksRes>(payload).marks.single().credits)
+    }
+
+    @Test
+    fun `course percentage parser strips percent suffix and falls back to counts`() {
+        val printed = StoredCourse(
+            attendance = StoredAttendance(
+                attendedClasses = 32, totalClasses = 36, attendancePercentage = "89.50%"
+            )
+        )
+        assertEquals(89.5, AcademicDerivers.percentOf(printed))
+
+        val fromCounts = StoredCourse(
+            attendance = StoredAttendance(attendedClasses = 32, totalClasses = 36)
+        )
+        assertEquals(88.89, AcademicDerivers.percentOf(fromCounts))
     }
 
     @Test

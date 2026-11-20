@@ -106,6 +106,30 @@ fun M3EMarksPredictorScreen(
                 }
             }
 
+            // Honest empty state: never present a predicted number when there is no real data.
+            if (state.errorMessage != null) {
+                item(key = "predictor_no_data") {
+                    M3ESurfaceCard(
+                        containerLevel = SurfaceContainerLevel.STANDARD,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                text = "Not enough data",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.onSurface
+                            )
+                            Text(
+                                text = state.errorMessage.orEmpty(),
+                                fontSize = 13.sp,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
             // Predicted SGPA Hero Card
             item(key = "predicted_gpa_hero") {
                 M3ESurfaceCard(
@@ -126,7 +150,7 @@ fun M3EMarksPredictorScreen(
                                 color = colors.onSurfaceVariant
                             )
                             Text(
-                                text = state.predictedGpa.toFixed(2),
+                                text = if (state.errorMessage != null) "—" else state.predictedGpa.toFixed(2),
                                 fontSize = 36.sp,
                                 fontWeight = FontWeight.Black,
                                 color = colors.primary
@@ -241,7 +265,9 @@ private fun M3EPredictionCourseCard(
                         color = colors.onSurfaceVariant
                     )
                     Text(
-                        text = "${course.internalScored.toFixed(2)} / ${course.internalMax.toFixed(2)}",
+                        text = if (course.internalMax > 0.0) {
+                            "${course.internalScored.toFixed(2)} / ${course.internalMax.toFixed(2)}"
+                        } else "Not available",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = colors.onSurface
@@ -261,7 +287,7 @@ private fun M3EPredictionCourseCard(
 
             // Grade Selector
             Text(
-                text = "Target Grade",
+                text = if (course.selectedGrade.isBlank()) "Target Grade (not published — choose one)" else "Target Grade",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colors.onSurfaceVariant
@@ -293,7 +319,8 @@ private fun M3EPredictionCourseCard(
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = course.requiredFatMark?.let { "${it.toFixed(2)} / 100" } ?: "Guaranteed",
+                        text = course.requiredFatMark?.let { "${it.toFixed(0)} / 100" }
+                            ?: if (course.internalMax > 0.0) "Choose a grade" else "Not available",
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Black,
                         color = toneColor

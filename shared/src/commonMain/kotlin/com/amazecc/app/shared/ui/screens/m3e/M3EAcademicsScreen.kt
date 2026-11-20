@@ -21,17 +21,25 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Grade
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Divider
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -64,7 +72,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun M3EAcademicsScreen(
     state: M3EAcademicsState,
     onAction: (M3EAcademicsAction) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Navigation is a host concern; the immutable action set carries no course-detail intent. */
+    onOpenCourse: (String) -> Unit = {}
 ) {
     val colors = M3ETheme.colors
 
@@ -80,19 +90,106 @@ fun M3EAcademicsScreen(
         ) {
             // Header Bar
             item(key = "academics_header") {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        text = "Academics",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onSurface
-                    )
-                    Text(
-                        text = state.semesterName,
-                        fontSize = 13.sp,
-                        color = colors.onSurfaceVariant
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Academics",
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurface
+                        )
+                        Text(
+                            text = state.semesterName,
+                            fontSize = 13.sp,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                    IconButton(
+                        onClick = { onAction(M3EAcademicsAction.Refresh) },
+                        enabled = !state.isLoading,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(colors.surfaceContainerHigh)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "Refresh academics",
+                            tint = colors.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
+            }
+
+            // Semester switch — host maps the selected name back to its id.
+            if (state.availableSemesters.size > 1) {
+                item(key = "academics_semesters") {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(androidx.compose.foundation.rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        state.availableSemesters.forEach { semester ->
+                            FilterChip(
+                                selected = semester == state.semesterName,
+                                onClick = { onAction(M3EAcademicsAction.SelectSemester(semester)) },
+                                label = { Text(semester, fontSize = 12.sp) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Search — the host already filters on this query.
+            item(key = "academics_search") {
+                OutlinedTextField(
+                    value = state.searchQuery,
+                    onValueChange = { onAction(M3EAcademicsAction.UpdateSearch(it)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = {
+                        Text(
+                            text = "Search course code, title or faculty",
+                            fontSize = 14.sp,
+                            color = colors.onSurfaceVariant
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Rounded.Search,
+                            contentDescription = null,
+                            tint = colors.primary
+                        )
+                    },
+                    trailingIcon = if (state.searchQuery.isBlank()) null else {
+                        {
+                            IconButton(onClick = { onAction(M3EAcademicsAction.UpdateSearch("")) }) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Close,
+                                    contentDescription = "Clear search",
+                                    tint = colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = CircleShape,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = colors.onSurface,
+                        unfocusedTextColor = colors.onSurface,
+                        focusedContainerColor = colors.surfaceContainerLow,
+                        unfocusedContainerColor = colors.surfaceContainerLowest,
+                        focusedBorderColor = colors.primary,
+                        unfocusedBorderColor = colors.outlineVariant,
+                        focusedPlaceholderColor = colors.onSurfaceVariant,
+                        unfocusedPlaceholderColor = colors.onSurfaceVariant
+                    )
+                )
             }
 
             // CGPA & Credits Hero Summary Card
@@ -110,23 +207,33 @@ fun M3EAcademicsScreen(
                 )
             }
 
-            // Filtered Course Cards List
-            val filteredCourses = when (state.selectedFilter) {
-                AcademicCourseFilter.ALL -> state.courses
-                AcademicCourseFilter.THEORY -> state.courses.filter { it.courseType.contains("TH", ignoreCase = true) }
-                AcademicCourseFilter.LAB -> state.courses.filter { it.courseType.contains("LA", ignoreCase = true) }
-                AcademicCourseFilter.EMBEDDED -> state.courses.filter { it.courseType.contains("ETH", ignoreCase = true) || it.courseType.contains("ELA", ignoreCase = true) }
+            // The host owns filtering (same Theory/Lab/Embedded tokens for every surface),
+            // so render its list directly instead of re-filtering with different abbreviations.
+            if (state.courses.isEmpty() && !state.isLoading) {
+                item(key = "academics_empty") {
+                    M3ESurfaceCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        containerLevel = SurfaceContainerLevel.LOW
+                    ) {
+                        Text(
+                            text = "No courses match this semester and search.",
+                            fontSize = 14.sp,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             items(
-                items = filteredCourses,
+                items = state.courses,
                 key = { it.courseCode }
             ) { course ->
                 val isExpanded = state.expandedCourseCode == course.courseCode
                 M3EAcademicCourseCard(
                     course = course,
                     isExpanded = isExpanded,
-                    onToggleExpand = { onAction(M3EAcademicsAction.ToggleExpandCourse(course.courseCode)) }
+                    onToggleExpand = { onAction(M3EAcademicsAction.ToggleExpandCourse(course.courseCode)) },
+                    onOpenCourse = onOpenCourse
                 )
             }
 
@@ -226,6 +333,7 @@ private fun M3EAcademicCourseCard(
     course: M3EAcademicCourse,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
+    onOpenCourse: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
@@ -397,6 +505,14 @@ private fun M3EAcademicCourseCard(
                             }
                         }
                     }
+
+                    Text(
+                        text = "Open course detail →",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.primary,
+                        modifier = Modifier.clickable { onOpenCourse(course.courseCode) }
+                    )
                 }
             }
         }

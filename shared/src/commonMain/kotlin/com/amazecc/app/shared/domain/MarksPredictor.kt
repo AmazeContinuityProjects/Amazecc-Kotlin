@@ -1,5 +1,13 @@
 package com.amazecc.app.shared.domain
 
+import kotlin.math.PI
+import kotlin.math.ceil
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.max
+import kotlin.math.sin
+import kotlin.math.sqrt
+
 /**
  * Port of Node's `src/lib/marksPredictor.ts`.
  *
@@ -340,28 +348,265 @@ fun computeComponentStats(
 
 // ── Grade bands ───────────────────────────────────────────────────────────────
 
-/** The VIT letter band. Boundaries are inclusive (ACE §9.5 Table 6). */
-private val GRADE_BANDS = listOf(
-    90.0 to ("S" to "Outstanding (10 Grade Points)"),
-    80.0 to ("A" to "Excellent (9 Grade Points)"),
-    70.0 to ("B" to "Very Good (8 Grade Points)"),
-    60.0 to ("C" to "Good (7 Grade Points)"),
-    50.0 to ("D" to "Average (6 Grade Points)"),
-    40.0 to ("E" to "Pass (5 Grade Points)"),
+/**
+ * Class-level cohort statistics, as `marksStats[classNbr].overall` carries them.
+ *
+ * Mirrors the web `ClassStats` type. A [manual] curve is typed by the reader ("what if the class
+ * averages 62 with σ 11?") and is taken exactly as given: no contributor minimum, no σ pooling,
+ * no early-estimate flag.
+ */
+data class ClassStats(
+    val count: Int,
+    val mean: Double,
+    val sd: Double,
+    val manual: Boolean = false,
 )
 
+/** One rung of a ladder: [grade] starts at [limit], inclusive. */
+data class GradedBoundary(val grade: String, val limit: Double)
+
 /**
- * The letter for a 0-100 score.
+ * The fixed ladder: FFCS Academic Regulations v5.0 (ACE) §9.5 Table 6.
  *
- * The score is rounded to 2dp first, so a 89.999 does not read as an S.
+ * D and E are five points wide, not ten: the pass line is 50 (§9.4 c), so nothing below 50 passes.
  */
-fun estimateGrade(score: Double): EstimatedGrade {
-    val rounded = round2(score)
-    for ((floor, band) in GRADE_BANDS) {
-        if (rounded >= floor) return EstimatedGrade(band.first, band.second)
-    }
-    return EstimatedGrade("F", "Fail (0 Grade Points)")
+val ABSOLUTE_GRADE_BOUNDARIES: List<GradedBoundary> = listOf(
+    GradedBoundary("S", 90.0),
+    GradedBoundary("A", 80.0),
+    GradedBoundary("B", 70.0),
+    GradedBoundary("C", 60.0),
+    GradedBoundary("D", 55.0),
+    GradedBoundary("E", 50.0),
+    GradedBoundary("F", 0.0),
+)
+
+/** How many classmates must have synced before the app curves at all. */
+const val MIN_CURVE_SAMPLE: Int = 5
+
+/** Below this many contributors a real curve is flagged as an early estimate. */
+const val CONFIDENT_CURVE_SAMPLE: Int = 15
+
+/** A typical σ for a VIT theory class's grand total, and its weight in degrees of freedom. */
+private const val PRIOR_SD: Double = 12.0
+private const val PRIOR_DF: Int = 4
+
+private val GRADE_DESCRIPTIONS = mapOf(
+    "S" to "Outstanding (10 Grade Points)",
+    "A" to "Excellent (9 Grade Points)",
+    "B" to "Very Good (8 Grade Points)",
+    "C" to "Good (7 Grade Points)",
+    "D" to "Average (6 Grade Points)",
+    "E" to "Pass (5 Grade Points)",
+    "F" to "Fail (0 Grade Points)",
+)
+
+/** The words a band carries, kept in one place so every grade surface reads the same string. */
+fun gradeDescription(letter: String): String =
+    GRADE_DESCRIPTIONS[letter] ?: GRADE_DESCRIPTIONS.getValue("F")
+
+private fun estimated(letter: String): EstimatedGrade = EstimatedGrade(letter, gradeDescription(letter))
+
+/**
+ * A reader's own mean and σ as class statistics, or null when either is out of range.
+ *
+ * σ below 0.5 would collapse every band onto the mean; above 50 the whole ladder leaves 0–100.
+ */
+fun manualClassStats(mean: Double?, sd: Double?): ClassStats? {
+    if (mean == null || sd == null) return null
+    if (!mean.isFinite() || !sd.isFinite()) return null
+    if (mean < 0.0 || mean > 100.0) return null
+    if (sd < 0.5 || sd > 50.0) return null
+    return ClassStats(count = 0, mean = mean, sd = sd, manual = true)
 }
+
+/**
+ * The σ the ladder actually uses: the sample σ pooled with [PRIOR_SD].
+ *
+ * `((n − 1)·s² + k·σ₀²) / ((n − 1) + k)`. A sample of 5 can report σ = 3 or σ = 25 for the same
+ * class; pooling keeps a handful of contributors from swinging every band by ten marks.
+ */
+fun effectiveSd(classStats: ClassStats): Double {
+    if (classStats.manual) return classStats.sd
+    val df = max(0, classStats.count - 1).toDouble()
+    val sd = if (classStats.sd.isFinite()) max(0.0, classStats.sd) else 0.0
+    return sqrt((df * sd * sd + PRIOR_DF * PRIOR_SD * PRIOR_SD) / (df + PRIOR_DF))
+}
+
+/** Whether these statistics are enough to curve on; a σ of 0 is allowed once n ≥ 5. */
+fun hasUsableClassStats(classStats: ClassStats?): Boolean {
+    val stats = classStats ?: return false
+    return if (stats.manual) {
+        stats.mean.isFinite() && stats.sd.isFinite() && stats.sd > 0.0
+    } else {
+        stats.count >= MIN_CURVE_SAMPLE &&
+            stats.mean.isFinite() && stats.sd.isFinite() && stats.sd >= 0.0
+    }
+}
+
+/** The statistics the ladder is built from, with σ stabilised; null when unusable. */
+fun effectiveClassStats(classStats: ClassStats?): ClassStats? {
+    val stats = classStats ?: return null
+    if (!hasUsableClassStats(stats)) return null
+    return stats.copy(sd = effectiveSd(stats))
+}
+
+/** Whether a curve rests on few enough contributors to call it an early estimate. */
+fun isEarlyEstimate(classStats: ClassStats?): Boolean {
+    val stats = classStats ?: return false
+    return hasUsableClassStats(stats) && !stats.manual && stats.count < CONFIDENT_CURVE_SAMPLE
+}
+
+/**
+ * Whether a course is graded on a curve. The grading *system* does not change the answer; the
+ * course type does. Theory (including an embedded course's theory half) is relative; lab-only,
+ * project, soft-skill and online courses are absolute.
+ */
+@Suppress("UNUSED_PARAMETER")
+fun isRelativeGrading(courseSystem: String?, courseType: String?): Boolean {
+    val type = courseType.orEmpty().trim().lowercase().replace(Regex("\\s+"), " ")
+    if (type.isEmpty()) return false
+    if (type.contains("theory")) return true
+    return type == "embedded" || type == "embedded lab"
+}
+
+/** ln Γ(x), Lanczos (g = 7, n = 9). */
+private fun lnGamma(x: Double): Double {
+    val c = doubleArrayOf(
+        0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313,
+        -176.61502916214059, 12.507343278686905, -0.13857109526572012,
+        9.9843695780195716e-6, 1.5056327351493116e-7,
+    )
+    if (x < 0.5) return ln(PI / sin(PI * x)) - lnGamma(1.0 - x)
+    val z = x - 1.0
+    var a = c[0]
+    val t = z + 7.5
+    for (i in 1..8) a += c[i] / (z + i)
+    return 0.5 * ln(2.0 * PI) + (z + 0.5) * ln(t) - t + ln(a)
+}
+
+/** Regularised lower incomplete gamma P(a, x): series below a + 1, continued fraction above. */
+private fun gammaP(a: Double, x: Double): Double {
+    if (x <= 0.0) return 0.0
+    val lnPrefix = a * ln(x) - x - lnGamma(a)
+    if (x < a + 1.0) {
+        var term = 1.0 / a
+        var sum = term
+        for (n in 1 until 500) {
+            term *= x / (a + n)
+            sum += term
+            if (kotlin.math.abs(term) < kotlin.math.abs(sum) * 1e-15) break
+        }
+        return minOf(1.0, sum * exp(lnPrefix))
+    }
+    val tiny = 1e-300
+    var b = x + 1.0 - a
+    var c = 1.0 / tiny
+    var d = 1.0 / b
+    var h = d
+    for (i in 1 until 500) {
+        val an = -i * (i - a)
+        b += 2.0
+        d = an * d + b
+        if (kotlin.math.abs(d) < tiny) d = tiny
+        c = b + an / c
+        if (kotlin.math.abs(c) < tiny) c = tiny
+        d = 1.0 / d
+        val delta = d * c
+        h *= delta
+        if (kotlin.math.abs(delta - 1.0) < 1e-15) break
+    }
+    return max(0.0, 1.0 - exp(lnPrefix) * h)
+}
+
+/** The p-quantile of a unit-scale gamma(shape): bisection on the monotone CDF. */
+private fun gammaQuantile(p: Double, shape: Double): Double {
+    if (p <= 0.0) return 0.0
+    var lo = 0.0
+    var hi = max(1.0, shape)
+    while (gammaP(shape, hi) < p) hi *= 2.0
+    var i = 0
+    while (i < 200 && hi - lo > 1e-12 * max(1.0, hi)) {
+        val mid = (lo + hi) / 2.0
+        if (gammaP(shape, mid) < p) lo = mid else hi = mid
+        i++
+    }
+    return (lo + hi) / 2.0
+}
+
+/**
+ * The S cutoff when `mean + 1.5σ` passes 100 (v5.0 §9.5): "the maximum of 3 or the top 5%
+ * students who have scored ≥ 80 marks in aggregate". A mean and σ cannot give a rank, so the
+ * cutoff is estimated by modelling the *deficit* as a gamma distribution bounded at the ceiling.
+ */
+fun estimateTopShareCutoff(mean: Double, sd: Double): Double {
+    val deficit = 100.0 - mean
+    if (!(deficit > 0.0) || !(sd > 0.0)) return 100.0
+    val shape = deficit * deficit / (sd * sd)
+    val scale = sd * sd / deficit
+    val cutoff = 100.0 - gammaQuantile(0.05, shape) * scale
+    return minOf(100.0, max(80.0, jsRound(cutoff)))
+}
+
+/**
+ * The ladder for one course (v5.0 §9.5 Table 5): S at +1.5σ, then A/B/C/D/E half a σ down,
+ * with the E–F line at `min(mean − 2σ, 50)`. Every rung is a `Math.round` integer, clamped so
+ * no band is below zero or above the one before it. With no usable class data — or for a course
+ * that is not graded on a curve — the absolute ladder is returned unchanged.
+ */
+fun buildGradeBoundaries(classStats: ClassStats?, relative: Boolean = true): List<GradedBoundary> {
+    if (!relative) return ABSOLUTE_GRADE_BOUNDARIES
+    val stats = effectiveClassStats(classStats) ?: return ABSOLUTE_GRADE_BOUNDARIES
+    val mean = stats.mean
+    val sd = stats.sd
+    val sRaw = jsRound(mean + 1.5 * sd)
+    val sBoundary = if (sRaw > 100) estimateTopShareCutoff(mean, sd) else sRaw
+
+    val raw = listOf(
+        "S" to sBoundary,
+        "A" to jsRound(mean + 0.5 * sd),
+        "B" to jsRound(mean - 0.5 * sd),
+        "C" to jsRound(mean - 1.0 * sd),
+        "D" to jsRound(mean - 1.5 * sd),
+        "E" to minOf(jsRound(mean - 2.0 * sd), 50.0),
+    )
+
+    val ladder = mutableListOf<GradedBoundary>()
+    var ceiling = 100.0
+    for ((grade, limit) in raw) {
+        val clamped = max(0.0, minOf(limit, ceiling))
+        ladder += GradedBoundary(grade, clamped)
+        ceiling = clamped
+    }
+    ladder += GradedBoundary("F", 0.0)
+    return ladder
+}
+
+/**
+ * Scan the ladder down until the student's weightage meets a band's floor.
+ *
+ * A total is rounded **up** to the next whole number before it is read — 79.5 is an 80 — which is
+ * how grades are calculated against these tables. The epsilon keeps binary noise from ceiling a
+ * whole-number total up a mark.
+ */
+fun gradeAt(pct: Double, boundaries: List<GradedBoundary> = ABSOLUTE_GRADE_BOUNDARIES): String {
+    val weightage = ceil(pct - 1e-9)
+    for (band in boundaries) {
+        if (weightage >= band.limit) return band.grade
+    }
+    return "F"
+}
+
+/**
+ * The letter for a 0-100 score on the absolute ladder.
+ *
+ * The score-only overload stays on [ABSOLUTE_GRADE_BOUNDARIES] so existing callers keep getting an
+ * absolute grade; pass [classStats] to the other overload for relative grading.
+ */
+fun estimateGrade(score: Double): EstimatedGrade = estimated(gradeAt(score))
+
+/** The letter for a 0-100 score against a cohort curve, falling back to absolute when unusable. */
+fun estimateGrade(score: Double, classStats: ClassStats?): EstimatedGrade =
+    estimated(gradeAt(score, buildGradeBoundaries(classStats, relative = true)))
 
 // ── Course-level prediction ───────────────────────────────────────────────────
 

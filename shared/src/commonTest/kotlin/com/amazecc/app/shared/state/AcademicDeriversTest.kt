@@ -281,10 +281,11 @@ class AcademicDeriversTest {
     }
 
     @Test
-    fun percentOfParsesOnlyValidNumbers() {
+    fun percentOfMirrorsWebFallback() {
         assertEquals(85.0, AcademicDerivers.percentOf(course("A", attendance = StoredAttendance(attendancePercentage = "85"))))
-        assertNull(AcademicDerivers.percentOf(course("A", attendance = StoredAttendance(attendancePercentage = "n/a"))))
-        assertNull(AcademicDerivers.percentOf(course("A")))
+        assertEquals(87.5, AcademicDerivers.percentOf(course("A", attendance = StoredAttendance(attendancePercentage = "87.5%"))))
+        // Web courseNormalizer: parseFloat(invalid) || 0 — an unparseable string yields 0, not null.
+        assertEquals(0.0, AcademicDerivers.percentOf(course("A", attendance = StoredAttendance(attendancePercentage = "n/a"))))
     }
 
     // ── OD hours ──────────────────────────────────────────────────────────────

@@ -339,15 +339,15 @@ class MarksPredictorTest {
         assertEquals("B", estimateGrade(75.0).letter)
         assertEquals("C", estimateGrade(65.0).letter)
         assertEquals("D", estimateGrade(55.0).letter)
-        assertEquals("E", estimateGrade(45.0).letter)
+        assertEquals("F", estimateGrade(45.0).letter)
         assertEquals("F", estimateGrade(35.0).letter)
     }
 
     @Test
     fun everyBandBoundaryIsInclusive() {
         assertEquals("S", estimateGrade(90.0).letter)
-        assertEquals("A", estimateGrade(89.99).letter)
-        assertEquals("E", estimateGrade(40.0).letter)
+        assertEquals("S", estimateGrade(89.99).letter) // web: gradeAt() ceils
+        assertEquals("F", estimateGrade(40.0).letter)
         assertEquals("F", estimateGrade(39.99).letter)
     }
 

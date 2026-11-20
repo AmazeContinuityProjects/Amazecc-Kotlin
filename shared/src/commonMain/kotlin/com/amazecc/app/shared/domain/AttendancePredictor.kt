@@ -2,7 +2,6 @@ package com.amazecc.app.shared.domain
 
 import kotlin.math.ceil
 import kotlin.math.floor
-import kotlin.math.round
 
 /**
  * Port of AmazeCC's `src/lib/attendancePredictor.ts`.
@@ -88,6 +87,17 @@ data class OverallSummary(
 object AttendancePredictor {
 
     /**
+     * The current percentage `attendanceCalculators.ts` uses for its `isSafe` flag: the raw ratio
+     * rounded to **one decimal place** before the threshold comparison. A 74.96% is "safe"
+     * against 75 because the app reads it as 75.0. Keeping it here gives every caller one source.
+     */
+    fun roundedCurrentPct(attended: Int, total: Int): Double {
+        if (total <= 0) return 100.0
+        val ratio = maxOf(0, attended).toDouble() / total.toDouble()
+        return round1(ratio * 100.0)
+    }
+
+    /**
      * Calculate classes required to reach target attendance percentage (e.g. 75, 80, 85).
      * If attendance is already >= target, returns 0.
      */
@@ -100,9 +110,9 @@ object AttendancePredictor {
         if (total <= 0) return 0
         val ratio = targetPct / 100.0
         if (ratio <= 0.0 || ratio >= 1.0) return 0
-        val currentPct = (attended.toDouble() / total.toDouble()) * 100.0
+        val currentPct = roundedCurrentPct(attended, total)
         if (currentPct >= targetPct) return 0
-        val raw = ceil(((ratio * total - attended) / (1.0 - ratio)) - 1e-9).toInt()
+        val raw = ceil((ratio * total - attended) / (1.0 - ratio)).toInt()
         val needed = raw.coerceAtLeast(0)
         return if (isLab) ceil(needed / 2.0).toInt() else needed
     }
@@ -120,9 +130,9 @@ object AttendancePredictor {
         if (total <= 0) return 0
         val ratio = targetPct / 100.0
         if (ratio <= 0.0 || ratio >= 1.0) return 0
-        val currentPct = (attended.toDouble() / total.toDouble()) * 100.0
+        val currentPct = roundedCurrentPct(attended, total)
         if (currentPct < targetPct) return 0
-        val raw = floor(((attended - ratio * total) / ratio) + 1e-9).toInt()
+        val raw = floor((attended - ratio * total) / ratio).toInt()
         val safe = raw.coerceAtLeast(0)
         return if (isLab) floor(safe / 2.0).toInt() else safe
     }
@@ -395,10 +405,10 @@ object AttendancePredictor {
         var classesNeeded = 0
         if (ratio > 0.0 && ratio < 1.0) {
             if (predictedPct >= input.threshold) {
-                val raw = floor(((predictedAttended - ratio * predictedTotal) / ratio) + 1e-9).toInt()
+                val raw = floor((predictedAttended - ratio * predictedTotal) / ratio).toInt()
                 safeBunks = maxOf(0, if (isLab) floor(raw / 2.0).toInt() else raw)
             } else {
-                val raw = ceil(((ratio * predictedTotal - predictedAttended) / (1.0 - ratio)) - 1e-9).toInt()
+                val raw = ceil((ratio * predictedTotal - predictedAttended) / (1.0 - ratio)).toInt()
                 classesNeeded = maxOf(0, if (isLab) ceil(raw / 2.0).toInt() else raw)
             }
         }
@@ -457,17 +467,7 @@ object AttendancePredictor {
         )
     }
 
-    fun formatPct(value: Double, decimals: Boolean = true): String {
-        val factor = if (decimals) 100.0 else 10.0
-        val rounded = round(value * factor) / factor
-        return if (decimals) {
-            val parts = rounded.toString().split(".")
-            val dec = if (parts.size > 1) parts[1].padEnd(2, '0').substring(0, 2) else "00"
-            "${parts[0]}.$dec"
-        } else {
-            val parts = rounded.toString().split(".")
-            val dec = if (parts.size > 1) parts[1].padEnd(1, '0').substring(0, 1) else "0"
-            "${parts[0]}.$dec"
-        }
-    }
+    /** `value.toFixed(2)` when [decimals], otherwise `value.toFixed(1)`. */
+    fun formatPct(value: Double, decimals: Boolean = true): String =
+        FormattingParity.toFixed(value, if (decimals) 2 else 1)
 }

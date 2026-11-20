@@ -62,7 +62,7 @@ class M3EHostelMessLaundryActionsTest {
     }
 
     @Test
-    fun applyLeaveActionStillEmits() = runComposeUiTest {
+    fun applyLeaveIsHonestlyDisabledWithNoApplyEndpoint() = runComposeUiTest {
         val actions = mutableListOf<M3EHostelAction>()
 
         setContent {
@@ -71,9 +71,8 @@ class M3EHostelMessLaundryActionsTest {
             }
         }
 
-        onNodeWithText("Apply Leave").performClick()
-        assertEquals(1, actions.size)
-        assertTrue(actions[0] is M3EHostelAction.ApplyNewLeave)
+        onNodeWithText("Apply Leave (unavailable)").assertExists()
+        assertEquals(0, actions.size)
     }
 
     @Test

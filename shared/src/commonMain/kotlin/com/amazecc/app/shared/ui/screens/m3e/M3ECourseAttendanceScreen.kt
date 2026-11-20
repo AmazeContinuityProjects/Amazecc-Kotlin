@@ -116,7 +116,7 @@ fun M3ECourseAttendanceScreen(
 ) {
     val colors = M3ETheme.colors
     val toneColor = when {
-        state.currentPercentage >= 85.0 -> colors.success
+        state.currentPercentage >= state.targetPercentage + 5 -> colors.success
         state.currentPercentage >= state.targetPercentage -> colors.warning
         else -> colors.error
     }

@@ -126,8 +126,20 @@ object AcademicDerivers {
         return slots.sortedWith(compareBy({ it.day ?: "" }, { slotStartMinutes(it.time) }, { it.slotName ?: "" }))
     }
 
-    fun percentOf(course: StoredCourse): Double? =
-        course.attendance?.attendancePercentage?.toDoubleOrNull()
+    /**
+     * The headline percentage for one course, mirroring the web app's `courseNormalizer`:
+     * a string (optionally suffixed with `%`) wins, then the attended/total counts. Keeping the
+     * string first matters — VTOP prints a department-supplied figure that can differ slightly
+     * from the recalculated one, and users reconcile against the printed number.
+     */
+    fun percentOf(course: StoredCourse): Double? {
+        val attendance = course.attendance ?: return null
+        val printed = attendance.attendancePercentage.replace("%", "").trim().toDoubleOrNull()
+        if (printed != null) return printed
+        return if (attendance.totalClasses > 0) {
+            kotlin.math.round(attendance.attendedClasses * 10000.0 / attendance.totalClasses) / 100.0
+        } else 0.0
+    }
 
     /**
      * Resolves the "current semester" deterministically (used by widget and

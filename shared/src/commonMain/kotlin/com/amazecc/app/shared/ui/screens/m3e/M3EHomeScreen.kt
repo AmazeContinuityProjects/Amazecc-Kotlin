@@ -85,7 +85,8 @@ fun M3EHomeScreen(
                     name = state.identity.name,
                     regNumber = state.identity.regNumber,
                     campus = state.identity.campus,
-                    onRefresh = { onAction(M3EHomeAction.RefreshData) }
+                    onRefresh = { onAction(M3EHomeAction.RefreshData) },
+                    isRefreshing = state.isRefreshing
                 )
             }
 
@@ -250,7 +251,8 @@ private fun M3EHomeHeader(
     name: String,
     regNumber: String,
     campus: String,
-    onRefresh: () -> Unit
+    onRefresh: () -> Unit,
+    isRefreshing: Boolean = false
 ) {
     val colors = M3ETheme.colors
 
@@ -282,6 +284,7 @@ private fun M3EHomeHeader(
 
         IconButton(
             onClick = onRefresh,
+            enabled = !isRefreshing,
             modifier = Modifier
                 .clip(CircleShape)
                 .background(colors.surfaceContainerHigh)

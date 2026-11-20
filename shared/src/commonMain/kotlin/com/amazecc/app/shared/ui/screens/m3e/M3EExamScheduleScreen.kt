@@ -71,7 +71,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun M3EExamScheduleScreen(
     state: M3EExamScheduleState,
     onAction: (M3EExamScheduleAction) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Detail UI is host-owned; the action set has no "show details" intent. */
+    onExamClicked: (M3EExamEntry) -> Unit = {}
 ) {
     val colors = M3ETheme.colors
     // Legacy hosts (the bridge) do not populate groupedEntries yet — derive the same groups here
@@ -204,7 +206,7 @@ fun M3EExamScheduleScreen(
                     item(key = "next_exam_hero") {
                         M3EExamNextExamHero(
                             exam = nextExam,
-                            onClick = { onAction(M3EExamScheduleAction.ExamClicked(nextExam)) }
+                            onClick = { onExamClicked(nextExam) }
                         )
                     }
                 }
@@ -270,7 +272,8 @@ fun M3EExamScheduleScreen(
                             M3EExamSeriesSection(
                                 group = group,
                                 hallTicketUrl = state.hallTicketUrl,
-                                onAction = onAction
+                                onAction = onAction,
+                                onExamClicked = onExamClicked
                             )
                         }
                     }
@@ -445,6 +448,7 @@ private fun M3EExamSeriesSection(
     group: M3EExamSeriesGroup,
     hallTicketUrl: String?,
     onAction: (M3EExamScheduleAction) -> Unit,
+    onExamClicked: (M3EExamEntry) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
@@ -486,7 +490,7 @@ private fun M3EExamSeriesSection(
                 M3EExamRowCard(
                     exam = exam,
                     hallTicketUrl = hallTicketUrl,
-                    onClick = { onAction(M3EExamScheduleAction.ExamClicked(exam)) },
+                    onClick = { onExamClicked(exam) },
                     onOpenHallTicket = { url -> onAction(M3EExamScheduleAction.OpenHallTicket(url)) }
                 )
             }

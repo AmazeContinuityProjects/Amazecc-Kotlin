@@ -12,6 +12,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EPalettePreset
 import com.amazecc.app.shared.domain.overhaul.M3ESettingsAction
 import com.amazecc.app.shared.domain.overhaul.M3ESettingsState
 import com.amazecc.app.shared.domain.overhaul.M3EThemeMode
+import com.amazecc.app.shared.domain.overhaul.allSettingsSections
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,7 +27,10 @@ class M3ESettingsScreenUiTest {
         honoApiBaseUrl = "https://hono.amazecc.com",
         cacheSizeText = "14.2 MB",
         isDiagnosticsRunning = false,
-        diagnosticStatus = "All systems operational (Ping: 42ms)"
+        diagnosticStatus = "All systems operational (Ping: 42ms)",
+        // The reworked M3E Settings screen is driven by the section list; without
+        // it no cards render at all (the host supplies this in production).
+        visibleSettingsSections = allSettingsSections()
     )
 
     @Test
@@ -43,12 +47,17 @@ class M3ESettingsScreenUiTest {
         onNodeWithText("Settings").assertExists()
         onNodeWithText("Theme & Display Mode").assertExists()
         onNodeWithText("M3 Expressive Color Palette").assertExists()
-        onNodeWithText("Hono Backend API").assertExists()
+        // D-059 renamed the backend card to the API target picker. It is below
+        // the fold in the LazyColumn, so scroll to it before asserting (same as
+        // the storage card below).
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("API Target"))
+        onNodeWithText("API Target").assertExists()
         onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Storage & Cache (14.2 MB)"))
         onNodeWithText("Storage & Cache (14.2 MB)").assertExists()
         onNodeWithText("All systems operational (Ping: 42ms)").assertExists()
-        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("AmazeCC Open Source"))
-        onNodeWithText("AmazeCC Open Source").assertExists()
+        // The old "AmazeCC Open Source" card was replaced by Backup / Export Settings.
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Backup / Export Settings"))
+        onNodeWithText("Backup / Export Settings").assertExists()
     }
 
     @Test
@@ -64,7 +73,8 @@ class M3ESettingsScreenUiTest {
             }
         }
 
-        onAllNodesWithText("Classic Light")[0].performClick()
+        // Derive the label from the enum so a future copy change cannot stale this test.
+        onAllNodesWithText(M3EThemeMode.LIGHT.label)[0].performClick()
         assertEquals(1, capturedActions.size)
         assertTrue(capturedActions[0] is M3ESettingsAction.SelectThemeMode)
         assertEquals(M3EThemeMode.LIGHT, (capturedActions[0] as M3ESettingsAction.SelectThemeMode).mode)

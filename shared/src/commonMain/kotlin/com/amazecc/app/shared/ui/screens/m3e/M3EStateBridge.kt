@@ -15,6 +15,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.api.SyllabusResult
+import com.amazecc.app.shared.utils.ExportImportManager
+import com.amazecc.app.shared.utils.currentAppIconTheme
+import com.amazecc.app.shared.utils.rememberFileImporter
+import com.amazecc.app.shared.utils.setAppIconTheme
 import com.amazecc.app.shared.utils.rememberFileSaver
 import com.amazecc.app.shared.vtop.VtopSource
 import com.amazecc.app.shared.config.SlotMap
@@ -138,6 +142,20 @@ object M3EStateBridge {
     }
 }
 
+/**
+ * Single source of truth for the attendance target used by every M3E attendance surface.
+ * Collecting both flows keeps the value live when a bus subscription or a custom target changes;
+ * [AppState.effectiveAttendanceTarget] itself remains the authority (custom > bus 85 > 75).
+ */
+@Composable
+private fun rememberEffectiveAttendanceTarget(): Float {
+    val isBusSubscriber by AppState.isBusSubscriber.collectAsState()
+    val customTarget by AppState.customAttendanceTarget.collectAsState()
+    return remember(isBusSubscriber, customTarget) {
+        AppState.effectiveAttendanceTarget(isBusSubscriber)
+    }
+}
+
 @Composable
 fun M3EHomeScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
@@ -148,6 +166,7 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
     val errorMsg by AppState.error.collectAsState()
     val calendarRes by AppState.calendar.collectAsState()
     val allGrades by AppState.allGrades.collectAsState()
+    val attendanceTarget = rememberEffectiveAttendanceTarget()
 
     val todayDate = remember {
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
@@ -169,10 +188,11 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
     val currentSem = domain.academics.semesters[selectedSemId]
     val courses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
 
-    val quickStats = remember(currentSem, courses, allGrades) {
+    val quickStats = remember(currentSem, courses, allGrades, attendanceTarget) {
         val totalClasses = courses.sumOf { it.attendance?.total ?: 0 }
         val attendedClasses = courses.sumOf { it.attendance?.attended ?: 0 }
         val attPct = if (totalClasses > 0) (attendedClasses.toDouble() / totalClasses) * 100.0 else 0.0
+        val targetFraction = attendanceTarget / 100.0
         // The published CGPA from /api/remote/grades is authoritative; the semester GPA is
         // only a fallback when the grade history has not been fetched yet.
         val cgpa = allGrades?.publishedCgpa?.toDoubleOrNull()
@@ -181,9 +201,10 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
         val credits = courses.sumOf { it.credits?.toIntOrNull() ?: 0 }
         val safeBunks = courses.sumOf { course ->
             val att = course.attendance
-            if (att != null && att.total > 0) {
-                val bunk = kotlin.math.floor((att.attended - 0.75 * att.total) / 0.75).toInt().coerceAtLeast(0)
-                bunk
+            if (att != null && att.total > 0 && targetFraction > 0.0) {
+                kotlin.math.floor(
+                    (att.attended - targetFraction * att.total) / targetFraction
+                ).toInt().coerceAtLeast(0)
             } else 0
         }
         M3EQuickStatsState(
@@ -191,7 +212,13 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
             cgpa = cgpa,
             creditsEarned = credits,
             safeBunksAvailable = safeBunks,
-            attendanceStatusText = if (attPct >= 75.0) "Safe margin across courses" else "Attendance critical"
+            attendanceStatusText = if (totalClasses == 0) {
+                "Attendance not available"
+            } else if (attPct >= attendanceTarget) {
+                "Safe margin across courses (target ${attendanceTarget.toInt()}%)"
+            } else {
+                "Attendance below ${attendanceTarget.toInt()}% target"
+            }
         )
     }
 
@@ -320,6 +347,7 @@ fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
     val selectedSemId by AppState.selectedSemester.collectAsState()
     val semesterMap by AppState.semesterMap.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
+    val attendanceTarget = rememberEffectiveAttendanceTarget()
 
     var activeFilter by remember { mutableStateOf(AttendanceFilter.ALL) }
     var searchQuery by remember { mutableStateOf("") }
@@ -327,32 +355,43 @@ fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
     val currentSem = domain.academics.semesters[selectedSemId]
     val rawCourses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
 
-    val allCards = remember(rawCourses) {
+    val allCards = remember(rawCourses, attendanceTarget) {
+        val targetFraction = attendanceTarget / 100.0
         rawCourses.map { c ->
             val att = c.attendance
             val total = att?.total ?: 0
             val attended = att?.attended ?: 0
-            val pct = if (total > 0) (attended.toDouble() / total) * 100.0 else 0.0
-            val bunkMargin = if (pct >= 75.0) {
-                val bunk = kotlin.math.floor((attended - 0.75 * total) / 0.75).toInt().coerceAtLeast(0)
-                if (bunk > 0) "Can bunk $bunk more classes" else "On the limit"
-            } else {
-                val deficit = 0.75 * total - attended
-                val needed = kotlin.math.ceil(deficit / (1.0 - 0.75)).toInt().coerceAtLeast(1)
-                "Attend next $needed classes"
+            val hasData = total > 0
+            val pct = if (hasData) (attended.toDouble() / total) * 100.0 else 0.0
+            val bunkMargin = when {
+                !hasData -> "Not available"
+                pct >= attendanceTarget && targetFraction > 0.0 -> {
+                    val bunk = kotlin.math.floor(
+                        (attended - targetFraction * total) / targetFraction
+                    ).toInt().coerceAtLeast(0)
+                    if (bunk > 0) "Can bunk $bunk more classes" else "On the limit"
+                }
+                targetFraction >= 1.0 -> "Target already at 100%"
+                else -> {
+                    val deficit = targetFraction * total - attended
+                    val needed = kotlin.math.ceil(deficit / (1.0 - targetFraction)).toInt().coerceAtLeast(1)
+                    "Attend next $needed classes"
+                }
             }
             M3ECourseAttendanceCardState(
                 courseCode = c.code,
                 courseTitle = c.title,
+                // Web parity: tokens are "Theory" / "Lab" / "Embedded"
+                // (web AttendanceCalendarView.tsx:403, DesktopCourseDetail.tsx:125).
                 badge = when {
-                    c.type.contains("Embedded", ignoreCase = true) -> "EMB"
-                    c.type.contains("Lab", ignoreCase = true) -> "LO"
-                    else -> "TH"
+                    c.type.contains("Embedded", ignoreCase = true) -> "Embedded"
+                    c.type.contains("Lab", ignoreCase = true) -> "Lab"
+                    else -> "Theory"
                 },
                 attendedClasses = attended,
                 totalClasses = total,
                 percentage = pct,
-                tone = M3EComputations.toneForPercentage(pct),
+                tone = if (hasData) M3EComputations.toneForPercentage(pct, attendanceTarget) else M3ECardTone.NEUTRAL,
                 faculty = c.faculty ?: "",
                 slot = c.slots.firstOrNull() ?: "",
                 bunkSummary = bunkMargin,
@@ -377,21 +416,25 @@ fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    val bunkSummary = remember(allCards) {
-        val totalBunk = allCards.sumOf {
-            val att = it.attendedClasses
-            val tot = it.totalClasses
-            if (tot > 0 && it.percentage >= 75.0) {
-                kotlin.math.floor((att - 0.75 * tot) / 0.75).toInt().coerceAtLeast(0)
+    val bunkSummary = remember(allCards, attendanceTarget) {
+        val targetFraction = attendanceTarget / 100.0
+        val totalBunk = allCards.sumOf { card ->
+            val att = card.attendedClasses
+            val tot = card.totalClasses
+            if (tot > 0 && card.percentage >= attendanceTarget && targetFraction > 0.0) {
+                kotlin.math.floor((att - targetFraction * tot) / targetFraction).toInt().coerceAtLeast(0)
             } else 0
         }
-        val crit = allCards.count { it.percentage < 75.0 && it.totalClasses > 0 }
-        val warn = allCards.count { it.percentage in 75.0..80.0 && it.totalClasses > 0 }
+        val crit = allCards.count { it.percentage < attendanceTarget && it.totalClasses > 0 }
+        // The web bands are Safe >= target+5, Warning >= target, Critical below target.
+        val warn = allCards.count {
+            it.totalClasses > 0 && it.percentage >= attendanceTarget && it.percentage < attendanceTarget + 5.0
+        }
         M3EBunkSummary(
             totalBunkableClasses = totalBunk,
             criticalCoursesCount = crit,
             warningCoursesCount = warn,
-            targetPercentage = 75f
+            targetPercentage = attendanceTarget
         )
     }
 
@@ -523,7 +566,11 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
             state = state,
             onAction = { action ->
                 when (action) {
-                    is M3EAcademicsAction.SelectSemester -> AppState.selectSemester(action.semester)
+                    // The state carries human-readable semester names; AppState needs the id.
+                    is M3EAcademicsAction.SelectSemester -> {
+                        semesterMap.entries.firstOrNull { it.value == action.semester }?.key
+                            ?.let { AppState.selectSemester(it) }
+                    }
                     is M3EAcademicsAction.SetFilter -> selectedFilter = action.filter
                     is M3EAcademicsAction.UpdateSearch -> searchQuery = action.query
                     is M3EAcademicsAction.ToggleExpandCourse -> {
@@ -532,7 +579,8 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
                     is M3EAcademicsAction.Refresh -> AppState.loadAllData()
                 }
             },
-            modifier = modifier
+            modifier = modifier,
+            onOpenCourse = { code -> AppState.openCourseDetail(code) }
         )
     }
 }
@@ -546,6 +594,11 @@ fun M3ECourseDetailScreen(
     val domain by AppState.domain.collectAsState()
     val selectedCode by AppState.selectedCourseCode.collectAsState()
     val selectedSemId by AppState.selectedSemester.collectAsState()
+    val identityState by UserStore.identity.collectAsState()
+    val attendanceTarget = rememberEffectiveAttendanceTarget()
+    val scope = rememberCoroutineScope()
+    val saveFile = rememberFileSaver()
+    var syllabusError by remember { mutableStateOf<String?>(null) }
 
     var activeTab by remember { mutableStateOf(CourseDetailTab.OVERVIEW) }
     var targetGrade by remember { mutableStateOf("A") }
@@ -558,7 +611,8 @@ fun M3ECourseDetailScreen(
     val att = course?.attendance
     val total = att?.total ?: 0
     val attended = att?.attended ?: 0
-    val pct = if (total > 0) (attended.toDouble() / total) * 100.0 else 0.0
+    val hasAttendance = total > 0
+    val pct = if (hasAttendance) (attended.toDouble() / total) * 100.0 else 0.0
 
     val internalAssessments = remember(course) {
         course?.marks?.assessments?.map { m ->
@@ -573,26 +627,41 @@ fun M3ECourseDetailScreen(
         }.orEmpty()
     }
 
+    val syllabusCourseCode = course?.code ?: selectedCode.orEmpty()
+    // Only surface a real e-mail: the identity payload carries the proctor's address, so show
+    // it here only when this course is actually taught by that proctor. Never invent one.
+    val facultyEmail = identityState.proctor?.email?.takeIf { email ->
+        email.isNotBlank() &&
+            course?.faculty?.equals(identityState.proctor?.name, ignoreCase = true) == true
+    }
     val state = M3ECourseDetailState(
-        courseCode = course?.code ?: (selectedCode ?: ""),
+        courseCode = syllabusCourseCode,
         courseTitle = course?.title ?: "Course Detail",
         credits = course?.credits?.toIntOrNull() ?: 3,
         courseType = course?.type ?: "Theory",
         slot = course?.slots?.firstOrNull() ?: "A1",
         venue = course?.venue ?: "SJT",
         facultyName = course?.faculty ?: "Faculty",
-        facultyEmail = null,
-        facultyCabin = null,
+        facultyEmail = facultyEmail,
+        facultyCabin = identityState.proctor?.cabin?.takeIf {
+            it.isNotBlank() &&
+                course?.faculty?.equals(identityState.proctor?.name, ignoreCase = true) == true
+        },
         attendedClasses = attended,
         totalClasses = total,
         attendancePct = pct,
-        bunkMarginSummary = if (pct >= 75.0) "Safe margin" else "Critical",
-        tone = M3EComputations.toneForPercentage(pct),
+        bunkMarginSummary = when {
+            !hasAttendance -> "Attendance not available"
+            pct >= attendanceTarget -> "Safe margin (target ${attendanceTarget.toInt()}%)"
+            else -> "Below ${attendanceTarget.toInt()}% target"
+        },
+        tone = if (hasAttendance) M3EComputations.toneForPercentage(pct, attendanceTarget) else M3ECardTone.NEUTRAL,
         activeTab = activeTab,
         internalScored = internalAssessments.sumOf { it.weightageMarks },
         internalMax = 60.0,
         assessments = internalAssessments,
-        targetGrade = targetGrade
+        targetGrade = targetGrade,
+        errorMessage = syllabusError
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -602,7 +671,20 @@ fun M3ECourseDetailScreen(
                 when (action) {
                     is M3ECourseDetailAction.SelectTab -> activeTab = action.tab
                     is M3ECourseDetailAction.SetTargetGrade -> targetGrade = action.grade
-                    is M3ECourseDetailAction.DownloadSyllabus -> {}
+                    is M3ECourseDetailAction.DownloadSyllabus -> scope.launch {
+                        syllabusError = null
+                        val result = AmazeClient.getSyllabusPdf(syllabusCourseCode)
+                        val file = result.download
+                        syllabusError = when {
+                            file == null -> result.error ?: "No syllabus is available for this course"
+                            file.bytes.isEmpty() -> "The syllabus file is empty"
+                            !saveFile(
+                                "${syllabusCourseCode}_syllabus.${file.extension.ifBlank { "pdf" }}",
+                                file.bytes
+                            ) -> "Could not save the syllabus file"
+                            else -> null
+                        }
+                    }
                     is M3ECourseDetailAction.Refresh -> AppState.loadAllData()
                     is M3ECourseDetailAction.Back -> onBack()
                 }
@@ -690,8 +772,10 @@ fun M3EFacultyScreen(modifier: Modifier = Modifier) {
                     is M3EFacultyAction.ToggleExpand -> {
                         expandedFacultyId = if (expandedFacultyId == action.facultyId) null else action.facultyId
                     }
-                    is M3EFacultyAction.CopyEmail -> {}
-                    is M3EFacultyAction.ToggleShowTimetable -> {}
+                    is M3EFacultyAction.CopyEmail -> Unit // clipboard copy happens in M3EFacultyScreen (composable context)
+                    is M3EFacultyAction.ToggleShowTimetable -> {
+                        expandedFacultyId = if (expandedFacultyId == action.facultyId) null else action.facultyId
+                    }
                     is M3EFacultyAction.Refresh -> AppState.loadAllData()
                 }
             },
@@ -791,31 +875,72 @@ fun M3EMarksPredictorScreen(modifier: Modifier = Modifier) {
     val rawCourses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
 
     var selectedCourseCode by remember { mutableStateOf<String?>(null) }
+    // Only explicit user overrides live here. Reset returns to the grade VTOP actually published,
+    // never to a made-up default letter.
     val gradesMap = remember { mutableStateMapOf<String, String>() }
 
-    val courseItems = remember(rawCourses, gradesMap) {
+    // Copy real marks out of the snapshot; the pure derivation owns every displayed number.
+    val predictorInputs = remember(rawCourses) {
         rawCourses.map { c ->
-            val scored = c.marks?.assessments?.sumOf { it.weightage.toDoubleOrNull() ?: 0.0 } ?: 0.0
-            val grade = gradesMap[c.code] ?: "A"
-            M3ECoursePredictionItem(
-                courseCode = c.code,
-                courseTitle = c.title,
+            M3EPredictorDerivation.CourseInput(
+                code = c.code,
+                title = c.title,
                 credits = c.credits?.toIntOrNull() ?: 3,
-                internalScored = scored,
-                internalMax = 60.0,
-                selectedGrade = grade,
-                requiredFatMark = 40.0,
-                tone = M3ECardTone.GOOD
+                publishedGrade = c.grade?.letter,
+                assessments = c.marks?.assessments.orEmpty().map { m ->
+                    M3EAssessmentItem(
+                        title = m.name,
+                        maxMarks = m.maxMark.toDoubleOrNull() ?: 0.0,
+                        scoredMarks = m.score.toDoubleOrNull() ?: 0.0,
+                        weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0,
+                        weightageMarks = m.weightage.toDoubleOrNull() ?: 0.0,
+                        status = m.status
+                    )
+                }
             )
         }
     }
+    val selectedGrades = remember(predictorInputs,gradesMap) {
+        predictorInputs.associate { input ->
+            input.code to (gradesMap[input.code] ?: input.publishedGrade.orEmpty())
+        }
+    }
+    val courseItems = remember(predictorInputs, selectedGrades) {
+        predictorInputs.map { input ->
+            val grade = selectedGrades[input.code].orEmpty()
+            val internal = M3EPredictorDerivation.internalMarks(input.assessments)
+            val requiredFat = internal?.let { (scored, max) ->
+                if (grade.isBlank()) null
+                else M3EPredictorDerivation.requiredFatPercentage(scored, max, grade)
+            }
+            M3ECoursePredictionItem(
+                courseCode = input.code,
+                courseTitle = input.title,
+                credits = input.credits,
+                internalScored = internal?.first ?: 0.0,
+                internalMax = internal?.second ?: 0.0,
+                selectedGrade = grade,
+                requiredFatMark = requiredFat,
+                tone = M3EPredictorDerivation.toneFor(requiredFat)
+            )
+        }
+    }
+    val predictedGpa = remember(predictorInputs, selectedGrades) {
+        M3EPredictorDerivation.predictGpa(predictorInputs, selectedGrades)
+    }
 
     val state = M3EMarksPredictorState(
-        predictedGpa = 8.85,
-        totalCreditsSimulated = courseItems.sumOf { it.credits },
+        predictedGpa = predictedGpa ?: 0.0,
+        totalCreditsSimulated = predictorInputs.sumOf { it.credits },
         courses = courseItems,
         selectedCourseCode = selectedCourseCode,
-        isLoading = isLoading
+        isLoading = isLoading,
+        errorMessage = when {
+            isLoading -> null
+            predictorInputs.isEmpty() -> "No marks data is available for the selected semester."
+            predictedGpa == null -> "Not enough published grades to predict a GPA. Choose a target grade for at least one course."
+            else -> null
+        }
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -986,18 +1111,18 @@ fun M3EHostelScreen(modifier: Modifier = Modifier) {
         M3EHostelDetails(
             blockName = hostelInfo?.blockName?.trim()?.takeIf {
                 it.isNotBlank() && !it.equals("NOT ALLOTED", ignoreCase = true)
-            } ?: "Q Block",
+            } ?: "Not available",
             roomNumber = hostelInfo?.roomNo?.trim()?.takeIf {
                 it.isNotBlank() && !it.equals("NOT ALLOTED", ignoreCase = true)
-            } ?: "514",
-            // HostelDetails carries no room designation, bed or warden fields; keep the
-            // legacy placeholders only as last-resort fallbacks until a real source exists.
-            roomType = "2 Bed AC",
-            bedNumber = "B",
-            messType = realMess ?: "Special Mess",
-            messCaterer = realMess ?: "CRCL Caterers",
-            wardenName = "Dr. Ramesh K",
-            wardenPhone = "+91 94421 00000"
+            } ?: "Not available",
+            // HostelDetails carries no room designation, bed, caterer or warden fields.
+            // Never show plausible-looking placeholders — absence is the honest answer.
+            roomType = "Not available",
+            bedNumber = "Not available",
+            messType = realMess ?: "Not available",
+            messCaterer = "Not available",
+            wardenName = "Not available",
+            wardenPhone = ""
         )
     }
 
@@ -1074,8 +1199,10 @@ fun M3EHostelScreen(modifier: Modifier = Modifier) {
             onAction = { action ->
                 when (action) {
                     is M3EHostelAction.SelectTab -> selectedTab = action.tab
-                    is M3EHostelAction.ApplyNewLeave -> {}
-                    is M3EHostelAction.CallWarden -> {}
+                    is M3EHostelAction.ApplyNewLeave -> Unit // no apply-leave endpoint; CTA disabled in the screen
+                    is M3EHostelAction.CallWarden -> {
+                        details.wardenPhone?.takeIf { it.isNotBlank() }?.let { dialPhoneNumber(it) }
+                    }
                     is M3EHostelAction.Refresh -> AppState.loadAllData()
                 }
             },
@@ -1163,6 +1290,7 @@ fun M3ECabShareScreen(modifier: Modifier = Modifier) {
     var searchQuery by remember { mutableStateOf("") }
     var activeFilter by remember { mutableStateOf(M3ECabShareFilter.ALL) }
     var isCreateDialogOpen by remember { mutableStateOf(false) }
+    var cabNotice by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         AppState.fetchCabHubs()
@@ -1227,7 +1355,8 @@ fun M3ECabShareScreen(modifier: Modifier = Modifier) {
         activeFilter = activeFilter,
         searchQuery = searchQuery,
         isCreateDialogOpen = isCreateDialogOpen,
-        isLoading = isLoading
+        isLoading = isLoading,
+        errorMessage = cabNotice
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -1244,7 +1373,10 @@ fun M3ECabShareScreen(modifier: Modifier = Modifier) {
                             AppState.cabRequestJoinNew(id)
                         }
                     }
-                    is M3ECabShareAction.ContactCreator -> {}
+                    is M3ECabShareAction.ContactCreator -> {
+                        if (action.phoneNumber.isNotBlank()) dialPhoneNumber(action.phoneNumber)
+                        else cabNotice = "This creator has not shared a contact number."
+                    }
                     is M3ECabShareAction.Refresh -> {
                         AppState.fetchCabHubs()
                         AppState.cabRefreshMyTripsNew { myTrips, joinedTrips ->
@@ -1253,7 +1385,35 @@ fun M3ECabShareScreen(modifier: Modifier = Modifier) {
                     }
                 }
             },
-            modifier = modifier
+            modifier = modifier,
+            onCreateRide = { draft ->
+                val fromId = draft.fromHubId.toIntOrNull()
+                val toId = draft.toHubId.toIntOrNull()
+                if (fromId == null || toId == null) {
+                    cabNotice = "Choose a valid pick-up and drop hub."
+                } else {
+                    cabNotice = null
+                    AppState.cabCreateTripNew(
+                        fromHubId = fromId,
+                        toHubId = toId,
+                        date = draft.date.trim(),
+                        time = draft.time.trim(),
+                        tolerance = draft.tolerance.toDoubleOrNull() ?: 1.0,
+                        seats = draft.seats.toIntOrNull()?.coerceIn(1, 6) ?: 3,
+                        gender = draft.gender,
+                        notes = draft.notes.trim(),
+                        onResult = { success, message ->
+                            cabNotice = message
+                            if (success) {
+                                isCreateDialogOpen = false
+                                AppState.cabRefreshMyTripsNew { myTrips, joinedTrips ->
+                                    trips = (myTrips + joinedTrips).distinctBy { it.trip_id }
+                                }
+                            }
+                        }
+                    )
+                }
+            }
         )
     }
 }
@@ -1560,17 +1720,29 @@ fun M3ETasksScreen(modifier: Modifier = Modifier) {
     var isCreateDialogOpen by remember { mutableStateOf(false) }
 
     val taskItems = remember(homeworkTasks) {
+        val today = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         homeworkTasks.map { t ->
+            val due = runCatching { LocalDate.parse(t.dueDate) }.getOrNull()
+            // The local model has no in-progress flag; only report what it actually stores.
+            val status = if (t.completed) M3ETaskStatus.DONE else M3ETaskStatus.PENDING
+            val kind = when (t.type.trim().lowercase()) {
+                "assignment", "lms_auto" -> M3ETaskKind.DIGITAL_ASSIGNMENT
+                "quiz", "test", "exam" -> M3ETaskKind.TEST
+                "study" -> M3ETaskKind.STUDY
+                "reminder" -> M3ETaskKind.REMINDER
+                else -> M3ETaskKind.HOMEWORK
+            }
             M3ETaskItem(
                 id = t.id,
                 title = t.title,
-                kind = M3ETaskKind.DIGITAL_ASSIGNMENT,
-                status = if (t.completed) M3ETaskStatus.DONE else M3ETaskStatus.PENDING,
+                kind = kind,
+                status = status,
                 courseCode = t.courseCode,
                 courseTitle = t.courseTitle,
                 dueDate = t.dueDate,
-                slotName = null,
-                isOverdue = false
+                slotName = t.dueTime.takeIf { it.isNotBlank() },
+                isOverdue = !t.completed && due != null && due < today,
+                notes = t.description.takeIf { it.isNotBlank() }
             )
         }
     }
@@ -1616,219 +1788,39 @@ fun M3ETasksScreen(modifier: Modifier = Modifier) {
                     is M3ETasksAction.Refresh -> AppState.loadAllData()
                 }
             },
-            modifier = modifier
+            modifier = modifier,
+            onCreateTask = { draft ->
+                val now = Clock.System.now().toString()
+                AppState.addTask(
+                    com.amazecc.app.shared.model.HomeworkTask(
+                        id = "local-${Clock.System.now().toEpochMilliseconds()}",
+                        courseCode = draft.courseCode.trim(),
+                        courseTitle = draft.courseTitle.trim(),
+                        title = draft.title.trim(),
+                        description = draft.description.trim(),
+                        dueDate = draft.dueDate.trim(),
+                        dueTime = draft.dueTime.ifBlank { "23:59" },
+                        type = draft.type,
+                        priority = draft.priority,
+                        estimatedMinutes = draft.estimatedMinutes.toIntOrNull() ?: 0,
+                        reminderAt = draft.reminderAt.ifBlank { null },
+                        reminderRepeat = draft.reminderRepeat,
+                        showOnCalendar = draft.showOnCalendar,
+                        showOnTimetable = draft.showOnTimetable,
+                        createdAt = now
+                    )
+                )
+                isCreateDialogOpen = false
+            }
         )
     }
 }
 
 @Composable
 fun M3EProfileScreen(modifier: Modifier = Modifier) {
-    val isDark = M3EStateBridge.isDarkThemeActive()
-    val identityState by UserStore.identity.collectAsState()
-    val domain by AppState.domain.collectAsState()
-    val selectedSemId by AppState.selectedSemester.collectAsState()
-    val hostelRes by AppState.hostelDetails.collectAsState()
-    val isLoading by AppState.isLoading.collectAsState()
-
-    var isFlipped by remember { mutableStateOf(false) }
-    var isEditingFriendlyName by remember { mutableStateOf(false) }
-    var showVtopPassword by remember { mutableStateOf(false) }
-
-    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
-    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-
-    val proctor = identityState.proctor
-    val hostel = hostelRes?.hostelInfo
-    val currentSem = domain.academics.semesters[selectedSemId]
-    // A negative sentinel means "not available" — never invent a plausible-looking CGPA
-    // or attendance percentage. The screen renders it as an em dash.
-    val cgpa = currentSem?.gpa?.trim()?.toDoubleOrNull() ?: -1.0
-    // Academics is the single source of truth for attendance; derive the overall
-    // percentage from the selected semester's courses exactly like the home quick stats.
-    val profileCourses = com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId)
-    val profileTotalClasses = profileCourses.sumOf { it.attendance?.total ?: 0 }
-    val profileAttendedClasses = profileCourses.sumOf { it.attendance?.attended ?: 0 }
-    val attendancePct = if (profileTotalClasses > 0) {
-        (profileAttendedClasses.toDouble() / profileTotalClasses) * 100.0
-    } else -1.0
-
-    val mentors = remember(identityState) {
-        val list = mutableListOf<com.amazecc.app.shared.domain.overhaul.M3EMentorItem>()
-        proctor?.let {
-            list.add(
-                com.amazecc.app.shared.domain.overhaul.M3EMentorItem(
-                    role = "Proctor",
-                    name = it.name ?: "",
-                    designation = it.designation,
-                    department = it.department ?: it.school,
-                    email = it.email,
-                    phone = it.phone,
-                    cabin = it.cabin,
-                    photoBase64 = it.photoBase64
-                )
-            )
-        }
-        identityState.hodDean.forEach { official ->
-            list.add(
-                com.amazecc.app.shared.domain.overhaul.M3EMentorItem(
-                    role = official.role ?: "Leadership",
-                    name = official.name ?: "",
-                    designation = official.designation,
-                    department = official.department ?: official.school,
-                    email = official.email,
-                    phone = official.phone,
-                    cabin = official.cabin,
-                    photoBase64 = official.photoBase64
-                )
-            )
-        }
-        list
-    }
-
-    val addresses = remember(identityState) {
-        val list = mutableListOf<com.amazecc.app.shared.domain.overhaul.M3EAddressItem>()
-        if (identityState.currentAddress.isNotEmpty()) {
-            list.add(
-                com.amazecc.app.shared.domain.overhaul.M3EAddressItem(
-                    title = "Current Address",
-                    lines = identityState.currentAddress.map { "${it.label}: ${it.value}" }
-                )
-            )
-        }
-        if (identityState.permanentAddress.isNotEmpty()) {
-            list.add(
-                com.amazecc.app.shared.domain.overhaul.M3EAddressItem(
-                    title = "Permanent Address",
-                    lines = identityState.permanentAddress.map { "${it.label}: ${it.value}" }
-                )
-            )
-        }
-        list
-    }
-
-    val personalRecords = remember(identityState) {
-        listOfNotNull(
-            identityState.nationality?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Nationality", it) },
-            identityState.nativeLanguage?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Native Language", it) },
-            identityState.nativeState?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Native State", it) },
-            identityState.community?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Community", it) },
-            identityState.religion?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Religion", it) },
-            identityState.caste?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Caste", it) },
-            identityState.physicallyChallenged?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Physically Challenged", it) },
-            identityState.aadharNumber?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Aadhar Number", it) },
-            identityState.friendMobile?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Friend Mobile", it) },
-            identityState.bloodGroup?.let { com.amazecc.app.shared.domain.overhaul.M3EFieldItem("Blood Group", it) }
-        )
-    }
-
-    val vtopCred = identityState.credentials.firstOrNull { it.account.contains("VTOP", ignoreCase = true) }
-    val vtopUser = vtopCred?.username ?: identityState.regNo ?: ""
-    val vtopPass = vtopCred?.password ?: ""
-
-    val state = M3EProfileState(
-        // Empty values stay empty: placeholder text must never look like real student data.
-        studentName = if (identityState.hasIdentity) identityState.displayName else "",
-        registrationNumber = identityState.regNo ?: "",
-        applicationNumber = identityState.applicationNumber ?: "",
-        programme = identityState.program ?: "",
-        school = identityState.school ?: identityState.proctor?.school ?: "",
-        campus = identityState.campus ?: "",
-        dob = identityState.dob ?: "",
-        bloodGroup = identityState.bloodGroup ?: "",
-        email = identityState.email ?: "",
-        phone = identityState.mobile ?: "",
-        proctorName = proctor?.name ?: "",
-        proctorEmail = proctor?.email ?: "",
-        proctorCabin = proctor?.cabin,
-        hostelBlock = hostel?.blockName,
-        hostelRoom = hostel?.roomNo,
-        cgpa = cgpa,
-        attendancePercentage = attendancePct,
-        isIdCardFlipped = isFlipped,
-        isLoading = isLoading,
-        photoBase64 = identityState.photoBase64,
-        friendlyName = identityState.friendlyName,
-        isEditingFriendlyName = isEditingFriendlyName,
-        proctorPhotoBase64 = proctor?.photoBase64,
-        proctorPhone = proctor?.phone,
-        proctorDepartment = proctor?.department ?: proctor?.school,
-        proctorDesignation = proctor?.designation,
-        bankInfo = identityState.bank?.let { b ->
-            // BankInfo keeps the decrypted VTOP rows in [BankInfo.fields]; there is no
-            // dedicated accountNumber property, so read the labelled row.
-            val accountNo = b.fields.firstOrNull {
-                it.label.contains("account", ignoreCase = true) && it.label.contains("no", ignoreCase = true)
-            }?.value ?: b.fields.firstOrNull { it.label.contains("account", ignoreCase = true) }?.value
-            when {
-                !b.name.isNullOrBlank() && !accountNo.isNullOrBlank() -> "${b.name} ($accountNo)"
-                !b.name.isNullOrBlank() -> b.name
-                !accountNo.isNullOrBlank() -> "Account $accountNo"
-                else -> null
-            }
-        },
-        apaarId = identityState.apaar?.let { a ->
-            a.fields.firstOrNull {
-                it.label.contains("apaar", ignoreCase = true) ||
-                    it.label.contains("abc", ignoreCase = true) ||
-                    it.label.contains("id", ignoreCase = true)
-            }?.value ?: if (a.hasApaar) "Linked to Portal" else null
-        },
-        dayboarderInfo = identityState.dayboarder?.let { d ->
-            val campusLabel = d.fields.firstOrNull { it.label.contains("campus", ignoreCase = true) }?.value
-            if (!d.isDayboarder) "Hosteller"
-            else if (campusLabel.isNullOrBlank()) "Day Boarder" else "Day Boarder ($campusLabel)"
-        },
-        eptStatus = if (identityState.eptTables.isNotEmpty()) "${identityState.eptTables.size} Scheduled Exams" else "No Active Exams",
-        rankAir = identityState.ranks.firstOrNull()?.rank?.let { "AIR $it" },
-        registrationSchedule = identityState.registrationTables.firstOrNull()?.caption ?: identityState.registrationFields.firstOrNull()?.value,
-        vtopUsername = vtopUser,
-        vtopPassword = vtopPass,
-        showVtopPassword = showVtopPassword,
-        mentors = mentors,
-        addresses = addresses,
-        personalRecords = personalRecords
-    )
-
-    AmazeM3ETheme(isDark = isDark) {
-        M3EProfileScreen(
-            state = state,
-            onAction = { action ->
-                when (action) {
-                    is M3EProfileAction.FlipIdCard -> isFlipped = !isFlipped
-                    is M3EProfileAction.CopyRegNo -> {
-                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(state.registrationNumber))
-                    }
-                    is M3EProfileAction.ContactProctor -> {
-                        if (state.proctorEmail.isNotBlank()) {
-                            try { uriHandler.openUri("mailto:${state.proctorEmail}") } catch (_: Exception) {}
-                        }
-                    }
-                    is M3EProfileAction.SignOut -> AppState.logout()
-                    is M3EProfileAction.Refresh -> AppState.refreshProfile()
-                    is M3EProfileAction.SaveFriendlyName -> {
-                        com.amazecc.app.shared.repository.SettingsManager.setString("friendly_name", action.name)
-                        com.amazecc.app.shared.state.UserStore.merge(
-                            com.amazecc.app.shared.model.StudentIdentity(friendlyName = action.name),
-                            com.amazecc.app.shared.state.IdentitySource.SESSION
-                        )
-                        isEditingFriendlyName = false
-                    }
-                    is M3EProfileAction.ToggleVtopPasswordVisibility -> showVtopPassword = !showVtopPassword
-                    is M3EProfileAction.CopyText -> {
-                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(action.text))
-                    }
-                    is M3EProfileAction.OpenEmail -> {
-                        try { uriHandler.openUri("mailto:${action.email}") } catch (_: Exception) {}
-                    }
-                    is M3EProfileAction.OpenPhone -> {
-                        try { uriHandler.openUri("tel:${action.phone}") } catch (_: Exception) {}
-                    }
-                    else -> Unit // residence actions are handled by the dedicated host
-                }
-            },
-            modifier = modifier
-        )
-    }
+    // The tab pager and the direct destination must behave identically: both use the
+    // full Profile host (residence, bus, contacts, acknowledgement docs, identity warm-up).
+    M3EProfileHost(modifier)
 }
 
 @Composable
@@ -1841,7 +1833,8 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
     var classAlerts by remember { mutableStateOf(SettingsManager.isNotifClassRemindersEnabled()) }
     var attendanceAlerts by remember { mutableStateOf(SettingsManager.isNotifAssignmentRemindersEnabled()) }
     var examReminders by remember { mutableStateOf(SettingsManager.isNotifExamRemindersEnabled()) }
-    var diagnosticMsg by remember { mutableStateOf<String?>("All systems operational (Ping: 42ms)") }
+    // Never show a fabricated health result before the user actually runs a check.
+    var diagnosticMsg by remember { mutableStateOf<String?>("Not checked") }
     var isDiagnosticsRunning by remember { mutableStateOf(false) }
     var vtopSource by remember { mutableStateOf(AmazeClient.vtopSource) }
     var selectedSyncMode by remember { mutableStateOf(SettingsManager.getString("selected_sync_mode", "balanced").ifBlank { "balanced" }) }
@@ -1865,6 +1858,40 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
         AppTheme.SYSTEM -> M3EThemeMode.SYSTEM_DEFAULT
     }
 
+    // D-059 — migrated settings depth (web parity — ProfilePage).
+    var settingsSearchQuery by remember { mutableStateOf("") }
+    // Collected live: the Alt+P keyboard shortcut calls AppState.togglePrivacyMode()
+    // (App.kt), so the Settings toggle must reflect that state, not a local copy.
+    val privacyModeEnabled by AppState.privacyMode.collectAsState()
+    var pomodoroFocus by remember { mutableStateOf(SettingsManager.getPomodoroFocusMinutes()) }
+    var pomodoroBreak by remember { mutableStateOf(SettingsManager.getPomodoroBreakMinutes()) }
+    var pomodoroRounds by remember { mutableStateOf(SettingsManager.getPomodoroRounds()) }
+    var classReminderLead by remember { mutableStateOf(SettingsManager.getNotifOffsetMinutes()) }
+    var quietHoursEnabled by remember { mutableStateOf(SettingsManager.isQuietHoursEnabled()) }
+    var quietHoursStart by remember { mutableStateOf(SettingsManager.getQuietHoursStart()) }
+    var quietHoursEnd by remember { mutableStateOf(SettingsManager.getQuietHoursEnd()) }
+    var apiTargetName by remember { mutableStateOf(SettingsManager.getApiTargetName()) }
+    // Reflect the component that is actually enabled, so the control agrees
+    // with the launcher after a restart or a change made outside Settings.
+    var appIconTheme by remember { mutableStateOf(currentAppIconTheme()) }
+    var visibleSettingsSections = com.amazecc.app.shared.domain.overhaul.settingsSectionsForQuery(settingsSearchQuery)
+    val saveFile = rememberFileSaver()
+    val importFile = rememberFileImporter { text ->
+        if (text == null) return@rememberFileImporter
+        val result = runCatching { ExportImportManager.importFromJson(text) }.getOrElse {
+            diagnosticMsg = "Backup restore failed: ${it.message ?: "Invalid file"}"
+            return@rememberFileImporter
+        }
+        result.fold(
+            onSuccess = { counts ->
+                diagnosticMsg = "Restored • ${counts.settingsImported} settings, ${counts.tasksImported} tasks"
+            },
+            onFailure = {
+                diagnosticMsg = "Backup restore failed: ${it.message ?: "Not an AmazeCC backup file"}"
+            }
+        )
+    }
+
     val state = M3ESettingsState(
         selectedThemeMode = selectedThemeMode,
         selectedPalettePreset = selectedPalettePreset,
@@ -1876,7 +1903,20 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
         attendanceAlertsEnabled = attendanceAlerts,
         examRemindersEnabled = examReminders,
         vtopSource = vtopSource,
-        selectedSyncMode = selectedSyncMode
+        selectedSyncMode = selectedSyncMode,
+        settingsSearchQuery = settingsSearchQuery,
+        visibleSettingsSections = visibleSettingsSections,
+        privacyModeEnabled = privacyModeEnabled,
+        pomodoroFocusMinutes = pomodoroFocus,
+        pomodoroBreakMinutes = pomodoroBreak,
+        pomodoroRounds = pomodoroRounds,
+        classReminderLeadMinutes = classReminderLead,
+        quietHoursEnabled = quietHoursEnabled,
+        quietHoursStart = quietHoursStart,
+        quietHoursEnd = quietHoursEnd,
+        apiTargetName = apiTargetName,
+        appIconTheme = appIconTheme,
+        homePillStyle = AppState.homePillStyle.value
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -1936,7 +1976,10 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
                             }
                         }
                     }
-                    is M3ESettingsAction.OpenGithubRepo -> {}
+                    is M3ESettingsAction.OpenGithubRepo -> openExternalUrl(
+                        "https://github.com/${com.amazecc.app.shared.utils.UpdateConfig.GITHUB_OWNER}/" +
+                            com.amazecc.app.shared.utils.UpdateConfig.GITHUB_REPO
+                    )
                     is M3ESettingsAction.ToggleClassAlerts -> {
                         classAlerts = action.enabled
                         SettingsManager.setNotifClassRemindersEnabled(action.enabled)
@@ -1972,6 +2015,68 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
                         diagnosticMsg = "Sync triggered for ${action.mode.replaceFirstChar { it.uppercase() }} mode..."
                         AppState.loadMode(action.mode, force = true)
                     }
+                    // D-059 — migrated settings depth actions.
+                    is M3ESettingsAction.UpdateSettingsSearch -> {
+                        settingsSearchQuery = action.query
+                        visibleSettingsSections = com.amazecc.app.shared.domain.overhaul.settingsSectionsForQuery(action.query)
+                    }
+                    is M3ESettingsAction.TogglePrivacyMode -> {
+                        // AppState persists the value and keeps the Alt+P path in sync.
+                        AppState.setPrivacyMode(action.enabled)
+                    }
+                    is M3ESettingsAction.UpdatePomodoroFocusMinutes -> {
+                        pomodoroFocus = action.minutes.coerceIn(5, 120)
+                        SettingsManager.setPomodoroFocusMinutes(pomodoroFocus)
+                    }
+                    is M3ESettingsAction.UpdatePomodoroBreakMinutes -> {
+                        pomodoroBreak = action.minutes.coerceIn(1, 60)
+                        SettingsManager.setPomodoroBreakMinutes(pomodoroBreak)
+                    }
+                    is M3ESettingsAction.UpdatePomodoroRounds -> {
+                        pomodoroRounds = action.rounds.coerceIn(1, 16)
+                        SettingsManager.setPomodoroRounds(pomodoroRounds)
+                    }
+                    is M3ESettingsAction.UpdateClassReminderLeadMinutes -> {
+                        classReminderLead = action.minutes.coerceIn(5, 60)
+                        SettingsManager.setNotifOffsetMinutes(classReminderLead)
+                    }
+                    is M3ESettingsAction.ToggleQuietHours -> {
+                        quietHoursEnabled = action.enabled
+                        SettingsManager.setQuietHoursEnabled(action.enabled)
+                    }
+                    is M3ESettingsAction.UpdateQuietHoursStart -> {
+                        quietHoursStart = action.time
+                        SettingsManager.setQuietHoursStart(action.time)
+                    }
+                    is M3ESettingsAction.UpdateQuietHoursEnd -> {
+                        quietHoursEnd = action.time
+                        SettingsManager.setQuietHoursEnd(action.time)
+                    }
+                    is M3ESettingsAction.SelectAppIconTheme -> {
+                        if (setAppIconTheme(action.theme)) {
+                            appIconTheme = action.theme
+                            SettingsManager.setAppIconName(action.theme.name)
+                            diagnosticMsg = "App icon set to ${action.theme.label}"
+                        } else {
+                            diagnosticMsg = "App icon themes are unsupported on this platform"
+                        }
+                    }
+                    is M3ESettingsAction.SelectApiTarget -> {
+                        AmazeClient.setApiTarget(action.target)
+                        apiTargetName = action.target.name
+                        honoApiUrl = AmazeClient.baseUrl
+                        diagnosticMsg = "API target: ${action.target.label}"
+                    }
+                    is M3ESettingsAction.SelectHomePillStyle -> AppState.setHomePillStyle(action.style)
+                    M3ESettingsAction.ExportSettings -> {
+                        scope.launch {
+                            val backupName = ExportImportManager.backupFileName()
+                            val saved = saveFile(backupName, ExportImportManager.buildBackupJson(false).toByteArray())
+                            diagnosticMsg = if (saved) "Backup saved to Downloads ($backupName)" else "Backup export failed"
+                        }
+                    }
+                    M3ESettingsAction.ImportSettings -> importFile()
+                    M3ESettingsAction.OpenShortcutsHelp -> AppState.openShortcutsHelp()
                 }
             },
             modifier = modifier

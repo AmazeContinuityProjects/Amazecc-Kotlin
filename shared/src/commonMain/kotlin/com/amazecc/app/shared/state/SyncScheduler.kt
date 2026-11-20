@@ -139,17 +139,28 @@ object SyncScheduler {
         val now = Clock.System.now()
         val next = when (kind) {
             FULL_KIND -> nextOccurrence(fullHour(), fullMinute(), weekday = fullDayOfWeek(), now = now)
-            else -> {
-                val anchor = getNextRun(LIGHT_KIND) ?: now
-                nextOccurrence(
-                    hour = lightHour(), minute = lightMinute(),
-                    intervalDays = if (isLightDaily()) 1 else lightIntervalDays(),
-                    anchor = anchor, now = now
-                )
-            }
+            else -> lightIntervalMinutes()?.let { minutes ->
+                // D-030: minute-tier cadence (web parity: 15/30/60m). The reload-pause
+                // gate lives in `runScheduledSync`/`loadAllData` and already defers the run.
+                now.plus(minutes.toLong(), kotlinx.datetime.DateTimeUnit.MINUTE)
+            } ?: nextOccurrence(
+                hour = lightHour(), minute = lightMinute(),
+                intervalDays = if (isLightDaily()) 1 else lightIntervalDays(),
+                anchor = getNextRun(LIGHT_KIND) ?: now, now = now
+            )
         }
         setNextRun(kind, next)
         scheduleSyncAlarm(next.toEpochMilliseconds(), kind)
+    }
+
+    // ── Light cadence tiers: daily (default), or a 15/30/60-minute tier (web parity D-030) ──
+
+    fun lightIntervalMinutes(): Int? =
+        SettingsManager.getString("sync_light_interval_minutes").toIntOrNull()?.takeIf { it in setOf(15, 30, 60) }
+
+    fun setLightIntervalMinutes(minutes: Int?) {
+        SettingsManager.setString("sync_light_interval_minutes", minutes?.takeIf { it in setOf(15, 30, 60) }?.toString().orEmpty())
+        rescheduleAlarms()
     }
 
     /** Recompute both schedules (e.g. after settings change or boot). */

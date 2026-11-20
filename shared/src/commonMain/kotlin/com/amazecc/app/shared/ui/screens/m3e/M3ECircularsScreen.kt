@@ -269,7 +269,6 @@ private fun CircularFolderCard(
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(colors.surfaceContainerLow)
-                                    .clickable { onOpenDocument(document.id) }
                                     .padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -287,6 +286,12 @@ private fun CircularFolderCard(
                                     maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
+                                )
+                                // The circular payload has no document URL; don't fake an open action.
+                                Text(
+                                    text = "Preview unavailable",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.onSurfaceVariant
                                 )
                             }
                         }

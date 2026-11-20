@@ -51,7 +51,7 @@ class M3EMarksPredictorScreenUiTest {
         onNodeWithText("9.25").assertExists()
         onNodeWithText("24").assertExists()
         onNodeWithText("CSE3002").assertExists()
-        onNodeWithText("82.00 / 100").assertExists()
+        onNodeWithText("82 / 100").assertExists()
     }
 
     @Test
