@@ -15,6 +15,15 @@ object SessionManager {
      */
     const val LOCAL_SESSION_MARKER = "vtop-local"
 
+    // Amaze ID (D-011). These are the OAuth access token and the compact DPoP proof header used
+    // by the web client for the guarded prefixes (cabshare/social/profile/qbank upload/...).
+    // Full OIDC interactive sign-in is deliberately out of scope; this stores tokens supplied by
+    // an embedding host (e.g. the auth callback) and attaches them to outgoing requests.
+    private const val KEY_AMAZE_ACCESS_TOKEN = "amaze_id_access_token"
+    private const val KEY_AMAZE_DPOP_HEADER = "amaze_id_dpop_header"
+    /** Non-null when the access token is DPoP-bound (OAuth `confirmation` claim). */
+    private const val KEY_AMAZE_CONFIRMATION = "amaze_id_confirmation"
+
     private val _cookies = MutableStateFlow<String?>(SettingsManager.getNullableString(SettingsManager.SESSION_COOKIES))
     val cookies: StateFlow<String?> = _cookies.asStateFlow()
 
@@ -29,6 +38,23 @@ object SessionManager {
 
     private val _sessionCreatedAt = MutableStateFlow(SettingsManager.getLong(SettingsManager.SESSION_CREATED_AT))
     val sessionCreatedAt: StateFlow<Long> = _sessionCreatedAt.asStateFlow()
+
+    private val _amazeAccessToken = MutableStateFlow(SettingsManager.getNullableString(KEY_AMAZE_ACCESS_TOKEN))
+    val amazeAccessToken: StateFlow<String?> = _amazeAccessToken.asStateFlow()
+
+    private val _amazeDpopHeader = MutableStateFlow(SettingsManager.getNullableString(KEY_AMAZE_DPOP_HEADER))
+    val amazeDpopHeader: StateFlow<String?> = _amazeDpopHeader.asStateFlow()
+
+    /** Present only for DPoP-bound tokens; drives `Authorization: DPoP` (D-011). */
+    private val _amazeTokenConfirmation = MutableStateFlow(SettingsManager.getNullableString(KEY_AMAZE_CONFIRMATION))
+    val amazeTokenConfirmation: StateFlow<String?> = _amazeTokenConfirmation.asStateFlow()
+
+    /** Raised when a guarded endpoint answers 401; UI can surface "sign in with Amaze ID". */
+    private val _amazeAuthRequired = MutableStateFlow(false)
+    val amazeAuthRequired: StateFlow<Boolean> = _amazeAuthRequired.asStateFlow()
+
+    val hasAmazeIdAuth: Boolean
+        get() = !_amazeAccessToken.value.isNullOrBlank()
 
     // Settings
     val currentTheme = MutableStateFlow("system") // system, light, dark
@@ -70,6 +96,42 @@ object SessionManager {
         SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, jsessionid)
     }
 
+    /**
+     * Persist an Amaze ID access token (and optional DPoP proof header) for guarded endpoints.
+     * A non-null [confirmation] marks the token as DPoP-bound — the Authorization scheme must
+     * then be `DPoP`, exactly like `amazeId.ts` checks `accessToken.confirmation !== null`.
+     */
+    fun saveAmazeIdSession(
+        accessToken: String,
+        dpopHeader: String? = null,
+        confirmation: String? = null
+    ) {
+        _amazeAccessToken.value = accessToken.takeIf { it.isNotBlank() }
+        _amazeDpopHeader.value = dpopHeader?.takeIf { it.isNotBlank() }
+        _amazeTokenConfirmation.value = confirmation?.takeIf { it.isNotBlank() }
+        if (_amazeAccessToken.value != null) SettingsManager.setString(KEY_AMAZE_ACCESS_TOKEN, accessToken)
+        else SettingsManager.remove(KEY_AMAZE_ACCESS_TOKEN)
+        if (_amazeDpopHeader.value != null) SettingsManager.setString(KEY_AMAZE_DPOP_HEADER, dpopHeader!!)
+        else SettingsManager.remove(KEY_AMAZE_DPOP_HEADER)
+        if (_amazeTokenConfirmation.value != null) SettingsManager.setString(KEY_AMAZE_CONFIRMATION, confirmation!!)
+        else SettingsManager.remove(KEY_AMAZE_CONFIRMATION)
+        _amazeAuthRequired.value = false
+    }
+
+    fun clearAmazeIdSession() {
+        _amazeAccessToken.value = null
+        _amazeDpopHeader.value = null
+        _amazeTokenConfirmation.value = null
+        _amazeAuthRequired.value = false
+        SettingsManager.remove(KEY_AMAZE_ACCESS_TOKEN)
+        SettingsManager.remove(KEY_AMAZE_DPOP_HEADER)
+        SettingsManager.remove(KEY_AMAZE_CONFIRMATION)
+    }
+
+    /** Explicit "sign in with Amaze ID" signal, raised by guarded 401 responses. */
+    fun markAmazeAuthRequired() { _amazeAuthRequired.value = true }
+    fun clearAmazeAuthRequired() { _amazeAuthRequired.value = false }
+
     fun markSessionFresh() {
         _sessionCreatedAt.value = Clock.System.now().toEpochMilliseconds()
         SettingsManager.setLong(SettingsManager.SESSION_CREATED_AT, _sessionCreatedAt.value)
@@ -96,6 +158,7 @@ object SessionManager {
         SettingsManager.remove(SettingsManager.SESSION_AUTHORIZED_ID)
         SettingsManager.remove(SettingsManager.SESSION_CLUB_TOKEN)
         SettingsManager.remove(SettingsManager.SESSION_CREATED_AT)
+        // Amaze ID is a separate identity: a VTOP logout must not silently sign it out.
     }
 }
 

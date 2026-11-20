@@ -33,6 +33,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import com.amazecc.app.shared.utils.AnalyzeCalendar
@@ -119,6 +120,8 @@ data class AcademicSyncResult(
 private data class AttendanceSyncResponse(
     val success: Boolean = true,
     val attRes: AttendanceRes? = null,
+    // D-107: `marksRes` is an error string when the upstream marks scrape fails.
+    @Serializable(with = MarksResOrStringSerializer::class)
     val marksRes: MarksRes? = null,
     val semester: String? = null,
     val semesterId: String? = null,
@@ -233,6 +236,381 @@ fun mergeGradeDetails(
     }
 }
 
+/** Explicit outcome of a guarded (Amaze ID) request — no silent `null` for a 401. */
+sealed class GuardedResult<out T> {
+    data class Success<T>(val value: T) : GuardedResult<T>()
+    data object AuthRequired : GuardedResult<Nothing>()
+    data class Failure(val message: String) : GuardedResult<Nothing>()
+}
+
+/** Result of a hub fetch that can fail because the Amaze ID sign-in is missing (D-104). */
+sealed class CabHubsResult {
+    data class Hubs(val hubs: List<CabShareHub>) : CabHubsResult()
+    data class Error(val message: String) : CabHubsResult()
+}
+
+/** Stable marker callers/UI can use to surface "Sign in with Amaze ID". */
+const val AMAZE_AUTH_REQUIRED = "AMAZE_AUTH_REQUIRED"
+
+/**
+ * Pure HTTP contract descriptor shared by the live request helpers and the JVM contract tests.
+ * It records the path, method, body/query fields and whether an Amaze ID token is required, so
+ * endpoint drift is caught without a network or a mocking engine.
+ */
+internal data class HttpContract(
+    val path: String,
+    val method: String,
+    val bodyFields: Map<String, String> = emptyMap(),
+    val query: Map<String, String> = emptyMap(),
+    val authRequired: Boolean = false
+)
+
+internal fun attendanceContract(semesterId: String?) = HttpContract(
+    path = "/api/attendance",
+    method = "POST",
+    bodyFields = buildMap { semesterId?.let { put("semesterId", it) } }
+)
+
+internal fun ffcsContract(section: String, semesterId: String? = null) = HttpContract(
+    path = "/api/ffcs",
+    method = "POST",
+    bodyFields = buildMap {
+        put("section", section)
+        semesterId?.let { put("semesterId", it) }
+    }
+)
+
+internal fun bulkContract(names: List<String>) = HttpContract(
+    path = "/api/bulk",
+    method = "POST",
+    bodyFields = mapOf("endpoints" to names.joinToString(",")),
+    authRequired = false // VTOP session credentials, not Amaze ID
+)
+
+internal fun cabshareHubsContract() = HttpContract(
+    path = "/api/cabshare/hubs",
+    method = "GET",
+    authRequired = true
+)
+
+internal fun cabshareGuardedContract(path: String, method: String) = HttpContract(
+    path = path,
+    method = method,
+    authRequired = true
+)
+
+/** `/api/services/curves` body contract: `classId`/`classIds`, never `courseCode` (D-108). */
+internal fun curvesParams(classId: String, semesterId: String? = null): Map<String, String> = buildMap {
+    put("classId", classId)
+    semesterId?.let { put("semesterId", it) }
+}
+
+/**
+ * Pure header contract for Amaze ID auth (D-011). A DPoP-bound token (non-null `confirmation`)
+ * uses the `DPoP` Authorization scheme; otherwise `Bearer`. Matches the API's
+ * `accessToken.confirmation !== null` check in `lib/amazeId.ts`.
+ */
+internal fun amazeAuthHeaders(
+    token: String?,
+    dpopHeader: String?,
+    confirmation: String?,
+    dpopEnabled: Boolean = true
+): Map<String, String> {
+    val usableToken = token?.takeIf { it.isNotBlank() } ?: return emptyMap()
+    val scheme = if (dpopEnabled && !confirmation.isNullOrBlank()) "DPoP" else "Bearer"
+    return buildMap {
+        put(HttpHeaders.Authorization, "$scheme $usableToken")
+        if (dpopEnabled) {
+            dpopHeader?.takeIf { it.isNotBlank() }?.let { put("DPoP", it) }
+        }
+    }
+}
+
+/** Attach the stored Amaze ID token(s) to a guarded request (D-011). */
+internal fun HttpRequestBuilder.attachAmazeIdAuth() {
+    amazeAuthHeaders(
+        token = SessionManager.amazeAccessToken.value,
+        dpopHeader = SessionManager.amazeDpopHeader.value,
+        confirmation = SessionManager.amazeTokenConfirmation.value
+    ).forEach { (name, value) -> header(name, value) }
+}
+
+/** Raise the explicit auth-required signal on a guarded 401 (D-011). */
+internal fun markAmazeAuthRequired(status: HttpStatusCode) {
+    if (status.value == 401) SessionManager.markAmazeAuthRequired()
+}
+
+/**
+ * Pure mapping from the timetable columns merged into `attRes.attendance` by
+ * `POST /api/attendance` into the app's `TimetableRes` (D-090). The API no longer exposes a
+ * `/api/timetable` route; those columns ride along with attendance instead.
+ */
+internal fun timetableFromAttendance(semesterId: String?, attendance: List<AttendanceItem>): TimetableRes =
+    TimetableRes(
+        success = true,
+        semesterId = semesterId,
+        courseInfo = attendance.mapIndexed { index, a ->
+            com.amazecc.app.shared.state.TimetableCourseInfo(
+                slNo = a.slNo ?: (index + 1).toString(),
+                course = a.courseTitle,
+                courseCode = a.courseCode,
+                LTPJC = a.credits.orEmpty(),
+                category = a.category.orEmpty(),
+                classId = a.classId.orEmpty(),
+                slotVenue = a.slotVenue.orEmpty(),
+                facultyDetails = a.faculty
+            )
+        },
+        message = "Derived from /api/attendance"
+    )
+
+/** `MarksRes` from the `marksRes` slice of `/api/attendance` (D-090). */
+internal fun marksFromAttendance(marks: MarksRes?): MarksRes =
+    marks?.takeIf { it.marks.isNotEmpty() }
+        ?: MarksRes(success = false, message = "Marks unavailable from attendance response")
+
+/**
+ * The bare `Assignment[]` returned by `POST /api/lms-data` is the Moodle scraper shape, not
+ * `LMSRes`. Map it into the app's LMS contract so the sync path can use it (D-091).
+ */
+internal fun lmsFromMoodle(res: MoodleRes): LMSRes = LMSRes(
+    success = res.success,
+    assignments = res.data.map { a ->
+        LMSAssignment(
+            name = a.name,
+            courseCode = a.courseCode,
+            courseTitle = a.courseTitle,
+            assignmentTitle = a.taskTitle,
+            due = a.due,
+            done = a.done,
+            day = a.effectiveDayOfMonth.takeIf { it != 0 },
+            month = a.effectiveMonthNumber.takeIf { it != 0 },
+            year = a.year.takeIf { it != 0 },
+            url = a.url,
+            teachers = a.teachers
+        )
+    },
+    error = res.error,
+    message = res.message
+)
+
+/**
+ * `/api/grades` returns the full `{overall, semesters}` shape, not the legacy
+ * `{effectiveGrades}` one. Map the requested semester's rows into the existing
+ * `SemesterGradesRes` contract (D-099).
+ */
+internal fun semesterGradesFromAll(semesterId: String?, all: AllGradesRes): SemesterGradesRes {
+    val semesters = all.allSemesters
+    val chosen = (semesterId?.let { semesters[it] } ?: semesters.values.firstOrNull())
+    val rows = chosen?.grades.orEmpty().mapNotNull { g ->
+        g?.let { grade ->
+            EffectiveGradeCourse(
+                basketTitle = grade.courseTitle.ifBlank { grade.courseCode },
+                courseType = grade.courseType,
+                creditsEarned = grade.credits,
+                grade = grade.grade,
+                distributionType = grade.distributionType,
+                courseCode = grade.courseCode,
+                courseTitle = grade.courseTitle,
+                examMonth = grade.examMonth,
+                resultDeclared = grade.resultDeclared
+            )
+        }
+    }
+    return SemesterGradesRes(
+        success = all.success && rows.isNotEmpty(),
+        error = all.error,
+        effectiveGrades = rows
+    )
+}
+
+private fun rowsToJson(rows: List<KeyValueRow>): JsonObject = buildJsonObject {
+    rows.forEach { put(it.label, it.value) }
+}
+
+private fun tablesToJson(tables: List<VtopTable>): JsonArray = buildJsonArray {
+    tables.forEach { table ->
+        add(buildJsonObject {
+            put("caption", table.caption.orEmpty())
+            put("headers", buildJsonArray { table.headers.forEach { add(JsonPrimitive(it)) } })
+            put("rows", buildJsonArray {
+                table.rows.forEach { row ->
+                    add(buildJsonArray { row.forEach { cell -> add(JsonPrimitive(cell)) } })
+                }
+            })
+        })
+    }
+}
+
+/**
+ * D-101: the per-endpoint identity routes (`student`, `profile-images`, `credentials`, ...)
+ * are not mounted — all of their data is folded into `POST /api/whoami`, already decoded by
+ * [getMe]. These pure projectors keep the public function signatures while sourcing the same
+ * identity from the consolidated payload.
+ */
+internal fun studentProfileFromIdentity(id: StudentIdentity): StudentProfile = StudentProfile(
+    applicationNumberWire = id.regNo.orEmpty(),
+    name = id.name.orEmpty(),
+    email = id.email.orEmpty(),
+    mobile = id.mobile.orEmpty(),
+    program = id.program.orEmpty(),
+    campus = id.campus.orEmpty(),
+    batch = id.batch.orEmpty(),
+    section = id.section,
+    advisorName = id.advisorName,
+    bloodGroup = id.bloodGroup,
+    photoBase64 = id.photoBase64,
+    nativeLanguage = id.nativeLanguage,
+    nationality = id.nationality,
+    community = id.community,
+    religion = id.religion,
+    caste = id.caste,
+    physicallyChallenged = id.physicallyChallenged,
+    aadharNumber = id.aadharNumber,
+    dob = id.dob,
+    gender = id.gender,
+    isHosteller = id.isHosteller,
+    nativeState = id.nativeState,
+    currentAddress = rowsToJson(id.currentAddress),
+    permanentAddress = rowsToJson(id.permanentAddress),
+    father = rowsToJson(id.father),
+    mother = rowsToJson(id.mother),
+    guardian = id.guardian,
+    proctor = id.proctor?.let {
+        ProfileProctor(
+            facultyId = it.facultyId, name = it.name, designation = it.designation,
+            school = it.school, cabin = it.cabin, department = it.department,
+            email = it.email, intercom = it.intercom, mobile = it.phone
+        )
+    }
+)
+
+internal fun profileImagesFromIdentity(id: StudentIdentity): ProfileImagesRes = ProfileImagesRes(
+    success = true,
+    student = ProfileImagesStudent(photoBase64 = id.photoBase64),
+    proctor = id.proctor?.let {
+        ProfileImagesProctor(
+            title = "Proctor", photoBase64 = it.photoBase64,
+            details = buildMap {
+                it.name?.let { v -> put("name", v) }
+                it.designation?.let { v -> put("designation", v) }
+                it.email?.let { v -> put("email", v) }
+            }
+        )
+    },
+    hodDean = ProfileImagesHodDean(
+        title = "HOD / Dean",
+        people = id.hodDean.map { official ->
+            ProfileImagesHodDeanPerson(
+                role = official.role.orEmpty(),
+                details = buildMap { official.name?.let { v -> put("name", v) } },
+                photoBase64 = official.photoBase64
+            )
+        }
+    )
+)
+
+internal fun credentialsFromIdentity(id: StudentIdentity): CredentialsRes = CredentialsRes(
+    success = true,
+    credentials = id.credentials.map {
+        ProfileImagesCredential(
+            account = it.account, username = it.username, url = it.url,
+            defaultCredentials = it.password, venueDate = it.venueDate,
+            seatLocation = it.seatLocation
+        )
+    },
+    ranks = id.ranks.map { ProfileImagesRank(name = it.name, rank = it.rank) }
+)
+
+internal fun eptScheduleFromIdentity(id: StudentIdentity): EptScheduleRes = EptScheduleRes(
+    success = true,
+    tables = tablesToJson(id.eptTables)
+)
+
+internal fun registrationScheduleFromIdentity(id: StudentIdentity): RegistrationScheduleRes = RegistrationScheduleRes(
+    success = true,
+    keyValuePairs = rowsToJson(id.registrationFields),
+    tables = tablesToJson(id.registrationTables)
+)
+
+internal fun universityDayFromIdentity(id: StudentIdentity): UniversityDayRes = UniversityDayRes(
+    success = true,
+    title = id.universityDayTitle.orEmpty(),
+    keyValuePairs = rowsToJson(id.universityDayFields),
+    tables = tablesToJson(id.universityDayTables)
+)
+
+internal fun bankInfoFromIdentity(id: StudentIdentity): BankInfoRes = BankInfoRes(
+    success = true,
+    bankDetails = buildJsonObject {
+        id.bank?.name?.let { put("name", it) }
+        id.bank?.branch?.let { put("branch", it) }
+        id.bank?.address?.let { put("address", it) }
+    },
+    fields = rowsToJson(id.bank?.fields.orEmpty())
+)
+
+internal fun dayboarderFromIdentity(id: StudentIdentity): DayboarderRes = DayboarderRes(
+    success = true,
+    fields = rowsToJson(id.dayboarder?.fields.orEmpty())
+)
+
+internal fun apaarIdFromIdentity(id: StudentIdentity): ApaarIdRes = ApaarIdRes(
+    success = true,
+    hasApaar = id.apaar?.hasApaar ?: false,
+    formFields = rowsToJson(id.apaar?.fields.orEmpty()),
+    tables = tablesToJson(id.apaar?.tables.orEmpty())
+)
+
+/** Convert a `{ headers, rows }` table array into the app's ArrearResponse contract. */
+private fun arrearFromTableArray(tables: JsonArray): ArrearResponse {
+    val wrapped = buildJsonObject {
+        put("success", true)
+        put("tables", tables)
+    }
+    return receiptResponseFromJson(wrapped)
+        ?: ArrearResponse(success = true, message = "Bulk result received")
+}
+
+/**
+ * Decode one `POST /api/bulk` / `/api/ffcs section=wishlist` proxy result.
+ *
+ * The VTOP semester proxies (course-completion, wishlist, ...) return
+ * `{ success, semesters: { <id>: { tables, keyValuePairs, messages } } }`, **not** a flat
+ * `{ tables }`. Reading only `tables` silently dropped every row (D-100). Flatten each
+ * semester's tables/keyValuePairs/messages into one ArrearResponse so no data is lost.
+ */
+internal fun arrearFromBulkResult(element: JsonElement): ArrearResponse {
+    val obj = element as? JsonObject
+        ?: return ArrearResponse(success = false, message = "Malformed bulk result")
+    val semesters = obj["semesters"] as? JsonObject
+    if (semesters != null && semesters.isNotEmpty()) {
+        val tables = JsonArray(semesters.values.mapNotNull { semEl ->
+            (semEl as? JsonObject)?.get("tables") as? JsonArray
+        }.flatMap { it.toList() })
+        val keyValuePairs = mutableListOf<KeyValuePair>()
+        val messages = mutableListOf<ApiMessage>()
+        semesters.values.forEach { semEl ->
+            val sem = semEl as? JsonObject ?: return@forEach
+            (sem["keyValuePairs"] as? JsonObject)?.forEach { (key, value) ->
+                val text = runCatching { (value as? JsonPrimitive)?.content }.getOrNull()
+                if (!text.isNullOrBlank()) keyValuePairs += KeyValuePair(key.trim(), text.trim())
+            }
+            (sem["messages"] as? JsonArray)?.forEach { msg ->
+                val text = runCatching { (msg as? JsonPrimitive)?.content }.getOrNull()
+                if (!text.isNullOrBlank()) messages += ApiMessage(text.trim())
+            }
+        }
+        val base = arrearFromTableArray(tables)
+        return base.copy(
+            success = true,
+            keyValuePairs = base.keyValuePairs + keyValuePairs,
+            messages = base.messages + messages
+        )
+    }
+    return arrearFromTableArray(obj["tables"] as? JsonArray ?: JsonArray(emptyList()))
+}
+
 object AmazeClient {
     var baseUrl: String
         get() = SettingsManager.getString(SettingsManager.KEY_HONO_API_URL, "https://hono.amazecc.com").ifBlank { "https://hono.amazecc.com" }
@@ -251,6 +629,18 @@ object AmazeClient {
 
     fun setVtopSource(source: com.amazecc.app.shared.vtop.VtopSource) {
         SettingsManager.setVtopSourceName(source.name)
+    }
+
+    /**
+     * Switch the API mount (web parity — the Primary/Backup picker).
+     * Built-in targets take their URL from [com.amazecc.app.shared.domain.ApiTarget.url]
+     * so the picker and the client cannot drift; CUSTOM keeps the typed URL.
+     */
+    fun setApiTarget(target: com.amazecc.app.shared.domain.ApiTarget) {
+        target.url?.let { baseUrl = it }
+        if (target != com.amazecc.app.shared.domain.ApiTarget.CUSTOM) {
+            SettingsManager.setApiTargetName(target.name)
+        }
     }
 
     fun setUseMockData(enable: Boolean) {
@@ -381,7 +771,18 @@ object AmazeClient {
     }
 
     // Helper for POST requests carrying cookies, authorizedID, and csrf
-    private suspend inline fun <reified T> postAuthorized(endpoint: String, extraParams: Map<String, String> = emptyMap()): T? {
+    private suspend inline fun <reified T> postAuthorized(endpoint: String, extraParams: Map<String, String> = emptyMap()): T? =
+        postAuthorizedRaw<T>(endpoint) { builder -> extraParams.forEach { (k, v) -> builder.put(k, v) } }
+
+    /**
+     * Internal variant of [postAuthorized] whose extra fields are real JSON values — the social
+     * protocol sends `discoverable` as a JSON boolean, and Hono reads `typeof body.discoverable
+     * !== "boolean"`. Same transport and error semantics as [postAuthorized].
+     */
+    internal suspend inline fun <reified T> postAuthorizedValues(endpoint: String, extraParams: Map<String, JsonElement>): T? =
+        postAuthorizedRaw<T>(endpoint) { builder -> extraParams.forEach { (k, v) -> builder.put(k, v) } }
+
+    private suspend inline fun <reified T> postAuthorizedRaw(endpoint: String, extra: (JsonObjectBuilder) -> Unit): T? {
         // In LOCAL mode the real JSESSIONID lives in the WebView cookie jar and was never
         // meant to leave the device. There is nothing valid to send.
         if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
@@ -393,20 +794,42 @@ object AmazeClient {
         return try {
             val response: HttpResponse = httpClient.post("$baseUrl/api/$endpoint") {
                 contentType(ContentType.Application.Json)
+                attachAmazeIdAuth()
                 setBody(buildJsonObject {
                     put("cookies", cookies)
                     put("authorizedID", authorizedID)
                     put("csrf", csrf)
-                    extraParams.forEach { (k, v) -> put(k, v) }
+                    extra(this)
                 })
             }
+            markAmazeAuthRequired(response.status)
             if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString<T>(response.bodyAsText())
+                runCatching { jsonConfig.decodeFromString<T>(response.bodyAsText()) }.getOrNull()
             } else {
                 null
             }
         } catch (e: Exception) {
             // DNS resolution failure (e.g. UnknownHostException for hono.amazecc.com), timeout, or offline
+            null
+        }
+    }
+
+    /**
+     * Raw GET for the public social rosters (`GET /api/social/ffcs-match`): unlike
+     * [postAuthorized] the route is reachable without a VTOP session, so null here means
+     * "server unreachable or non-2xx", never "not authorized". Decodes the JSON body or
+     * null, with the same transport/error semantics as the other helpers.
+     */
+    internal suspend fun socialGetRaw(path: String, query: Map<String, String> = emptyMap()): JsonElement? {
+        return try {
+            val response: HttpResponse = httpClient.get("$baseUrl/api/$path") {
+                attachAmazeIdAuth()
+                query.forEach { (k, v) -> parameter(k, v) }
+            }
+            markAmazeAuthRequired(response.status)
+            if (response.status != HttpStatusCode.OK) return null
+            response.bodyAsText().takeIf { it.isNotBlank() }?.let { jsonConfig.decodeFromString<JsonElement>(it) }
+        } catch (_: Exception) {
             null
         }
     }
@@ -420,6 +843,7 @@ object AmazeClient {
         return try {
             val response: HttpResponse = httpClient.post("$baseUrl/api/$endpoint") {
                 contentType(ContentType.Application.Json)
+                attachAmazeIdAuth()
                 setBody(buildJsonObject {
                     put("cookies", cookies)
                     put("authorizedID", authorizedID)
@@ -428,8 +852,9 @@ object AmazeClient {
                     parsed.forEach { (k, v) -> put(k, v) }
                 })
             }
+            markAmazeAuthRequired(response.status)
             if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString<T>(response.bodyAsText())
+                runCatching { jsonConfig.decodeFromString<T>(response.bodyAsText()) }.getOrNull()
             } else null
         } catch (e: Exception) {
             null
@@ -450,12 +875,14 @@ object AmazeClient {
         return try {
             val response: HttpResponse = httpClient.post("$baseUrl/api/$endpoint") {
                 contentType(ContentType.Application.Json)
+                attachAmazeIdAuth()
                 setBody(buildJsonObject {
                     put("cookies", cookies)
                     put("authorizedID", authorizedID)
                     put("csrf", csrf)
                 })
             }
+            markAmazeAuthRequired(response.status)
             if (response.status != HttpStatusCode.OK) return null
             if (response.headers["Content-Type"].orEmpty().contains("json", ignoreCase = true)) return null
             response.body<ByteArray>().takeIf { it.isNotEmpty() }
@@ -463,6 +890,48 @@ object AmazeClient {
             null
         }
     }
+
+    /**
+     * Amaze ID-guarded request helper (D-011/D-102). Returns an explicit [GuardedResult] so a
+     * missing token or a 401 can never masquerade as "no data" — callers can surface a
+     * "Sign in with Amaze ID" action instead of showing an empty screen.
+     */
+    private suspend inline fun <reified T> amazeIdRequest(
+        path: String,
+        method: HttpMethod = HttpMethod.Get,
+        bodyJson: String? = null,
+        query: Map<String, String> = emptyMap()
+    ): GuardedResult<T> {
+        if (!SessionManager.hasAmazeIdAuth) return GuardedResult.AuthRequired
+        return try {
+            val response: HttpResponse = httpClient.request("$baseUrl$path") {
+                this.method = method
+                attachAmazeIdAuth()
+                query.forEach { (k, v) -> parameter(k, v) }
+                if (bodyJson != null) {
+                    contentType(ContentType.Application.Json)
+                    setBody(bodyJson)
+                }
+            }
+            markAmazeAuthRequired(response.status)
+            when (response.status.value) {
+                401 -> GuardedResult.AuthRequired
+                in 200..299 -> {
+                    val text = response.bodyAsText()
+                    if (text.isBlank()) GuardedResult.Failure("Empty response")
+                    else runCatching { jsonConfig.decodeFromString<T>(text) }
+                        .map { GuardedResult.Success(it) }
+                        .getOrElse { GuardedResult.Failure(it.message ?: "Malformed response") }
+                }
+                else -> GuardedResult.Failure("HTTP ${response.status.value}")
+            }
+        } catch (e: Exception) {
+            GuardedResult.Failure(e.message ?: "Network error")
+        }
+    }
+
+    /** Expose the explicit auth signal to callers without changing their result types. */
+    fun isAmazeIdSignInRequired(): Boolean = SessionManager.amazeAuthRequired.value
 
     /** GET a Koha route from the primary host, then the legacy host. HTTP status is checked
      * before decoding so a 404 body can never be mistaken for a successful payload. */
@@ -472,10 +941,15 @@ object AmazeClient {
         crossinline errorOf: (T) -> String?,
         noinline fallback: (String?) -> T
     ): T = kohaWithFailover(
-        hosts = listOf(baseUrl, LEGACY_API_BASE_URL),
+        // D-094: the Hono API mounts no koha router. Probe the legacy host first so we do not
+        // burn a guaranteed 404 on every catalog search / detail / renew call.
+        hosts = listOf(LEGACY_API_BASE_URL, baseUrl),
         fetch = { host ->
             try {
-                val response: HttpResponse = httpClient.get(host + relativeUrl)
+                val response: HttpResponse = httpClient.get(host + relativeUrl) {
+                    // D-011: /api/koha/patron* is guarded by Amaze ID.
+                    attachAmazeIdAuth()
+                }
                 val status = response.status.value
                 if (status !in 200..299) {
                     KohaProbe(status, null, "HTTP $status")
@@ -500,11 +974,13 @@ object AmazeClient {
         crossinline errorOf: (T) -> String?,
         noinline fallback: (String?) -> T
     ): T = kohaWithFailover(
-        hosts = listOf(baseUrl, LEGACY_API_BASE_URL),
+        // D-094: legacy host first — Hono has no koha router.
+        hosts = listOf(LEGACY_API_BASE_URL, baseUrl),
         fetch = { host ->
             try {
                 val response: HttpResponse = httpClient.post(host + relativePath) {
                     contentType(ContentType.Application.Json)
+                    attachAmazeIdAuth()
                     setBody(bodyJson)
                 }
                 val status = response.status.value
@@ -834,7 +1310,7 @@ object AmazeClient {
         val identity = com.amazecc.app.shared.state.UserStore.identity.value
         if (identity.regNo.isNullOrBlank() && identity.name.isNullOrBlank()) return null
         val profile = StudentProfile(
-            regNo = identity.regNo.orEmpty(),
+            applicationNumberWire = identity.regNo.orEmpty(),
             name = identity.name.orEmpty(),
             email = identity.email.orEmpty(),
             mobile = identity.mobile.orEmpty(),
@@ -945,12 +1421,12 @@ object AmazeClient {
 
         // REMOTE mode: try remote, fall back to local scraper, then local cache
         try {
-            val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
+            val params = attendanceContract(semesterId).bodyFields
             val response = postAuthorized<AttendanceSyncResponse>("attendance", params)
             if (response != null) {
                 val attendance = response.attRes ?: AttendanceRes(
                     success = response.success,
-                    semesterId = response.semesterId,
+                    semesterId = response.semesterId ?: response.attRes?.semester,
                     attendance = response.attendance,
                     error = response.error,
                     message = response.message
@@ -958,6 +1434,7 @@ object AmazeClient {
                 if (attendance.success && attendance.attendance?.isNotEmpty() == true) {
                     return AcademicSyncResult(
                         attendance = attendance.copy(success = attendance.success && attendance.error == null),
+                        // D-107: marksRes is already null-tolerant (string-on-failure).
                         marks = response.marksRes ?: fallbackCachedMarks(semesterId)
                     )
                 }
@@ -1002,11 +1479,19 @@ object AmazeClient {
             }
         }
 
-        // REMOTE mode: try remote, fall back to on-device scraper, then local cache
+        // REMOTE mode: D-090 — there is no /api/timetable route. The timetable columns are
+        // merged into attRes.attendance by POST /api/attendance; derive the timetable from it.
         try {
-            val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
-            val res = postAuthorized<TimetableRes>("timetable", params)
-            if (res != null && res.success && res.courseInfo?.isNotEmpty() == true) return res
+            val params = attendanceContract(semesterId).bodyFields
+            val response = postAuthorized<AttendanceSyncResponse>("attendance", params)
+            val items = response?.attRes?.attendance.orEmpty()
+            if (items.isNotEmpty()) {
+                val derived = timetableFromAttendance(
+                    semesterId ?: response?.attRes?.semester,
+                    items
+                )
+                return derived
+            }
         } catch (_: Exception) {}
 
         if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semester != null) {
@@ -1039,11 +1524,13 @@ object AmazeClient {
             }
         }
 
-        // REMOTE mode: try remote, fall back to on-device scraper, then local cache
+        // REMOTE mode: D-090 — there is no /api/marks route. Marks are embedded in the
+        // attendance response as `marksRes` (a string on upstream failure; null-tolerant DTO).
         try {
-            val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
-            val res = postAuthorized<MarksRes>("marks", params)
-            if (res != null && res.success && res.courses?.isNotEmpty() == true) return res
+            val params = attendanceContract(semesterId).bodyFields
+            val response = postAuthorized<AttendanceSyncResponse>("attendance", params)
+            val remoteMarks = response?.marksRes
+            if (remoteMarks != null && remoteMarks.marks.isNotEmpty()) return remoteMarks
         } catch (_: Exception) {}
 
         if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semester != null) {
@@ -1095,17 +1582,11 @@ object AmazeClient {
             return localAllGrades()
         }
         return try {
-            // Canonical route (AmazeCC-API / Hono): /api/grades with the full
-            // {success, overall:{cgpa,curriculum}, semesters:{...}} shape. The old
-            // /api/all-grades alias is kept as a fallback for older deployments.
+            // D-105: /api/all-grades is not mounted — only /api/grades carries the full
+            // {success, overall:{cgpa,curriculum}, semesters:{...}} shape.
             val remote = postAuthorized<AllGradesRes>("grades")
-            val effectiveRemote = if (remote != null && remote.success && remote.allSemesters.isNotEmpty()) {
-                remote
-            } else {
-                postAuthorized<AllGradesRes>("all-grades")?.takeIf { it.success }
-                    ?: remote?.takeIf { it.success }
-            }
-            effectiveRemote ?: localAllGrades()
+            if (remote != null && remote.success && remote.allSemesters.isNotEmpty()) remote
+            else remote?.takeIf { it.success } ?: localAllGrades()
         } catch (e: Exception) {
             // UnknownHostException / Network error: graceful fallback to local scrape, then cache
             localAllGrades()
@@ -1190,11 +1671,23 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
         }
     }
 
+    /** D-100: whitelisted VTOP proxies now live under POST /api/bulk. */
+    private suspend fun bulkResults(vararg names: String): Map<String, JsonElement> {
+        if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return emptyMap()
+        val contract = bulkContract(names.toList())
+        require(contract.path == "/api/bulk" && contract.method == "POST")
+        val request = buildJsonObject {
+            put("endpoints", buildJsonArray { names.forEach { add(JsonPrimitive(it)) } })
+        }.toString()
+        return postAuthorizedBody<BulkResponse>(contract.path.removePrefix("/api/"), request)?.results.orEmpty()
+    }
+
     suspend fun getHostelCounselling(): ArrearResponse {
         if (useMockData) return DemoData.get("hostelCounselling", ArrearResponse.serializer()) ?: ArrearResponse()
         return try {
-            postAuthorized<ArrearResponse>("hostel-counselling")
-                ?: ArrearResponse(success = false, message = "Empty response")
+            val element = bulkResults("hostel-counselling")["hostel-counselling"]
+            if (element != null) arrearFromBulkResult(element)
+            else ArrearResponse(success = false, message = "Hostel counselling unavailable")
         } catch (e: Exception) {
             ArrearResponse(success = false, message = e.message, error = e.toString())
         }
@@ -1225,7 +1718,7 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
                 // Canonical route (AmazeCC-API / AmazeCC): /api/ffcs with section=schedule.
                 val ffcs = postAuthorized<JsonObject>(
                     "ffcs",
-                    mapOf("semesterId" to semesterId, "section" to "schedule")
+                    ffcsContract("schedule", semesterId).bodyFields
                 )
                 val scheduleElement = runCatching { ffcs?.get("schedule")?.jsonObject?.get("Schedule") }.getOrNull()
                     ?: runCatching { ffcs?.get("Schedule") }.getOrNull()
@@ -1234,9 +1727,7 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
                     if (parsed.isNotEmpty()) return ExamScheduleRes(success = true, rawScheduleUpper = parsed)
                 }
             }
-            // Legacy alias still served by older API deployments.
-            val legacy = postAuthorized<ExamScheduleRes>("schedule", if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap())
-            if (legacy != null && legacy.success && legacy.schedule.isNotEmpty()) return legacy
+            // D-105: /api/schedule is not mounted; /api/ffcs section=schedule above is canonical.
         } catch (_: Exception) {}
 
         if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semester != null) {
@@ -1433,55 +1924,57 @@ if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: Pa
             }
         }
         return try {
-            // Canonical route is POST /api/finance with section=all; the three separate
-            // /api/payments, /api/payment-receipts and /api/wallet aliases are legacy-only.
-            val finance = postAuthorized<JsonObject>("finance", mapOf("section" to "all"))
-            val duesResp = runCatching { finance?.get("dues")?.jsonObject }.getOrNull()
-            val receiptsResp = runCatching { finance?.get("receipts")?.jsonObject }.getOrNull()
-            val walletResp = runCatching { finance?.get("wallet")?.jsonObject }.getOrNull()
-
+            // D-022: decode the whole finance response once with typed DTOs so receipts,
+            // refunds, invoices and the USD ledger are never dropped by an ad-hoc projection.
+            val finance = postAuthorized<FinanceResponse>("finance", mapOf("section" to "all"))
+                ?: return PaymentsRes(success = false, message = "Empty response")
             val paymentsList = mutableListOf<PaymentItem>()
 
-            val hasDues = duesResp?.get("hasDues")?.let {
-                try { it.jsonPrimitive.booleanOrNull ?: it.jsonPrimitive.content.toBooleanStrictOrNull() } catch (_: Exception) { null }
-            }
-
-            if (hasDues == true) {
+            if (finance.dues?.hasDues == true) {
                 paymentsList.add(PaymentItem(
                     billingId = "due-pending",
-                    description = duesResp.get("message")?.let { try { it.jsonPrimitive.content.takeIf { s -> s.isNotBlank() } } catch(_: Exception) { null } } ?: "Pending Dues",
+                    description = finance.dues.message?.takeIf { it.isNotBlank() } ?: "Pending Dues",
                     amount = "Check VTOP",
                     dueDate = "-",
                     status = "UNPAID"
                 ))
             }
 
-            val receiptsArray = receiptsResp?.get("receipts")?.let { try { it.jsonArray } catch(_: Exception) { null } }
-            receiptsArray?.forEach { r ->
-                val obj = try { r.jsonObject } catch(_: Exception) { null }
-                if (obj != null) {
-                    paymentsList.add(PaymentItem(
-                        billingId = obj["receiptNumber"]?.let { try { it.jsonPrimitive.content } catch(_: Exception) { null } } ?: "rec",
-                        description = "Fee Payment",
-                        amount = obj["amount"]?.let { try { it.jsonPrimitive.content } catch(_: Exception) { null } } ?: "-",
-                        dueDate = "-",
-                        status = "PAID",
-                        paymentDate = obj["date"]?.let { try { it.jsonPrimitive.content } catch(_: Exception) { null } },
-                        receiptNo = obj["receiptNumber"]?.let { try { it.jsonPrimitive.content } catch(_: Exception) { null } }
-                    ))
-                }
+            finance.receipts?.receipts.orEmpty().forEach { r ->
+                paymentsList.add(PaymentItem(
+                    billingId = r.receiptNumber.ifBlank { r.applNo ?: "rec" },
+                    description = "Fee Payment",
+                    amount = r.amount ?: "-",
+                    dueDate = "-",
+                    status = "PAID",
+                    paymentDate = r.date,
+                    receiptNo = r.receiptNumber.ifBlank { null }
+                ))
             }
 
-            val walletLedger = walletResp?.get("ledgerINR")?.let { try { it.jsonArray } catch(_: Exception) { null } }
-            val balance = walletLedger?.lastOrNull()?.let { entry ->
-                try { entry.jsonObject["bookBalanceAmount"]?.jsonPrimitive?.content } catch (_: Exception) { null }
+            finance.wallet?.ledgerINR.orEmpty().forEach { e ->
+                paymentsList.add(PaymentItem(
+                    billingId = e.receiptNumber ?: "ledger",
+                    description = listOfNotNull(e.transactionType, e.particulars).joinToString(" - ").ifBlank { "Wallet Transaction" },
+                    amount = e.amount ?: e.refundAmount ?: "-",
+                    dueDate = e.transactionDate,
+                    status = if (e.refundAmount != null) "REFUNDED" else "PAID",
+                    paymentDate = e.transactionDate,
+                    receiptNo = e.receiptNumber
+                ))
             }
 
+            val balance = finance.wallet?.ledgerINR?.lastOrNull()?.bookBalanceAmount
             PaymentsRes(
                 success = true,
                 payments = paymentsList,
                 walletBalance = balance,
-                message = if (hasDues == false) duesResp.get("message")?.let { try { it.jsonPrimitive.content } catch(_: Exception) { null } } else null
+                dues = finance.dues,
+                receipts = finance.receipts?.receipts.orEmpty(),
+                ledgerINR = finance.wallet?.ledgerINR.orEmpty(),
+                ledgerUSD = finance.wallet?.ledgerUSD.orEmpty(),
+                message = if (finance.dues?.hasDues == false) finance.dues.message else null,
+                error = finance.error
             )
         } catch (e: Exception) {
             PaymentsRes(success = false, message = e.message, error = e.toString())
@@ -1517,11 +2010,16 @@ if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: Pa
         }
         return try {
             val params = creds + ("section" to "library")
+            // D-017/D-105: /api/finance?section=library is canonical; /api/library-due is not
+            // mounted. The library dues are nested under `library.books`, so lift them into the
+            // flat `booksIssued` list the UI already renders.
             val res = postAuthorized<LibraryRes>("finance", params)
-                ?: postAuthorized<LibraryRes>("library-due", creds) // legacy alias for older servers
                 ?: LibraryRes(success = false, message = "Empty response")
-            com.amazecc.app.shared.state.AppDataStore.setLibrary(res)
-            res
+            val normalised = if (res.booksIssued.isEmpty() && res.libraryDues?.books?.isNotEmpty() == true) {
+                res.copy(booksIssued = res.libraryDues.booksIssued)
+            } else res
+            com.amazecc.app.shared.state.AppDataStore.setLibrary(normalised)
+            normalised
         } catch (e: Exception) {
             LibraryRes(success = false, message = e.message, error = e.toString())
         }
@@ -1667,75 +2165,80 @@ if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: B
 
     suspend fun getBuses(): BusesRes {
 if (useMockData) return DemoData.get("buses", BusesRes.serializer()) ?: BusesRes()
-        if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
-            AppState.markServedFromCache("Buses")
-            return AppDataStore.buses.value
-                ?: BusesRes(success = true, message = "Served from local cache")
-        }
-        return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/buses")
-            if (response.status == HttpStatusCode.OK) {
-                val parsed: BusesRes = jsonConfig.decodeFromString(response.bodyAsText())
-                if (parsed.success) AppDataStore.setBuses(parsed)
-                parsed
-            } else {
-                AppDataStore.buses.value
-                    ?: BusesRes(success = false, message = "Server returned status ${response.status}", error = "HTTP ${response.status}")
-            }
-        } catch (e: Exception) {
-            AppDataStore.buses.value
-                ?: BusesRes(success = false, message = "Network error: ${e.message}", error = e.toString())
-        }
+        // D-095: the API mounts no public GET /api/buses (only an admin POST). Serve the
+        // persisted cache; never fabricate routes or buses.
+        AppState.markServedFromCache("Buses")
+        return AppDataStore.buses.value
+            ?: BusesRes(success = false, message = "Bus list unavailable on the current API")
     }
 
     suspend fun submitTransportRegistration(request: TransportRegRequest): TransportRegSubmitRes {
 if (useMockData) return DemoData.get("transportRegister", TransportRegSubmitRes.serializer()) ?: TransportRegSubmitRes()
-        return try {
-            val params = mapOf(
-                "routeNo" to request.routeNo,
-                "semester" to request.semester,
-                "studentName" to request.studentName,
-                "studentPhone" to request.studentPhone
-            )
-            postAuthorized<TransportRegSubmitRes>("transport/register", params)
-                ?: TransportRegSubmitRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            TransportRegSubmitRes(success = false, message = e.message, error = e.toString())
-        }
+        // D-097: /api/transport is read-only; /api/transport/register does not exist. A write
+        // cannot succeed against the current API, so report that explicitly instead of 404ing.
+        return TransportRegSubmitRes(
+            success = false,
+            message = "Transport registration must be completed on VTOP; the API is read-only"
+        )
     }
 
-
+    /**
+     * D-102: `/api/cabshare/auth` is POST and authenticates the caller by Amaze ID bearer/DPoP
+     * only — the VTOP username/password/registration body is ignored by the API. The parameters
+     * remain in the signature for source compatibility but are not sent.
+     */
     suspend fun cabShareAuth(username: String, password: String, phoneNumber: String): CabShareAuthRes {
 if (useMockData) return DemoData.get("cabShareAuth", CabShareAuthRes.serializer()) ?: CabShareAuthRes()
-        return try {
-            val params = buildJsonObject {
-                put("phone_number", phoneNumber)
-                put("username", username)
-                put("password", password)
-            }
-            postAuthorizedBody<CabShareAuthRes>("cabshare/auth", params.toString())
-                ?: CabShareAuthRes(success = false, error = "Empty response")
-        } catch (e: Exception) {
-            CabShareAuthRes(success = false, error = e.message)
+        return when (val result = amazeIdRequest<CabShareAuthRes>("/api/cabshare/auth", HttpMethod.Post)) {
+            is GuardedResult.Success -> result.value
+            GuardedResult.AuthRequired -> CabShareAuthRes(success = false, error = AMAZE_AUTH_REQUIRED)
+            is GuardedResult.Failure -> CabShareAuthRes(success = false, error = result.message)
         }
     }
 
-    suspend fun getCabHubs(): List<CabShareHub> {
-        return fallbackCabHubs
+    /**
+     * D-104: `GET /api/cabshare/hubs` sits behind the `/api/cabshare-routes` Amaze ID guard. Route it
+     * through the auth helper so a 401 produces an explicit [GuardedResult.AuthRequired] rather
+     * than a silent fallback to the bundled hubs.
+     */
+    suspend fun getCabHubsGuarded(): GuardedResult<List<CabShareHub>> {
+        return when (val result = amazeIdRequest<CabShareHubsRes>(
+            cabshareHubsContract().path,
+            HttpMethod.Get
+        )) {
+            is GuardedResult.Success -> GuardedResult.Success(
+                result.value.hubs.takeIf { it.isNotEmpty() } ?: fallbackCabHubs
+            )
+            GuardedResult.AuthRequired -> GuardedResult.AuthRequired
+            is GuardedResult.Failure -> GuardedResult.Failure(result.message)
+        }
     }
 
+    /** Explicit result for callers that need the AMAZE_AUTH_REQUIRED marker as a value. */
+    suspend fun getCabHubsResult(): CabHubsResult = when (val result = getCabHubsGuarded()) {
+        is GuardedResult.Success -> CabHubsResult.Hubs(result.value)
+        GuardedResult.AuthRequired -> CabHubsResult.Error(AMAZE_AUTH_REQUIRED)
+        is GuardedResult.Failure -> CabHubsResult.Error(result.message)
+    }
+
+    /** Source-compatible wrapper; auth failures are also flagged in `SessionManager.amazeAuthRequired`. */
+    suspend fun getCabHubs(): List<CabShareHub> = when (val result = getCabHubsResult()) {
+        is CabHubsResult.Hubs -> result.hubs
+        is CabHubsResult.Error -> emptyList()
+    }
+
+    /** D-102: trip search is a GET; a POST to `/trips` would CREATE a trip. */
     suspend fun searchCabShareTrips(fromHubId: Int?, toHubId: Int?, date: String): CabShareTripsRes {
 if (useMockData) return DemoData.get("cabShareSearch", CabShareTripsRes.serializer()) ?: CabShareTripsRes()
-        return try {
-            val params = mutableMapOf<String, String>()
-            fromHubId?.let { params["from_hub_id"] = it.toString() }
-            toHubId?.let { params["hub_id"] = it.toString() }
-            params["date"] = date
-            params["reg_number"] = SessionManager.authorizedID.value ?: ""
-            postAuthorized<CabShareTripsRes>("cabshare/trips", params)
-                ?: CabShareTripsRes(success = false, error = "Empty response")
-        } catch (e: Exception) {
-            CabShareTripsRes(success = false, error = e.message)
+        val params = mutableMapOf<String, String>()
+        // The API has one destination `hub_id`; keep the legacy `from_hub_id` only as a
+        // fallback when no destination was supplied.
+        (toHubId ?: fromHubId)?.let { params["hub_id"] = it.toString() }
+        if (date.isNotBlank()) params["date"] = date
+        return when (val result = amazeIdRequest<CabShareTripsRes>("/api/cabshare/trips", HttpMethod.Get, query = params)) {
+            is GuardedResult.Success -> result.value
+            GuardedResult.AuthRequired -> CabShareTripsRes(success = false, error = AMAZE_AUTH_REQUIRED)
+            is GuardedResult.Failure -> CabShareTripsRes(success = false, error = result.message)
         }
     }
 
@@ -1744,62 +2247,53 @@ if (useMockData) return DemoData.get("cabShareSearch", CabShareTripsRes.serializ
         tolerance: Double, seats: Int, gender: String, notes: String
     ): CabActionRes {
 if (useMockData) return DemoData.get("cabShareCreate", CabActionRes.serializer()) ?: CabActionRes()
-        return try {
-            val body = buildJsonObject {
-                put("reg_number", SessionManager.authorizedID.value ?: "")
-                put("from_hub_id", fromHubId)
-                put("hub_id", toHubId)
-                put("travel_date", date)
-                put("preferred_time", time)
-                put("tolerance_hours", tolerance)
-                put("gender_preference", gender)
-                put("notes", notes)
-                put("seat_options", buildJsonObject {
-                    put("requested", seats)
-                })
-            }
-            postAuthorizedBody<CabActionRes>("cabshare/trips", body.toString())
-                ?: CabActionRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            CabActionRes(success = false, message = e.message, error = e.toString())
+        val body = buildJsonObject {
+            put("hub_id", toHubId.takeIf { it != 0 } ?: fromHubId)
+            put("travel_date", date)
+            put("preferred_time", time)
+            put("tolerance_hours", tolerance)
+            put("gender_preference", gender)
+            put("notes", notes)
+            put("seat_options", buildJsonObject { put("requested", seats) })
+        }.toString()
+        return when (val result = amazeIdRequest<CabActionRes>("/api/cabshare/trips", HttpMethod.Post, bodyJson = body)) {
+            is GuardedResult.Success -> result.value
+            GuardedResult.AuthRequired -> CabActionRes(success = false, message = AMAZE_AUTH_REQUIRED)
+            is GuardedResult.Failure -> CabActionRes(success = false, message = result.message, error = result.message)
         }
     }
 
+    /** D-102: `GET /trips/me` has no query parameters — identity comes from the bearer token. */
     suspend fun getMyCabShareTrips(regNumber: String): CabShareTripsRes {
 if (useMockData) return DemoData.get("cabShareMyTrips", CabShareTripsRes.serializer()) ?: CabShareTripsRes()
-        return try {
-            postAuthorized<CabShareTripsRes>("cabshare/trips/me?reg_number=$regNumber")
-                ?: CabShareTripsRes(success = false, error = "Empty response")
-        } catch (e: Exception) {
-            CabShareTripsRes(success = false, error = e.message)
+        return when (val result = amazeIdRequest<CabShareTripsRes>("/api/cabshare/trips/me")) {
+            is GuardedResult.Success -> result.value
+            GuardedResult.AuthRequired -> CabShareTripsRes(success = false, error = AMAZE_AUTH_REQUIRED)
+            is GuardedResult.Failure -> CabShareTripsRes(success = false, error = result.message)
         }
     }
 
     suspend fun requestCabShareJoin(regNumber: String, tripId: Long): CabActionRes {
-        return try {
-            val body = buildJsonObject {
-                put("reg_number", regNumber)
-                put("trip_id", tripId)
-                put("action", "request")
-            }
-            postAuthorizedBody<CabActionRes>("cabshare/match", body.toString())
-                ?: CabActionRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            CabActionRes(success = false, message = e.message)
+        val body = buildJsonObject {
+            put("trip_id", tripId)
+            put("action", "request")
+        }.toString()
+        return when (val result = amazeIdRequest<CabActionRes>("/api/cabshare/match", HttpMethod.Post, bodyJson = body)) {
+            is GuardedResult.Success -> result.value
+            GuardedResult.AuthRequired -> CabActionRes(success = false, message = AMAZE_AUTH_REQUIRED)
+            is GuardedResult.Failure -> CabActionRes(success = false, message = result.message, error = result.message)
         }
     }
 
     suspend fun cabShareMatchAction(regNumber: String, matchId: Long, action: String): CabActionRes {
-        return try {
-            val body = buildJsonObject {
-                put("reg_number", regNumber)
-                put("match_id", matchId)
-                put("action", action)
-            }
-            postAuthorizedBody<CabActionRes>("cabshare/match", body.toString())
-                ?: CabActionRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            CabActionRes(success = false, message = e.message)
+        val body = buildJsonObject {
+            put("match_id", matchId)
+            put("action", action)
+        }.toString()
+        return when (val result = amazeIdRequest<CabActionRes>("/api/cabshare/match", HttpMethod.Post, bodyJson = body)) {
+            is GuardedResult.Success -> result.value
+            GuardedResult.AuthRequired -> CabActionRes(success = false, message = AMAZE_AUTH_REQUIRED)
+            is GuardedResult.Failure -> CabActionRes(success = false, message = result.message, error = result.message)
         }
     }
 
@@ -1823,8 +2317,12 @@ if (useMockData) return DemoData.get("cabShareMyTrips", CabShareTripsRes.seriali
                 LMSRes(success = false, message = "Network error: ${e.message}", error = e.toString())
             }
         }
+        // D-091: /api/lms-data authenticates with Moodle {username, pass} (NOT VTOP cookies)
+        // and returns a bare Assignment[]. Reuse fetchMoodleData, which already does both.
+        val moodleCreds = com.amazecc.app.shared.repository.SettingsManager.getMoodleCredentials()
+            ?: return LMSRes(success = false, message = "Moodle credentials not set")
         return try {
-            postAuthorized<LMSRes>("lms-data") ?: LMSRes(success = false, message = "Empty response")
+            lmsFromMoodle(fetchMoodleData(moodleCreds.first, moodleCreds.second))
         } catch (e: Exception) {
             LMSRes(success = false, message = e.message, error = e.toString())
         }
@@ -1871,8 +2369,18 @@ if (useMockData) return DemoData.get("qcmView", QcmViewRes.serializer()) ?: QcmV
                 QcmViewRes(success = false, error = e.toString())
             }
         }
+        // D-098: no /api/qcm route. QCM lives under `POST /api/ffcs section=qcm`, whose
+        // `qcmView` slice has `{success, semesters:[{value,text}], data}` — QcmViewRes now
+        // accepts both the object and legacy string forms of `semesters`.
         return try {
-            postAuthorized<QcmViewRes>("qcm") ?: QcmViewRes(success = false, message = "Empty response")
+            val ffcs = postAuthorized<JsonObject>("ffcs", ffcsContract("qcm").bodyFields)
+            val qcmElement = ffcs?.get("qcmView")
+            if (qcmElement != null) {
+                jsonConfig.decodeFromJsonElement<QcmViewRes>(qcmElement)
+            } else {
+                com.amazecc.app.shared.state.AppDataStore.qcmView.value
+                    ?: QcmViewRes(success = false, message = "QCM unavailable")
+            }
         } catch (e: Exception) {
             QcmViewRes(success = false, message = e.message, error = e.toString())
         }
@@ -1895,27 +2403,11 @@ if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: Even
                 EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
             }
         }
-        return try {
-            val response = httpClient.get("$baseUrl/api/events") {
-                contentType(ContentType.Application.Json)
-            }
-            if (response.status == HttpStatusCode.OK) {
-                val body = response.bodyAsText()
-                val element = jsonConfig.decodeFromString<JsonElement>(body)
-                val eventsList = if (element is JsonArray) {
-                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element)
-                } else if (element.jsonObject["events"] is JsonArray) {
-                    jsonConfig.decodeFromJsonElement<List<EventHubEvent>>(element.jsonObject["events"] as JsonArray)
-                } else {
-                    emptyList()
-                }
-                EventHubRes(success = true, events = eventsList)
-            } else {
-                EventHubRes(success = false, message = "Server returned ${response.status}")
-            }
-        } catch (e: Exception) {
-            EventHubRes(success = false, message = "Network error: ${e.message}", error = e.toString())
-        }
+        // D-092: the Hono API mounts no events router. Serve the last cached list with an
+        // explicit status rather than hitting a guaranteed 404. Full port needs a legacy host.
+        AppState.markServedFromCache("Events")
+        return AppDataStore.events.value
+            ?: EventHubRes(success = false, message = "Event Hub is available in VTOP Local mode only")
     }
 
     suspend fun getEventPreview(eid: String): EventHubPreview? {
@@ -1929,27 +2421,8 @@ if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: Even
                 null
             }
         }
-        // Legacy REMOTE proxy — kept as a fallback only, never a hard dependency on Hono.
-        return try {
-            val jsessionid = SessionManager.clubToken.value
-            val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
-            val response = httpClient.post("$baseUrl/api/events/preview") {
-                contentType(ContentType.Application.Json)
-                setBody(buildJsonObject {
-                    put("eid", eid)
-                    if (jsessionid != null) put("jsessionid", jsessionid)
-                    if (creds != null) {
-                        put("username", creds.first)
-                        put("password", creds.second)
-                    }
-                })
-            }
-            if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString<EventHubPreview>(response.bodyAsText())
-            } else null
-        } catch (e: Exception) {
-            null
-        }
+        // D-092: /api/events/preview is not mounted. Previews stay a Local-mode feature.
+        return null
     }
 
     suspend fun registerForEvent(eid: String): EventHubRegisterRes? {
@@ -1963,27 +2436,8 @@ if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: Even
                 null
             }
         }
-        // Legacy REMOTE proxy — kept as a fallback only, never a hard dependency on Hono.
-        return try {
-            val jsessionid = SessionManager.clubToken.value
-            val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
-            val response = httpClient.post("$baseUrl/api/events/register") {
-                contentType(ContentType.Application.Json)
-                setBody(buildJsonObject {
-                    put("eid", eid)
-                    if (jsessionid != null) put("jsessionid", jsessionid)
-                    if (creds != null) {
-                        put("username", creds.first)
-                        put("password", creds.second)
-                    }
-                })
-            }
-            if (response.status == HttpStatusCode.OK) {
-                jsonConfig.decodeFromString<EventHubRegisterRes>(response.bodyAsText())
-            } else null
-        } catch (e: Exception) {
-            null
-        }
+        // D-092: /api/events/register is not mounted. Registration stays a Local-mode feature.
+        return null
     }
 
     /** Payment hand-off and receipt/certificate downloads, pinned to Event Hub by the on-device client. */
@@ -2014,26 +2468,8 @@ if (useMockData) return DemoData.get("events", EventHubRes.serializer()) ?: Even
         // LOCAL authenticates inside VtopEventHub per call; OFFLINE_CACHE has no session at all.
         // Neither mode should make a Hono request just to obtain an Event Hub cookie.
         if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
-        val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials() ?: return null
-        return try {
-            val response = httpClient.post("$baseUrl/api/events/login") {
-                contentType(ContentType.Application.Json)
-                setBody(buildJsonObject {
-                    put("username", creds.first)
-                    put("password", creds.second)
-                })
-            }
-            if (response.status == HttpStatusCode.OK) {
-                val json = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText()).jsonObject
-                val jsessionid = json["jsessionid"]?.jsonPrimitive?.content
-                if (jsessionid != null) {
-                    SessionManager.saveEventHubSession(jsessionid)
-                }
-                jsessionid
-            } else null
-        } catch (e: Exception) {
-            null
-        }
+        // D-092: /api/events/login is not mounted. Event Hub login stays a Local-mode feature.
+        return null
     }
 
     suspend fun getEventsProfile(): EventHubRegisteredEventsRes {
@@ -2052,42 +2488,21 @@ if (useMockData) return DemoData.get("eventsProfile", EventHubRegisteredEventsRe
                 EventHubRegisteredEventsRes(success = false, message = "Network error: ${e.message}", error = e.toString())
             }
         }
-        return try {
-            val creds = com.amazecc.app.shared.repository.SettingsManager.getCredentials()
-            val extraParams = mutableMapOf<String, String>()
-            val jsessionid = SessionManager.clubToken.value
-            if (jsessionid != null) extraParams["jsessionid"] = jsessionid
-            if (creds != null) {
-                extraParams["username"] = creds.first
-                extraParams["password"] = creds.second
-            }
-            postAuthorized<EventHubRegisteredEventsRes>("events/profile", extraParams)
-                ?: EventHubRegisteredEventsRes(success = false, message = "Empty response")
-        } catch (e: Exception) {
-            EventHubRegisteredEventsRes(success = false, message = "Network error: ${e.message}", error = e.toString())
-        }
+        // D-092: /api/events/profile is not mounted. Serve the cached registrations only.
+        AppState.markServedFromCache("Registered Events")
+        return AppDataStore.registeredEvents.value
+            ?: EventHubRegisteredEventsRes(success = false, message = "Event Hub is available in VTOP Local mode only")
     }
 
     suspend fun getClubs(): ClubsRes = getClubsDetails()
 
     suspend fun getClubsDetails(): ClubsRes {
 if (useMockData) return DemoData.get("clubs", ClubsRes.serializer()) ?: ClubsRes()
-        return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/clubs/details")
-            if (response.status == HttpStatusCode.OK) {
-                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
-                if (element is JsonArray) {
-                    val clubsList = jsonConfig.decodeFromJsonElement<List<ClubItem>>(element)
-                    ClubsRes(success = true, clubs = clubsList)
-                } else {
-                    jsonConfig.decodeFromJsonElement<ClubsRes>(element)
-                }
-            } else {
-                ClubsRes(success = false, message = "HTTP ${response.status}", error = "Server returned status ${response.status}")
-            }
-        } catch (e: Exception) {
-            ClubsRes(success = false, message = "Network error: ${e.message}", error = e.toString())
-        }
+        // D-093: /api/clubs/details is not mounted. The only live club endpoints
+        // (/api/club-admin/details, /api/admin/clubs) are per-club/admin-only, so there is no
+        // public list to repoint to. Serve the cached list and say so explicitly.
+        AppState.markServedFromCache("Clubs")
+        return ClubsRes(success = false, message = "Club directory is unavailable on the current API")
     }
 
     suspend fun getImageBytes(url: String): ByteArray? {
@@ -2104,6 +2519,13 @@ if (useMockData) return DemoData.get("clubs", ClubsRes.serializer()) ?: ClubsRes
         } catch (e: Exception) {
             null
         }
+    }
+
+    /** D-101: one consolidated whoami fetch, reused by the per-slice identity functions. */
+    private suspend fun remoteIdentity(): StudentIdentity {
+        val obj = postAuthorized<JsonObject>("whoami") ?: return StudentIdentity()
+        return runCatching { com.amazecc.app.shared.state.IdentityExtractor.fromWhoami(obj) }
+            .getOrDefault(StudentIdentity())
     }
 
     suspend fun getStudentProfile(): StudentProfileRes {
@@ -2124,9 +2546,10 @@ if (useMockData) return DemoData.get("clubs", ClubsRes.serializer()) ?: ClubsRes
             }
         }
 
+        // D-101: /api/student is not mounted; the profile is part of /api/whoami.
         try {
-            val res = postAuthorized<StudentProfileRes>("student")
-            if (res != null && res.success && res.data != null) return res
+            val id = remoteIdentity()
+            if (id.hasIdentity) return StudentProfileRes(success = true, data = studentProfileFromIdentity(id))
         } catch (_: Exception) {}
 
         if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession) {
@@ -2150,8 +2573,11 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
                 ProfileImagesRes(success = false, error = e.toString())
             }
         }
+        // D-101: folded into /api/whoami.
         return try {
-            postAuthorized<ProfileImagesRes>("profile-images") ?: ProfileImagesRes(success = false)
+            val id = remoteIdentity()
+            if (id.hasIdentity) profileImagesFromIdentity(id)
+            else ProfileImagesRes(success = false, error = "Profile images unavailable")
         } catch (e: Exception) {
             ProfileImagesRes(success = false, error = e.toString())
         }
@@ -2168,8 +2594,11 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
                 CredentialsRes(success = false, error = e.toString())
             }
         }
+        // D-101: folded into /api/whoami.
         return try {
-            postAuthorized<CredentialsRes>("credentials") ?: CredentialsRes(success = false)
+            val id = remoteIdentity()
+            if (id.hasIdentity || id.credentials.isNotEmpty()) credentialsFromIdentity(id)
+            else CredentialsRes(success = false, error = "Credentials unavailable")
         } catch (e: Exception) {
             CredentialsRes(success = false, error = e.toString())
         }
@@ -2186,8 +2615,9 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
                 EptScheduleRes(success = false, error = e.toString())
             }
         }
+        // D-101: folded into /api/whoami.
         return try {
-            postAuthorized<EptScheduleRes>("ept-schedule") ?: EptScheduleRes(success = false)
+            eptScheduleFromIdentity(remoteIdentity())
         } catch (e: Exception) { EptScheduleRes(success = false, error = e.toString()) }
     }
 
@@ -2203,7 +2633,13 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
             }
         }
         return try {
-            postAuthorized<RegistrationScheduleRes>("registration-schedule") ?: RegistrationScheduleRes(success = false)
+            // D-100: /api/registration-schedule is not mounted; the proxy is in /api/bulk.
+            val element = bulkResults("registration-schedule")["registration-schedule"]
+            if (element is JsonObject) {
+                jsonConfig.decodeFromJsonElement<RegistrationScheduleRes>(element)
+            } else {
+                RegistrationScheduleRes(success = false, error = "Registration schedule unavailable")
+            }
         } catch (e: Exception) { RegistrationScheduleRes(success = false, error = e.toString()) }
     }
 
@@ -2218,8 +2654,9 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
                 UniversityDayRes(success = false, error = e.toString())
             }
         }
+        // D-101: folded into /api/whoami.
         return try {
-            postAuthorized<UniversityDayRes>("university-day") ?: UniversityDayRes(success = false)
+            universityDayFromIdentity(remoteIdentity())
         } catch (e: Exception) { UniversityDayRes(success = false, error = e.toString()) }
     }
 
@@ -2234,8 +2671,9 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
                 BankInfoRes(success = false, error = e.toString())
             }
         }
+        // D-101: folded into /api/whoami.
         return try {
-            postAuthorized<BankInfoRes>("bank-info") ?: BankInfoRes(success = false)
+            bankInfoFromIdentity(remoteIdentity())
         } catch (e: Exception) { BankInfoRes(success = false, error = e.toString()) }
     }
 
@@ -2250,8 +2688,9 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
                 DayboarderRes(success = false, error = e.toString())
             }
         }
+        // D-101: folded into /api/whoami.
         return try {
-            postAuthorized<DayboarderRes>("dayboarder") ?: DayboarderRes(success = false)
+            dayboarderFromIdentity(remoteIdentity())
         } catch (e: Exception) { DayboarderRes(success = false, error = e.toString()) }
     }
 
@@ -2266,8 +2705,9 @@ if (useMockData) return DemoData.get("profileImages", ProfileImagesRes.serialize
                 ApaarIdRes(success = false, error = e.toString())
             }
         }
+        // D-101: folded into /api/whoami.
         return try {
-            postAuthorized<ApaarIdRes>("apaarid") ?: ApaarIdRes(success = false)
+            apaarIdFromIdentity(remoteIdentity())
         } catch (e: Exception) { ApaarIdRes(success = false, error = e.toString()) }
     }
 
@@ -2529,32 +2969,25 @@ if (useMockData) return DemoData.get("circulars", CircularsRes.serializer()) ?: 
 
     suspend fun postQBankPaper(courseCode: String, title: String, link: String, type: String): QBankSubmitRes? {
 if (useMockData) return DemoData.get("qbankUpload", QBankSubmitRes.serializer()) ?: QBankSubmitRes(true)
+        // D-103: the guarded upload route expects `fileUrl` and optional `paperType`, not
+        // `link`/`type`. postAuthorized now also attaches the Amaze ID bearer (D-011).
         return postAuthorized("qbank/upload", mapOf(
             "courseCode" to courseCode,
             "title" to title,
-            "link" to link,
-            "type" to type
+            "fileUrl" to link,
+            "paperType" to type
         ))
     }
 
     suspend fun getQBankCourses(): QBankCoursesRes {
 if (useMockData) return DemoData.get("qbankCourses", QBankCoursesRes.serializer()) ?: QBankCoursesRes()
         return try {
-            // The API exposes a GET-only endpoint returning { data: [{ code, title }] }.
-            // The demo payload uses { courses: [{ courseCode, courseTitle }] } — accept both.
+            // D-027: decode both `{data:[{code,title}]}` (API) and `{courses:[...]}` (demo) via
+            // the tolerant DTO instead of hand-picking keys.
             val response: HttpResponse = httpClient.get("$baseUrl/api/qbank/courses")
-            if (response.status == HttpStatusCode.OK) {
-                val element = jsonConfig.decodeFromString<JsonElement>(response.bodyAsText())
-                val json = element.jsonObject
-                val courses = when {
-                    json["data"] is JsonArray ->
-                        jsonConfig.decodeFromJsonElement<List<QBankCourseRaw>>(json["data"] as JsonArray)
-                            .map { QBankCourse(courseCode = it.code, courseTitle = it.title) }
-                    json["courses"] is JsonArray ->
-                        jsonConfig.decodeFromJsonElement<List<QBankCourse>>(json["courses"] as JsonArray)
-                    else -> emptyList()
-                }
-                QBankCoursesRes(success = true, courses = courses)
+            if (response.status.value in 200..299) {
+                val decoded = jsonConfig.decodeFromString<QBankCoursesRes>(response.bodyAsText())
+                decoded.copy(courses = decoded.effectiveCourses)
             } else {
                 QBankCoursesRes(success = false, message = "HTTP ${response.status}")
             }
@@ -2565,8 +2998,9 @@ if (useMockData) return DemoData.get("qbankCourses", QBankCoursesRes.serializer(
 
     suspend fun getFacultySchools(): FacultySchoolsRes {
 if (useMockData) return DemoData.get("facultySchools", FacultySchoolsRes.serializer()) ?: FacultySchoolsRes()
+        // D-096: live only under /api/services/faculty-routes.
         return try {
-            val response: HttpResponse = httpClient.get("$baseUrl/api/faculty/schools")
+            val response: HttpResponse = httpClient.get("$baseUrl/api/services/faculty/schools")
             if (response.status == HttpStatusCode.OK) {
                 jsonConfig.decodeFromString(response.bodyAsText())
             } else {
@@ -2579,8 +3013,9 @@ if (useMockData) return DemoData.get("facultySchools", FacultySchoolsRes.seriali
 
     suspend fun postFacultyScrape(schoolId: String): FacultyScrapeRes {
 if (useMockData) return DemoData.get("facultyScrape", FacultyScrapeRes.serializer()) ?: FacultyScrapeRes()
+        // D-096: live only under /api/services/faculty-routes.
         return try {
-            val response: HttpResponse = httpClient.post("$baseUrl/api/faculty/scrape") {
+            val response: HttpResponse = httpClient.post("$baseUrl/api/services/faculty/scrape") {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject { put("schoolId", schoolId) })
             }
@@ -2666,12 +3101,22 @@ if (useMockData) return DemoData.get("facultyScrape", FacultyScrapeRes.serialize
 
     suspend fun getProjects(): ArrearResponse {
 if (useMockData) return DemoData.get("projects", ArrearResponse.serializer()) ?: ArrearResponse()
-        return postAuthorized<ArrearResponse>("project") ?: ArrearResponse(success = false, message = "Empty response")
+        // D-100: no /api/project route; the whitelisted bulk proxies are hostel-counselling,
+        // registration-schedule, exc-registration and course-completion only.
+        return ArrearResponse(success = false, message = "Project details are unavailable on the current API")
     }
 
     suspend fun getWishlist(): ArrearResponse {
 if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?: ArrearResponse()
-        return postAuthorized<ArrearResponse>("wishlist") ?: ArrearResponse(success = false, message = "Empty response")
+        // D-100: wishlist lives under POST /api/ffcs section=wishlist.
+        return try {
+            val ffcs = postAuthorized<JsonObject>("ffcs", ffcsContract("wishlist").bodyFields)
+            val element = ffcs?.get("wishlist")
+            if (element is JsonObject) arrearFromBulkResult(element)
+            else ArrearResponse(success = false, message = "Wishlist unavailable")
+        } catch (e: Exception) {
+            ArrearResponse(success = false, message = e.message, error = e.toString())
+        }
     }
 
     suspend fun getFeedbackStatus(semesterId: String? = null): FeedbackStatusRes {
@@ -2691,11 +3136,11 @@ if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?:
             }
         }
         return try {
-            // Canonical route: POST /api/ffcs with section=feedback. The dedicated
-            // /api/feedback-status endpoint below is kept as a legacy alias.
+            // D-105: canonical route is POST /api/ffcs with section=feedback;
+            // /api/feedback-status is not mounted.
             if (semesterId != null) {
                 val ffcs = postAuthorized<FfcsFeedbackResponse>(
-                    "ffcs", mapOf("semesterId" to semesterId, "section" to "feedback")
+                    "ffcs", ffcsContract("feedback", semesterId).bodyFields
                 )
                 val detailed = ffcs?.feedbackStatus
                 if (ffcs?.success == true && detailed != null && detailed.success) {
@@ -2703,20 +3148,13 @@ if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?:
                     return detailed
                 }
             }
-            val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
-            val res = postAuthorized<FeedbackStatusRes>("feedback-status", params)
-            if (res != null && res.success) {
-                AppDataStore.setFeedbackStatus(res)
-                res
-            } else {
-                if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semesterId != null) {
-                    try {
-                        val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchFeedbackStatus(semesterId)
-                        if (local != null && local.success) return local
-                    } catch (_: Exception) {}
-                }
-                res ?: FeedbackStatusRes(success = false, error = "Empty response")
+            if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semesterId != null) {
+                try {
+                    val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchFeedbackStatus(semesterId)
+                    if (local != null && local.success) return local
+                } catch (_: Exception) {}
             }
+            FeedbackStatusRes(success = false, error = "Feedback status unavailable")
         } catch (e: Exception) {
             if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession && semesterId != null) {
                 try {
@@ -2740,9 +3178,13 @@ if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?:
             }
         }
         return try {
+            // D-099: /api/grades returns {success, overall, semesters}, not {effectiveGrades}.
+            // Decode the canonical shape and project the requested semester into the existing
+            // SemesterGradesRes contract so callers keep compiling.
             val params = if (semesterId != null) mapOf("semesterId" to semesterId) else emptyMap()
-            val remote = postAuthorized<SemesterGradesRes>("grades", params)
-            if (remote != null && remote.success) remote
+            val all = postAuthorized<AllGradesRes>("grades", params)
+            val converted = all?.let { semesterGradesFromAll(semesterId, it) }
+            if (converted != null && converted.success) converted
             else {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchGrades()
                     ?: fallbackCachedGrades(semesterId)
@@ -2761,17 +3203,26 @@ if (useMockData) return DemoData.get("wishlist", ArrearResponse.serializer()) ?:
 
     suspend fun getBonafide(): ArrearResponse {
 if (useMockData) return DemoData.get("bonafide", ArrearResponse.serializer()) ?: ArrearResponse()
-        return postAuthorized<ArrearResponse>("bonafide") ?: ArrearResponse(success = false, message = "Empty response")
+        // D-100: no mounted route; request through VTOP Other Services.
+        return ArrearResponse(success = false, message = "Bonafide is available through VTOP Other Services")
     }
 
     suspend fun getETranscript(): ArrearResponse {
 if (useMockData) return DemoData.get("eTranscript", ArrearResponse.serializer()) ?: ArrearResponse()
-        return postAuthorized<ArrearResponse>("e-transcript") ?: ArrearResponse(success = false, message = "Empty response")
+        // D-100: no mounted route; request through VTOP Examinations.
+        return ArrearResponse(success = false, message = "E-Transcript is available through VTOP Examinations")
     }
 
     suspend fun getAdditionalLearning(): ArrearResponse {
 if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serializer()) ?: ArrearResponse()
-        return postAuthorized<ArrearResponse>("additional-learning") ?: ArrearResponse(success = false, message = "Empty response")
+        // D-100: closest whitelisted proxy is `course-completion` in /api/bulk.
+        return try {
+            val element = bulkResults("course-completion")["course-completion"]
+            if (element != null) arrearFromBulkResult(element)
+            else ArrearResponse(success = false, message = "Additional learning unavailable")
+        } catch (e: Exception) {
+            ArrearResponse(success = false, message = e.message, error = e.toString())
+        }
     }
 
     suspend fun getClubFeed(): FeedRes {
@@ -3026,6 +3477,68 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
             offset += chunk.size
         }
         return out
+    }
+
+    // ── D-108: service endpoints that previously had no Kotlin callers ──────────
+    // These return the raw JSON envelope intentionally: typed curve/grade models belong to the
+    // D-005/D-012 work. Having callers here keeps the mounts exercised and testable.
+
+    suspend fun getServiceEnroll(semesterId: String? = null): JsonObject? {
+        if (useMockData || vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
+        return try {
+            val params = semesterId?.let { mapOf("semesterId" to it) }.orEmpty()
+            postAuthorized<JsonObject>("services/enroll", params)
+        } catch (_: Exception) { null }
+    }
+
+    /**
+     * D-108: `/api/services/curves` filters by `classId` (or batch `classIds`) — it has no
+     * `courseCode` field. The legacy parameter name is kept for source compatibility but is sent
+     * as `classId` so the request is actually accepted.
+     */
+    suspend fun getServiceCurves(courseCode: String, semesterId: String? = null): JsonObject? {
+        if (useMockData || vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
+        return try {
+            postAuthorized<JsonObject>("services/curves", curvesParams(courseCode, semesterId))
+        } catch (_: Exception) { null }
+    }
+
+    /** Batch variant using the API's `classIds: string[]` field (max 100 ids server-side). */
+    suspend fun getServiceCurvesByClassIds(classIds: List<String>, semesterId: String? = null): JsonObject? {
+        if (useMockData || vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
+        return try {
+            val body = buildJsonObject {
+                put("classIds", buildJsonArray { classIds.take(100).forEach { add(JsonPrimitive(it)) } })
+                semesterId?.let { put("semesterId", it) }
+            }.toString()
+            postAuthorizedBody<JsonObject>("services/curves", body)
+        } catch (_: Exception) { null }
+    }
+
+    suspend fun getMarksTokens(semesterId: String? = null): JsonObject? {
+        if (useMockData || vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
+        return try {
+            val params = semesterId?.let { mapOf("semesterId" to it) }.orEmpty()
+            postAuthorized<JsonObject>("services/marks/tokens", params)
+        } catch (_: Exception) { null }
+    }
+
+    suspend fun getCoursePage(courseCode: String, semesterId: String? = null): JsonObject? {
+        if (useMockData || vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
+        return try {
+            val params = buildMap {
+                put("courseCode", courseCode)
+                semesterId?.let { put("semesterId", it) }
+            }
+            postAuthorized<JsonObject>("course-page", params)
+        } catch (_: Exception) { null }
+    }
+
+    suspend fun getVitolData(section: String): JsonObject? {
+        if (useMockData || vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
+        return try {
+            postAuthorized<JsonObject>("vitol-data", mapOf("section" to section))
+        } catch (_: Exception) { null }
     }
 
     suspend fun checkForUpdate(): GitHubRelease {

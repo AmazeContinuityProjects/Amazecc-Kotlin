@@ -4,6 +4,9 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class LeaveItem(
+    /** D-020: per-record identity + remarks from hostel.d.ts. */
+    val leaveId: String? = null,
+    val remarks: String? = null,
     val visitPlace: String? = null,
     val reason: String? = null,
     val leaveType: String? = null,

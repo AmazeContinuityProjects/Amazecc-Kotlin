@@ -45,6 +45,8 @@ data class AttendanceItem(
 @Serializable
 data class AttendanceRes(
     val semesterId: String? = null,
+    /** `attRes.semester` from `POST /api/attendance`; kept additive so legacy `semesterId` still works. */
+    @SerialName("semester") val semester: String? = null,
     val attendance: List<AttendanceItem>? = null,
     val error: String? = null,
     val success: Boolean = true,

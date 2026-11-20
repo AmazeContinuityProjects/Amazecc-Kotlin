@@ -34,6 +34,8 @@ data class GradeRange(
 
 @Serializable
 data class GradeItem(
+    /** D-026: the web `GradeItem` publishes its own row ordinal. */
+    val slNo: String? = null,
     val courseCode: String = "",
     val courseTitle: String = "",
     val courseType: String = "",

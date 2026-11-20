@@ -41,7 +41,12 @@ data class TimetableRes(
 @Serializable
 data class CGPAResult(
     val creditsEarned: String? = null,
-    val cgpa: String? = null
+    val cgpa: String? = null,
+    // D-019: the web marks.d.ts CGPA contract also publishes these two cells.
+    @Serializable(with = FlexibleStringSerializer::class)
+    val creditsRequired: String? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
+    val nonGradedRequirement: String? = null
 )
 
 @Serializable
@@ -127,7 +132,9 @@ data class QcmViewRes(
     val tables: List<com.amazecc.app.shared.state.StoredQcmTable> = emptyList(),
     /** Semester ids QCM was fetched for, from the stage-1 semesterSubId select.
      *  QCM is two-stage: stage 1 returns only that select, and stage 2 (getStudentLoginForQcm,
-     *  which needs semSubId) holds the rows. */
+     *  which needs semSubId) holds the rows. The API emits `{value, text}` option objects;
+     *  the legacy scraper emits bare ids. Both decode to this `List<String>` (D-098). */
+    @Serializable(with = FlexibleStringListSerializer::class)
     val semesters: List<String> = emptyList(),
     val message: String? = null,
     val error: String? = null
@@ -157,8 +164,16 @@ data class MoodleAssignment(
     /** Calendar month, 1-12. 0 when absent. */
     val monthNumber: Int = 0,
     /** Day of month. 0 when absent. */
-    val dayOfMonth: Int = 0
+    val dayOfMonth: Int = 0,
+    // D-091: POST /api/lms-data returns the bare scraper array with `day`/`month`, while the
+    // on-device scraper naming uses `dayOfMonth`/`monthNumber`. Accept both spellings.
+    @SerialName("day") val day: Int? = null,
+    @SerialName("month") val month: Int? = null
 ) {
+    /** Effective calendar month from either wire spelling. */
+    val effectiveMonthNumber: Int get() = monthNumber.takeIf { it in 1..12 } ?: month ?: 0
+    /** Effective day-of-month from either wire spelling. */
+    val effectiveDayOfMonth: Int get() = dayOfMonth.takeIf { it in 1..31 } ?: day ?: 0
     /**
      * The deadline as a real date, or null when the payload carried no usable
      * numbers and [due] is not in a machine-readable form.
@@ -167,8 +182,8 @@ data class MoodleAssignment(
      * scrape as everything else, and `LocalDate` throws on an impossible day.
      */
     val dueDate: kotlinx.datetime.LocalDate?
-        get() = if (year in 2000..2100 && monthNumber in 1..12 && dayOfMonth in 1..31) {
-            runCatching { kotlinx.datetime.LocalDate(year, monthNumber, dayOfMonth) }.getOrNull()
+        get() = if (year in 2000..2100 && effectiveMonthNumber in 1..12 && effectiveDayOfMonth in 1..31) {
+            runCatching { kotlinx.datetime.LocalDate(year, effectiveMonthNumber, effectiveDayOfMonth) }.getOrNull()
         } else {
             null
         }
@@ -217,7 +232,13 @@ data class PaymentsRes(
     val payments: List<PaymentItem> = emptyList(),
     val walletBalance: String? = null,
     val error: String? = null,
-    val message: String? = null
+    val message: String? = null,
+    // D-022: typed, lossless projections of the finance sections. Additive so every existing
+    // consumer of `payments`/`walletBalance` keeps working.
+    val dues: DuesSection? = null,
+    val receipts: List<ReceiptItem> = emptyList(),
+    val ledgerINR: List<LedgerEntry> = emptyList(),
+    val ledgerUSD: List<LedgerEntry> = emptyList()
 )
 
 @Serializable
@@ -226,10 +247,12 @@ data class BookItem(
     val title: String,
     val author: String? = null,
     val dueDate: String? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
     val fineAmount: String? = null,
     /** ISBN from the VTOP library-dues table (used as [bookId] when no other id exists). */
     val isbn: String? = null,
     /** Raw "days overdue" text from the VTOP library-dues table, e.g. `"12"`. */
+    @Serializable(with = FlexibleStringSerializer::class)
     val daysOverdue: String? = null
 )
 
@@ -239,9 +262,14 @@ data class LibraryRes(
     val booksIssued: List<BookItem> = emptyList(),
     val searchResults: List<BookItem> = emptyList(),
     val total: Int = 0,
+    /** D-017: `POST /api/finance?section=library` nests dues under `library.books`. */
+    @SerialName("library") val libraryDues: LibraryDues? = null,
     val error: String? = null,
     val message: String? = null
-)
+) {
+    /** Books from whichever shape the payload used, without duplicating rows. */
+    val effectiveBooks: List<BookItem> get() = booksIssued.ifEmpty { libraryDues?.booksIssued.orEmpty() }
+}
 
 @Serializable
 data class KohaBook(
@@ -347,6 +375,11 @@ data class TransportDataRes(
     val registerNumber: String? = null,
     val name: String? = null,
     val branch: String? = null,
+    // D-021: registration detail cells published by /api/transport.
+    val programme: String? = null,
+    val fpReference: String? = null,
+    val paymentStatus: String? = null,
+    val pageCsrf: String? = null,
     val routeSelected: String? = null,
     val busRouteId: String? = null,
     val qrCode: String? = null,
@@ -475,14 +508,19 @@ data class LMSRes(
 
 @Serializable
 data class QBankQuestion(
-    val question_id: String,
-    val question_text: String,
-    val question_type: String,
+    val question_id: String = "",
+    val question_text: String = "",
+    val question_type: String = "",
     val options: Map<String, String>? = null,
     val correct_answer: String? = null,
     val marks: Int? = null,
     val topic_name: String? = null,
-    val exam_semester: String? = null
+    val exam_semester: String? = null,
+    // D-023: paper provenance joined from `papers_archive` by the public questions route.
+    @SerialName("source_type") val source_type: String? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
+    @SerialName("exam_year") val exam_year: String? = null,
+    @SerialName("image_url") val image_url: String? = null
 )
 
 @Serializable
@@ -493,12 +531,28 @@ data class QBankRes(
     val message: String? = null
 )
 
+/**
+ * One approved paper from `GET /api/qbank/papers` (D-016/D-106). The API column names are
+ * `file_url` / `source_type` / `source_id` etc.; the old DTO used the renamed `link` / `type`
+ * and declared all three fields non-null, so any missing column threw `MissingFieldException` and
+ * the whole papers list collapsed. Keep `link`/`type` as derived UI-facing properties.
+ */
 @Serializable
 data class QBankPaper(
-    val title: String,
-    val link: String,
-    val type: String
-)
+    @SerialName("source_id") val sourceId: String = "",
+    val title: String = "",
+    @SerialName("file_url") val fileUrl: String = "",
+    @SerialName("source_type") val sourceType: String = "",
+    @SerialName("exam_semester") val examSemester: String? = null,
+    @Serializable(with = FlexibleStringSerializer::class)
+    @SerialName("exam_year") val examYear: String? = null,
+    @SerialName("course_code") val courseCode: String? = null,
+    @SerialName("link") private val legacyLink: String? = null,
+    @SerialName("type") private val legacyType: String? = null
+) {
+    val link: String get() = fileUrl.ifBlank { legacyLink.orEmpty() }
+    val type: String get() = sourceType.ifBlank { legacyType.orEmpty() }
+}
 
 @Serializable
 data class QBankPapersRes(
@@ -569,19 +623,32 @@ data class QBankSubmitRes(val success: Boolean, val message: String? = null)
 data class QBankCourse(val courseCode: String, val courseTitle: String)
 
 @Serializable
-internal data class QBankCourseRaw(val code: String = "", val title: String = "")
+data class QBankCourseRaw(val code: String = "", val title: String = "")
 
 @Serializable
 data class QBankCoursesRes(
     val success: Boolean = true,
-    val courses: List<QBankCourse> = emptyList(),
+    @SerialName("courses") val courses: List<QBankCourse> = emptyList(),
+    /** D-027: the live API returns `{ data: [{code, title}] }`; demo payloads use `courses`. */
+    @SerialName("data") val apiData: List<QBankCourseRaw> = emptyList(),
     val error: String? = null,
     val message: String? = null
-)
+) {
+    /** Normalised courses from either wire shape. */
+    val effectiveCourses: List<QBankCourse> get() = courses.ifEmpty {
+        apiData.map { QBankCourse(courseCode = it.code, courseTitle = it.title) }
+    }
+}
 
 @Serializable
 data class StudentProfile(
-    @SerialName("applicationNumber") val regNo: String = "",
+    // D-024: the API accepts `registerNo` / `registerNumber` / `registrationNumber` as aliases
+    // of the legacy `applicationNumber`. All four are wire fields; `regNo` below is the single
+    // UI-facing value, preferring the canonical registration number when present.
+    @SerialName("applicationNumber") val applicationNumberWire: String = "",
+    @SerialName("registerNo") private val registerNoWire: String? = null,
+    @SerialName("registerNumber") private val registerNumberWire: String? = null,
+    @SerialName("registrationNumber") private val registrationNumberWire: String? = null,
     val name: String = "",
     val email: String = "",
     @SerialName("mobileNumber") val mobile: String = "",
@@ -609,7 +676,11 @@ data class StudentProfile(
     val mother: Map<String, JsonElement> = emptyMap(),
     val guardian: String? = null,
     val proctor: ProfileProctor? = null
-)
+) {
+    val regNo: String get() = listOf(
+        registerNoWire, registerNumberWire, registrationNumberWire, applicationNumberWire
+    ).firstOrNull { !it.isNullOrBlank() }?.trim().orEmpty()
+}
 
 @Serializable
 data class ProfileProctor(
@@ -685,6 +756,14 @@ data class CabShareUser(
 data class CabShareHub(
     val hub_id: Int,
     val hub_name: String
+)
+
+/** `GET /api/cabshare/hubs` envelope. */
+@Serializable
+data class CabShareHubsRes(
+    val success: Boolean = true,
+    val hubs: List<CabShareHub> = emptyList(),
+    val error: String? = null
 )
 
 val fallbackCabHubs = listOf(
@@ -940,6 +1019,14 @@ data class DayboarderRes(
     @Contextual
     val fields: Map<String, JsonElement>? = null,
     val error: String? = null
+)
+
+/** Response of `POST /api/bulk`: `{ success, results: { <proxy name>: <parsed VTOP html> } }`. */
+@Serializable
+data class BulkResponse(
+    val success: Boolean = true,
+    val error: String? = null,
+    val results: Map<String, JsonElement> = emptyMap()
 )
 
 @Serializable

@@ -2,18 +2,22 @@ package com.amazecc.app.shared.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class EventHubEvent(
-    val eid: String,
-    val title: String,
-    val eligibility: String,
-    val type: String,
-    val date: String,
-    val location: String,
-    val price: String,
+    val eid: String = "",
+    val title: String = "",
+    val eligibility: String = "",
+    val type: String = "",
+    val date: String = "",
+    val location: String = "",
+    val price: String = "",
     val time: String? = null,
-    val posterUrl: String? = null
+    val posterUrl: String? = null,
+    // D-025: optional fields published by the web EventHubEvent contract.
+    val registeredDetails: JsonElement? = null,
+    val isPastEvent: Boolean? = null
 )
 
 /**
@@ -26,13 +30,17 @@ data class EventHubEvent(
  */
 @Serializable
 data class EventHubRegisteredEvent(
-    val eid: String,
-    @SerialName("name") val title: String,
-    @SerialName("venue") val location: String,
+    // D-018: every field is optional on the web EventHubRegistration contract. Defaults keep a
+    // partial row from throwing `MissingFieldException` and dropping the whole profile response.
+    val eid: String = "",
+    @SerialName("name") val title: String = "",
+    @SerialName("venue") val location: String = "",
     val date: String? = null,
     val time: String? = null,
     val orderId: String? = null,
     val paymentStatus: String? = null,
+    val registrationDate: String? = null,
+    val certificateEligible: Boolean? = null,
     val receiptId: String? = null,
     val certificateId: String? = null,
     val receiptUrl: String? = null,

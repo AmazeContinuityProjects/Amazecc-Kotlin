@@ -45,6 +45,8 @@ data class CircularItem(
 data class CircularsRes(
     val success: Boolean = true,
     val circulars: List<CircularItem> = emptyList(),
+    /** D-026: the web storage layer stores a title alongside the flattened tree. */
+    val title: String? = null,
     val error: String? = null,
     val message: String? = null
 )
