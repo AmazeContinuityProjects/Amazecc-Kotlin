@@ -3,6 +3,7 @@ package com.amazecc.app.shared.ui.screens.m3e
 import com.amazecc.app.shared.domain.ClassStats
 import com.amazecc.app.shared.domain.GradeHistory
 import com.amazecc.app.shared.domain.buildGradeBoundaries
+import com.amazecc.app.shared.domain.isRelativeGrading
 import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
 import kotlin.math.max
@@ -26,7 +27,14 @@ internal object M3EPredictorDerivation {
         val publishedGrade: String?,
         val assessments: List<M3EAssessmentItem>,
         /** Real cohort curve from /api/services/curves; null keeps the absolute ladder. */
-        val classStats: ClassStats? = null
+        val classStats: ClassStats? = null,
+        /**
+         * VTOP grading system and course type. A curve is only valid for relative-graded courses
+         * (theory / embedded). Null means "not supplied", which opts out of curving entirely —
+         * the same default canonical `estimateGradeWithCurve` uses (MarksPredictor.kt:634-642).
+         */
+        val courseSystem: String? = null,
+        val courseType: String? = null
     )
 
     private val gradeCutoffs = mapOf(
@@ -40,13 +48,24 @@ internal object M3EPredictorDerivation {
     fun cutoffFor(grade: String?): Double? = cutoffFor(grade, null)
 
     /**
-     * Cutoff for [grade], relative to the real cohort curve when one is available.
-     * With no usable class data this is the absolute v5.0 ladder, never a made-up number.
+     * Cutoff for [grade]. A cohort curve is consulted only when the caller supplies a grading
+     * system AND [isRelativeGrading] says the course is relative-graded (theory/embedded).
+     * Without a grading system — or with no usable class data — this stays on the absolute v5.0
+     * ladder, never a made-up curve. Canonical gate: `estimateGradeWithCurve` /
+     * `computeCoursePrediction` in domain/MarksPredictor.kt:634-642, 679-680.
      */
-    fun cutoffFor(grade: String?, classStats: ClassStats?): Double? {
+    fun cutoffFor(
+        grade: String?,
+        classStats: ClassStats?,
+        courseSystem: String? = null,
+        courseType: String? = null
+    ): Double? {
         val letter = grade?.trim()?.uppercase() ?: return null
-        if (classStats != null) {
-            return buildGradeBoundaries(classStats).firstOrNull { it.grade == letter }?.limit
+        val curve = classStats.takeIf {
+            it != null && courseSystem != null && isRelativeGrading(courseSystem, courseType)
+        }
+        if (curve != null) {
+            return buildGradeBoundaries(curve).firstOrNull { it.grade == letter }?.limit
         }
         return gradeCutoffs[letter]
     }
@@ -55,6 +74,11 @@ internal object M3EPredictorDerivation {
      * Weighted internal marks actually scored vs the maximum obtainable from the published
      * component weightages. Returns null when no assessment carries usable numbers, so the UI
      * says "not available" instead of showing a confident-looking 0.
+     *
+     * Field semantics matter here: [M3EAssessmentItem.weightagePercent] is the component's share
+     * of the 100-point total (e.g. 15 for a CAT), while [M3EAssessmentItem.weightageMarks] is
+     * VTOP's *already obtained* weighted score (`ratio * weightagePercent`). Using the latter as
+     * the weight would apply the ratio twice and silently deflate both totals.
      */
     fun internalMarks(assessments: List<M3EAssessmentItem>): Pair<Double, Double>? {
         var scored = 0.0
@@ -62,9 +86,10 @@ internal object M3EPredictorDerivation {
         var usable = false
         for (assessment in assessments) {
             val maxMark = assessment.maxMarks
-            // weightageMarks is the component's share of the total (typically 60); fall back to
-            // the weightage percentage when the marks-shaped field was not published.
-            val weight = assessment.weightageMarks.takeIf { it > 0.0 } ?: assessment.weightagePercent
+            // The share of the total is the PERCENT, never the obtained marks. Parity:
+            // web marksPredictor.ts:317,333 and canonical Kotlin MarksPredictor.kt:296,311-312
+            // both accumulate `scored/maxMark * weightagePercent`.
+            val weight = assessment.weightagePercent
             if (maxMark <= 0.0 || weight <= 0.0) continue
             val ratio = min(max(assessment.scoredMarks, 0.0), maxMark) / maxMark
             scored += ratio * weight
@@ -79,15 +104,29 @@ internal object M3EPredictorDerivation {
      *
      * Internal marks contribute `internalMax` out of 100 and the final exam contributes the
      * remainder. A negative requirement is clamped to zero: already-secured marks are reported
-     * honestly rather than as a fabricated deficit.
+     * honestly rather than as a fabricated deficit. Curves are gated by [courseSystem]/[courseType]
+     * exactly as in [cutoffFor]; omitting the grading system keeps the absolute ladder.
+     *
+     * Deliberate simplified scope (evidence, not an oversight): this helper answers one narrow
+     * question — what FAT percentage closes the remaining deficit. It intentionally does NOT
+     * implement the web solver's 40% theory-FAT regulatory pass floor or its "impossible" /
+     * feasibility verdicts (`AmazeCC/src/lib/marksPredictor.ts:717-748`, especially :721-722 and
+     * :727-748; surfaced by `TargetGradeSolver.tsx:132-149`). Those, together with embedded-credit
+     * weighting and excluding an already published FAT row from the current score
+     * (`TargetGradeSolver.tsx:55-76`), belong to the whole-course engines — web
+     * `computeCoursePrediction` and canonical Kotlin `MarksPredictor.kt:657+`. Folding a 40% floor
+     * or an "impossible" flag into this single `Double?` would misreport one as the other instead
+     * of surfacing either, so the compact deficit-only rule is kept and documented here.
      */
     fun requiredFatPercentage(
         internalScored: Double,
         internalMax: Double,
         targetGrade: String,
-        classStats: ClassStats? = null
+        classStats: ClassStats? = null,
+        courseSystem: String? = null,
+        courseType: String? = null
     ): Double? {
-        val cutoff = cutoffFor(targetGrade, classStats) ?: return null
+        val cutoff = cutoffFor(targetGrade, classStats, courseSystem, courseType) ?: return null
         val fatWeight = 100.0 - internalMax
         val deficit = max(0.0, cutoff - internalScored)
         val required = if (fatWeight <= 0.0) 0.0 else (deficit / fatWeight) * 100.0

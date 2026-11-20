@@ -665,15 +665,19 @@ fun M3ECourseDetailScreen(
     val internalMaxForPrediction = internalMarks?.second ?: 0.0
 
     // Recomputed whenever the target grade changes (D-117): the grade selector is a real control.
+    // Real grading system + course type gate the cohort curve; without them the derivation
+    // deliberately keeps the absolute ladder even when a curve was fetched.
     val requiredFinalScore = remember(
-        internalScoredForPrediction, internalMaxForPrediction, targetGrade, courseCurve
+        internalScoredForPrediction, internalMaxForPrediction, targetGrade, courseCurve, course
     ) {
         if (internalMarks != null && internalMaxForPrediction > 0.0) {
             M3EPredictorDerivation.requiredFatPercentage(
                 internalScored = internalScoredForPrediction,
                 internalMax = internalMaxForPrediction,
                 targetGrade = targetGrade,
-                classStats = courseCurve
+                classStats = courseCurve,
+                courseSystem = course?.courseSystem,
+                courseType = course?.type
             )
         } else null
     }
@@ -690,7 +694,7 @@ fun M3ECourseDetailScreen(
         courseTitle = course?.title ?: "Course Detail",
         credits = course?.credits?.toIntOrNull() ?: 3,
         courseType = course?.type ?: "Theory",
-        slot = course?.slots?.firstOrNull() ?: "A1",
+        slot = course?.slots?.firstOrNull()?.takeIf { it.isNotBlank() } ?: "Not published",
         venue = course?.venue ?: "SJT",
         facultyName = course?.faculty ?: "Faculty",
         facultyEmail = facultyEmail,
@@ -960,6 +964,10 @@ fun M3EMarksPredictorScreen(modifier: Modifier = Modifier) {
             M3EPredictorDerivation.CourseInput(
                 code = c.code,
                 classStats = curveStats[c.marks?.classNbr ?: c.classId],
+                // D-117: real VTOP grading system / course type are required to unlock a curve;
+                // omitting them silently disabled every curve at runtime.
+                courseSystem = c.courseSystem,
+                courseType = c.type,
                 title = c.title,
                 credits = c.credits?.toIntOrNull() ?: 3,
                 publishedGrade = c.grade?.letter,
@@ -987,7 +995,14 @@ fun M3EMarksPredictorScreen(modifier: Modifier = Modifier) {
             val internal = M3EPredictorDerivation.internalMarks(input.assessments)
             val requiredFat = internal?.let { (scored, max) ->
                 if (grade.isBlank()) null
-                else M3EPredictorDerivation.requiredFatPercentage(scored, max, grade, input.classStats)
+                else M3EPredictorDerivation.requiredFatPercentage(
+                    internalScored = scored,
+                    internalMax = max,
+                    targetGrade = grade,
+                    classStats = input.classStats,
+                    courseSystem = input.courseSystem,
+                    courseType = input.courseType
+                )
             }
             M3ECoursePredictionItem(
                 courseCode = input.code,

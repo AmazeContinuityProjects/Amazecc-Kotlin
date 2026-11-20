@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EClassTimelineItem
+import com.amazecc.app.shared.domain.overhaul.M3EComputations
 import com.amazecc.app.shared.domain.overhaul.M3EHomeAction
 import com.amazecc.app.shared.domain.overhaul.M3EHomeState
 import com.amazecc.app.shared.domain.overhaul.M3EQuickStatsState
@@ -52,6 +53,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EWeekDay
 import com.amazecc.app.shared.ui.m3e.components.M3EInsightCarouselCard
 import com.amazecc.app.shared.ui.m3e.components.M3EStatCard
 import com.amazecc.app.shared.ui.m3e.components.M3EStatItem
+import com.amazecc.app.shared.ui.m3e.components.M3EStatSubtitle
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWeekStrip
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -75,6 +77,18 @@ fun M3EHomeScreen(
     val colors = M3ETheme.colors
     // Read once so the smart cast survives inside the LazyColumn's lambdas.
     val errorMessage = state.errorMessage
+
+    // One live target drives the label, the tone and every per-class badge. If the host
+    // has not threaded it into state yet, recover it from the status text it published.
+    val attendanceTarget = M3EComputations.resolveAttendanceTarget(
+        state.attendanceTargetPercentage,
+        state.quickStats.attendanceStatusText
+    )
+    val hasAttendanceData = M3EComputations.hasAttendanceData(state.quickStats.attendanceStatusText)
+    val attendanceBand = M3EComputations.attendanceBand(
+        state.quickStats.attendancePercentage,
+        attendanceTarget
+    )
 
     Box(
         modifier = modifier
@@ -109,18 +123,33 @@ fun M3EHomeScreen(
 
             // 2. Expressive Dual Stat Cards: Constant Attendance Card + Insight Carousel Card (Exactly two cards side-by-side)
             item(key = "home_stat_cards") {
-                val attendanceStat = remember(state.quickStats) {
+                val attendanceStat = remember(state.quickStats, attendanceTarget, attendanceBand, hasAttendanceData) {
+                    val statusText = state.quickStats.attendanceStatusText
+                    // The threshold is only asserted when the host actually published data;
+                    // "Attendance not available" must not acquire a fake safety verdict.
+                    val subtitle = if (!hasAttendanceData) {
+                        statusText.ifBlank { "Attendance not available" }
+                    } else {
+                        listOfNotNull(
+                            "${attendanceTarget.toInt()}% safety target",
+                            statusText.takeIf { it.isNotBlank() }
+                        ).joinToString(" · ")
+                    }
                     M3EStatItem(
                         id = "stat_attendance",
                         label = "Attendance",
                         value = state.quickStats.attendancePercentage.toFixed(2, "%"),
-                        // Always state the threshold next to the headline number so the
-                        // percentage has an explicit meaning instead of a bare value.
-                        sub = listOfNotNull(
-                            "75% safety target",
-                            state.quickStats.attendanceStatusText.takeIf { it.isNotBlank() }
-                        ).joinToString(" · "),
-                        tone = if (state.quickStats.attendancePercentage >= 75.0) M3EStatTone.GOOD else M3EStatTone.CRITICAL,
+                        sub = M3EStatSubtitle.fromData(subtitle),
+                        // Same band as the attendance hub and the per-course deep dive.
+                        tone = if (!hasAttendanceData) {
+                            M3EStatTone.NEUTRAL
+                        } else {
+                            when (attendanceBand) {
+                                M3EComputations.AttendanceBand.SAFE -> M3EStatTone.GOOD
+                                M3EComputations.AttendanceBand.NEAR_TARGET -> M3EStatTone.WARNING
+                                M3EComputations.AttendanceBand.AT_RISK -> M3EStatTone.CRITICAL
+                            }
+                        },
                         icon = Icons.Rounded.CheckCircle,
                         onClick = { onAction(M3EHomeAction.OpenAttendanceHub) }
                     )
@@ -132,7 +161,7 @@ fun M3EHomeScreen(
                             id = "stat_cgpa",
                             label = "Cumulative GPA",
                             value = state.quickStats.cgpa.toFixed(2),
-                            sub = "Academic standing",
+                            sub = M3EStatSubtitle.fromData("Academic standing"),
                             tone = M3EStatTone.PRIMARY,
                             icon = Icons.Rounded.School,
                             onClick = { onAction(M3EHomeAction.OpenAcademicsHub) }
@@ -141,11 +170,13 @@ fun M3EHomeScreen(
                             id = "stat_safe_bunks",
                             label = "Safe Bunks",
                             value = "${state.quickStats.safeBunksAvailable}",
-                            sub = if (state.quickStats.safeBunksAvailable > 0) {
-                                "${state.quickStats.safeBunksAvailable} bunks available"
-                            } else {
-                                "No bunks left"
-                            },
+                            sub = M3EStatSubtitle.fromData(
+                                if (state.quickStats.safeBunksAvailable > 0) {
+                                    "${state.quickStats.safeBunksAvailable} bunks available"
+                                } else {
+                                    "No bunks left"
+                                }
+                            ),
                             tone = if (state.quickStats.safeBunksAvailable > 0) M3EStatTone.TERTIARY else M3EStatTone.WARNING,
                             icon = Icons.Rounded.Schedule,
                             onClick = { onAction(M3EHomeAction.OpenAttendanceHub) }
@@ -154,7 +185,10 @@ fun M3EHomeScreen(
                             id = "stat_credits",
                             label = "Credits Earned",
                             value = "${state.quickStats.creditsEarned}",
-                            sub = "${state.quickStats.creditsEarned} Credits",
+                            sub = M3EStatSubtitle.fromMetric(
+                                value = "${state.quickStats.creditsEarned}",
+                                unit = "Credits"
+                            ),
                             tone = M3EStatTone.SECONDARY,
                             icon = Icons.Rounded.Insights,
                             onClick = { onAction(M3EHomeAction.OpenAcademicsHub) }
@@ -225,8 +259,39 @@ fun M3EHomeScreen(
                 }
             }
 
-            // 5. Classes Timeline
-            if (state.todayClasses.isEmpty()) {
+            // 5. Classes Timeline — a pending load is not an empty schedule.
+            if (state.isRefreshing && state.todayClasses.isEmpty()) {
+                item(key = "loading_classes") {
+                    M3ESurfaceCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        containerLevel = SurfaceContainerLevel.LOW
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = "Loading schedule…",
+                                color = colors.onSurfaceVariant,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            repeat(2) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(14.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(colors.surfaceContainerHighest)
+                                )
+                            }
+                        }
+                    }
+                }
+            } else if (state.todayClasses.isEmpty()) {
                 item(key = "empty_classes") {
                     M3ESurfaceCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -259,6 +324,7 @@ fun M3EHomeScreen(
                 ) { classItem ->
                     M3EClassTimelineCard(
                         item = classItem,
+                        attendanceTarget = attendanceTarget,
                         onClick = { onAction(M3EHomeAction.ClickCourse(classItem.courseCode)) }
                     )
                 }
@@ -363,7 +429,7 @@ private fun M3EHomeErrorBanner(
                     color = colors.onSurfaceVariant
                 )
             }
-            TextButton(onClick = onRetry) {
+            TextButton(onClick = onRetry, modifier = Modifier.heightIn(min = 48.dp)) {
                 Text(text = "Retry", fontWeight = FontWeight.SemiBold, color = colors.error)
             }
             IconButton(onClick = onDismiss, modifier = Modifier.size(48.dp)) {
@@ -384,6 +450,12 @@ private fun M3EQuickStatsRow(
     onAcademicsClick: () -> Unit
 ) {
     val colors = M3ETheme.colors
+    val target = M3EComputations.resolveAttendanceTarget(
+        stats.attendanceTargetPercentage,
+        stats.attendanceStatusText
+    )
+    val hasData = M3EComputations.hasAttendanceData(stats.attendanceStatusText)
+    val band = M3EComputations.attendanceBand(stats.attendancePercentage, target)
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -400,7 +472,15 @@ private fun M3EQuickStatsRow(
                     Icon(
                         imageVector = Icons.Rounded.CheckCircle,
                         contentDescription = null,
-                        tint = if (stats.attendancePercentage >= 75.0) colors.success else colors.error,
+                        tint = if (!hasData) {
+                            colors.onSurfaceVariant
+                        } else {
+                            when (band) {
+                                M3EComputations.AttendanceBand.SAFE -> colors.success
+                                M3EComputations.AttendanceBand.NEAR_TARGET -> colors.warning
+                                M3EComputations.AttendanceBand.AT_RISK -> colors.error
+                            }
+                        },
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(6.dp))
@@ -470,6 +550,7 @@ private fun M3EQuickStatsRow(
 @Composable
 private fun M3EClassTimelineCard(
     item: M3EClassTimelineItem,
+    attendanceTarget: Float = 75f,
     onClick: () -> Unit
 ) {
     val colors = M3ETheme.colors
@@ -514,7 +595,9 @@ private fun M3EClassTimelineCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Real component attendance, hidden entirely when the source published none.
-                    item.attendancePercentage?.let { M3EClassAttendanceBadge(it) }
+                    item.attendancePercentage?.let {
+                        M3EClassAttendanceBadge(it, attendanceTarget)
+                    }
                     if (item.isHappeningNow) {
                         Box(
                             modifier = Modifier
@@ -584,17 +667,26 @@ private fun formatClassAttendance(percentage: Double): String =
     if (percentage % 1.0 == 0.0) "${percentage.toInt()}%" else "${percentage.toFixed(1)}%"
 
 @Composable
-private fun M3EClassAttendanceBadge(percentage: Double) {
+private fun M3EClassAttendanceBadge(percentage: Double, targetPercentage: Float) {
     val colors = M3ETheme.colors
     val text = formatClassAttendance(percentage)
-    // Same 75% line the home headline stat already uses, so the two never disagree.
-    val isSafe = percentage >= 75.0
-    val tone = if (isSafe) colors.success else colors.error
+    // One live target and one band for the headline, this badge and the hub/deep dive.
+    val band = M3EComputations.attendanceBand(percentage, targetPercentage)
+    val tone = when (band) {
+        M3EComputations.AttendanceBand.SAFE -> colors.success
+        M3EComputations.AttendanceBand.NEAR_TARGET -> colors.warning
+        M3EComputations.AttendanceBand.AT_RISK -> colors.error
+    }
+    val container = when (band) {
+        M3EComputations.AttendanceBand.SAFE -> colors.successContainer
+        M3EComputations.AttendanceBand.NEAR_TARGET -> colors.warningContainer
+        M3EComputations.AttendanceBand.AT_RISK -> colors.errorContainer
+    }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clip(CircleShape)
-            .background(if (isSafe) colors.successContainer else colors.errorContainer)
+            .background(container)
             .padding(horizontal = 8.dp, vertical = 2.dp)
             .semantics { contentDescription = "Attendance $text" }
     ) {

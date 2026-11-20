@@ -3,6 +3,7 @@ package com.amazecc.app.shared.ui.screens.m3e
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +51,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -112,12 +120,18 @@ internal fun M3EOnboardingSwitchRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // D-120: the row is the single toggle source. The indicator on the
-            // right is draw-only so there is no second click/toggle target.
-            .clickableA11y(
-                onClickLabel = if (checked) "Turn off $title" else "Turn on $title",
-                onClick = { onCheckedChange(!checked) }
-            )
+            // D-120 W2: a switch is genuinely present here, so expose Role.Switch
+            // with an explicit On/Off state rather than a generic button. The row
+            // stays the one toggle source; the indicator on the right is draw-only.
+            .clickable(onClickLabel = if (checked) "Turn off $title" else "Turn on $title") {
+                onCheckedChange(!checked)
+            }
+            .semantics {
+                role = Role.Switch
+                toggleableState = if (checked) ToggleableState.On else ToggleableState.Off
+                stateDescription = if (checked) "On" else "Off"
+                contentDescription = title
+            }
             .heightIn(min = 48.dp)
             .padding(vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -137,8 +151,8 @@ internal fun M3EOnboardingSwitchRow(
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         }
         Spacer(Modifier.width(8.dp))
-        // Display-only: the row above is the one toggle source and carries the
-        // Role/label through clickableA11y.
+        // Display-only: the row above owns the single click action and carries
+        // Role.Switch + On/Off state for accessibility.
         M3EDisplaySwitch(checked = checked, tint = effectiveTint)
     }
 }

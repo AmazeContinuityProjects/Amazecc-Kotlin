@@ -117,4 +117,68 @@ class OdHoursWebParityTest {
         assertTrue(days.isEmpty())
         assertEquals(0, totalOdHours(days))
     }
+
+    // ── D-125: the input-grain regression the arithmetic-only D-120 fix missed ──────────
+
+    private fun embeddedSnapshot(vararg labDates: String) = DomainSnapshot(
+        academics = Academics(
+            semesters = mapOf(
+                "S1" to Semester(
+                    id = "S1",
+                    courses = listOf(
+                        Course(
+                            code = "BCSE203E",
+                            title = "Database Systems",
+                            type = "Embedded Theory",
+                            slots = listOf("C1"),
+                            attendance = Attendance(
+                                logs = listOf(AttendanceDay("2026-10-05", "On Duty")),
+                            ),
+                        ),
+                        Course(
+                            code = "BCSE203E(L)",
+                            title = "Database Systems Lab",
+                            type = "Embedded Lab",
+                            slots = listOf("L31"),
+                            attendance = Attendance(
+                                logs = labDates.map { AttendanceDay(it, "On Duty") },
+                            ),
+                        ),
+                    ).associateBy { it.code },
+                ),
+            ),
+        ),
+    )
+
+    @Test
+    fun embeddedTheoryAndLabHalvesKeepTheirOwnSlotsAndHours() {
+        // ../AmazeCC counts attendanceRes.attendance row by row: the theory row's C1 viewLink is
+        // 1h and the lab row's L31 viewLink is 2h. EmbeddedLinkMerge used to fold them into one
+        // "C1+L31" row (theory first), so the lab OD was charged 1h. D-125 counts raw rows.
+        val days = deriveOdDaysFromSnapshot(embeddedSnapshot("2026-10-06"))
+        assertEquals(2, days.size)
+        assertEquals(1, days.single { it.date == "2026-10-05" }.total)
+        assertEquals(2, days.single { it.date == "2026-10-06" }.total)
+        assertEquals(3, totalOdHours(days))
+    }
+
+    @Test
+    fun embeddedHalvesDoNotLoseASharedDateLog() {
+        // Both halves report On Duty on the same date: the web counts two entries (1h + 2h).
+        // EmbeddedLinkMerge.combinedAttendance de-duplicates by (date,status) and dropped one.
+        val days = deriveOdDaysFromSnapshot(embeddedSnapshot("2026-10-05"))
+        assertEquals(1, days.size)
+        assertEquals(2, days.single().entries.size)
+        assertEquals(3, days.single().total)
+        assertEquals(3, totalOdHours(days))
+    }
+
+    @Test
+    fun rawReportingAttendanceMatchesTheWebRowGrain() {
+        val rows = rawReportingAttendance(embeddedSnapshot("2026-10-06"))
+        // Two rows, each with its own raw slot — never a merged "C1+L31" row.
+        assertEquals(2, rows.size)
+        assertEquals(setOf("C1", "L31"), rows.map { it.slotName }.toSet())
+        assertEquals(3, totalOdHours(deriveOdHoursDays(rows)))
+    }
 }

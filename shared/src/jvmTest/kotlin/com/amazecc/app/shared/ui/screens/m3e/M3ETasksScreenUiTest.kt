@@ -5,6 +5,7 @@ import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
@@ -14,6 +15,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ETaskStatus
 import com.amazecc.app.shared.domain.overhaul.M3ETasksAction
 import com.amazecc.app.shared.domain.overhaul.M3ETasksFilter
 import com.amazecc.app.shared.domain.overhaul.M3ETasksState
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenuTestTags
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -106,7 +108,10 @@ class M3ETasksScreenUiTest {
             }
         }
 
-        // D-116: "New Task" is now an item of the single page-actions FAB.
+        // D-116/D-124: "New Task" is an item of the single page-actions FAB,
+        // mounted in the page-root overlay (not the scrolling header).
+        onNodeWithTag(M3EPageActionsMenuTestTags.HOST_ROOT).assertExists()
+        onNodeWithTag(M3EPageActionsMenuTestTags.TOGGLE).assertExists()
         onNodeWithContentDescription("More actions").performClick()
         waitForIdle()
         onNodeWithText("New Task").performSemanticsAction(SemanticsActions.OnClick)

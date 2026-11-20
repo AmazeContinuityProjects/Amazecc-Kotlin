@@ -1,7 +1,12 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import com.amazecc.app.shared.domain.Academics
+import com.amazecc.app.shared.domain.Attendance
 import com.amazecc.app.shared.domain.AttendanceDay
+import com.amazecc.app.shared.domain.Course
 import com.amazecc.app.shared.domain.CourseAttendance
+import com.amazecc.app.shared.domain.DomainSnapshot
+import com.amazecc.app.shared.domain.Semester
 import com.amazecc.app.shared.model.OdDetailsRes
 import com.amazecc.app.shared.model.OdRecordItem
 import kotlin.test.Test
@@ -147,6 +152,50 @@ class M3EODFromAttendanceDerivationTest {
         // A blank date on an On Duty row is skipped rather than filed under a phantom day.
         val blankDate = listOf(course("CHE1001", "Chemistry", "L1", "" to "On Duty"))
         assertTrue(deriveOdRowsFromAttendance(blankDate).isEmpty())
+    }
+
+    @Test
+    fun snapshotEntryPointCountsEmbeddedLabAtTwoHours() {
+        // D-125: the M3E OD host calls deriveOdRowsFromSnapshot(domain). It must read the raw
+        // theory/lab rows the web counts, not the EmbeddedLinkMerge output that joined the slots.
+        val snapshot = DomainSnapshot(
+            academics = Academics(
+                semesters = mapOf(
+                    "S1" to Semester(
+                        id = "S1",
+                        courses = listOf(
+                            Course(
+                                code = "BCSE203E",
+                                title = "Database Systems",
+                                type = "Embedded Theory",
+                                slots = listOf("C1"),
+                                attendance = Attendance(
+                                    logs = listOf(AttendanceDay("2026-10-05", "On Duty")),
+                                ),
+                            ),
+                            Course(
+                                code = "BCSE203E(L)",
+                                title = "Database Systems Lab",
+                                type = "Embedded Lab",
+                                slots = listOf("L31"),
+                                attendance = Attendance(
+                                    logs = listOf(AttendanceDay("2026-10-06", "On Duty")),
+                                ),
+                            ),
+                        ).associateBy { it.code },
+                    ),
+                ),
+            ),
+        )
+
+        val rows = deriveOdRowsFromSnapshot(snapshot)
+
+        assertEquals(2, rows.size)
+        assertEquals("TH", rows.single { it.date == "2026-10-05" }.type)
+        assertEquals(1, rows.single { it.date == "2026-10-05" }.hours)
+        assertEquals("LAB", rows.single { it.date == "2026-10-06" }.type)
+        assertEquals(2, rows.single { it.date == "2026-10-06" }.hours)
+        assertEquals(3, rows.sumOf { it.hours })
     }
 
     @Test

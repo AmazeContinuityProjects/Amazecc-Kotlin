@@ -231,7 +231,10 @@ fun M3EFreeClassroomsScreen(
                 // 5. Loading / error feedback (driven by the host's AppState flows)
                 if (state.isLoading) {
                     item(key = "progress") {
-                        M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
+                        M3EWavyLinearProgress(
+                            progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE,
+                            label = "Classroom availability loading"
+                        )
                     }
                 }
 
@@ -457,7 +460,10 @@ fun M3EFreeClassroomsScreen(
                 ) {
                     if (state.isLoading) {
                         item(key = "progress") {
-                            M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
+                            M3EWavyLinearProgress(
+                                progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE,
+                                label = "Classroom availability loading"
+                            )
                         }
                     }
 

@@ -1,5 +1,16 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -10,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.domain.CalendarIcs
 import com.amazecc.app.shared.domain.DayEvent
@@ -20,20 +32,31 @@ import com.amazecc.app.shared.domain.buildEnrichedCalendars
 import com.amazecc.app.shared.domain.calendarSources
 import com.amazecc.app.shared.domain.kindLabel
 import com.amazecc.app.shared.domain.leadingBlanks
+import com.amazecc.app.shared.domain.overhaul.M3ECardTone
 import com.amazecc.app.shared.domain.overhaul.M3EKohaBookDetail
 import com.amazecc.app.shared.domain.overhaul.M3EKohaHolding
+import com.amazecc.app.shared.domain.overhaul.M3EStudentReportAction
+import com.amazecc.app.shared.domain.overhaul.M3EStudentReportState
+import com.amazecc.app.shared.domain.overhaul.M3ETimetableAction
+import com.amazecc.app.shared.domain.overhaul.M3ETimetableDay
+import com.amazecc.app.shared.domain.overhaul.M3ETimetableSlot
+import com.amazecc.app.shared.domain.overhaul.M3ETimetableState
+import com.amazecc.app.shared.domain.overhaul.TimetableViewMode
 import com.amazecc.app.shared.model.BookItem
 import com.amazecc.app.shared.model.KohaBook
 import com.amazecc.app.shared.model.KohaDetailBook
 import com.amazecc.app.shared.model.KohaHolding
 import com.amazecc.app.shared.model.NamedCalendar
 import com.amazecc.app.shared.model.PaymentItem
+import com.amazecc.app.shared.model.TimetableRes
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.TimetableSlot
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.components.AppBackHandler
+import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ChangelogEntry
 import com.amazecc.app.shared.utils.ContentData
@@ -41,6 +64,7 @@ import com.amazecc.app.shared.utils.UpdateConfig
 import com.amazecc.app.shared.utils.openDocumentBytes
 import com.amazecc.app.shared.utils.openExternalUrl
 import com.amazecc.app.shared.utils.rememberFileSaver
+import com.amazecc.app.shared.utils.shareText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -777,8 +801,23 @@ fun M3EMoodleScreenHost(modifier: Modifier = Modifier) {
     var isAuthenticating by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    // D-115: a failed central sync used to land here with showLogin flipped on and no
+    // message, so the screen proudly rendered "You're all caught up!" over nothing.
+    // Bind the REAL sync outcome instead: only a genuinely missing payload asks for
+    // credentials; an explicit failure stays on the list view with its error visible.
     LaunchedEffect(moodleData) {
-        if (moodleData == null) showLogin = true
+        val result = moodleData
+        when {
+            result == null -> showLogin = true
+            !result.success || !result.error.isNullOrBlank() || !result.message.isNullOrBlank() -> {
+                errorMessage = listOfNotNull(
+                    result.error?.takeIf { it.isNotBlank() },
+                    result.message?.takeIf { it.isNotBlank() }
+                ).firstOrNull() ?: "Moodle could not be reached"
+                showLogin = false
+            }
+            else -> errorMessage = null
+        }
     }
     LaunchedEffect(Unit) {
         SettingsManager.getMoodleCredentials()?.let { creds ->
@@ -803,6 +842,47 @@ fun M3EMoodleScreenHost(modifier: Modifier = Modifier) {
                 url = assignment.url,
                 teachers = assignment.teachers
             )
+        }
+    }
+
+    /**
+     * D-115: Refresh (and the error state's Retry, which emits the same action) must
+     * actually re-fetch. Saved credentials are the fallback when the login form is
+     * still empty; a failed fetch is reported in place instead of hiding the list
+     * behind a login prompt.
+     */
+    fun refreshMoodle() {
+        val saved = SettingsManager.getMoodleCredentials()
+        val user = username.ifBlank { saved?.first.orEmpty() }
+        val pass = password.ifBlank { saved?.second.orEmpty() }
+        if (user.isBlank() || pass.isBlank()) {
+            showLogin = true
+            errorMessage = null
+            return
+        }
+        scope.launch {
+            isAuthenticating = true
+            errorMessage = null
+            try {
+                val res = withContext(Dispatchers.Default) {
+                    AmazeClient.fetchMoodleData(user, pass)
+                }
+                if (res.success) {
+                    AppState.updateMoodleData(res)
+                    showLogin = false
+                } else {
+                    errorMessage = listOfNotNull(
+                        res.error?.takeIf { it.isNotBlank() },
+                        res.message?.takeIf { it.isNotBlank() }
+                    ).firstOrNull() ?: "Moodle could not be reached"
+                    showLogin = false
+                }
+            } catch (e: Exception) {
+                errorMessage = e.message ?: "Could not refresh Moodle"
+                showLogin = false
+            } finally {
+                isAuthenticating = false
+            }
         }
     }
 
@@ -861,7 +941,7 @@ fun M3EMoodleScreenHost(modifier: Modifier = Modifier) {
                     is M3EMoodleAction.OpenAssignment -> {
                         if (action.url.isNotBlank()) openExternalUrl(action.url)
                     }
-                    M3EMoodleAction.Refresh -> showLogin = true
+                    M3EMoodleAction.Refresh -> refreshMoodle()
                 }
             },
             modifier = modifier
@@ -1102,4 +1182,404 @@ fun M3EAboutScreenHost(modifier: Modifier = Modifier) {
             modifier = modifier
         )
     }
+}
+
+// ==========================================
+// TIMETABLE (D-116)
+// ==========================================
+
+private val M3E_TIMETABLE_DAY_KEYS = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT")
+
+private fun m3eTimetableDayName(key: String): String = when (key) {
+    "MON" -> "Monday"
+    "TUE" -> "Tuesday"
+    "WED" -> "Wednesday"
+    "THU" -> "Thursday"
+    "FRI" -> "Friday"
+    "SAT" -> "Saturday"
+    else -> key
+}
+
+/** VTOP emits "8:00-8:50"; the screen shows zero-padded 24-hour times. */
+private fun splitTimetableTime(raw: String?): Pair<String, String> {
+    val parts = raw?.trim()?.split("-", limit = 2)?.map { it.trim() } ?: return "" to ""
+    fun pad(value: String): String {
+        val bits = value.split(":")
+        return if (bits.size < 2) value else "${bits[0].padStart(2, '0')}:${bits[1]}"
+    }
+    return pad(parts[0]) to pad(parts.getOrNull(1).orEmpty())
+}
+
+/**
+ * Stateful host for [M3ETimetableScreen] (D-116). Reads the same cached timetable the
+ * sync module writes, maps the real day × slot rows into immutable screen state, and
+ * makes Refresh call the real credentialed client. No timetable data is invented here.
+ */
+@Composable
+fun M3ETimetableHost(
+    modifier: Modifier = Modifier,
+    onClose: () -> Unit = {}
+) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    val selectedSemId by AppState.selectedSemester.collectAsState()
+    val semesterMap by AppState.semesterMap.collectAsState()
+    val domain by AppState.domain.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    var timetableRes by remember {
+        mutableStateOf<TimetableRes?>(AmazeClient.fallbackCachedTimetable(selectedSemId))
+    }
+    var viewMode by remember { mutableStateOf(TimetableViewMode.SCHEDULE) }
+    var selectedDayIndex by remember { mutableStateOf(0) }
+    var isRefreshing by remember { mutableStateOf(false) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(selectedSemId) {
+        timetableRes = AmazeClient.fallbackCachedTimetable(selectedSemId)
+        loadError = null
+        selectedDayIndex = 0
+    }
+
+    fun refreshTimetable() {
+        scope.launch {
+            isRefreshing = true
+            loadError = null
+            try {
+                val res = AmazeClient.getTimetable(selectedSemId)
+                timetableRes = res
+                loadError = if (res.success) null else {
+                    listOfNotNull(
+                        res.error?.takeIf { it.isNotBlank() },
+                        res.message?.takeIf { it.isNotBlank() }
+                    ).firstOrNull() ?: "Could not refresh the timetable"
+                }
+            } catch (e: Exception) {
+                loadError = e.message ?: "Could not refresh the timetable"
+            } finally {
+                isRefreshing = false
+            }
+        }
+    }
+
+    val todayKey = remember {
+        Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.dayOfWeek.name.take(3)
+    }
+
+    val days = remember(timetableRes, todayKey) {
+        M3E_TIMETABLE_DAY_KEYS.mapIndexed { index, key ->
+            val rows = timetableRes?.slots.orEmpty().filter { it.day?.trim()?.uppercase() == key }
+            val slots = rows.mapIndexed { slotIndex, row ->
+                val (start, end) = splitTimetableTime(row.time)
+                val pct = row.attendancePercentage
+                M3ETimetableSlot(
+                    id = "$key-${row.slotName.orEmpty()}-${row.courseCode.orEmpty()}-$slotIndex",
+                    slot = row.slotName.orEmpty(),
+                    courseCode = row.courseCode.orEmpty(),
+                    courseTitle = row.courseTitle.orEmpty(),
+                    venue = row.venue.orEmpty(),
+                    faculty = row.faculty.orEmpty(),
+                    startTime = start,
+                    endTime = end,
+                    isHappeningNow = false,
+                    attendanceTone = when {
+                        pct == null -> M3ECardTone.NEUTRAL
+                        pct >= 75.0 -> M3ECardTone.GOOD
+                        pct >= 65.0 -> M3ECardTone.WARNING
+                        else -> M3ECardTone.CRITICAL
+                    },
+                    attendancePercentage = pct,
+                    isLab = row.courseType?.contains("lab", ignoreCase = true) == true
+                )
+            }
+            M3ETimetableDay(
+                dayName = m3eTimetableDayName(key),
+                shortName = key.lowercase().replaceFirstChar { it.uppercase() },
+                dayNumber = index + 1,
+                isToday = key == todayKey,
+                isSelected = index == selectedDayIndex,
+                slots = slots,
+                freeHoursCount = (10 - slots.size).coerceAtLeast(0)
+            )
+        }
+    }
+
+    val safeDayIndex = selectedDayIndex.coerceIn(0, (days.size - 1).coerceAtLeast(0))
+    val semester = domain.academics.semesters[selectedSemId]
+    val semesterName = semesterMap[selectedSemId]
+        ?: semester?.name
+        ?: selectedSemId.ifBlank { "Current semester" }
+    val state = M3ETimetableState(
+        semesterName = semesterName,
+        selectedDayIndex = safeDayIndex,
+        days = days.mapIndexed { index, day -> day.copy(isSelected = index == safeDayIndex) },
+        viewMode = viewMode,
+        totalCredits = semester?.courses?.values?.sumOf { it.credits?.toDoubleOrNull()?.toInt() ?: 0 } ?: 0,
+        totalCourses = timetableRes?.slots.orEmpty().mapNotNull { it.courseCode }.distinct().size,
+        isLoading = isRefreshing
+    )
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3ETimetableScreen(
+            state = state,
+            onAction = { action ->
+                when (action) {
+                    is M3ETimetableAction.SelectDay -> selectedDayIndex = action.dayIndex
+                    is M3ETimetableAction.SetViewMode -> viewMode = action.mode
+                    is M3ETimetableAction.SlotClicked -> Unit // the screen already renders slot details
+                    M3ETimetableAction.Refresh -> refreshTimetable()
+                }
+            },
+            modifier = modifier
+        )
+    }
+    if (loadError != null) {
+        AmazeM3ETheme(isDark = isDark) {
+            M3EDismissibleSheet(
+                isOpen = true,
+                onDismiss = { loadError = null },
+                title = "Timetable refresh failed"
+            ) {
+                Text(
+                    text = loadError.orEmpty(),
+                    color = com.amazecc.app.shared.ui.m3e.theme.M3ETheme.colors.onSurface,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+            }
+        }
+    }
+    AppBackHandler(onBack = onClose)
+}
+
+// ==========================================
+// STUDENT REPORT (D-115)
+// ==========================================
+
+/** Real report rows, shared by PDF, JSON and share so the three exports cannot disagree. */
+private fun m3eReportLines(state: M3EStudentReportState): List<String> = buildList {
+    add("AMAZECC STUDENT ACADEMIC REPORT")
+    add("")
+    add("Student: ${state.studentName}")
+    add("Registration: ${state.registrationNumber}")
+    add("Programme: ${state.programme}")
+    add("School: ${state.school} | Campus: ${state.campus}")
+    state.proctorName?.takeIf { it.isNotBlank() }?.let { add("Proctor: $it") }
+    state.proctorEmail?.takeIf { it.isNotBlank() }?.let { add("Proctor email: $it") }
+    add("")
+    add("CGPA: ${state.cgpa}")
+    add("Overall attendance: ${state.overallAttendancePct}%")
+    add("Credits: ${state.completedCredits} / ${state.totalRequiredCredits}")
+    add(if (state.hasArrears) "Standing arrears: ${state.arrearsCount}" else "Standing arrears: none")
+}
+
+private fun m3eJsonEscape(raw: String): String = buildString {
+    raw.forEach { ch ->
+        when (ch) {
+            '\\' -> append("\\\\")
+            '"' -> append("\\\"")
+            '\n' -> append("\\n")
+            '\r' -> append("\\r")
+            '\t' -> append("\\t")
+            else -> append(if (ch.code in 32..126) ch else '?')
+        }
+    }
+}
+
+private fun m3eReportJson(state: M3EStudentReportState): String = buildString {
+    append("{\n")
+    append("  \"studentName\": \"${m3eJsonEscape(state.studentName)}\",\n")
+    append("  \"registrationNumber\": \"${m3eJsonEscape(state.registrationNumber)}\",\n")
+    append("  \"programme\": \"${m3eJsonEscape(state.programme)}\",\n")
+    append("  \"school\": \"${m3eJsonEscape(state.school)}\",\n")
+    append("  \"campus\": \"${m3eJsonEscape(state.campus)}\",\n")
+    append("  \"cgpa\": ${state.cgpa},\n")
+    append("  \"overallAttendancePct\": ${state.overallAttendancePct},\n")
+    append("  \"completedCredits\": ${state.completedCredits},\n")
+    append("  \"totalRequiredCredits\": ${state.totalRequiredCredits},\n")
+    append("  \"arrearsCount\": ${state.arrearsCount}\n")
+    append("}\n")
+}
+
+/** Minimal valid PDF 1.4 (Helvetica) written directly from the real report rows. */
+private fun m3eBuildReportPdf(lines: List<String>): ByteArray {
+    val pageLines = lines.chunked(48)
+    val pageCount = pageLines.size.coerceAtLeast(1)
+    val pageIds = (0 until pageCount).map { 4 + it * 2 }
+    val contentIds = (0 until pageCount).map { 5 + it * 2 }
+    fun escapePdf(value: String): String = buildString {
+        value.forEach { ch ->
+            when (ch) {
+                '\\' -> append("\\\\")
+                '(' -> append("\\(")
+                ')' -> append("\\)")
+                else -> append(if (ch.code in 32..126) ch else '?')
+            }
+        }
+    }
+    val objects = linkedMapOf<Int, String>()
+    objects[1] = "<< /Type /Catalog /Pages 2 0 R >>"
+    objects[2] = "<< /Type /Pages /Kids [${pageIds.joinToString(" ") { "$it 0 R" }}] /Count $pageCount >>"
+    objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+    pageLines.forEachIndexed { pageIndex, rows ->
+        objects[pageIds[pageIndex]] =
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] " +
+                "/Resources << /Font << /F1 3 0 R >> >> /Contents ${contentIds[pageIndex]} 0 R >>"
+        val stream = buildString {
+            append("BT\n/F1 11 Tf\n36 812 Td\n15 TL\n")
+            rows.forEachIndexed { rowIndex, line ->
+                if (rowIndex > 0) append("T*\n")
+                append("(").append(escapePdf(line)).append(") Tj\n")
+            }
+            append("ET\n")
+        }
+        objects[contentIds[pageIndex]] = "<< /Length ${stream.toByteArray().size} >>\nstream\n$stream\nendstream"
+    }
+    val pdf = StringBuilder("%PDF-1.4\n")
+    val offsets = mutableMapOf<Int, Int>()
+    objects.toSortedMap().forEach { (id, body) ->
+        offsets[id] = pdf.length
+        pdf.append(id).append(" 0 obj\n").append(body).append("\nendobj\n")
+    }
+    val xrefOffset = pdf.length
+    pdf.append("xref\n0 ${objects.size + 1}\n")
+    pdf.append("0000000000 65535 f \n")
+    objects.keys.sorted().forEach { id ->
+        pdf.append(offsets.getValue(id).toString().padStart(10, '0')).append(" 00000 n \n")
+    }
+    pdf.append("trailer\n<< /Size ${objects.size + 1} /Root 1 0 R >>\n")
+    pdf.append("startxref\n$xrefOffset\n%%EOF\n")
+    return pdf.toString().toByteArray()
+}
+
+/**
+ * Stateful host for [M3EStudentReportScreen] (D-115). Every figure comes from the
+ * identity and academic caches; export success/error state is written only from a
+ * real save or share result — never from a button press alone.
+ */
+@Composable
+fun M3EStudentReportHost(
+    modifier: Modifier = Modifier,
+    onClose: () -> Unit = {}
+) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    val identity by UserStore.identity.collectAsState()
+    val domain by AppState.domain.collectAsState()
+    val selectedSemId by AppState.selectedSemester.collectAsState()
+    val allGrades by AppState.allGrades.collectAsState()
+    val scope = rememberCoroutineScope()
+    val saveFile = rememberFileSaver()
+
+    var isExportingPdf by remember { mutableStateOf(false) }
+    var exportSuccessMessage by remember { mutableStateOf<String?>(null) }
+    var exportErrorMessage by remember { mutableStateOf<String?>(null) }
+    var actionNotice by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) { AppState.syncIdentityIfThin() }
+
+    val courses = remember(domain, selectedSemId) {
+        com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId)
+    }
+    val attended = courses.sumOf { it.attendance?.attended ?: 0 }
+    val totalClasses = courses.sumOf { it.attendance?.total ?: 0 }
+    val attendancePct = if (totalClasses > 0) attended * 100.0 / totalClasses else 0.0
+    val semester = domain.academics.semesters[selectedSemId]
+    val completedCredits = courses.sumOf { it.credits?.toDoubleOrNull()?.toInt() ?: 0 }
+    val requiredCredits = allGrades?.overall?.cgpa?.creditsRegistered?.toDoubleOrNull()?.toInt() ?: 0
+    val arrearsCount = courses.count { it.grade?.letter.equals("F", ignoreCase = true) }
+    val proctor = identity.proctor
+
+    val state = M3EStudentReportState(
+        studentName = if (identity.hasIdentity) identity.displayName else "",
+        registrationNumber = identity.regNo.orEmpty(),
+        programme = identity.program.orEmpty(),
+        school = identity.school.orEmpty(),
+        campus = identity.campus.orEmpty(),
+        proctorName = proctor?.name?.takeIf { it.isNotBlank() },
+        proctorEmail = proctor?.email?.takeIf { it.isNotBlank() },
+        cgpa = allGrades?.publishedCgpa?.toDoubleOrNull()
+            ?: semester?.gpa?.trim()?.toDoubleOrNull()
+            ?: 0.0,
+        overallAttendancePct = attendancePct,
+        completedCredits = completedCredits,
+        totalRequiredCredits = requiredCredits,
+        hasArrears = arrearsCount > 0,
+        arrearsCount = arrearsCount,
+        isExportingPdf = isExportingPdf,
+        exportSuccessMessage = exportSuccessMessage,
+        isLoading = !identity.hasIdentity && courses.isEmpty()
+    )
+
+    fun exportPdf() {
+        scope.launch {
+            isExportingPdf = true
+            exportSuccessMessage = null
+            exportErrorMessage = null
+            try {
+                val fileName = "amazecc-student-report.pdf"
+                val bytes = withContext(Dispatchers.Default) {
+                    m3eBuildReportPdf(m3eReportLines(state))
+                }
+                when {
+                    saveFile(fileName, bytes) ->
+                        exportSuccessMessage = "Saved to Downloads as $fileName"
+                    else -> exportErrorMessage = "Could not save $fileName. Check device storage and retry."
+                }
+            } catch (e: Exception) {
+                exportErrorMessage = e.message ?: "Could not generate the PDF"
+            } finally {
+                isExportingPdf = false
+            }
+        }
+    }
+
+    AmazeM3ETheme(isDark = isDark) {
+        Column(modifier = modifier.fillMaxSize()) {
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                IconButton(onClick = onClose) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = "Close academic report",
+                        tint = com.amazecc.app.shared.ui.m3e.theme.M3ETheme.colors.onSurface
+                    )
+                }
+                Text(
+                    text = "Academic Report",
+                    color = com.amazecc.app.shared.ui.m3e.theme.M3ETheme.colors.onSurface
+                )
+            }
+            if (!actionNotice.isNullOrBlank()) {
+                Text(
+                    text = actionNotice.orEmpty(),
+                    color = com.amazecc.app.shared.ui.m3e.theme.M3ETheme.colors.primary,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+            M3EStudentReportScreen(
+                state = state,
+                onAction = { action ->
+                    when (action) {
+                        M3EStudentReportAction.ExportPdfReport -> exportPdf()
+                        M3EStudentReportAction.ExportJsonData -> {
+                            scope.launch {
+                                val fileName = "amazecc-student-report.json"
+                                val bytes = m3eReportJson(state).toByteArray()
+                                actionNotice = if (saveFile(fileName, bytes)) {
+                                    "Saved $fileName to Downloads"
+                                } else {
+                                    "Could not save $fileName"
+                                }
+                            }
+                        }
+                        M3EStudentReportAction.ShareReport -> {
+                            val shared = shareText(m3eReportLines(state).joinToString("\n"))
+                            actionNotice = if (shared) "Report handed to the share sheet" else "No app is available to share this report"
+                        }
+                        M3EStudentReportAction.Refresh -> AppState.syncIdentityIfThin()
+                    }
+                },
+                exportErrorMessage = exportErrorMessage,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+    AppBackHandler(onBack = onClose)
 }

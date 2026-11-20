@@ -8,7 +8,9 @@ import androidx.compose.ui.test.v2.runComposeUiTest
 import com.amazecc.app.shared.domain.Attendance
 import com.amazecc.app.shared.domain.Course
 import com.amazecc.app.shared.domain.EmbeddedCourseHalf
+import com.amazecc.app.shared.domain.overhaul.M3ECardTone
 import com.amazecc.app.shared.domain.overhaul.M3EClassTimelineItem
+import com.amazecc.app.shared.domain.overhaul.M3EComputations
 import com.amazecc.app.shared.domain.overhaul.M3EHomeAction
 import com.amazecc.app.shared.domain.overhaul.M3EHomeAttendance
 import com.amazecc.app.shared.domain.overhaul.M3EHomeState
@@ -245,5 +247,127 @@ class M3EHomeScreenUiTest {
         val noData = Course(code = "BACSE302", title = "Theory", type = "Theory Only")
         assertEquals(75.0, M3EHomeAttendance.percentForSlot(lab, "L55"))
         assertNull(M3EHomeAttendance.percentForSlot(noData, "A1"))
+    }
+
+    @Test
+    fun attendance_label_uses_the_threaded_live_target() = runComposeUiTest {
+        val state = sampleState().copy(
+            quickStats = sampleState().quickStats.copy(
+                attendancePercentage = 82.0,
+                attendanceTargetPercentage = 85f,
+                attendanceStatusText = "Attendance below 85% target"
+            )
+        )
+
+        setContent {
+            AmazeM3ETheme {
+                M3EHomeScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("85% safety target", substring = true).assertExists()
+        onNodeWithText("75% safety target", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun attendance_target_is_recovered_from_host_status_when_not_threaded() = runComposeUiTest {
+        val state = sampleState().copy(
+            quickStats = sampleState().quickStats.copy(
+                attendancePercentage = 88.0,
+                attendanceTargetPercentage = null,
+                attendanceStatusText = "Safe margin across courses (target 85%)"
+            )
+        )
+
+        setContent {
+            AmazeM3ETheme {
+                M3EHomeScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("85% safety target", substring = true).assertExists()
+    }
+
+    @Test
+    fun pending_load_shows_neutral_placeholder_not_an_empty_schedule() = runComposeUiTest {
+        val state = sampleState().copy(isRefreshing = true, todayClasses = emptyList())
+
+        setContent {
+            AmazeM3ETheme {
+                M3EHomeScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("Loading schedule…").assertExists()
+        onNodeWithText("No classes scheduled for today.").assertDoesNotExist()
+    }
+
+    @Test
+    fun empty_schedule_copy_appears_only_after_loading_finishes() = runComposeUiTest {
+        val state = sampleState().copy(isRefreshing = false, todayClasses = emptyList())
+
+        setContent {
+            AmazeM3ETheme {
+                M3EHomeScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("No classes scheduled for today.").assertExists()
+        onNodeWithText("Loading schedule…").assertDoesNotExist()
+    }
+
+    @Test
+    fun error_banner_retry_and_dismiss_emit_real_actions() = runComposeUiTest {
+        val actions = mutableListOf<M3EHomeAction>()
+        val state = sampleState().copy(errorMessage = "Backend unavailable", isRefreshing = false)
+
+        setContent {
+            AmazeM3ETheme {
+                M3EHomeScreen(state = state, onAction = { actions.add(it) })
+            }
+        }
+
+        onNodeWithText("Backend unavailable").assertExists()
+        onNodeWithText("Retry").performClick()
+        onNodeWithContentDescription("Dismiss error").performClick()
+        assertTrue(actions.any { it is M3EHomeAction.RefreshData })
+        assertTrue(actions.any { it is M3EHomeAction.DismissError })
+    }
+
+    @Test
+    fun one_band_drives_hub_tone_and_deep_dive_verdict() {
+        assertEquals(
+            M3EComputations.AttendanceBand.SAFE,
+            M3EComputations.attendanceBand(85.0, 75f)
+        )
+        assertEquals(
+            M3EComputations.AttendanceBand.NEAR_TARGET,
+            M3EComputations.attendanceBand(82.0, 75f)
+        )
+        assertEquals(
+            M3EComputations.AttendanceBand.AT_RISK,
+            M3EComputations.attendanceBand(74.9, 75f)
+        )
+        assertEquals(M3ECardTone.WARNING, M3EComputations.toneForPercentage(82.0, 75f))
+        assertEquals(M3ECardTone.CRITICAL, M3EComputations.toneForPercentage(82.0, 85f))
+    }
+
+    @Test
+    fun target_resolution_prefers_state_then_status_then_default() {
+        assertEquals(
+            85.0,
+            M3EComputations.resolveAttendanceTarget(null, "Safe margin across courses (target 85%)")
+                .toDouble()
+        )
+        assertEquals(
+            90.0,
+            M3EComputations.resolveAttendanceTarget(90f, "Safe margin across courses (target 85%)")
+                .toDouble()
+        )
+        assertEquals(
+            75.0,
+            M3EComputations.resolveAttendanceTarget(null, "Safe margin across all courses").toDouble()
+        )
+        assertTrue(!M3EComputations.hasAttendanceData("Attendance not available"))
     }
 }

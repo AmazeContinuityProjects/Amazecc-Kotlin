@@ -40,6 +40,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.Key
+import com.amazecc.app.shared.domain.overhaul.M3EDestination
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SyncEngine
@@ -52,7 +53,6 @@ import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.components.AppBackHandlerDismissesOverlaysOnEscape
 import com.amazecc.app.shared.ui.components.PushPromptModal
 import com.amazecc.app.shared.ui.screens.onboarding.OnboardingScreen
-import com.amazecc.app.shared.ui.m3e.components.M3ENavigationBar
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.utils.openExternalUrl
 import com.amazecc.app.shared.utils.requestNotificationPermissions
@@ -60,6 +60,32 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+
+/**
+ * D-116 / D-115: Screen has no TIMETABLE or STUDENT_REPORT constant, and adding one
+ * requires editing AppState.kt (owned by another worker). These named overlay ids
+ * give both surfaces a real, back-dismissible route through the existing LIFO stack
+ * without touching that file. They are pushed/popped only by this navigation code.
+ */
+private const val TIMETABLE_OVERLAY_ID = "m3e-timetable"
+private const val STUDENT_REPORT_OVERLAY_ID = "m3e-student-report"
+
+/** The one destination ↔ Screen mapping used by the canonical M3E scaffold. */
+private fun screenForM3eDestination(destination: M3EDestination): Screen = when (destination) {
+    M3EDestination.HOME -> Screen.HOME
+    M3EDestination.ATTENDANCE -> Screen.ATTENDANCE
+    M3EDestination.ACADEMICS -> Screen.ACADEMICS
+    // TIMETABLE is a named overlay route; MORE is its visible home while open.
+    M3EDestination.TIMETABLE, M3EDestination.MORE -> Screen.MORE
+}
+
+private fun m3eDestinationForScreen(screen: Screen): M3EDestination = when (screen) {
+    Screen.HOME -> M3EDestination.HOME
+    Screen.ATTENDANCE, Screen.COURSE_ATTENDANCE -> M3EDestination.ATTENDANCE
+    Screen.ACADEMICS, Screen.CURRICULUM, Screen.COURSE_DETAIL, Screen.COURSE_DASHBOARD,
+    Screen.GRADES, Screen.GPA_PREDICTOR -> M3EDestination.ACADEMICS
+    else -> M3EDestination.MORE
+}
 
 @Composable
 fun App() {
@@ -170,11 +196,47 @@ fun App() {
                 },
                 color = colors.background
             ) {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize().statusBarsPadding(),
-                    containerColor = colors.background
-                ) { innerPadding ->
-                Box(modifier = Modifier.fillMaxSize()) {
+                // D-120/D-114: the TRUE root M3E provider. Every per-screen
+                // AmazeM3ETheme() wrapper inherits this palette preset, and this is
+                // where reduced motion is resolved before tabSwitchSpec is built.
+                com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme(
+                    isDark = com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge.isDarkThemeActive(),
+                    palettePreset = com.amazecc.app.shared.ui.m3e.theme.palettePresetForAccent(currentAccent)
+                ) {
+                    val overlayStack by AppState.overlayStack.collectAsState()
+                    val timetableOpen = TIMETABLE_OVERLAY_ID in overlayStack
+                    val reportOpen = STUDENT_REPORT_OVERLAY_ID in overlayStack
+                    val currentDestination = when {
+                        timetableOpen -> M3EDestination.TIMETABLE
+                        else -> m3eDestinationForScreen(currentScreen)
+                    }
+                    val tabSwitchSpec =
+                        com.amazecc.app.shared.ui.m3e.theme.M3ETheme.motion.tabSwitchTransform()
+
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        // D-119: one canonical scaffold owns system-bar/IME insets and
+                        // switches the nav from a bottom bar to a rail on wide windows.
+                        M3EAppScaffold(
+                            currentDestination = currentDestination,
+                            onDestinationSelected = { destination ->
+                                when (destination) {
+                                    M3EDestination.TIMETABLE -> {
+                                        AppState.popOverlay(STUDENT_REPORT_OVERLAY_ID)
+                                        AppState.pushOverlay(TIMETABLE_OVERLAY_ID)
+                                    }
+                                    else -> {
+                                        AppState.popOverlay(TIMETABLE_OVERLAY_ID)
+                                        AppState.popOverlay(STUDENT_REPORT_OVERLAY_ID)
+                                        AppState.navigateTo(screenForM3eDestination(destination))
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize(),
+                            navigationVisible = currentScreen != Screen.LOGIN &&
+                                currentScreen != Screen.SPLASH &&
+                                currentScreen != Screen.ONBOARDING &&
+                                !timetableOpen && !reportOpen
+                        ) {
                     // Global Spotlight Search Overlay
                     val commandPaletteOpen by AppState.commandPaletteOpen.collectAsState()
 
@@ -186,10 +248,8 @@ fun App() {
                         )
                     }
 
-                    // Crossfade screen transitions. Resolve the transform in a composable
-                    // context so it reads the current LocalMotionReduced (D-114/D-117).
-                    val tabSwitchSpec =
-                        com.amazecc.app.shared.ui.m3e.theme.M3ETheme.motion.tabSwitchTransform()
+                    // Crossfade screen transitions. tabSwitchSpec is resolved in the
+                    // root M3E theme provider above (D-114), not here.
                     Box(modifier = Modifier.fillMaxSize()) {
                         val tabList = AppState.tabScreens
                         AnimatedContent(
@@ -291,44 +351,49 @@ fun App() {
                         AppState.navigateBack()
                     }
 
-                    // These overlays are composed outside every per-screen AmazeM3ETheme wrapper.
-                    // Provide the M3E palette at the root so they follow light/dark instead of
-                    // falling back to M3ETheme's dark-only default palette.
-                    com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme(
-                        isDark = com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge.isDarkThemeActive(),
-                        palettePreset = com.amazecc.app.shared.ui.m3e.theme.palettePresetForAccent(currentAccent)
-                    ) {
-                        // Floating M3E nav bar overlay
-                        if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH && currentScreen != Screen.ONBOARDING) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .align(Alignment.BottomCenter)
-                                    .navigationBarsPadding()
-                                    .padding(bottom = 12.dp)
-                            ) {
-                                M3ENavigationBar(
-                                    onTabReselected = { screen, collapseFirstTap ->
-                                        AppState.goToSectionRoot(screen, collapseFirstTap)
-                                    }
-                                )
-                            }
-                        }
+                    } // M3EAppScaffold content — navigation and insets owned by the scaffold.
 
-                        // Material 3 Expressive Sync Notification & Modal (replaces legacy popup)
-                        if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) {
-                            com.amazecc.app.shared.ui.m3e.components.M3ESyncNotification(
-                                onDismiss = { SyncEngine.setShowSyncDialog(false) },
-                                onSaveOffline = { AppState.saveOffline() },
-                                onSyncAll = {
-                                    // Never wipe the module ledger while a sweep is still writing
-                                    // to it — that made the ring drop to 0% and stay stale.
-                                    // beginSweep() resets the relevant states itself.
-                                    SyncEngine.setShowSyncDialog(true)
-                                    AppState.loadAllData()
-                                }
-                            )
+                    // D-116 / D-115: real full-screen overlay routes on the same LIFO stack.
+                    // Back and each host's close control pop the exact id they pushed.
+                    if (timetableOpen) {
+                        M3ETimetableHost(
+                            modifier = Modifier.fillMaxSize(),
+                            onClose = { AppState.popOverlay(TIMETABLE_OVERLAY_ID) }
+                        )
+                    }
+                    if (reportOpen) {
+                        M3EStudentReportHost(
+                            modifier = Modifier.fillMaxSize(),
+                            onClose = { AppState.popOverlay(STUDENT_REPORT_OVERLAY_ID) }
+                        )
+                    }
+                    // Reachable entry point for the academic report from More. No dead control:
+                    // the button pushes the overlay whose host performs the real exports.
+                    if (currentScreen == Screen.MORE && !timetableOpen && !reportOpen && !commandPaletteIsOpen) {
+                        Button(
+                            onClick = { AppState.pushOverlay(STUDENT_REPORT_OVERLAY_ID) },
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(bottom = 104.dp, end = 16.dp)
+                                .heightIn(min = 48.dp)
+                        ) {
+                            Text("Academic report")
                         }
+                    }
+
+                    // Material 3 Expressive Sync Notification & Modal (replaces legacy popup)
+                    if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) {
+                        com.amazecc.app.shared.ui.m3e.components.M3ESyncNotification(
+                            onDismiss = { SyncEngine.setShowSyncDialog(false) },
+                            onSaveOffline = { AppState.saveOffline() },
+                            onSyncAll = {
+                                // Never wipe the module ledger while a sweep is still writing
+                                // to it — that made the ring drop to 0% and stay stale.
+                                // beginSweep() resets the relevant states itself.
+                                SyncEngine.setShowSyncDialog(true)
+                                AppState.loadAllData()
+                            }
+                        )
                     }
 
                     // One-time alert for newly added exam venue/seat entries from credentials

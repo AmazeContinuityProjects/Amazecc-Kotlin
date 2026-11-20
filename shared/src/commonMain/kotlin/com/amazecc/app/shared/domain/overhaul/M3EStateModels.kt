@@ -39,7 +39,12 @@ data class M3EQuickStatsState(
     val cgpa: Double,
     val creditsEarned: Int,
     val safeBunksAvailable: Int,
-    val attendanceStatusText: String
+    val attendanceStatusText: String,
+    /**
+     * Live effective target from AppState (custom > bus 85 > 75). Null only when the host
+     * has not threaded it yet; the UI then recovers it from [attendanceStatusText].
+     */
+    val attendanceTargetPercentage: Float? = null
 )
 
 data class M3EClassTimelineItem(
@@ -79,7 +84,10 @@ data class M3EHomeState(
     val semesterName: String = "",
     val isRefreshing: Boolean = false,
     val errorMessage: String? = null
-)
+) {
+    /** One target for the headline label, its tone and every per-class attendance badge. */
+    val attendanceTargetPercentage: Float? get() = quickStats.attendanceTargetPercentage
+}
 
 sealed interface M3EHomeAction {
     data class SelectDay(val date: LocalDate) : M3EHomeAction

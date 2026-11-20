@@ -122,13 +122,49 @@ object M3EComputations {
     }
 
     /**
-     * Determine card tone from percentage.
+     * The one attendance threshold band shared by the hub card, the home headline and the
+     * per-course deep dive. SAFE requires a 10-point margin above the live target; merely
+     * being at/above the target is NEAR_TARGET, and below it is AT_RISK. Having these
+     * thresholds in one place prevents two surfaces from calling the same percentage safe.
      */
-    fun toneForPercentage(pct: Double, targetPct: Float = 75f): M3ECardTone = when {
-        pct >= targetPct + 10.0 -> M3ECardTone.GOOD
-        pct >= targetPct -> M3ECardTone.WARNING
-        else -> M3ECardTone.CRITICAL
+    enum class AttendanceBand { SAFE, NEAR_TARGET, AT_RISK }
+
+    fun attendanceBand(pct: Double, targetPct: Float): AttendanceBand = when {
+        pct >= targetPct + 10.0 -> AttendanceBand.SAFE
+        pct >= targetPct -> AttendanceBand.NEAR_TARGET
+        else -> AttendanceBand.AT_RISK
     }
+
+    /**
+     * Resolve the live target. A value threaded into state wins; otherwise recover the
+     * target the host already published in [statusText] (e.g. "... (target 85%)"), so the
+     * UI never falls back to a hardcoded 75 that contradicts the status it displays.
+     */
+    fun resolveAttendanceTarget(explicitTarget: Float?, statusText: String): Float {
+        if (explicitTarget != null && explicitTarget in 1f..100f) return explicitTarget
+        val match = Regex(
+            "(?:target\\s*(\\d{1,3})\\s*%|(\\d{1,3})\\s*%\\s*target)",
+            RegexOption.IGNORE_CASE
+        ).find(statusText)
+        // groupValues[0] is the full match (e.g. "target 85%") which is not a number;
+        // skip it and read the actual capture group(s).
+        val parsed = match?.groupValues?.drop(1)?.firstOrNull { it.isNotBlank() }?.toFloatOrNull()
+        return parsed?.takeIf { it in 1f..100f } ?: 75f
+    }
+
+    /** True only when the host actually published attendance data for this stat. */
+    fun hasAttendanceData(statusText: String): Boolean =
+        statusText.isNotBlank() && !statusText.contains("not available", ignoreCase = true)
+
+    /**
+     * Determine card tone from percentage, derived from the same band used everywhere else.
+     */
+    fun toneForPercentage(pct: Double, targetPct: Float = 75f): M3ECardTone =
+        when (attendanceBand(pct, targetPct)) {
+            AttendanceBand.SAFE -> M3ECardTone.GOOD
+            AttendanceBand.NEAR_TARGET -> M3ECardTone.WARNING
+            AttendanceBand.AT_RISK -> M3ECardTone.CRITICAL
+        }
 
     /**
      * Filter bus routes on Dispatchers.Default.

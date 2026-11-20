@@ -192,6 +192,7 @@ fun M3EAttendanceScreen(
                     ) { course ->
                         M3ECourseAttendanceCard(
                             course = course,
+                            targetPercentage = state.bunkSummary.targetPercentage,
                             onClick = { onAction(M3EAttendanceAction.CourseClicked(course.courseCode)) }
                         )
                     }
@@ -316,6 +317,7 @@ private fun M3EBunkSummaryCard(
 @Composable
 private fun M3ECourseAttendanceCard(
     course: M3ECourseAttendanceCardState,
+    targetPercentage: Float = 75f,
     onClick: () -> Unit
 ) {
     val colors = M3ETheme.colors
@@ -384,7 +386,9 @@ private fun M3ECourseAttendanceCard(
             M3EWavyLinearProgress(
                 progress = (course.percentage / 100.0).toFloat(),
                 activeColor = statusColor,
-                trackColor = colors.surfaceContainerHighest
+                trackColor = colors.surfaceContainerHighest,
+                label = "Attendance",
+                safetyThreshold = targetPercentage / 100f
             )
 
             // Classes Count & Bunk Summary

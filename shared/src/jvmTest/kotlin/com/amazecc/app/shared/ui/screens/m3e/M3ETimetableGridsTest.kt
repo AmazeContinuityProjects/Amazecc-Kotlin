@@ -129,9 +129,10 @@ class M3ETimetableGridsTest {
         onNodeWithText("Mon").assertExists()
         onNodeWithText("Tue").assertExists()
 
-        // Verify lunch break banner
+        // Verify lunch break banner — no invented venue, only the real time window
         onNodeWithText("Lunch Break").assertExists()
-        onNodeWithText("12:40 PM - 01:30 PM • Dining Hall & Mess").assertExists()
+        onNodeWithText("12:40 PM - 01:30 PM").assertExists()
+        onNodeWithText("Dining Hall & Mess").assertDoesNotExist()
 
         // Verify course slot cards
         onNodeWithText("CSE3002").assertExists()
@@ -150,6 +151,68 @@ class M3ETimetableGridsTest {
         onAllNodesWithText("CSE3002")[0].performClick()
         assertNotNull(clickedSlot)
         assertEquals("CSE3002", clickedSlot?.courseCode)
+    }
+
+    /** A morning class on a non-today day must never be judged against today's clock. */
+    private fun futureDayWithMorningClass() = M3ETimetableDay(
+        dayName = "Wednesday",
+        shortName = "Wed",
+        dayNumber = 3,
+        isToday = false,
+        isSelected = true,
+        slots = listOf(
+            M3ETimetableSlot(
+                id = "future_slot",
+                slot = "C1",
+                courseCode = "CSE1001",
+                courseTitle = "Data Structures",
+                venue = "SJT 101",
+                faculty = "Dr. Test",
+                startTime = "08:00",
+                endTime = "08:50",
+                isHappeningNow = false,
+                attendanceTone = M3ECardTone.NEUTRAL
+            )
+        )
+    )
+
+    @Test
+    fun testFutureDayMorningClassIsNeutralInCompactList() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3EVerticalTimetableGrid(
+                    days = listOf(futureDayWithMorningClass()),
+                    selectedDayIndex = 0,
+                    onSelectDay = {},
+                    onSlotClick = {}
+                )
+            }
+        }
+
+        onNodeWithText("CSE1001").assertExists()
+        onNodeWithText("SCHEDULED").assertExists()
+        onNodeWithText("COMPLETED").assertDoesNotExist()
+        onNodeWithText("UPCOMING").assertDoesNotExist()
+    }
+
+    @Test
+    fun testFutureDayMorningClassIsNeutralInDenseGrid() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3EVerticalTimetableGrid(
+                    days = listOf(futureDayWithMorningClass()),
+                    selectedDayIndex = 0,
+                    onSelectDay = {},
+                    onSlotClick = {},
+                    denseGrid = true
+                )
+            }
+        }
+
+        onNodeWithText("CSE1001").assertExists()
+        onNodeWithText("SCHEDULED").assertExists()
+        onNodeWithText("COMPLETED").assertDoesNotExist()
+        onNodeWithText("UPCOMING").assertDoesNotExist()
     }
 
     @Test

@@ -63,7 +63,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ETasksState
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
-import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenu
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsHost
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -85,10 +85,25 @@ fun M3ETasksScreen(
 ) {
     val colors = M3ETheme.colors
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.surface)
+    // D-124: actions stay here; the FAB is hosted at the page root as an overlay
+    // by M3EPageActionsHost (drawn after the body, so it can never be clipped).
+    val pageActions = listOf(
+        M3EPageAction(
+            label = "New Task",
+            icon = Icons.Rounded.Add,
+            onClick = { onAction(M3ETasksAction.OpenCreateDialog) }
+        ),
+        M3EPageAction(
+            label = "Refresh",
+            icon = Icons.Rounded.Refresh,
+            enabled = !state.isLoading,
+            onClick = { onAction(M3ETasksAction.Refresh) }
+        )
+    )
+
+    M3EPageActionsHost(
+        actions = pageActions,
+        modifier = modifier.background(colors.surface)
     ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -117,24 +132,6 @@ fun M3ETasksScreen(
                         color = colors.onSurfaceVariant
                     )
                 }
-
-                // D-116: the "New Task" button and the refresh icon become two
-                // items of a single M3E action-menu FAB. Both lambdas are unchanged.
-                M3EPageActionsMenu(
-                    actions = listOf(
-                        M3EPageAction(
-                            label = "New Task",
-                            icon = Icons.Rounded.Add,
-                            onClick = { onAction(M3ETasksAction.OpenCreateDialog) }
-                        ),
-                        M3EPageAction(
-                            label = "Refresh",
-                            icon = Icons.Rounded.Refresh,
-                            enabled = !state.isLoading,
-                            onClick = { onAction(M3ETasksAction.Refresh) }
-                        )
-                    )
-                )
             }
         }
 

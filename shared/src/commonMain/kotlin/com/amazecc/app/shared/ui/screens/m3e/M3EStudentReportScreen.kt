@@ -263,7 +263,8 @@ fun M3EStudentReportScreen(
                         M3EWavyLinearProgress(
                             progress = progress,
                             activeColor = colors.primary,
-                            trackColor = colors.surfaceContainerHighest
+                            trackColor = colors.surfaceContainerHighest,
+                            label = "Credit completion"
                         )
 
                         Row(

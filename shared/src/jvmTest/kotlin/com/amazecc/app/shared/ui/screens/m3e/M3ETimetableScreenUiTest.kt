@@ -127,4 +127,35 @@ class M3ETimetableScreenUiTest {
         val slotAction = capturedActions.filterIsInstance<M3ETimetableAction.SlotClicked>().firstOrNull()
         assertEquals("CSE3002", slotAction?.slot?.courseCode)
     }
+
+    @Test
+    fun default_view_is_the_day_schedule_list() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3ETimetableScreen(state = sampleState(), onAction = {})
+            }
+        }
+
+        assertEquals(TimetableViewMode.SCHEDULE, sampleState().viewMode)
+        onNodeWithText("Day Schedule").assertExists()
+        // The dense grid is never mounted until the user explicitly picks it.
+        onNodeWithText("CSE3002").assertExists()
+    }
+
+    @Test
+    fun dense_grid_is_only_an_explicit_opt_in() = runComposeUiTest {
+        val actions = mutableListOf<M3ETimetableAction>()
+
+        setContent {
+            AmazeM3ETheme {
+                M3ETimetableScreen(state = sampleState(), onAction = { actions.add(it) })
+            }
+        }
+
+        onNodeWithText("Horizontal Grid").performClick()
+        assertTrue(
+            actions.filterIsInstance<M3ETimetableAction.SetViewMode>()
+                .any { it.mode == TimetableViewMode.HORIZONTAL }
+        )
+    }
 }

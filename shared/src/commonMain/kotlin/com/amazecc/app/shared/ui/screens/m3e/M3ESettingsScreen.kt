@@ -251,8 +251,8 @@ private fun ThemeCard(state: M3ESettingsState, onAction: (M3ESettingsAction) -> 
                 items = M3EPalettePreset.entries,
                 selectedItem = state.selectedPalettePreset,
                 onItemSelected = { preset ->
-                    // D-114: the root AmazeM3ETheme derives its palette from AppState.accent,
-                    // so this action is all that is needed for the whole tree to recompose.
+                    // D-119: App.kt's root AmazeM3ETheme supplies the chosen palette to the
+                    // whole tree; this action only records the choice in the host state.
                     onAction(M3ESettingsAction.SelectPalettePreset(preset))
                 },
                 labelProvider = { it.label },

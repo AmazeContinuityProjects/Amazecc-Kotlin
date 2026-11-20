@@ -69,6 +69,34 @@ fun deriveOdHoursDays(attendance: List<CourseAttendance>): List<OdHoursDay> {
 fun totalOdHours(days: List<OdHoursDay>): Int = days.sumOf { it.total }
 
 /**
+ * The *raw* per-course attendance rows for the semester that actually carries attendance —
+ * deliberately WITHOUT `EmbeddedLinkMerge`.
+ *
+ * D-125: the web counts `attendanceRes.attendance` row by row (see
+ * `../AmazeCC/src/components/custom/app/useAttendanceState.ts`). An embedded theory/lab pair is two
+ * rows with two `slotName`s and two `viewLink`s there. The OD screens used to read
+ * `Projections.currentSemesterAttendance`, which runs the snapshot through `EmbeddedLinkMerge`:
+ * that merge folds the pair into one row, de-duplicates their logs by `(date, status)` and joins
+ * their slots with the theory slot first (`"C1+L31"`). A lab OD period then stopped starting with
+ * `L` and was charged 1h instead of 2h, and a second OD log on a shared date vanished entirely.
+ * The widget, which reads the unmerged `SemesterData`, never had that bug — which is exactly why
+ * the two surfaces disagreed. Counting the raw rows keeps every consumer on the web's grain.
+ */
+internal fun rawReportingAttendance(snapshot: DomainSnapshot): List<CourseAttendance> {
+    val semester = snapshot.academics.semesters.values
+        .filter { sem -> sem.courses.values.any { it.attendance != null } }
+        .maxWithOrNull(
+            compareBy<Semester> { it.courses.values.count { c -> c.attendance != null } }
+                .thenBy { it.id }
+        ) ?: return emptyList()
+    return semester.courses.values.map { it.asAttendance() }
+}
+
+/** Web-parity OD days straight from the synced snapshot, one raw course row at a time. */
+fun deriveOdDaysFromSnapshot(snapshot: DomainSnapshot): List<OdHoursDay> =
+    deriveOdHoursDays(rawReportingAttendance(snapshot))
+
+/**
  * Ascending sort key for the two date shapes VTOP sends (`2026-10-05` and `12-Sep-2026`).
  * Unparseable dates sink to the bottom rather than throwing.
  */

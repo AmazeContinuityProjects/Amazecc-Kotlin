@@ -50,7 +50,9 @@ class M3EProfileLogoutConfirmationUiTest {
     )
 
     private fun ComposeUiTest.openConfirmation() {
-        // D-116: sign-out is now an item of the single page-actions FAB.
+        // D-116/D-124: sign-out is an item of the page-root overlay FAB.
+        onNodeWithTag(M3EPageActionsMenuTestTags.HOST_ROOT).assertExists()
+        onNodeWithTag(M3EPageActionsMenuTestTags.TOGGLE).assertExists()
         onNodeWithContentDescription("More actions").performClick()
         waitForIdle() // let the M3E enter spring mount the labelled item
         // Fire the item's own OnClick semantics action: the menu items sit below

@@ -18,6 +18,9 @@ import com.amazecc.app.shared.domain.overhaul.M3EExamEntry
 import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleState
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.SyncEngine
+import com.amazecc.app.shared.state.SyncModule
+import com.amazecc.app.shared.state.SyncStatus
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenuTestTags
 import com.amazecc.app.shared.ui.m3e.components.M3ESyncNotification
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import kotlin.test.AfterTest
@@ -80,9 +83,12 @@ class M3EOutstandingActionsUiTest {
             }
         }
 
-        // D-116: the menu collapses after every selection, so reopen it for each
-        // item. The two export lambdas themselves are untouched. Menu items are
-        // labelled by Text, not a contentDescription on their root Row.
+        // D-116/D-124: the FAB is in the page-root overlay, not the header. The
+        // menu collapses after every selection, so reopen it for each item. The
+        // two export lambdas themselves are untouched. Menu items are labelled
+        // by Text, not a contentDescription on their root Row.
+        onNodeWithTag(M3EPageActionsMenuTestTags.HOST_ROOT).assertExists()
+        onNodeWithTag(M3EPageActionsMenuTestTags.TOGGLE).assertExists()
         onNodeWithContentDescription("More actions").performClick()
         waitForIdle()
         onNodeWithText("Download exam schedule as PNG").performSemanticsAction(SemanticsActions.OnClick)
@@ -198,10 +204,38 @@ class M3EOutstandingActionsUiTest {
             }
         }
 
+        // D-036/D-067/D-126: offline copy + cache line, and no server-down-only action.
         onNodeWithText("You're offline.").assertExists()
+        onNodeWithText("Showing your saved data. It refreshes when you're back online.").assertExists()
         onNodeWithText("Serving Attendance from local cache").assertExists()
+        onNodeWithText("VTOP isn't responding right now.").assertDoesNotExist()
+        onNodeWithText("Check now").assertDoesNotExist()
         onNodeWithContentDescription("Dismiss connection notice").performClick()
+        waitForIdle()
         onNodeWithText("You're offline.").assertDoesNotExist()
+    }
+
+    @Test
+    fun connectionBannerServerDownShowsCheckNowAndDismisses() = runComposeUiTest {
+        // D-067/D-126: an explicit "unreachable" log line classifies the banner as VTOP-down.
+        SyncEngine.addLog(SyncModule.ATTENDANCE, "vtopcc.vit.ac.in is unreachable", SyncStatus.ERROR)
+        setContent {
+            AmazeM3ETheme {
+                M3ESyncNotification(onDismiss = {})
+            }
+        }
+
+        onNodeWithText("VTOP isn't responding right now.").assertExists()
+        onNodeWithText(
+            "This is on VIT's side, not your password. Showing your saved data; " +
+                "we'll check again in a few minutes."
+        ).assertExists()
+        onNodeWithText("Check now").assertExists()
+        onNodeWithText("You're offline.").assertDoesNotExist()
+        onNodeWithContentDescription("Dismiss connection notice").performClick()
+        waitForIdle()
+        onNodeWithText("VTOP isn't responding right now.").assertDoesNotExist()
+        onNodeWithText("Check now").assertDoesNotExist()
     }
 
     @Test

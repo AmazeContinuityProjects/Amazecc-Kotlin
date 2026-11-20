@@ -82,4 +82,32 @@ class M3EAttendanceScreenUiTest {
         onNodeWithText("At Risk").performClick()
         assertEquals(AttendanceFilter.AT_RISK, selectedFilter)
     }
+
+    @Test
+    fun first_load_shows_skeleton_instead_of_a_false_empty_result() = runComposeUiTest {
+        val state = sampleState().copy(isLoading = true, courses = emptyList())
+
+        setContent {
+            AmazeM3ETheme {
+                M3EAttendanceScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("Loading courses…").assertExists()
+        onNodeWithText("No courses match the active filter.").assertDoesNotExist()
+    }
+
+    @Test
+    fun empty_result_appears_only_after_loading_completes() = runComposeUiTest {
+        val state = sampleState().copy(isLoading = false, courses = emptyList())
+
+        setContent {
+            AmazeM3ETheme {
+                M3EAttendanceScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("No courses match the active filter.").assertExists()
+        onNodeWithText("Loading courses…").assertDoesNotExist()
+    }
 }

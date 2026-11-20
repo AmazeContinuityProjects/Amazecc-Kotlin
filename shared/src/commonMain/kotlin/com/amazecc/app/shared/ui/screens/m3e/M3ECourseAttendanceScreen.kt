@@ -39,6 +39,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.overhaul.M3EComputations
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
@@ -57,18 +58,6 @@ enum class M3ECourseAttendanceTab(val label: String) {
 /** Attendance projection cutoff modes. */
 enum class M3ECutoffMode(val label: String) {
     LID("LID"), CAT1("CAT 1"), CAT2("CAT 2"), END("End of Sem")
-}
-
-/**
- * One threshold band drives the hero word, the headline colour, the wavy bar and the card
- * border. Deriving them separately made 75-79% read "SAFE" in green next to an amber bar.
- */
-private enum class M3EAttendanceBand { SAFE, NEAR_TARGET, AT_RISK }
-
-private fun attendanceBand(percentage: Double, target: Int): M3EAttendanceBand = when {
-    percentage >= target + 5 -> M3EAttendanceBand.SAFE
-    percentage >= target -> M3EAttendanceBand.NEAR_TARGET
-    else -> M3EAttendanceBand.AT_RISK
 }
 
 /** A single future class session the student may mark as skipped. */
@@ -130,13 +119,16 @@ fun M3ECourseAttendanceScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
-    val band = attendanceBand(state.currentPercentage, state.targetPercentage)
+    // Hub, home headline and this deep dive all use the same M3EComputations band, so a
+    // percentage can no longer read SAFE here and WARNING on the attendance hub.
+    val target = state.targetPercentage.toFloat()
+    val band = M3EComputations.attendanceBand(state.currentPercentage, target)
 
     // Single band -> single tone, reused by the value, bar, border and simulated outcome.
-    fun toneFor(percentage: Double): Color = when (attendanceBand(percentage, state.targetPercentage)) {
-        M3EAttendanceBand.SAFE -> colors.success
-        M3EAttendanceBand.NEAR_TARGET -> colors.warning
-        M3EAttendanceBand.AT_RISK -> colors.error
+    fun toneFor(percentage: Double): Color = when (M3EComputations.attendanceBand(percentage, target)) {
+        M3EComputations.AttendanceBand.SAFE -> colors.success
+        M3EComputations.AttendanceBand.NEAR_TARGET -> colors.warning
+        M3EComputations.AttendanceBand.AT_RISK -> colors.error
     }
     val toneColor = toneFor(state.currentPercentage)
 
@@ -196,11 +188,11 @@ fun M3ECourseAttendanceScreen(
                         )
                         Text(
                             text = when (band) {
-                                M3EAttendanceBand.SAFE ->
+                                M3EComputations.AttendanceBand.SAFE ->
                                     "SAFE · Above ${state.targetPercentage}% target"
-                                M3EAttendanceBand.NEAR_TARGET ->
-                                    "NEAR TARGET · Above ${state.targetPercentage}% but below ${state.targetPercentage + 5}%"
-                                M3EAttendanceBand.AT_RISK ->
+                                M3EComputations.AttendanceBand.NEAR_TARGET ->
+                                    "NEAR TARGET · Above ${state.targetPercentage}% but below ${state.targetPercentage + 10}%"
+                                M3EComputations.AttendanceBand.AT_RISK ->
                                     "AT RISK · Below ${state.targetPercentage}% target"
                             },
                             fontSize = 12.sp,
@@ -210,7 +202,9 @@ fun M3ECourseAttendanceScreen(
                         M3EWavyLinearProgress(
                             progress = (state.currentPercentage / 100.0).toFloat(),
                             activeColor = toneColor,
-                            trackColor = colors.surfaceContainerHighest
+                            trackColor = colors.surfaceContainerHighest,
+                            label = "Attendance",
+                            safetyThreshold = target / 100f
                         )
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                             HeroStat("Attended", "${state.attendedClasses}", colors.primary)

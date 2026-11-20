@@ -25,6 +25,14 @@ val LocalM3EColors = staticCompositionLocalOf { M3EDarkPalette }
 val LocalM3EPalettePreset = compositionLocalOf<M3EPalettePreset?> { null }
 
 /**
+ * D-114: set by every [AmazeM3ETheme] for its content. Only a theme composed
+ * OUTSIDE any such provider (i.e. the real root) sees the default `false` and
+ * publishes the non-composable motion fallback. Per-screen wrappers inherit
+ * `true` and never write the global, so there is no last-writer-wins race.
+ */
+private val LocalMotionFallbackPublished = compositionLocalOf { false }
+
+/**
  * D-114: composable face of the motion specs. Every `M3ETheme.motion.*` call
  * site is composable, so routing them here makes each spec read the current
  * [LocalMotionReduced] value instead of a global that a later composition could
@@ -65,13 +73,14 @@ fun AmazeM3ETheme(
     val effectivePreset = palettePreset ?: M3EPalettePreset.OCEAN_MIDNIGHT
     val palette = resolveM3EPalette(isDark, effectivePreset)
 
-    // D-114: reduced motion is no longer published to a global on every
-    // composition. Composable spec providers read LocalMotionReduced directly.
-    // The one remaining global is a root-only fallback for plain (non-composable)
-    // transition builders; it is written once by the OUTERMOST theme (no parent
-    // provider), so nested per-screen wrappers can never overwrite it.
+    // D-114: composable spec providers read LocalMotionReduced directly. The one
+    // remaining global is an opt-in fallback for plain (non-composable) transition
+    // builders. It is published ONLY by the theme composed outside any parent
+    // AmazeM3ETheme provider (LocalMotionFallbackPublished == false), via
+    // SideEffect. Nested per-screen wrappers read `true` from the provider and do
+    // not write it — no last-writer-wins race, and no write from a child theme.
     val reducedMotion = platformPrefersReducedMotion() || !LocalAnimationsEnabled.current
-    if (LocalM3EPalettePreset.current == null) {
+    if (!LocalMotionFallbackPublished.current) {
         SideEffect { M3EMotion.fallbackReducedMotion = reducedMotion }
     }
 
@@ -135,6 +144,7 @@ fun AmazeM3ETheme(
         LocalM3EColors provides palette,
         LocalM3EPalettePreset provides effectivePreset,
         LocalMotionReduced provides reducedMotion,
+        LocalMotionFallbackPublished provides true,
         LocalContentColor provides palette.onBackground
     ) {
         MaterialTheme(

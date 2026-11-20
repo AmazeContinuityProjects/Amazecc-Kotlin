@@ -10,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.v2.runComposeUiTest
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenuTestTags
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -59,7 +60,10 @@ class M3ECalendarScreenUiTest {
             }
         }
 
-        // D-116: the five header controls now live behind one M3E page-actions FAB.
+        // D-116/D-124: the five controls live behind one page-actions FAB, hosted
+        // at the page root overlay (never inline in the scrolling header).
+        onNodeWithTag(M3EPageActionsMenuTestTags.HOST_ROOT).assertExists()
+        onNodeWithTag(M3EPageActionsMenuTestTags.TOGGLE).assertExists()
         onNodeWithContentDescription("More calendar actions").performClick()
         waitForIdle()
         onNodeWithText("Refresh calendar").performSemanticsAction(SemanticsActions.OnClick)
@@ -151,7 +155,7 @@ class M3ECalendarScreenUiTest {
         onNodeWithContentDescription("Day 1, instructional", useUnmergedTree = true).assertExists()
         onNodeWithContentDescription("Day 2, non-instructional", useUnmergedTree = true).assertExists()
         onNodeWithContentDescription("Day 3, non-instructional", useUnmergedTree = true).assertExists()
-        onNodeWithContentDescription("Day 4, non-instructional", useUnmergedTree = true).assertExists()
+        onNodeWithContentDescription("Day 4, no status recorded", useUnmergedTree = true).assertExists()
         onNodeWithContentDescription("Day 5, non-instructional", useUnmergedTree = true).assertExists()
         // A day cannot carry both tints: Day 1 is asserted instructional above, so its
         // non-instructional description must not be present (exclusive classification).

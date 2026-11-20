@@ -44,6 +44,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EHorizontalTimetableGrid
 import com.amazecc.app.shared.ui.m3e.components.M3EPageShell
 import com.amazecc.app.shared.ui.m3e.components.M3EStatItem
+import com.amazecc.app.shared.ui.m3e.components.M3EStatSubtitle
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EVerticalTimetableGrid
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -71,14 +72,14 @@ fun M3ETimetableScreen(
                 id = "credits",
                 label = "Credits",
                 value = "${state.totalCredits}",
-                sub = "Registered",
+                sub = M3EStatSubtitle.fromData("Registered"),
                 tone = M3EStatTone.PRIMARY
             ),
             M3EStatItem(
                 id = "courses",
                 label = "Courses",
                 value = "${state.totalCourses}",
-                sub = "Active",
+                sub = M3EStatSubtitle.fromData("Active"),
                 tone = M3EStatTone.NEUTRAL
             )
         )

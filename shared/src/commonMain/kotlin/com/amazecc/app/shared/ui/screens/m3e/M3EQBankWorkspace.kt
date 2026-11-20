@@ -259,7 +259,10 @@ fun M3EQBankWorkspaceScreen(
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     M3ESurfaceCard(modifier = Modifier.fillMaxWidth(0.7f), containerLevel = SurfaceContainerLevel.LOW) {
                         Text("Loading question bank…", fontSize = 14.sp, color = colors.onSurfaceVariant)
-                        M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
+                        M3EWavyLinearProgress(
+                            progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE,
+                            label = "Question bank loading"
+                        )
                     }
                 }
             }
@@ -427,7 +430,12 @@ private fun PracticeStatsCard(state: M3EQBankWorkspaceState) {
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Practice performance", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colors.onSurfaceVariant)
             Text((accuracy * 100).toFixed(2, "%"), fontSize = 30.sp, fontWeight = FontWeight.Black, color = colors.primary)
-            M3EWavyLinearProgress(progress = accuracy, activeColor = colors.primary, trackColor = colors.surfaceContainerHighest)
+            M3EWavyLinearProgress(
+                progress = accuracy,
+                activeColor = colors.primary,
+                trackColor = colors.surfaceContainerHighest,
+                label = "Assignment accuracy"
+            )
             Text("$correct correct of $attempts attempted · ${state.questions.size} questions available", fontSize = 12.sp, color = colors.onSurfaceVariant)
         }
     }
@@ -654,7 +662,8 @@ private fun QuizView(
                 M3EWavyLinearProgress(
                     progress = (state.activeIndex + 1).toFloat() / queue.size.coerceAtLeast(1),
                     activeColor = colors.primary,
-                    trackColor = colors.surfaceContainerHighest
+                    trackColor = colors.surfaceContainerHighest,
+                    label = "Question queue progress"
                 )
                 Spacer(Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -832,7 +841,12 @@ private fun AnalysisView(
                     }
                 }
                 Text("${(accuracy * 100).toFixed(2)}% accuracy", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
-                M3EWavyLinearProgress(progress = accuracy, activeColor = colors.success, trackColor = colors.surfaceContainerHighest)
+                M3EWavyLinearProgress(
+                    progress = accuracy,
+                    activeColor = colors.success,
+                    trackColor = colors.surfaceContainerHighest,
+                    label = "Topic accuracy"
+                )
                 Text("$attempts attempts · ${allTopics.size} topics practiced", fontSize = 12.sp, color = colors.onSurfaceVariant)
                 if (missedCount > 0) {
                     Button(onClick = { onAction(M3EQBankWorkspaceAction.LaunchReview) }, modifier = Modifier.fillMaxWidth()) {

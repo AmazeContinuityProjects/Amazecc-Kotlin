@@ -66,7 +66,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EGenderPreference
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
-import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenu
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsHost
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -92,10 +92,24 @@ fun M3ECabShareScreen(
 ) {
     val colors = M3ETheme.colors
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.surface)
+    // D-124: actions stay here; the FAB is hosted at the page root as an overlay
+    // by M3EPageActionsHost (drawn after the body, so it can never be clipped).
+    val pageActions = listOf(
+        M3EPageAction(
+            label = "Offer Ride",
+            icon = Icons.Rounded.Add,
+            onClick = { onAction(M3ECabShareAction.OpenCreateDialog) }
+        ),
+        M3EPageAction(
+            label = "Refresh",
+            icon = Icons.Rounded.Refresh,
+            onClick = { onAction(M3ECabShareAction.Refresh) }
+        )
+    )
+
+    M3EPageActionsHost(
+        actions = pageActions,
+        modifier = modifier.background(colors.surface)
     ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -124,22 +138,6 @@ fun M3ECabShareScreen(
                         color = colors.onSurfaceVariant
                     )
                 }
-
-                // D-116: "Offer Ride" + refresh collapse into one M3E action-menu FAB.
-                M3EPageActionsMenu(
-                    actions = listOf(
-                        M3EPageAction(
-                            label = "Offer Ride",
-                            icon = Icons.Rounded.Add,
-                            onClick = { onAction(M3ECabShareAction.OpenCreateDialog) }
-                        ),
-                        M3EPageAction(
-                            label = "Refresh",
-                            icon = Icons.Rounded.Refresh,
-                            onClick = { onAction(M3ECabShareAction.Refresh) }
-                        )
-                    )
-                )
             }
         }
 

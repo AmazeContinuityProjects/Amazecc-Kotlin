@@ -76,11 +76,17 @@
       "light-coral-alert-container": { "role": "error", "displayName": "Light Coral Alert Container", "canonical": "#FFDAD6" },
       "light-coral-alert-container-on": { "role": "error", "displayName": "Light Coral Alert On Container", "canonical": "#410002" }
     },
+    "typography": {
+      "headline": { "fontFamily": "Roboto, sans-serif", "materialRole": "displaySmall", "fontSize": "24sp", "fontWeight": 900, "letterSpacing": "-0.5sp" },
+      "title": { "fontFamily": "Roboto, sans-serif", "materialRole": "titleMedium", "fontSize": "18sp", "fontWeight": 700 },
+      "body": { "fontFamily": "Roboto, sans-serif", "materialRole": "bodySmall", "fontSize": "14sp", "fontWeight": 400 },
+      "label": { "fontFamily": "Roboto, sans-serif", "materialRole": "labelSmall", "fontSize": "10sp", "fontWeight": 700, "letterSpacing": "1sp" }
+    },
     "typographyMeta": {
-      "headline": { "displayName": "Metric Headline", "purpose": "Oversized stat values in the tone accent; Black weight, tight tracking." },
-      "title": { "displayName": "Title", "purpose": "Section and card titles via Material titleMedium." },
-      "body": { "displayName": "Body", "purpose": "Supporting copy via Material bodySmall with local 11px overrides in dense cards." },
-      "label": { "displayName": "Micro Label", "purpose": "Uppercase category and stat labels with wide tracking; navigation uses labelLarge at 14px." }
+      "headline": { "displayName": "Metric Headline", "purpose": "Oversized stat values in the tone accent; Black weight, tight tracking (24sp / displaySmall)." },
+      "title": { "displayName": "Title", "purpose": "Section and card titles via Material titleMedium (18sp)." },
+      "body": { "displayName": "Body", "purpose": "Supporting copy via Material bodySmall (14sp) with local 11sp overrides in dense cards." },
+      "label": { "displayName": "Micro Label", "purpose": "Uppercase category and stat labels with wide tracking (10sp); navigation uses labelLarge at 14sp." }
     },
     "shadows": [
       { "name": "nav-lift", "value": "0 8px 24px rgba(0,0,0,0.35)", "purpose": "8dp elevation on the floating bottom navigation pill only." },
@@ -92,7 +98,7 @@
       { "name": "spatialSlow", "value": "spring(DampingRatioMediumBouncy, StiffnessLow)", "purpose": "Hero transitions and sheet expansions." },
       { "name": "effectsDefault", "value": "spring(DampingRatioNoBouncy, StiffnessMedium)", "purpose": "Color and alpha fades, including connected-group selection." },
       { "name": "tabSwitch", "value": "180ms crossfade with scale 0.98 to 1", "purpose": "Tab-to-tab AnimatedContent switch." },
-      { "name": "reducedMotion", "value": "spring(DampingRatioNoBouncy, StiffnessHigh), instant", "purpose": "All specs collapse to this when OS Reduce Motion or the in-app animation toggle is on." }
+      { "name": "reducedMotion", "value": "snap() — instant, no travel", "purpose": "All specs collapse to this when OS Reduce Motion or the in-app animation toggle is on." }
     ],
     "breakpoints": [
       { "name": "compact", "value": "<600dp", "purpose": "Phone: bottom navigation pill, single-column content." },

@@ -34,7 +34,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,7 +48,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
-import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenu
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsHost
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
@@ -182,13 +181,44 @@ fun M3ECalendarScreen(
     val colors = M3ETheme.colors
     val activeMonth = state.months.getOrNull(state.selectedMonthIndex)
     val selectedDayModel = activeMonth?.days?.firstOrNull { it.date == state.selectedDay }
-    // D-116: the five crowded header controls are now one M3E action-menu FAB.
-    // The menu owns only its open/closed flag; every action lambda stays here.
+    // D-124: actions stay here; the FAB is hosted at the page root as an overlay
+    // by M3EPageActionsHost (drawn after the body, so it can never be clipped).
+    val pageActions = listOf(
+        M3EPageAction(
+            label = "Refresh calendar",
+            icon = Icons.Rounded.Refresh,
+            onClick = { onAction(M3ECalendarAction.Refresh) }
+        ),
+        M3EPageAction(
+            label = "Export semester to .ics",
+            icon = Icons.Rounded.Download,
+            onClick = { onAction(M3ECalendarAction.ExportCalendar) }
+        ),
+        M3EPageAction(
+            label = "Jump to today",
+            icon = Icons.Rounded.DateRange,
+            onClick = { onAction(M3ECalendarAction.Today) }
+        ),
+        M3EPageAction(
+            label = "Connect Moodle",
+            icon = Icons.Rounded.MenuBook,
+            onClick = { onAction(M3ECalendarAction.OpenMoodle) }
+        ),
+        M3EPageAction(
+            label = "Academic circulars",
+            icon = Icons.Rounded.Folder,
+            onClick = { onAction(M3ECalendarAction.OpenCirculars) }
+        )
+    )
 
+    M3EPageActionsHost(
+        actions = pageActions,
+        modifier = modifier.background(colors.surface),
+        collapsedLabel = "More calendar actions",
+        expandedLabel = "Close calendar actions"
+    ) {
     LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.surface),
+        modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -214,37 +244,6 @@ fun M3ECalendarScreen(
                             color = colors.onSurfaceVariant
                         )
                     }
-                    M3EPageActionsMenu(
-                        actions = listOf(
-                            M3EPageAction(
-                                label = "Refresh calendar",
-                                icon = Icons.Rounded.Refresh,
-                                onClick = { onAction(M3ECalendarAction.Refresh) }
-                            ),
-                            M3EPageAction(
-                                label = "Export semester to .ics",
-                                icon = Icons.Rounded.Download,
-                                onClick = { onAction(M3ECalendarAction.ExportCalendar) }
-                            ),
-                            M3EPageAction(
-                                label = "Jump to today",
-                                icon = Icons.Rounded.DateRange,
-                                onClick = { onAction(M3ECalendarAction.Today) }
-                            ),
-                            M3EPageAction(
-                                label = "Connect Moodle",
-                                icon = Icons.Rounded.MenuBook,
-                                onClick = { onAction(M3ECalendarAction.OpenMoodle) }
-                            ),
-                            M3EPageAction(
-                                label = "Academic circulars",
-                                icon = Icons.Rounded.Folder,
-                                onClick = { onAction(M3ECalendarAction.OpenCirculars) }
-                            )
-                        ),
-                        collapsedLabel = "More calendar actions",
-                        expandedLabel = "Close calendar actions"
-                    )
                 }
                 if (!state.exportMessage.isNullOrBlank()) {
                     Text(
@@ -259,7 +258,10 @@ fun M3ECalendarScreen(
 
         if (state.isLoading) {
             item(key = "progress") {
-                M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
+                M3EWavyLinearProgress(
+                    progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE,
+                    label = "Calendar loading"
+                )
             }
         }
 
@@ -529,6 +531,7 @@ fun M3ECalendarScreen(
             Spacer(Modifier.height(BOTTOM_NAV_PADDING))
         }
     }
+    }
 }
 
 /**
@@ -587,6 +590,13 @@ private fun CalendarDayCell(
         .take(3)
         .map { sourceDotColor(it, colors) }
         .toList()
+    // Announce only status the projection actually recorded. A cell with neither a
+    // published day type nor any entries has no status — do not invent "non-instructional".
+    val statusLabel = when {
+        day.dayType == null && day.events.isEmpty() -> "no status recorded"
+        isInstructional -> "instructional"
+        else -> "non-instructional"
+    }
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = modifier
@@ -606,8 +616,7 @@ private fun CalendarDayCell(
             )
             .testTag(M3ECalendarTestTags.CELL)
             .clickableA11y(
-                onClickLabel = "Day ${day.date}, " +
-                    if (isInstructional) "instructional" else "non-instructional",
+                onClickLabel = "Day ${day.date}, $statusLabel",
                 mergeDescendants = false,
                 onClick = onClick
             ),

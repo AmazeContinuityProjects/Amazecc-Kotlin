@@ -150,7 +150,10 @@ fun M3EMoodleScreen(
 
             if (state.isLoading) {
                 item(key = "progress") {
-                    M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
+                    M3EWavyLinearProgress(
+                        progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE,
+                        label = "Assignment completion"
+                    )
                 }
             }
 
@@ -340,7 +343,10 @@ private fun MoodleLoginContent(
                     }
 
                     if (state.isAuthenticating) {
-                        M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
+                        M3EWavyLinearProgress(
+                            progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE,
+                            label = "Moodle sign-in"
+                        )
                     } else {
                         ElevatedButton(
                             onClick = { onAction(M3EMoodleAction.SubmitCredentials) },
@@ -519,6 +525,21 @@ private fun M3EMoodleLoginPreview() {
     AmazeM3ETheme(isDark = false) {
         M3EMoodleScreen(
             state = M3EMoodleState(showLogin = true, hasSavedCredentials = true, username = "21BCE1042"),
+            onAction = {}
+        )
+    }
+}
+
+/** D-119 host contract: a real sync failure is passed with showLogin = false. */
+@Preview
+@Composable
+private fun M3EMoodleSyncFailurePreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EMoodleScreen(
+            state = M3EMoodleState(
+                showLogin = false,
+                errorMessage = "Moodle is unreachable (HTTP 503). Cached assignments may be stale."
+            ),
             onAction = {}
         )
     }

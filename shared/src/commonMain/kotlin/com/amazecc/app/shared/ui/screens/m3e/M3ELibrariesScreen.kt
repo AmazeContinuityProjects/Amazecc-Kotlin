@@ -363,7 +363,10 @@ fun M3ELibrariesScreen(
 
                 if (state.isBusy) {
                     item(key = "catalog_progress") {
-                        M3EWavyLinearProgress(progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE)
+                        M3EWavyLinearProgress(
+                            progress = com.amazecc.app.shared.ui.m3e.components.M3E_WAVY_INDETERMINATE,
+                            label = "Catalog search"
+                        )
                     }
                 }
 

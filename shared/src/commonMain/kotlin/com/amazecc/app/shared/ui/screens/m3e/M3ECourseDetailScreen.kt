@@ -45,7 +45,6 @@ import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
 import com.amazecc.app.shared.domain.overhaul.M3ECourseDetailAction
 import com.amazecc.app.shared.domain.overhaul.M3ECourseDetailState
-import com.amazecc.app.shared.domain.overhaul.M3ECourseSyllabusUnit
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
@@ -647,6 +646,12 @@ private fun CoursePredictorSection(
     }
 }
 
+/**
+ * SAMPLE-ONLY preview data for the IDE canvas — not a runtime state and never derived from a
+ * real payload. Numbers below are illustrative only; `requiredFinalScore` is intentionally left
+ * null and `syllabusUnits` empty so the preview shows the same honest "Not available" states the
+ * runtime shows when no real syllabus/FAT data exists.
+ */
 private fun createMockCourseDetailState() = M3ECourseDetailState(
     courseCode = "CSE3002",
     courseTitle = "Internet and Web Programming",
@@ -668,7 +673,7 @@ private fun createMockCourseDetailState() = M3ECourseDetailState(
     classAverage = 38.2,
     classMax = 49.0,
     targetGrade = "S",
-    requiredFinalScore = 84.0,
+    // No fabricated FAT requirement — the preview uses the same null = "Not available" path.
     assessments = listOf(
         M3EAssessmentItem(
             title = "Continuous Assessment 1",
@@ -685,20 +690,8 @@ private fun createMockCourseDetailState() = M3ECourseDetailState(
             weightageMarks = 14.4
         )
     ),
-    syllabusUnits = listOf(
-        M3ECourseSyllabusUnit(
-            unitNumber = 1,
-            title = "Web Essentials & HTTP Protocols",
-            description = "Clients, Servers, and Communication. The Internet-Basic Internet Protocols.",
-            hours = 6
-        ),
-        M3ECourseSyllabusUnit(
-            unitNumber = 2,
-            title = "Client-Side Scripting with Modern JS",
-            description = "JavaScript Syntax, DOM manipulation, asynchronous promises, and Fetch API.",
-            hours = 8
-        )
-    )
+    // Runtime has no structured syllabus payload; keep the preview honest.
+    syllabusUnits = emptyList()
 )
 
 @Preview

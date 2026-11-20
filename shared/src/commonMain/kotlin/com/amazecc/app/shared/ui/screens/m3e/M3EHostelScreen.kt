@@ -395,7 +395,9 @@ private fun HostelHeroCard(
 
                     Column {
                         Text(
-                            text = details.blockName,
+                            // A room-only profile still has no published block; say so instead
+                            // of rendering an empty title.
+                            text = details.blockName.ifBlank { "Hostel block not recorded" },
                             style = MaterialTheme.typography.titleLarge.copy(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 20.sp
@@ -410,17 +412,20 @@ private fun HostelHeroCard(
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(colors.primary.copy(alpha = 0.12f))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "Room ${details.roomNumber}",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = colors.primary
-                    )
+                // Only a real room number earns a Room badge — never "Room " with a blank value.
+                if (details.roomNumber.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.primary.copy(alpha = 0.12f))
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "Room ${details.roomNumber}",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                            color = colors.primary
+                        )
+                    }
                 }
             }
 
@@ -686,6 +691,8 @@ private fun RoomDetailsCard(
                     if (!details.wardenPhone.isNullOrBlank()) {
                         ElevatedButton(
                             onClick = onCallWarden,
+                            // D-121: 48dp minimum touch target.
+                            modifier = Modifier.heightIn(min = 48.dp),
                             shape = CircleShape,
                             colors = ButtonDefaults.elevatedButtonColors(
                                 containerColor = colors.primaryContainer,
@@ -800,7 +807,8 @@ private fun DetailRow(
             color = colors.onSurfaceVariant
         )
         Text(
-            text = value,
+            // Honest block-only / partial-allocation state: no blank detail values.
+            text = value.ifBlank { "Not recorded" },
             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
             color = colors.onSurface
         )

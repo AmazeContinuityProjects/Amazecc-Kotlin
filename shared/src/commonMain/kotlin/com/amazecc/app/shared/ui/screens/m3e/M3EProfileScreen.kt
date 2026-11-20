@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -63,6 +64,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -75,7 +83,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EProfileState
 import com.amazecc.app.shared.domain.overhaul.M3EResidenceStatus
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
-import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenu
+import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsHost
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.components.clickableA11y
@@ -122,7 +130,26 @@ fun M3EProfileScreen(
     val colors = M3ETheme.colors
     var showLogoutConfirmation by remember { mutableStateOf(false) }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // D-124: actions stay here; the FAB is hosted at the page root as an overlay
+    // by M3EPageActionsHost (drawn after the body, so it can never be clipped).
+    val pageActions = listOf(
+        M3EPageAction(
+            label = "Refresh",
+            icon = Icons.Rounded.Refresh,
+            onClick = { onAction(M3EProfileAction.Refresh) }
+        ),
+        // D-118: never emit SignOut from the menu item itself. The confirmation
+        // sheet below is the single gate; only its Confirm button emits it. The
+        // existing test tag is kept on the item so the sheet contract stays verifiable.
+        M3EPageAction(
+            label = "Sign Out",
+            icon = Icons.AutoMirrored.Rounded.Logout,
+            testTag = M3EProfileTestTags.LOGOUT_TRIGGER,
+            onClick = { showLogoutConfirmation = true }
+        )
+    )
+
+    M3EPageActionsHost(actions = pageActions, modifier = modifier) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -153,27 +180,6 @@ fun M3EProfileScreen(
                         color = colors.onSurfaceVariant
                     )
                 }
-
-                // D-116: refresh + sign-out collapse into one M3E action-menu FAB.
-                M3EPageActionsMenu(
-                    actions = listOf(
-                        M3EPageAction(
-                            label = "Refresh",
-                            icon = Icons.Rounded.Refresh,
-                            onClick = { onAction(M3EProfileAction.Refresh) }
-                        ),
-                        // D-118: never emit SignOut from the menu item itself. The
-                        // confirmation sheet below is the single gate; only its
-                        // Confirm button emits it. The existing test tag is kept
-                        // on the item so the sheet contract stays verifiable.
-                        M3EPageAction(
-                            label = "Sign Out",
-                            icon = Icons.AutoMirrored.Rounded.Logout,
-                            testTag = M3EProfileTestTags.LOGOUT_TRIGGER,
-                            onClick = { showLogoutConfirmation = true }
-                        )
-                    )
-                )
             }
         }
 
@@ -793,6 +799,7 @@ private fun ResidencePreferenceCard(
                         shape = CircleShape,
                         modifier = Modifier
                             .weight(1f)
+                            .heightIn(min = 48.dp)
                             .testTag(M3EProfileTestTags.RESIDENCE_SEGMENT_HOSTELLER)
                     ) { Text("Hosteller", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
                 } else {
@@ -801,6 +808,7 @@ private fun ResidencePreferenceCard(
                         shape = CircleShape,
                         modifier = Modifier
                             .weight(1f)
+                            .heightIn(min = 48.dp)
                             .testTag(M3EProfileTestTags.RESIDENCE_SEGMENT_HOSTELLER)
                     ) { Text("Hosteller", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
                 }
@@ -810,6 +818,7 @@ private fun ResidencePreferenceCard(
                         shape = CircleShape,
                         modifier = Modifier
                             .weight(1f)
+                            .heightIn(min = 48.dp)
                             .testTag(M3EProfileTestTags.RESIDENCE_SEGMENT_DAYSCHOLAR)
                     ) { Text("Day Scholar", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
                 } else {
@@ -818,6 +827,7 @@ private fun ResidencePreferenceCard(
                         shape = CircleShape,
                         modifier = Modifier
                             .weight(1f)
+                            .heightIn(min = 48.dp)
                             .testTag(M3EProfileTestTags.RESIDENCE_SEGMENT_DAYSCHOLAR)
                     ) { Text("Day Scholar", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)) }
                 }
@@ -831,16 +841,23 @@ private fun ResidencePreferenceCard(
                         // Tag stays on the one interactive node so existing UI tests
                         // that click BUS_CHECKBOX still drive the real toggle.
                         .testTag(M3EProfileTestTags.BUS_CHECKBOX)
-                        // D-120: the whole row is the single toggle source;
-                        // the box below is draw-only so it cannot double-toggle.
-                        .clickableA11y(
-                            onClickLabel = if (state.isRegisteredForBus) {
-                                "Unregister from university bus"
-                            } else {
-                                "Register for university bus"
-                            },
-                            onClick = { onSetBus(!state.isRegisteredForBus) }
-                        ),
+                        // D-120 W2: a checkbox is genuinely present, so expose
+                        // Role.Checkbox with Checked/Unchecked state instead of a
+                        // generic button. The row is the single toggle source and
+                        // the box below is draw-only, so it cannot double-toggle.
+                        .clickable(onClickLabel = if (state.isRegisteredForBus) {
+                            "Unregister from university bus"
+                        } else {
+                            "Register for university bus"
+                        }) {
+                            onSetBus(!state.isRegisteredForBus)
+                        }
+                        .semantics {
+                            role = Role.Checkbox
+                            toggleableState = if (state.isRegisteredForBus) ToggleableState.On else ToggleableState.Off
+                            stateDescription = if (state.isRegisteredForBus) "Checked" else "Not checked"
+                            contentDescription = "Registered for University Transport / Bus"
+                        },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -1119,6 +1136,7 @@ private fun ProctorContactCard(
                     ElevatedButton(
                         onClick = onContact,
                         shape = CircleShape,
+                        modifier = Modifier.heightIn(min = 48.dp),
                         colors = ButtonDefaults.elevatedButtonColors(
                             containerColor = colors.primaryContainer,
                             contentColor = colors.onPrimaryContainer

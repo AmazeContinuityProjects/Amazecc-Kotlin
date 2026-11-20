@@ -22,8 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.domain.CourseAttendance
-import com.amazecc.app.shared.domain.Projections
+import com.amazecc.app.shared.domain.deriveOdDaysFromSnapshot
+import com.amazecc.app.shared.domain.rawReportingAttendance
 import com.amazecc.app.shared.model.ODEntry
 import com.amazecc.app.shared.model.ODListItem
 import com.amazecc.app.shared.model.ODTrackedEntry
@@ -77,32 +77,6 @@ private data class ODDay(
     val total: Int
 )
 
-private fun extractODEntries(attendance: List<CourseAttendance>): List<ODDay> {
-    val rawEntries = mutableListOf<Pair<String, ODEntry>>()
-    for (course in attendance) {
-        val daily = course.logs.mapNotNull { log ->
-            val date = log.date.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            val status = log.status.takeIf { it.isNotBlank() } ?: return@mapNotNull null
-            date to status
-        }
-
-        for ((date, status) in daily) {
-            // D-120: the web OD Hours History page counts only the exact "On Duty" status and
-            // derives lab hours from the slot prefix alone - not a code suffix or a type cell.
-            if (com.amazecc.app.shared.domain.isOdHoursStatus(status)) {
-                val hours = com.amazecc.app.shared.domain.odHoursForSlot(course.slotName)
-                val type = if (hours == 2) "LAB" else "TH"
-                rawEntries.add(date to ODEntry(course.courseTitle, type, hours, course.courseCode))
-            }
-        }
-    }
-
-    val grouped = rawEntries.groupBy { it.first }
-    return grouped.map { (date, entries) ->
-        ODDay(date, entries.map { it.second }, entries.sumOf { it.second.hours })
-    }.sortedByDescending { it.date }
-}
-
 private fun computeMetrics(odDays: List<ODDay>, trackerState: Map<String, Map<String, ODTrackedEntry>>): ODMetrics {
     var labHours = 0
     var theoryHours = 0
@@ -138,7 +112,9 @@ fun ODTrackerScreen() {
         val colors = AmazeTheme.colors
         var activeTab by remember { mutableStateOf(0) }
         val domain by AppState.domain.collectAsState()
-        val courses = Projections.currentSemesterAttendance(domain)
+        // D-125: count raw per-course rows, never the EmbeddedLinkMerge output. The merge
+        // de-duplicates theory/lab logs and joins slots theory-first, which under-counted lab ODs.
+        val rawAttendance = remember(domain) { rawReportingAttendance(domain) }
 
         AppBackHandler {
             if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS)
@@ -166,12 +142,22 @@ fun ODTrackerScreen() {
         )
     }
 
-    val odDays = remember(courses) { extractODEntries(courses) }
+    // One canonical derivation feeds both the metrics and the entries list. No local arithmetic.
+    val odDays = remember(domain) {
+        deriveOdDaysFromSnapshot(domain).map { day ->
+            ODDay(
+                date = day.date,
+                entries = day.entries.map { ODEntry(it.title, it.type, it.hours, it.courseCode) },
+                total = day.total,
+            )
+        }.sortedByDescending { it.date } // preserve the screen's newest-first display order
+    }
 
-    // Build current status map for auto-detection
-    val currentStatusMap = remember(courses) {
+    // Build current status map for auto-detection from the same raw rows the counter uses, so
+    // wasted/recovered keys (date|courseCode) line up with the derived entries.
+    val currentStatusMap = remember(rawAttendance) {
         val map = mutableMapOf<String, MutableMap<String, String>>()
-        for (course in courses) {
+        for (course in rawAttendance) {
             val daily = course.logs.mapNotNull { log ->
                 val date = log.date.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                 val status = log.status.takeIf { it.isNotBlank() } ?: return@mapNotNull null
@@ -196,7 +182,7 @@ fun ODTrackerScreen() {
                 for ((courseCode, newStatus) in courseStatuses) {
                     val oldStatus = oldCourseStatuses[courseCode]
                     if (oldStatus != null && oldStatus != newStatus) {
-                        val course = courses.find { it.courseCode == courseCode }
+                        val course = rawAttendance.find { it.courseCode == courseCode }
                         val courseTitle = course?.courseTitle ?: ""
                         val courseType = course?.courseType ?: ""
                         val slotName = course?.slotName
@@ -377,7 +363,7 @@ fun ODTrackerScreen() {
                         newTracker[date]?.remove(courseCode)
                         if (newTracker[date]?.isEmpty() == true) newTracker.remove(date)
                     } else {
-                        val course = courses.find { it.courseCode == courseCode }
+                        val course = rawAttendance.find { it.courseCode == courseCode }
                         val courseTitle = course?.courseTitle ?: ""
                         val courseType = course?.courseType ?: ""
                         val slotName = course?.slotName

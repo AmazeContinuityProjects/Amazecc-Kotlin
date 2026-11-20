@@ -58,10 +58,12 @@ fun M3EAppScaffold(
     currentDestination: M3EDestination,
     onDestinationSelected: (M3EDestination) -> Unit,
     modifier: Modifier = Modifier,
+    navigationVisible: Boolean = true,
     content: @Composable () -> Unit
 ) {
     AmazeM3ETheme {
-        val useRail = rememberWindowWidthClass() == M3EWindowWidthClass.EXPANDED
+        val isExpanded = rememberWindowWidthClass() == M3EWindowWidthClass.EXPANDED
+        val useRail = navigationVisible && isExpanded
 
         // Edge-to-edge background; the inset-aware layer below keeps interactive
         // content clear of status bar, nav bar and IME without shrinking the paint.
@@ -85,20 +87,22 @@ fun M3EAppScaffold(
                 }
 
                 // Single canonical navigation surface (bar on compact, rail on expanded).
-                M3EFloatingToolbar(
-                    currentDestination = currentDestination,
-                    onDestinationSelected = onDestinationSelected,
-                    useRail = useRail,
-                    modifier = if (useRail) {
-                        Modifier
-                            .align(Alignment.CenterStart)
-                            .padding(start = 16.dp)
-                    } else {
-                        Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 12.dp)
-                    }
-                )
+                if (navigationVisible) {
+                    M3EFloatingToolbar(
+                        currentDestination = currentDestination,
+                        onDestinationSelected = onDestinationSelected,
+                        useRail = useRail,
+                        modifier = if (useRail) {
+                            Modifier
+                                .align(Alignment.CenterStart)
+                                .padding(start = 16.dp)
+                        } else {
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = 12.dp)
+                        }
+                    )
+                }
             }
         }
     }

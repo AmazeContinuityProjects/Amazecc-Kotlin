@@ -74,6 +74,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3EInsightCarouselCard
 import com.amazecc.app.shared.ui.m3e.components.M3EPageShell
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EStatItem
+import com.amazecc.app.shared.ui.m3e.components.M3EStatSubtitle
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -154,7 +155,7 @@ private fun LazyListScope.gradeOverviewContent(
                 label = "Cumulative",
                 value = state.cumulativeValue,
                 badge = state.cumulativeBadge,
-                sub = state.cumulativeSubtitle,
+                sub = M3EStatSubtitle.fromData(state.cumulativeSubtitle.ifBlank { "Not available" }),
                 tone = M3EGradeTone.BLUE,
                 modifier = Modifier.weight(1f)
             )
@@ -302,7 +303,11 @@ private fun LazyListScope.gradeInsightsContent(state: M3EGradesHistoryState) {
                 label = "Terms recorded",
                 value = state.termRows.count { it.courseCount > 0 }.toString(),
                 badge = "All time",
-                sub = if (state.termRows.size > 1) "${state.termRows.size} terms published" else "so far",
+                sub = if (state.termRows.size > 1) {
+                    M3EStatSubtitle.fromMetric(state.termRows.size.toString(), "terms published")
+                } else {
+                    M3EStatSubtitle.fromData("so far")
+                },
                 tone = M3EGradeTone.BLUE,
                 modifier = Modifier.weight(1f)
             )
@@ -311,7 +316,9 @@ private fun LazyListScope.gradeInsightsContent(state: M3EGradesHistoryState) {
                 label = "Best term",
                 value = bestTerm?.gpa?.toFixed(2) ?: "—",
                 badge = bestTerm?.label,
-                sub = if (bestTerm != null) "highest GPA on record" else "no GPA published yet",
+                sub = M3EStatSubtitle.fromData(
+                    if (bestTerm != null) "highest GPA on record" else "no GPA published yet"
+                ),
                 tone = M3EGradeTone.GREEN,
                 modifier = Modifier.weight(1f)
             )
@@ -338,7 +345,7 @@ private fun LazyListScope.gradeInsightsContent(state: M3EGradesHistoryState) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     M3EGradeToneBadge(text = row.grade, tone = row.tone, modifier = Modifier.width(40.dp))
-                    val barColor = gradeToneColor(row.tone).second
+                    val barColor = gradeToneAccent(row.tone)
                     M3EWavyLinearProgress(
                         progress = (row.share.toFloat() / 100f).coerceIn(0f, 1f),
                         activeColor = barColor,
@@ -404,7 +411,7 @@ private fun LazyListScope.gradeInsightsContent(state: M3EGradesHistoryState) {
                     ) {
                         M3EWavyLinearProgress(
                             progress = (avg.avg.toFloat() / 100f).coerceIn(0f, 1f),
-                            activeColor = gradeToneColor(hue).second,
+                            activeColor = gradeToneAccent(hue),
                             modifier = Modifier.weight(1f)
                         )
                         Text(
@@ -449,7 +456,7 @@ private fun LazyListScope.gradeInsightsContent(state: M3EGradesHistoryState) {
                 }
                 M3EWavyLinearProgress(
                     progress = (score.avgScore.toFloat() / 100f).coerceIn(0f, 1f),
-                    activeColor = gradeToneColor(hue).second,
+                    activeColor = gradeToneAccent(hue),
                     modifier = Modifier.weight(1f)
                 )
                 Text(
@@ -487,7 +494,7 @@ private fun LazyListScope.gradeCourseContent(state: M3EGradesHistoryState) {
                 label = "Overall",
                 value = course.overallText,
                 badge = course.courseType.ifBlank { null },
-                sub = "as recorded by VTOP",
+                sub = M3EStatSubtitle.fromData("as recorded by VTOP"),
                 tone = M3EGradeTone.GREY,
                 modifier = Modifier.weight(1f)
             )
@@ -495,7 +502,10 @@ private fun LazyListScope.gradeCourseContent(state: M3EGradesHistoryState) {
                 label = "Grade",
                 value = course.grade,
                 badge = course.pointsLabel,
-                sub = "${course.assessmentCount} assessment${if (course.assessmentCount == 1) "" else "s"}",
+                sub = M3EStatSubtitle.fromMetric(
+                    course.assessmentCount.toString(),
+                    if (course.assessmentCount == 1) "assessment" else "assessments"
+                ),
                 tone = M3EGradeComputations.toneForGrade(course.grade),
                 modifier = Modifier.weight(1f)
             )
@@ -547,7 +557,10 @@ private fun LazyListScope.gradeCourseContent(state: M3EGradesHistoryState) {
                             label = half.label,
                             value = half.scoreText,
                             badge = half.creditsLabel,
-                            sub = "${half.assessmentCount} assessment${if (half.assessmentCount == 1) "" else "s"}",
+                            sub = M3EStatSubtitle.fromMetric(
+                                half.assessmentCount.toString(),
+                                if (half.assessmentCount == 1) "assessment" else "assessments"
+                            ),
                             tone = M3EGradeTone.GREY,
                             modifier = Modifier.weight(1f)
                         )
@@ -665,7 +678,9 @@ private fun M3EGradeInsightSlide.toStatItem(): M3EStatItem = M3EStatItem(
     id = id,
     label = label,
     value = value,
-    sub = sub,
+    // D-114/D-118: the slide's sub is derived in buildState from real term data;
+    // wrap it in the typed token so no UI author can substitute a fabricated claim.
+    sub = M3EStatSubtitle.fromData(sub.ifBlank { "Not available" }),
     tone = when (tone) {
         M3EGradeTone.GREEN -> M3EStatTone.GOOD
         M3EGradeTone.BLUE -> M3EStatTone.PRIMARY
@@ -674,18 +689,42 @@ private fun M3EGradeInsightSlide.toStatItem(): M3EStatItem = M3EStatItem(
     }
 )
 
-/** Returns (container, foreground) for a grade hue using M3E semantic roles. */
+/**
+ * D-114: (container, text-on-container) for a grade hue. The foreground MUST be
+ * the measured `on*Container` token — using the fill on a light container failed
+ * AA (Classic Light AMBER #FEEFC3 + #E37400 = 2.71:1). All pairs below are >=7:1
+ * in both appearances.
+ */
 @Composable
-private fun gradeToneColor(tone: M3EGradeTone): Pair<Color, Color> {
+private fun gradeToneContainerAndOn(tone: M3EGradeTone): Pair<Color, Color> {
     val colors = M3ETheme.colors
     return when (tone) {
-        M3EGradeTone.AMBER -> colors.warningContainer to colors.warning
-        M3EGradeTone.GREEN -> colors.successContainer to colors.success
-        M3EGradeTone.BLUE -> colors.primaryContainer to colors.primary
-        M3EGradeTone.CYAN -> colors.secondaryContainer to colors.secondary
-        M3EGradeTone.VIOLET -> colors.tertiaryContainer to colors.tertiary
-        M3EGradeTone.RED -> colors.errorContainer to colors.error
+        M3EGradeTone.AMBER -> colors.warningContainer to colors.onWarningContainer
+        M3EGradeTone.GREEN -> colors.successContainer to colors.onSuccessContainer
+        M3EGradeTone.BLUE -> colors.primaryContainer to colors.onPrimaryContainer
+        M3EGradeTone.CYAN -> colors.secondaryContainer to colors.onSecondaryContainer
+        M3EGradeTone.VIOLET -> colors.tertiaryContainer to colors.onTertiaryContainer
+        M3EGradeTone.RED -> colors.errorContainer to colors.onErrorContainer
         M3EGradeTone.GREY -> colors.surfaceContainerHighest to colors.onSurfaceVariant
+    }
+}
+
+/**
+ * The vivid hue for graphics only (wave progress). Text never uses this: on a
+ * Classic Light surface the AMBER fill is only 2.54:1, so a big metric value has
+ * to use [gradeToneContainerAndOn] instead.
+ */
+@Composable
+private fun gradeToneAccent(tone: M3EGradeTone): Color {
+    val colors = M3ETheme.colors
+    return when (tone) {
+        M3EGradeTone.AMBER -> colors.warning
+        M3EGradeTone.GREEN -> colors.success
+        M3EGradeTone.BLUE -> colors.primary
+        M3EGradeTone.CYAN -> colors.secondary
+        M3EGradeTone.VIOLET -> colors.tertiary
+        M3EGradeTone.RED -> colors.error
+        M3EGradeTone.GREY -> colors.onSurfaceVariant
     }
 }
 
@@ -706,7 +745,7 @@ private fun M3EGradeToneBadge(
     tone: M3EGradeTone,
     modifier: Modifier = Modifier
 ) {
-    val (container, foreground) = gradeToneColor(tone)
+    val (container, foreground) = gradeToneContainerAndOn(tone)
     Box(
         modifier = modifier.clip(RoundedCornerShape(10.dp)).background(container),
         contentAlignment = Alignment.Center
@@ -760,12 +799,13 @@ private fun M3EGradeStatTile(
     label: String,
     value: String,
     badge: String?,
-    sub: String?,
+    sub: M3EStatSubtitle?,
     tone: M3EGradeTone,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
-    val accent = gradeToneColor(tone).second
+    // D-114: text needs the measured on-container token, not the vivid fill.
+    val accent = gradeToneContainerAndOn(tone).second
     M3ESurfaceCard(
         containerLevel = SurfaceContainerLevel.HIGH,
         cornerRadius = 24.dp,
@@ -811,10 +851,10 @@ private fun M3EGradeStatTile(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (!sub.isNullOrBlank()) {
+            if (sub != null && sub.text.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(
-                    text = sub,
+                    text = sub.text,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
                     color = colors.onSurfaceVariant,

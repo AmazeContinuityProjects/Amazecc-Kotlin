@@ -39,6 +39,7 @@ import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EStatCard
 import com.amazecc.app.shared.ui.m3e.components.M3EStatItem
+import com.amazecc.app.shared.ui.m3e.components.M3EStatSubtitle
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.components.clickableA11y
@@ -194,31 +195,31 @@ fun M3EODTrackerScreen(
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 M3EStatCard(
-                                    stat = M3EStatItem("od_days", "OD Days", "${metrics.totalODDays}", "Recorded on-duty days", M3EStatTone.PRIMARY),
+                                    stat = M3EStatItem("od_days", "OD Days", "${metrics.totalODDays}", M3EStatSubtitle.fromData("Recorded on-duty days"), M3EStatTone.PRIMARY),
                                     modifier = Modifier.weight(1f)
                                 )
                                 M3EStatCard(
-                                    stat = M3EStatItem("lab_hours", "Lab Hours", "${metrics.labHours}h", "From attendance logs", M3EStatTone.SECONDARY),
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                M3EStatCard(
-                                    stat = M3EStatItem("theory_hours", "Theory Hours", "${metrics.theoryHours}h", "From attendance logs", M3EStatTone.TERTIARY),
-                                    modifier = Modifier.weight(1f)
-                                )
-                                M3EStatCard(
-                                    stat = M3EStatItem("valid_hours", "Valid Hours", "${metrics.validHours}h", "After waste & recovery", M3EStatTone.GOOD),
+                                    stat = M3EStatItem("lab_hours", "Lab Hours", "${metrics.labHours}h", M3EStatSubtitle.fromData("From attendance logs"), M3EStatTone.SECONDARY),
                                     modifier = Modifier.weight(1f)
                                 )
                             }
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 M3EStatCard(
-                                    stat = M3EStatItem("wasted", "Wasted Hours", "${metrics.wastedHours}h", "Marked as wasted", M3EStatTone.CRITICAL),
+                                    stat = M3EStatItem("theory_hours", "Theory Hours", "${metrics.theoryHours}h", M3EStatSubtitle.fromData("From attendance logs"), M3EStatTone.TERTIARY),
                                     modifier = Modifier.weight(1f)
                                 )
                                 M3EStatCard(
-                                    stat = M3EStatItem("recovered", "Recovered", "${metrics.recoveredHours}h", "Regained hours", M3EStatTone.WARNING),
+                                    stat = M3EStatItem("valid_hours", "Valid Hours", "${metrics.validHours}h", M3EStatSubtitle.fromData("After waste & recovery"), M3EStatTone.GOOD),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                M3EStatCard(
+                                    stat = M3EStatItem("wasted", "Wasted Hours", "${metrics.wastedHours}h", M3EStatSubtitle.fromData("Marked as wasted"), M3EStatTone.CRITICAL),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                M3EStatCard(
+                                    stat = M3EStatItem("recovered", "Recovered", "${metrics.recoveredHours}h", M3EStatSubtitle.fromData("Regained hours"), M3EStatTone.WARNING),
                                     modifier = Modifier.weight(1f)
                                 )
                             }

@@ -17,7 +17,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
-import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
@@ -40,12 +39,18 @@ const val M3E_WAVY_INDETERMINATE = -1f
  * - 4dp gap between active wave and flat track
  * - 4dp stop dot at end of track
  *
- * Accessibility (D-118): the canvas is exposed as a real [Role.Progressbar] with
- * a readable [label], a percentage [stateDescription] and an explicit
- * [ProgressBarRangeInfo]. A visible 75% tick plus a safe/unsafe tone answer
- * "am I safe?" without relying on colour alone.
+ * Accessibility (D-118): the canvas publishes a quantity-specific
+ * [contentDescription] from [label], a [stateDescription] (percent plus the
+ * safety verdict, or "Loading" when indeterminate) and a
+ * [progressBarRangeInfo] for determinate values. No role constant is set:
+ * this Compose artifact does not expose one for progress indicators. A visible
+ * 75% tick plus a safe/unsafe tone answer "am I safe?" without relying on
+ * colour alone.
  *
- * @param label Announced name of the measured quantity, e.g. "Attendance".
+ * @param label Announced name of the measured quantity, e.g. "Attendance",
+ *   "Assignment accuracy" or "Exam preparation". Callers must supply a
+ *   quantity-specific label; the generic default exists only so legacy call
+ *   sites keep compiling and should not be relied upon in new code.
  * @param safetyThreshold Fraction at which the value is considered safe.
  *   Pass a value outside 0..1 is clamped; the default 0.75 matches the
  *   attendance target used across AmazeCC.
@@ -64,7 +69,7 @@ fun M3EWavyLinearProgress(
     val value = if (indeterminate) 0f else progress.coerceIn(0f, 1f)
     val threshold = safetyThreshold.coerceIn(0f, 1f)
     val isSafe = value >= threshold
-    // Indeterminate loading uses the neutral primary role — never a fake safe/error verdict.
+    // Indeterminate loading uses the neutral primary colour — never a fake safe/error verdict.
     val effectiveActive = if (indeterminate) colors.primary else (activeColor ?: if (isSafe) colors.success else colors.error)
 
     // D-118: the old track was secondaryContainer at 0.5 alpha. In Classic Light
@@ -95,8 +100,11 @@ fun M3EWavyLinearProgress(
             .height(14.dp)
             .padding(horizontal = 4.dp)
             .semantics {
-                // progressBarRangeInfo publishes the progress semantics; this Compose
-                // version has no matching Role constant for progress indicators.
+                // D-118: exactly three semantics are published here —
+                // contentDescription (the caller's quantity-specific label),
+                // stateDescription (percent + safety verdict, or "Loading") and,
+                // for determinate values, progressBarRangeInfo. This Compose
+                // artifact exposes no progress role constant, so none is set.
                 contentDescription = label
                 stateDescription = if (indeterminate) "Loading" else safetyState
                 if (!indeterminate) {

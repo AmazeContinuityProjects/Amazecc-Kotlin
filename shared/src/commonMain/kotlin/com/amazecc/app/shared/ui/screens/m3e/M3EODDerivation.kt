@@ -1,6 +1,9 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import com.amazecc.app.shared.domain.CourseAttendance
+import com.amazecc.app.shared.domain.DomainSnapshot
+import com.amazecc.app.shared.domain.OdHoursDay
+import com.amazecc.app.shared.domain.deriveOdDaysFromSnapshot
 import com.amazecc.app.shared.domain.deriveOdHoursDays
 import com.amazecc.app.shared.domain.isOdHoursStatus
 
@@ -30,7 +33,20 @@ internal fun isOnDutyStatus(status: String): Boolean = isOdHoursStatus(status)
  * with a theory slot is worth one hour or two.
  */
 fun deriveOdRowsFromAttendance(attendance: List<CourseAttendance>): List<DerivedOdRow> =
-    deriveOdHoursDays(attendance).flatMap { day ->
+    toOdRows(deriveOdHoursDays(attendance))
+
+/**
+ * D-125: the OD Tracker's entry point. Reads the RAW synced rows (no `EmbeddedLinkMerge`), so an
+ * embedded theory/lab pair keeps its two slots and two logs exactly like the web's
+ * `attendanceRes.attendance` array. Do not replace this with
+ * `deriveOdRowsFromAttendance(Projections.currentSemesterAttendance(...))` — that path reintroduces
+ * the merge that turned 2h lab ODs into 1h theory ODs.
+ */
+fun deriveOdRowsFromSnapshot(snapshot: DomainSnapshot): List<DerivedOdRow> =
+    toOdRows(deriveOdDaysFromSnapshot(snapshot))
+
+private fun toOdRows(days: List<OdHoursDay>): List<DerivedOdRow> =
+    days.flatMap { day ->
         day.entries.map { entry ->
             DerivedOdRow(
                 date = day.date,

@@ -276,10 +276,12 @@ fun M3EODTrackerScreenHost(modifier: Modifier = Modifier) {
         }
     }
 
-    // Pure/local derivation from the attendance flow already synced into the domain snapshot;
-    // no page-local network fetch is introduced - OD network data stays on the OD_DETAILS path.
+    // Pure/local derivation from the RAW synced attendance rows — no EmbeddedLinkMerge. D-125:
+    // the merge folds an embedded theory/lab pair into one row, drops a duplicate OD log and
+    // joins the slots theory-first ("C1+L31"), turning a 2h lab OD into a 1h theory OD. The web
+    // counts each attendanceRes.attendance row with its own slotName, so this host must too.
     val derivedOdRows = remember(domain) {
-        deriveOdRowsFromAttendance(Projections.currentSemesterAttendance(domain))
+        deriveOdRowsFromSnapshot(domain)
     }
     val days = remember(odDetails, tracker, derivedOdRows) {
         mapOdRecordsToDays(odDetails, tracker, derivedOdRows)

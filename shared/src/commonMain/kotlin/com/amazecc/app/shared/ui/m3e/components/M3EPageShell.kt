@@ -182,14 +182,14 @@ private fun M3EPageShellPreview() {
                     id = "stat_1",
                     label = "Current CGPA",
                     value = "9.18",
-                    sub = "Rank #12 in SCOPE",
+                    sub = M3EStatSubtitle.fromData("Rank not available"),
                     tone = M3EStatTone.PRIMARY
                 ),
                 M3EStatItem(
                     id = "stat_2",
                     label = "Total Attendance",
                     value = "94.2%",
-                    sub = "Safe across all 6 courses",
+                    sub = M3EStatSubtitle.fromData("94.2% overall attendance"),
                     tone = M3EStatTone.GOOD
                 )
             )

@@ -64,11 +64,15 @@ data class M3EStatItem(
     val onClick: (() -> Unit)? = null
 ) {
     /**
-     * Source-compatible constructor for existing call sites that still pass a
-     * raw String. The string must be derived by the caller from real data;
-     * new code should use [M3EStatSubtitle.fromData] / [fromMetric] directly so
-     * fabricated rankings or percentiles cannot be introduced in the UI layer.
+     * Migration barrier, not an API: raw subtitle strings are no longer accepted.
+     * Wrap data-backed text in [M3EStatSubtitle.fromData] or format a derived
+     * metric with [M3EStatSubtitle.fromMetric] instead. Kept only so unmigrated
+     * call sites fail with an actionable message rather than a type mismatch.
      */
+    @Deprecated(
+        message = "Wrap subtitles in M3EStatSubtitle.fromData(...) / fromMetric(...) — raw claims cannot be verified.",
+        level = DeprecationLevel.ERROR
+    )
     constructor(
         id: String,
         label: String,

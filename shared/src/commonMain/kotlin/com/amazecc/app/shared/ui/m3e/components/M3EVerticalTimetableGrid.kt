@@ -172,7 +172,7 @@ fun M3EVerticalTimetableGrid(
                                     color = colors.onSurface
                                 )
                                 Text(
-                                    text = "12:40 PM - 01:30 PM • Dining Hall & Mess",
+                                    text = "12:40 PM - 01:30 PM",
                                     fontSize = 12.sp,
                                     color = colors.onSurfaceVariant
                                 )
@@ -221,7 +221,7 @@ fun M3EVerticalTimetableGrid(
 
                         // Right Card Content
                         if (matchedSlot != null) {
-                            val status = timetableSlotStatus(matchedSlot, nowMinutes)
+                            val status = timetableSlotStatus(matchedSlot, nowMinutes, selectedDay)
                             val isNow = status == M3ESlotTimeStatus.ACTIVE
                             val statusLabel = status.label()
 
@@ -462,18 +462,26 @@ fun M3EVerticalTimetableGrid(
 /** Honest temporal state of a published class. UNKNOWN is never presented as UPCOMING. */
 internal enum class M3ESlotTimeStatus { ACTIVE, COMPLETED, UPCOMING, UNKNOWN }
 
-/** The host's [M3ETimetableSlot.isHappeningNow] wins; otherwise derive from real slot times. */
+/**
+ * The host's [M3ETimetableSlot.isHappeningNow] wins; otherwise derive from real slot times.
+ *
+ * A slot's [day] must be the one explicitly flagged as today: time-of-day alone cannot
+ * distinguish a finished class today from a morning class on a future day. With no day
+ * (the safe default, and for every other day) the result is neutral [M3ESlotTimeStatus.UNKNOWN].
+ */
 internal fun timetableSlotStatus(
     slot: M3ETimetableSlot,
-    nowMinutes: Int
+    nowMinutes: Int,
+    day: M3ETimetableDay? = null
 ): M3ESlotTimeStatus {
+    if (day?.isToday != true) return M3ESlotTimeStatus.UNKNOWN
     if (slot.isHappeningNow) return M3ESlotTimeStatus.ACTIVE
     val start = parseTimeToMinutes(slot.startTime) ?: return M3ESlotTimeStatus.UNKNOWN
     val end = parseTimeToMinutes(slot.endTime) ?: return M3ESlotTimeStatus.UNKNOWN
     return when {
         nowMinutes > end -> M3ESlotTimeStatus.COMPLETED
         nowMinutes < start -> M3ESlotTimeStatus.UPCOMING
-        // Inside the clock window but not flagged active (e.g. another day): stay neutral.
+        // Inside the clock window but not flagged active: stay neutral.
         else -> M3ESlotTimeStatus.UNKNOWN
     }
 }
@@ -559,7 +567,7 @@ private fun M3EVerticalCompactList(
             }
         } else {
             selectedDay.slots.forEach { slot ->
-                val status = timetableSlotStatus(slot, nowMinutes)
+                val status = timetableSlotStatus(slot, nowMinutes, selectedDay)
                 val isActive = status == M3ESlotTimeStatus.ACTIVE
                 M3ESurfaceCard(
                     modifier = Modifier.fillMaxWidth(),

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -104,7 +105,7 @@ import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
-import com.amazecc.app.shared.ui.m3e.theme.M3EMotion
+import com.amazecc.app.shared.ui.m3e.theme.LocalMotionReduced
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.utils.toFixed
 import com.amazecc.app.shared.vtop.VtopSource
@@ -293,16 +294,16 @@ fun M3ESyncNotification(
         // ==========================================
         AnimatedVisibility(
             visible = isMinimized,
-            // D-119: all specs come from M3EMotion, so OS/in-app reduced motion
-            // collapses these slides to near-instant springs.
+            // D-119: all specs come from the composable M3ETheme.motion providers,
+            // so OS/in-app reduced motion collapses these slides instantly.
             enter = slideInVertically(
-                animationSpec = M3EMotion.spatialSlow(),
+                animationSpec = M3ETheme.motion.spatialSlow(),
                 initialOffsetY = { it }
-            ) + fadeIn(animationSpec = M3EMotion.effectsDefault()),
+            ) + fadeIn(animationSpec = M3ETheme.motion.effectsDefault()),
             exit = slideOutVertically(
-                animationSpec = M3EMotion.spatialSlow(),
+                animationSpec = M3ETheme.motion.spatialSlow(),
                 targetOffsetY = { it }
-            ) + fadeOut(animationSpec = M3EMotion.effectsDefault())
+            ) + fadeOut(animationSpec = M3ETheme.motion.effectsDefault())
         ) {
             Box(
                 modifier = Modifier
@@ -324,7 +325,7 @@ fun M3ESyncNotification(
                 // Energy bar progress track
                 val animatedWidthPercent by animateFloatAsState(
                     targetValue = progressPercent / 100f,
-                    animationSpec = M3EMotion.effectsDefault(),
+                    animationSpec = M3ETheme.motion.effectsDefault(),
                     label = "EnergyBarWidth"
                 )
 
@@ -449,13 +450,13 @@ fun M3ESyncNotification(
         AnimatedVisibility(
             visible = !isMinimized,
             enter = slideInVertically(
-                animationSpec = M3EMotion.spatialSlow(),
+                animationSpec = M3ETheme.motion.spatialSlow(),
                 initialOffsetY = { it }
-            ) + fadeIn(animationSpec = M3EMotion.effectsDefault()),
+            ) + fadeIn(animationSpec = M3ETheme.motion.effectsDefault()),
             exit = slideOutVertically(
-                animationSpec = M3EMotion.spatialSlow(),
+                animationSpec = M3ETheme.motion.spatialSlow(),
                 targetOffsetY = { it }
-            ) + fadeOut(animationSpec = M3EMotion.effectsDefault())
+            ) + fadeOut(animationSpec = M3ETheme.motion.effectsDefault())
         ) {
             // Modal Backdrop Scrim
             Box(
@@ -638,14 +639,14 @@ fun M3ESyncNotification(
                                                     isMinimized = true
                                                     onSaveOffline()
                                                 },
-                                                modifier = Modifier.weight(1f),
+                                                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                                                 shape = CircleShape
                                             ) {
                                                 Text("Use Offline")
                                             }
                                             ElevatedButton(
                                                 onClick = { onSyncAll() },
-                                                modifier = Modifier.weight(1f),
+                                                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                                                 shape = CircleShape,
                                                 colors = ButtonDefaults.elevatedButtonColors(
                                                     containerColor = colors.primary,
@@ -774,7 +775,7 @@ fun M3ESyncNotification(
                                                     isLoggingIn = false
                                                 }
                                             },
-                                            modifier = Modifier.fillMaxWidth(),
+                                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                                             shape = CircleShape,
                                             colors = ButtonDefaults.elevatedButtonColors(
                                                 containerColor = colors.primary,
@@ -826,7 +827,7 @@ fun M3ESyncNotification(
                                         )
                                         ElevatedButton(
                                             onClick = { isMinimized = true },
-                                            modifier = Modifier.fillMaxWidth(),
+                                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
                                             shape = CircleShape,
                                             colors = ButtonDefaults.elevatedButtonColors(
                                                 containerColor = colors.surfaceContainerHighest,
@@ -854,7 +855,8 @@ fun M3ESyncNotification(
                                     // Wavy Progress Bar
                                     M3EWavyLinearProgress(
                                         progress = progressPercent / 100f,
-                                        modifier = Modifier.fillMaxWidth().height(16.dp)
+                                        modifier = Modifier.fillMaxWidth().height(16.dp),
+                                        label = "Sync progress"
                                     )
 
                                     // Milestones reflect REAL module outcomes, never a percentage
@@ -939,10 +941,10 @@ fun M3ESyncNotification(
                         // Collapsible Console / Activity Logs
                         AnimatedVisibility(
                             visible = showConsole,
-                            enter = expandVertically(animationSpec = M3EMotion.spatialSlow()) +
-                                fadeIn(animationSpec = M3EMotion.effectsDefault()),
-                            exit = shrinkVertically(animationSpec = M3EMotion.spatialSlow()) +
-                                fadeOut(animationSpec = M3EMotion.effectsDefault())
+                            enter = expandVertically(animationSpec = M3ETheme.motion.spatialSlow()) +
+                                fadeIn(animationSpec = M3ETheme.motion.effectsDefault()),
+                            exit = shrinkVertically(animationSpec = M3ETheme.motion.spatialSlow()) +
+                                fadeOut(animationSpec = M3ETheme.motion.effectsDefault())
                         ) {
                             M3ESurfaceCard(
                                 containerLevel = SurfaceContainerLevel.LOWEST,
@@ -952,14 +954,17 @@ fun M3ESyncNotification(
                                     .height(140.dp)
                             ) {
                                 val logState = rememberLazyListState()
-                                LaunchedEffect(logLines.size) {
+                                // Read the composable motion state here: LaunchedEffect's
+                                // block is not a composable context.
+                                val reduceMotion = LocalMotionReduced.current
+                                LaunchedEffect(logLines.size, reduceMotion) {
                                     if (logLines.isNotEmpty()) {
                                         val target = logLines.size - 1
                                         // D-119: this Compose version's animateScrollToItem has
                                         // no animationSpec parameter. Honour reduced motion by
                                         // jumping instead of animating; otherwise keep the
                                         // default smooth follow-the-tail scroll.
-                                        if (M3EMotion.reducedMotionEnabled) {
+                                        if (reduceMotion) {
                                             logState.scrollToItem(target)
                                         } else {
                                             logState.animateScrollToItem(target)
@@ -1135,7 +1140,7 @@ fun M3ESyncNotification(
                                     userDismissed = true
                                     onDismiss()
                                 },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                                 shape = CircleShape
                             ) {
                                 Text("Cancel Sync")
@@ -1143,7 +1148,7 @@ fun M3ESyncNotification(
 
                             ElevatedButton(
                                 onClick = { isMinimized = true },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                                 shape = CircleShape,
                                 colors = ButtonDefaults.elevatedButtonColors(
                                     containerColor = colors.primary,
@@ -1252,21 +1257,27 @@ private fun M3EConnectionBanner(
     AnimatedVisibility(
         visible = problem != null,
         enter = slideInVertically(
-            animationSpec = M3EMotion.spatialSlow(),
+            animationSpec = M3ETheme.motion.spatialSlow(),
             initialOffsetY = { -it }
-        ) + fadeIn(animationSpec = M3EMotion.effectsDefault()),
+        ) + fadeIn(animationSpec = M3ETheme.motion.effectsDefault()),
         exit = slideOutVertically(
-            animationSpec = M3EMotion.spatialSlow(),
+            animationSpec = M3ETheme.motion.spatialSlow(),
             targetOffsetY = { -it }
-        ) + fadeOut(animationSpec = M3EMotion.effectsDefault()),
+        ) + fadeOut(animationSpec = M3ETheme.motion.effectsDefault()),
         modifier = modifier
     ) {
         val serverDown = problem == "vtop"
+        // D-126: this banner is a sibling of M3EAppScaffold (mounted in App.kt's root
+        // overlay Box, outside the scaffold's inset-aware layer), so the scaffold's
+        // system-bar padding does NOT reach it. Keep statusBarsPadding() here or the
+        // banner draws under the status bar/cutout under edge-to-edge (targetSdk 35).
+        // The double-padding bug was the inner Row padding stacking on the card's 16 dp;
+        // that is removed below. 16 dp horizontal + 8 dp top are the only spacing here.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(start = 12.dp, end = 12.dp, top = 8.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp)
         ) {
             M3ESurfaceCard(
                 containerLevel = SurfaceContainerLevel.HIGH,
@@ -1274,10 +1285,10 @@ private fun M3EConnectionBanner(
                 borderColor = if (serverDown) colors.error else colors.warning,
                 modifier = Modifier.fillMaxWidth()
             ) {
+                // D-126: M3ESurfaceCard already reserves 16 dp of internal padding; the extra
+                // 12 dp here stacked on top of it and padded the banner content twice.
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.Top,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {

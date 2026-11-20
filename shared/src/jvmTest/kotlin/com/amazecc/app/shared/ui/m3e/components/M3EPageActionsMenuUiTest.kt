@@ -1,9 +1,15 @@
 package com.amazecc.app.shared.ui.m3e.components
 
+import androidx.compose.ui.Modifier
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.Text
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.performSemanticsAction
@@ -11,6 +17,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.v2.runComposeUiTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -134,5 +142,79 @@ class M3EPageActionsMenuUiTest {
         onNodeWithContentDescription("More calendar actions").assertExists()
         onNodeWithTag(M3EPageActionsMenuTestTags.TOGGLE).performClick()
         onNodeWithContentDescription("Close calendar actions").assertExists()
+    }
+
+    // ---- D-124: page-root overlay host -------------------------------------
+
+    @Test
+    fun hostRootOverlayMountsFabAfterBodyAndOpensRealActions() = runComposeUiTest {
+        var called = ""
+        setContent {
+            M3EPageActionsHost(
+                actions = listOf(
+                    M3EPageAction("Refresh", Icons.Rounded.Refresh, { called = "refresh" }),
+                    M3EPageAction("Add task", Icons.Rounded.Add, { called = "add" })
+                )
+            ) {
+                // A full-size sibling body: the FAB must still be on top of it.
+                Box(Modifier.fillMaxSize()) { Text("Page body") }
+            }
+        }
+
+        onNodeWithTag(M3EPageActionsMenuTestTags.HOST_ROOT).assertExists()
+        onNodeWithText("Page body").assertExists()
+        onNodeWithTag(M3EPageActionsMenuTestTags.TOGGLE).assertExists()
+
+        onNodeWithTag(M3EPageActionsMenuTestTags.TOGGLE).performClick()
+        waitForIdle()
+        onNodeWithText("Add task").assertExists()
+        onNodeWithTag(M3EPageActionsMenuTestTags.item(1))
+            .performSemanticsAction(SemanticsActions.OnClick)
+        waitForIdle()
+
+        assertEquals("add", called)
+        onNodeWithTag(M3EPageActionsMenuTestTags.ITEMS).assertDoesNotExist()
+    }
+
+    @Test
+    fun backdropTapDismissesExpandedMenu() = runComposeUiTest {
+        setContent {
+            M3EPageActionsMenu(
+                actions = listOf(
+                    M3EPageAction("Refresh", Icons.Rounded.Refresh, {}),
+                    M3EPageAction("Add task", Icons.Rounded.Add, {})
+                )
+            )
+        }
+
+        onNodeWithTag(M3EPageActionsMenuTestTags.TOGGLE).performClick()
+        waitForIdle()
+        onNodeWithTag(M3EPageActionsMenuTestTags.ITEMS).assertExists()
+
+        onNodeWithTag(M3EPageActionsMenuTestTags.BACKDROP).performClick()
+        waitForIdle()
+
+        onNodeWithTag(M3EPageActionsMenuTestTags.ITEMS).assertDoesNotExist()
+    }
+
+    @Test
+    fun escapeDismissesExpandedMenu() = runComposeUiTest {
+        setContent {
+            M3EPageActionsMenu(
+                actions = listOf(
+                    M3EPageAction("Refresh", Icons.Rounded.Refresh, {}),
+                    M3EPageAction("Add task", Icons.Rounded.Add, {})
+                )
+            )
+        }
+
+        onNodeWithTag(M3EPageActionsMenuTestTags.TOGGLE).performClick()
+        waitForIdle()
+        onNodeWithTag(M3EPageActionsMenuTestTags.ITEMS).assertExists()
+
+        onNodeWithTag(M3EPageActionsMenuTestTags.TOGGLE).performKeyInput { pressKey(Key.Escape) }
+        waitForIdle()
+
+        onNodeWithTag(M3EPageActionsMenuTestTags.ITEMS).assertDoesNotExist()
     }
 }
