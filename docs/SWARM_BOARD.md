@@ -254,3 +254,7 @@ Format mirrors `SwarmBoard.boardMarkdown()`: `**[id | date] KIND â†’ to â�
 - Live PDF/JSON/HTML/Share exports now use one assembled web-parity report snapshot via a pure ReportExportBuilder; real dated filenames, real save/share outcomes, canonical on-screen metrics.
 - UTF-8 preserved in JSON/HTML/Share; PDF keeps its ASCII/WinAnsi contract. Five legacy scalar helpers removed. Verified gate_export2 EXIT 0; Critic PASS.
 - All report-parity D-IDs D-150..D-157 and feedback-sync D-154..D-156 are now implemented, gated, audited and committed.
+## 2026-11-22 - D-158 report toggles + D-159/D-160 timetable sheet (committed af788a4, 0bbf007)
+- Report now has 10 real section toggles that gate all four live exports; committed af788a4.
+- Home View Timetable now opens a full weekly timetable bottom sheet with Vertical/Horizontal and Full/Compact switchers, LIFO dismissal, scrollable capped grid, and inline refresh errors; Calendar route preserved. Committed 0bbf007.
+- Verified gate_toggles3 / gate_timetable4 EXIT 0; Critic PASS. Note: unrelated user audit artifacts (run_audit.ps1, brain_audit_raw.csv, M3E_AUDIT_REPORT.md) were left untracked and were NOT committed.
