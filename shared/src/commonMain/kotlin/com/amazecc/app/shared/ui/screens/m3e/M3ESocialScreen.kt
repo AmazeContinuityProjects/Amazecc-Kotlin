@@ -153,7 +153,9 @@ data class M3ESocialState(
     val isImportDialogOpen: Boolean = false,
     val importCodeInput: String = "",
     val formError: String? = null,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    // Honest outcome of the "Save QR" export (D-145). Null until the user asks to save.
+    val qrExportNotice: String? = null
 )
 
 /** User intents emitted by [M3ESocialScreen]. */
@@ -178,6 +180,7 @@ sealed interface M3ESocialAction {
     data object SignIn : M3ESocialAction
     data object CopyHandle : M3ESocialAction
     data object CopyInviteLink : M3ESocialAction
+    data object SaveQr : M3ESocialAction
     data object OpenAddHandleDialog : M3ESocialAction
     data object CloseAddHandleDialog : M3ESocialAction
     data class UpdateAddHandleInput(val input: String) : M3ESocialAction
@@ -338,6 +341,13 @@ fun M3ESocialScreen(
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         TextButton(onClick = { onAction(M3ESocialAction.CopyHandle) }) { Text("Copy handle", color = colors.primary) }
                                         TextButton(onClick = { onAction(M3ESocialAction.CopyInviteLink) }) { Text("Copy invite link", color = colors.primary) }
+                                        // D-145: only offer an image save when a real matrix exists.
+                                        if (matrix != null) {
+                                            TextButton(onClick = { onAction(M3ESocialAction.SaveQr) }) { Text("Save QR", color = colors.primary) }
+                                        }
+                                    }
+                                    state.qrExportNotice?.let { notice ->
+                                        Text(notice, fontSize = 11.sp, color = colors.onSurfaceVariant)
                                     }
                                 } else {
                                     Text(

@@ -61,6 +61,7 @@ import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ChangelogEntry
 import com.amazecc.app.shared.utils.ContentData
 import com.amazecc.app.shared.utils.UpdateConfig
+import com.amazecc.app.shared.utils.buildSimpleHtml
 import com.amazecc.app.shared.utils.openDocumentBytes
 import com.amazecc.app.shared.utils.openExternalUrl
 import com.amazecc.app.shared.utils.rememberFileSaver
@@ -1371,6 +1372,9 @@ private fun m3eReportLines(state: M3EStudentReportState): List<String> = buildLi
     add(if (state.hasArrears) "Standing arrears: ${state.arrearsCount}" else "Standing arrears: none")
 }
 
+/** Internal seam so the HTML export reads the exact same real rows as the PDF / JSON / share. */
+internal fun m3eReportLinesForHtml(state: M3EStudentReportState): List<String> = m3eReportLines(state)
+
 private fun m3eJsonEscape(raw: String): String = buildString {
     raw.forEach { ch ->
         when (ch) {
@@ -1563,6 +1567,20 @@ fun M3EStudentReportHost(
                                 val fileName = "amazecc-student-report.json"
                                 val bytes = m3eReportJson(state).toByteArray()
                                 actionNotice = if (saveFile(fileName, bytes)) {
+                                    "Saved $fileName to Downloads"
+                                } else {
+                                    "Could not save $fileName"
+                                }
+                            }
+                        }
+                        M3EStudentReportAction.ExportHtmlReport -> {
+                            scope.launch {
+                                // Same real rows the PDF/JSON/share paths use; the first row is
+                                // the report's own heading, so it doubles as the HTML title.
+                                val lines = m3eReportLinesForHtml(state)
+                                val html = buildSimpleHtml(lines.first(), lines)
+                                val fileName = "amazecc-student-report.html"
+                                actionNotice = if (saveFile(fileName, html.toByteArray())) {
                                     "Saved $fileName to Downloads"
                                 } else {
                                     "Could not save $fileName"

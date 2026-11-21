@@ -96,6 +96,7 @@ sealed interface M3EFfcsPlannerAction {
     data class SetEarlyFinish(val enabled: Boolean) : M3EFfcsPlannerAction
     data class SetResultsSearchQuery(val query: String) : M3EFfcsPlannerAction
     data object ExportIcs : M3EFfcsPlannerAction
+    data object ExportHtmlDossier : M3EFfcsPlannerAction
     data object Refresh : M3EFfcsPlannerAction
     data object Back : M3EFfcsPlannerAction
 }
@@ -272,6 +273,32 @@ fun M3EFfcsPlannerScreen(
                                 )
                                 Text(
                                     "Export ICS",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.onSurface
+                                )
+                            }
+                        }
+                    }
+                    item(key = "export_html_dossier") {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.STANDARD,
+                            onClick = { onAction(M3EFfcsPlannerAction.ExportHtmlDossier) }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.FileDownload,
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    "Export HTML dossier",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = colors.onSurface

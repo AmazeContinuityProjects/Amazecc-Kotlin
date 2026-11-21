@@ -200,3 +200,21 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 - EXIT 0, all tests. Critic findings all fixed. Committing D-140/D-141, then APKs.
 ### [2026-11-21 17:00] session-mother - FINAL: PREDICTOR + ACADEMICS COMPLETE
 - Commits be6f9d6 (predictor port) and c8794fa (academics unification). Both gates green, Critic findings fixed, debug+release APKs BUILD SUCCESSFUL from final tree. Tree clean after this docs commit.
+### [2026-11-21 17:20] session-mother - CLAIM/EDIT (generator wave D-144+)
+- User: start tackling generator gaps. First the cross-cutting file-saver blocker: Android MIME now inferred from file extension (PNG/JPEG/JSON/ICS/HTML/PDF), iOS no-op stubs replaced with a real temp-file + UIActivityViewController share sheet. iOS is NOT compiled by the central verifier - needs a device/iOS build to confirm interop. Image/HTML export wiring explorer running.
+### [2026-11-21 17:30] session-mother - CLAIM/EDIT (generator wave D-145..D-146)
+- D-144 done by mother: Android MIME inferred from extension; iOS file saver now writes a temp file and presents a share sheet (iOS not compiled by central verifier).
+- Dispatching D-145 QR save as PNG (pure encoder + M3E/legacy social UI + host + tests) and D-146 HTML export (pure builders + student report + FFCS dossier wiring + tests). Mother owns build/commits.
+### [2026-11-21 17:50] session-mother - CLAIM/EDIT (D-147 predictor UI cards)
+- User: predictor summary must use the home-screen stat card design - one static M3EStatCard plus one M3EInsightCarouselCard; header back button ABOVE the title block instead of on the left. Worker owns M3EAttendancePredictorScreen.kt + its UI test; no overlap with generator workers.
+### [2026-11-21 18:10] session-mother - DONE (3 generator/UI workers) VERIFIER NEXT
+- D-145 QR save PNG (pure encoder + M3E/legacy social + host + tests), D-146 HTML export (pure builders + student report + FFCS dossier + tests), D-147 predictor summary now static M3EStatCard + M3EInsightCarouselCard with back button above the title (tests adapted). Mother added ExportHtmlReport action; Android MIME fix + iOS real saver already in tree. Note: QR and HTML workers both touched M3EAcademicLegacyBridge.kt - verifier must confirm the merge. Running gate_generators1.
+- FIX gate_generators1: QrImageExport.kt used Int literal 255 where Byte expected (out of narrowing range) - changed to 255.toByte(). The QR/HTML merge into M3EAcademicLegacyBridge.kt compiled fine. Re-running gate_generators2.
+- FIX gate_generators2: predictor UI test had invalid onNode import and used node.config.getOrNull instead of node[SemanticsProperties.ContentDescription]. Fixed both. Re-running gate_generators3.
+- FIX gate_generators3: replaced custom SemanticsMatcher (invalid node[...] access in this API) with standard hasContentDescription("of N", substring=true) for carousel slide count. Re-running gate_generators4.
+### [2026-11-21 18:25] session-mother - RESULT gate_generators4 (GREEN)
+- EXIT 0: clean compile, all tests. File-saver blocker + QR save PNG + HTML export + predictor stat-card restyle all verified. Launching Critic before commit.
+### [2026-11-21 18:45] session-mother - CRITIC FIXES + RE-GATE
+- Critic FAIL, all fixed: iOS share sheet now anchors its popover on iPad and resolves the top VC via connectedScenes (with window fallback) instead of deprecated keyWindow; legacy Save QR file I/O moved to Dispatchers.IO; removed unreachable malformed deflate fallback in QrImageExport. iOS still cannot be compiled by the central verifier. Re-running gate_generators5.
+### [2026-11-21 19:00] session-mother - FINAL GREEN gate_generators5
+- EXIT 0, clean compile, all tests. Critic findings fixed. Committing D-144..D-147 then APKs. NOTE: iosMain is not compiled by the central verifier - iOS share-sheet interop needs an Xcode/device build to confirm.

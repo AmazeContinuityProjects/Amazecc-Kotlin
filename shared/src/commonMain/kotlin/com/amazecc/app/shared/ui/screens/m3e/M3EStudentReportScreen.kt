@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.DataObject
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.Person
@@ -369,6 +370,20 @@ fun M3EStudentReportScreen(
                             )
                             Spacer(Modifier.width(6.dp))
                             Text("JSON Data", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+
+                        OutlinedButton(
+                            onClick = { onAction(M3EStudentReportAction.ExportHtmlReport) },
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Description,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("HTML", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         }
 
                         OutlinedButton(

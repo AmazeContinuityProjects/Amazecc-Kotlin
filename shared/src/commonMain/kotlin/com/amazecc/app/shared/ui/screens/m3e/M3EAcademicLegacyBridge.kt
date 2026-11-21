@@ -33,7 +33,11 @@ import com.amazecc.app.shared.state.SocialVisibility
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ContentData
+import com.amazecc.app.shared.utils.QRCodeGenerator
+import com.amazecc.app.shared.utils.buildSimpleHtml
+import com.amazecc.app.shared.utils.buildTableHtml
 import com.amazecc.app.shared.utils.SocialUtils
+import com.amazecc.app.shared.utils.encodeQrPng
 import com.amazecc.app.shared.utils.openExternalUrl
 import com.amazecc.app.shared.utils.rememberFileSaver
 import kotlinx.coroutines.launch
@@ -402,6 +406,8 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
     val selectedSemester by AppState.selectedSemester.collectAsState()
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
+    val saveFile = rememberFileSaver()
+    var qrExportNotice by remember { mutableStateOf<String?>(null) }
 
     var activeTab by remember { mutableStateOf(M3ESocialTab.SHARE) }
     var addFriendOpen by remember { mutableStateOf(false) }
@@ -597,7 +603,8 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                 addHandleInput = addHandleInput,
                 isImportDialogOpen = importOpen,
                 importCodeInput = importInput,
-                formError = formError
+                formError = formError,
+                qrExportNotice = qrExportNotice
             ),
             onAction = { action ->
                 when (action) {
@@ -636,6 +643,32 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                         if (handle.isNotBlank()) clipboard.setText(AnnotatedString(handle)) else Unit
                     is M3ESocialAction.CopyInviteLink ->
                         if (handle.isNotBlank()) clipboard.setText(AnnotatedString(M3ESocialProto.inviteLink(handle))) else Unit
+                    is M3ESocialAction.SaveQr -> {
+                        // D-145: export the same real invite link the on-screen QR encodes. Never
+                        // claim success unless generation and the device save both actually work.
+                        if (handle.isBlank()) {
+                            qrExportNotice = "No handle yet — sync Social to claim one before saving a QR."
+                        } else {
+                            val link = M3ESocialProto.inviteLink(handle)
+                            val matrix = runCatching { QRCodeGenerator.generate(link) }.getOrNull()
+                            if (matrix == null) {
+                                qrExportNotice = "Could not generate the QR image for this handle."
+                            } else {
+                                val bytes = runCatching { encodeQrPng(matrix) }.getOrNull()
+                                if (bytes == null) {
+                                    qrExportNotice = "Could not render the QR image."
+                                } else {
+                                    scope.launch {
+                                        qrExportNotice = if (saveFile("amazecc-qr.png", bytes)) {
+                                            "QR saved as amazecc-qr.png."
+                                        } else {
+                                            "Could not save the QR image on this device."
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
 
                     is M3ESocialAction.OpenAddHandleDialog -> { addHandleOpen = true; formError = null }
                     is M3ESocialAction.CloseAddHandleDialog -> { addHandleOpen = false; formError = null }
@@ -897,6 +930,48 @@ fun M3EFfcsPlannerScreenHost(modifier: Modifier = Modifier) {
                                     "FFCS timetable exported as amazecc-ffcs.ics."
                                 } else {
                                     "Could not save the FFCS export."
+                                }
+                            }
+                        }
+                    }
+                    is M3EFfcsPlannerAction.ExportHtmlDossier -> {
+                        val headers = listOf("Course", "Title", "Credits", "Type", "Slots", "Faculty", "Venue")
+                        // Prefer the user-selected generated variant; fall back to the first one.
+                        val timetable = generated.firstOrNull { it.id == selectedResultId }
+                            ?: generated.firstOrNull()
+                        val rows = timetable?.courses.orEmpty().map { course ->
+                            listOf(
+                                course.code,
+                                course.title,
+                                course.credits,
+                                course.type,
+                                course.slots.joinToString(", "),
+                                course.faculty,
+                                course.venue
+                            )
+                        }
+                        val html = if (timetable != null && rows.isNotEmpty()) {
+                            buildTableHtml(timetable.name, headers, rows)
+                        } else {
+                            // No generated timetable: fall back to the real selected-course strings.
+                            val selected = courses.filter { it.isSelected }
+                            if (selected.isEmpty()) {
+                                exportNotice = "Select courses or generate a timetable before exporting a dossier."
+                                null
+                            } else {
+                                buildSimpleHtml(
+                                    "FFCS Dossier (${selected.size} selected course${if (selected.size == 1) "" else "s"})",
+                                    selected.map { "${it.code} · ${it.title} · ${it.credits} credits" }
+                                )
+                            }
+                        }
+                        if (html != null) {
+                            scope.launch {
+                                val fileName = "amazecc-ffcs-dossier.html"
+                                exportNotice = if (saveFile(fileName, html.toByteArray())) {
+                                    "FFCS dossier exported as $fileName."
+                                } else {
+                                    "Could not save the FFCS dossier."
                                 }
                             }
                         }

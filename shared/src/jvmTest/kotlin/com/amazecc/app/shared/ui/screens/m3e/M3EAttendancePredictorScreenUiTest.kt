@@ -1,11 +1,14 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -129,14 +132,31 @@ class M3EAttendancePredictorScreenUiTest {
         )
     }
 
+    /**
+     * D-147: target the screen's own LazyColumn by tag. The summary now hosts a
+     * HorizontalPager, so a bare `hasScrollToNodeAction()` is ambiguous between
+     * the column and the pager.
+     */
     private fun ComposeUiTest.scrollTo(text: String) {
-        onNode(hasScrollToNodeAction()).performScrollToNode(hasText(text, substring = true))
+        onNodeWithTag("attendance_predictor_list")
+            .performScrollToNode(hasText(text, substring = true))
     }
 
     private fun ComposeUiTest.expect(text: String) {
         scrollTo(text)
         onNodeWithText(text).assertExists()
     }
+
+    /** Mirrors the screen's signed-delta formatting so the assertion is data-backed. */
+    private fun signedDelta(delta: Double): String =
+        if (delta >= 0) "+${AttendancePredictor.formatPct(delta)}" else AttendancePredictor.formatPct(delta)
+
+    /**
+     * The carousel announces "Slide N of TOTAL" on its dot row. N rotates, so
+     * assert only the invariant total (four real slides) rather than page 0.
+     */
+    private fun carouselIndicator(total: Int): SemanticsMatcher =
+        hasContentDescription(value = "of $total", substring = true)
 
     @Test
     fun renders_header_targets_courses_calendar_and_advisor_copy() = runComposeUiTest {
@@ -146,6 +166,8 @@ class M3EAttendancePredictorScreenUiTest {
             }
         }
 
+        // Header: the compact back button sits on its own row above the title.
+        onNodeWithContentDescription("Back").assertExists()
         expect("ATTENDANCE \u00B7 PREDICTOR")
         expect("Attendance Predictor & Simulator")
         expect("75%")
@@ -159,12 +181,20 @@ class M3EAttendancePredictorScreenUiTest {
         expect("BACSE105")
         expect("BACSE102")
 
-        // At-risk / safe copy comes from the real summarise() output.
-        // Summary cell labels are uppercased by the M3E tile.
-        expect("TOTAL SAFE LEAVES")
-        expect("COURSES AT RISK")
-        expect("Below 75%")
-        expect("1 of 2 courses safe")
+        // D-147: the summary is one static M3EStatCard plus one carousel, with
+        // every value derived from the real summarise() output. The tile label
+        // is uppercased by M3EStatCardContent.
+        val summary = AttendancePredictor.summarise(sampleResults(), 75.0)
+        expect("PROJECTED AVG")
+        expect("${AttendancePredictor.formatPct(summary.predictedPct)}%")
+        // Signed delta survives on the static subtitle so no real datum is lost.
+        expect(
+            "Now ${AttendancePredictor.formatPct(summary.currentPct)}% · " +
+                signedDelta(summary.delta)
+        )
+        // Off-screen carousel pages are not composed, so assert the stable
+        // slide-count semantics instead of individual tile labels.
+        onNode(carouselIndicator(total = 4)).assertExists()
 
         // Calendar labels are the real labels carried by the four fixture days.
         expect("Interactive Day Simulator (NOVEMBER 2026)")
@@ -192,6 +222,10 @@ class M3EAttendancePredictorScreenUiTest {
 
         onNodeWithText("90%").performSemanticsAction(SemanticsActions.OnClick)
         assertTrue(M3EAttendancePredictorAction.SetTarget(90) in actions)
+
+        // D-147: the relocated header back button still emits NavigateBack.
+        onNodeWithContentDescription("Back").performClick()
+        assertTrue(M3EAttendancePredictorAction.NavigateBack in actions)
 
         scrollTo("Attend All")
         onNodeWithText("Attend All").performClick()

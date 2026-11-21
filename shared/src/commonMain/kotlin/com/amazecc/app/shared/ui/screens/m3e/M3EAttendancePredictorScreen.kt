@@ -1,28 +1,26 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AcUnit
+import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.EventBusy
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,8 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -41,9 +38,12 @@ import com.amazecc.app.shared.domain.AttendancePredictor
 import com.amazecc.app.shared.domain.CAT_LOCK_OFFSET_DAYS
 import com.amazecc.app.shared.domain.overhaul.M3EAttendancePredictorAction
 import com.amazecc.app.shared.domain.overhaul.M3EAttendancePredictorState
+import com.amazecc.app.shared.domain.overhaul.M3EStatTone
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
-import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
-import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
+import com.amazecc.app.shared.ui.m3e.components.M3EInsightCarouselCard
+import com.amazecc.app.shared.ui.m3e.components.M3EStatCard
+import com.amazecc.app.shared.ui.m3e.components.M3EStatItem
+import com.amazecc.app.shared.ui.m3e.components.M3EStatSubtitle
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import kotlinx.datetime.Instant
@@ -59,7 +59,6 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * The marks/GPA predictor is a separate screen; this one simulates leaves,
  * off-days and per-course skips against the real [com.amazecc.app.shared.domain.OverallSummary].
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun M3EAttendancePredictorScreen(
     state: M3EAttendancePredictorState,
@@ -76,15 +75,20 @@ fun M3EAttendancePredictorScreen(
             .background(colors.surface)
     ) {
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("attendance_predictor_list"),
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // ── 1. HEADER ────────────────────────────────────────────────
+            // D-147: compact back button sits on its own row ABOVE the title
+            // block, never to its left. Target selector + Reset stay separate
+            // below it, so the title row is never crowded.
             item(key = "attendance_predictor_header") {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Top
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(
                         onClick = { onAction(M3EAttendancePredictorAction.NavigateBack) },
@@ -98,9 +102,7 @@ fun M3EAttendancePredictorScreen(
                         )
                     }
                     Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(start = 4.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
@@ -265,129 +267,101 @@ fun M3EAttendancePredictorScreen(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+/**
+ * D-147: the predictor summary now uses the exact same building blocks as the
+ * home screen — one static [M3EStatCard] beside one [M3EInsightCarouselCard],
+ * each 136.dp tall. Every number comes straight from [state.summary]; the
+ * signed [com.amazecc.app.shared.domain.OverallSummary.delta] is preserved on
+ * the static card's subtitle so no real datum is dropped with the old badge.
+ */
 @Composable
 private fun M3EAttendanceSummaryRow(
     state: M3EAttendancePredictorState,
     modifier: Modifier = Modifier
 ) {
-    val colors = M3ETheme.colors
     val summary = state.summary
-    val projectedTone = if (summary.predictedPct >= state.targetPercent) colors.success else colors.error
-    val riskTone = if (summary.atRiskCount > 0) colors.error else colors.success
     val deltaText = if (summary.delta >= 0) {
         "+${AttendancePredictor.formatPct(summary.delta)}"
     } else {
         AttendancePredictor.formatPct(summary.delta)
     }
+    val projectedTone = when {
+        summary.predictedPct >= state.targetPercent -> M3EStatTone.GOOD
+        summary.delta >= 0 -> M3EStatTone.WARNING
+        else -> M3EStatTone.CRITICAL
+    }
 
-    M3ESurfaceCard(
-        containerLevel = SurfaceContainerLevel.LOW,
-        cornerRadius = 24.dp,
-        modifier = modifier.fillMaxWidth()
-    ) {
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            M3EAttendanceSummaryCell(
-                label = "Projected Avg",
-                value = "${AttendancePredictor.formatPct(summary.predictedPct)}%",
-                sub = "Now ${AttendancePredictor.formatPct(summary.currentPct)}%",
-                accent = projectedTone,
-                badge = deltaText,
-                badgeTone = if (summary.delta >= 0) colors.success else colors.error,
-                modifier = Modifier.weight(1f)
-            )
-            M3EAttendanceSummaryCell(
-                label = "Total Safe Leaves",
-                value = "${summary.totalSafeBunks}",
-                sub = "${summary.safeCount} of ${summary.totalCourses} courses safe",
-                accent = colors.success,
-                badge = "classes",
-                badgeTone = colors.success,
-                modifier = Modifier.weight(1f)
-            )
-            M3EAttendanceSummaryCell(
-                label = "Courses At Risk",
-                value = "${summary.atRiskCount}",
-                sub = if (summary.atRiskCount == 0) {
+    val staticStat = M3EStatItem(
+        id = "attendance_projected_avg",
+        label = "Projected Avg",
+        value = "${AttendancePredictor.formatPct(summary.predictedPct)}%",
+        sub = M3EStatSubtitle.fromData(
+            "Now ${AttendancePredictor.formatPct(summary.currentPct)}% · $deltaText"
+        ),
+        tone = projectedTone,
+        icon = Icons.Rounded.Insights
+    )
+
+    val carouselStats = listOf(
+        M3EStatItem(
+            id = "attendance_total_safe_leaves",
+            label = "Total Safe Leaves",
+            value = "${summary.totalSafeBunks}",
+            sub = M3EStatSubtitle.fromData(
+                "${summary.safeCount} of ${summary.totalCourses} courses safe"
+            ),
+            tone = M3EStatTone.GOOD,
+            icon = Icons.Rounded.CheckCircle
+        ),
+        M3EStatItem(
+            id = "attendance_courses_at_risk",
+            label = "Courses At Risk",
+            value = "${summary.atRiskCount}",
+            sub = M3EStatSubtitle.fromData(
+                if (summary.atRiskCount == 0) {
                     "All courses compliant"
                 } else {
                     "Below ${state.targetPercent}%"
-                },
-                accent = riskTone,
-                badge = if (summary.atRiskCount > 0) "under ${state.targetPercent}%" else null,
-                badgeTone = colors.error,
-                modifier = Modifier.weight(1f)
-            )
-            M3EAttendanceSummaryCell(
-                label = "Remaining Days",
-                value = "${summary.remainingDays}",
-                sub = "working days",
-                accent = colors.primary,
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun M3EAttendanceSummaryCell(
-    label: String,
-    value: String,
-    sub: String,
-    accent: Color,
-    badge: String? = null,
-    badgeTone: Color = accent,
-    modifier: Modifier = Modifier
-) {
-    val colors = M3ETheme.colors
-    Column(
-        modifier = modifier.widthIn(min = 140.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(
-            text = label.uppercase(),
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = colors.onSurfaceVariant,
-            letterSpacing = 1.sp,
-            maxLines = 1
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = value,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black,
-                color = accent,
-                maxLines = 1
-            )
-            if (!badge.isNullOrBlank()) {
-                Spacer(Modifier.size(6.dp))
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(badgeTone.copy(alpha = 0.16f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = badge,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = badgeTone,
-                        maxLines = 1
-                    )
                 }
-            }
-        }
-        Text(
-            text = sub,
-            fontSize = 11.sp,
-            lineHeight = 14.sp,
-            color = colors.onSurfaceVariant,
-            maxLines = 2
+            ),
+            tone = if (summary.atRiskCount > 0) M3EStatTone.CRITICAL else M3EStatTone.GOOD,
+            icon = Icons.Rounded.EventBusy
+        ),
+        M3EStatItem(
+            id = "attendance_remaining_days",
+            label = "Remaining Days",
+            value = "${summary.remainingDays}",
+            sub = M3EStatSubtitle.fromData("working days"),
+            tone = M3EStatTone.TERTIARY,
+            icon = Icons.Rounded.CalendarToday
+        ),
+        // delta is a real derived field, so the fourth slide is always backed
+        // by data rather than a placeholder.
+        M3EStatItem(
+            id = "attendance_average_delta",
+            label = "Average Delta",
+            value = deltaText,
+            sub = M3EStatSubtitle.fromData("projected change"),
+            tone = if (summary.delta >= 0) M3EStatTone.GOOD else M3EStatTone.CRITICAL,
+            icon = Icons.Rounded.TrendingUp
+        )
+    )
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        M3EStatCard(
+            stat = staticStat,
+            modifier = Modifier
+                .weight(1f)
+                .height(136.dp)
+        )
+        M3EInsightCarouselCard(
+            items = carouselStats,
+            modifier = Modifier
+                .weight(1f)
+                .height(136.dp)
         )
     }
 }

@@ -50,8 +50,14 @@ import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.ui.strings.Strings
 import com.amazecc.app.shared.utils.QRCodeGenerator
 import com.amazecc.app.shared.utils.SocialUtils
+import com.amazecc.app.shared.utils.encodeQrPng
+import com.amazecc.app.shared.utils.rememberFileSaver
 import com.amazecc.app.shared.config.SlotMap
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -156,6 +162,10 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
 
     var copied by remember { mutableStateOf(false) }
     var codeCopied by remember { mutableStateOf(false) }
+    // D-145: save the very matrix shown above; the platform file saver reports real success.
+    val saveFile = rememberFileSaver()
+    val qrSaveScope = rememberCoroutineScope()
+    var qrSaveNotice by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(copied) {
         if (copied) { delay(2.seconds); copied = false }
@@ -198,6 +208,46 @@ private fun ShareScheduleTab(colors: com.amazecc.app.shared.theme.AmazeColors) {
                     Text("No timetable data", style = AmazeTheme.typography.caption.copy(color = colors.textMuted))
                     Text("Sync your data first", style = AmazeTheme.typography.smallLabel.copy(color = colors.textMuted))
                 }
+            }
+        }
+
+        // D-145: real PNG export of the schedule QR above (no camera / no fake success).
+        if (qrMatrix != null) {
+            Spacer(Modifier.height(AmazeTheme.spacing.sm))
+            AmazeButton(
+                text = "Save QR",
+                icon = Icons.Rounded.Download,
+                onClick = {
+                    val matrix = qrMatrix
+                    if (matrix == null) {
+                        qrSaveNotice = "Could not generate the QR image."
+                    } else {
+                        val bytes = runCatching { encodeQrPng(matrix) }.getOrNull()
+                        if (bytes == null) {
+                            qrSaveNotice = "Could not generate the QR image."
+                        } else {
+                            // File I/O off the UI thread (MediaStore insert + stream write).
+                            qrSaveScope.launch {
+                                val saved = withContext(Dispatchers.IO) { saveFile("amazecc-qr.png", bytes) }
+                                qrSaveNotice = if (saved) {
+                                    "QR saved as amazecc-qr.png."
+                                } else {
+                                    "Could not save the QR image on this device."
+                                }
+                            }
+                        }
+                    }
+                },
+                variant = ButtonVariant.SECONDARY,
+                modifier = Modifier.fillMaxWidth()
+            )
+            qrSaveNotice?.let { notice ->
+                Spacer(Modifier.height(AmazeTheme.spacing.xs))
+                Text(
+                    notice,
+                    style = AmazeTheme.typography.caption.copy(color = colors.textSecondary),
+                    textAlign = TextAlign.Center
+                )
             }
         }
 

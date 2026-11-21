@@ -10,11 +10,22 @@ import android.provider.MediaStore
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
+/** The OS must see a PNG as an image, not a PDF, or the saved file is mislabeled. */
+private fun mimeTypeFor(fileName: String): String = when {
+    fileName.endsWith(".png", ignoreCase = true) -> "image/png"
+    fileName.endsWith(".jpg", ignoreCase = true) || fileName.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+    fileName.endsWith(".json", ignoreCase = true) -> "application/json"
+    fileName.endsWith(".ics", ignoreCase = true) -> "text/calendar"
+    fileName.endsWith(".html", ignoreCase = true) || fileName.endsWith(".htm", ignoreCase = true) -> "text/html"
+    fileName.endsWith(".pdf", ignoreCase = true) -> "application/pdf"
+    else -> "application/octet-stream"
+}
+
 private fun saveToDownloads(context: Context, fileName: String, bytes: ByteArray): Uri? {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val values = ContentValues().apply {
             put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-            put(MediaStore.Downloads.MIME_TYPE, "application/pdf")
+            put(MediaStore.Downloads.MIME_TYPE, mimeTypeFor(fileName))
             put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
         }
         val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return null
@@ -49,7 +60,7 @@ actual fun rememberPdfOpener(): (fileName: String, bytes: ByteArray) -> Boolean 
                 false
             } else {
                 val intent = Intent(Intent.ACTION_VIEW).apply {
-                    setDataAndType(uri, "application/pdf")
+                    setDataAndType(uri, mimeTypeFor(fileName))
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 context.startActivity(Intent.createChooser(intent, "Open $fileName"))

@@ -836,6 +836,7 @@ data class M3EStudentReportState(
 sealed interface M3EStudentReportAction {
     data object ExportPdfReport : M3EStudentReportAction
     data object ExportJsonData : M3EStudentReportAction
+    data object ExportHtmlReport : M3EStudentReportAction
     data object ShareReport : M3EStudentReportAction
     data object Refresh : M3EStudentReportAction
 }
