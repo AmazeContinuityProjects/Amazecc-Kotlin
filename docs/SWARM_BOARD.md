@@ -250,3 +250,7 @@ Format mirrors `SwarmBoard.boardMarkdown()`: `**[id | date] KIND â†’ to â�
 - Durable cache_ffcs_feedback_status survives cold start; profile schema v1 to v2 backfill upgrades existing devices without wiping user settings.
 - Screens read the cached flow; the legacy screen no longer fetches on entry. Verified gate_feedback3 EXIT 0; Critic PASS.
 - Remaining toward full report-export parity: D-157 wire ReportDataAssembler/ReportSerializers into the live PDF/JSON/HTML/Share exports (currently the rich serializers are used only by tests).
+## 2026-11-22 - D-157 live export wiring (committed 3a81a4f)
+- Live PDF/JSON/HTML/Share exports now use one assembled web-parity report snapshot via a pure ReportExportBuilder; real dated filenames, real save/share outcomes, canonical on-screen metrics.
+- UTF-8 preserved in JSON/HTML/Share; PDF keeps its ASCII/WinAnsi contract. Five legacy scalar helpers removed. Verified gate_export2 EXIT 0; Critic PASS.
+- All report-parity D-IDs D-150..D-157 and feedback-sync D-154..D-156 are now implemented, gated, audited and committed.
