@@ -165,3 +165,5 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 - Critic NEEDS_FIXES, all 4 fixed: (MAJOR) MORE button gained navigationBarsPadding so its 172dp uses the same inset baseline as the stack; (MAJOR) nav style now user-selectable - AppState.navBarStyle StateFlow + setNavBarStyle writer, scaffold collects it, Settings > Appearance has a Style row, host/action wired; (MINOR) removed dead appVersion field; (MINOR) saved-tab load no longer strips MORE and allows 4 pins. Re-running gate_overlays5.
 ### [2026-11-21 07:45] session-mother - FINAL GREEN gate_overlays5
 - EXIT 0, all tests pass. All Critic findings fixed and verified. Committing D-131..D-136, then rebuilding APKs.
+### [2026-11-21 07:55] session-mother - FINAL: OVERLAYS WAVE COMPLETE
+- Commit 44ff367 (22 files). gate_overlays5 EXIT 0 (all tests), Critic findings all fixed, debug+release APKs BUILD SUCCESSFUL from final tree. Tree clean after this docs commit. No further edits.
