@@ -218,3 +218,5 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 - Critic FAIL, all fixed: iOS share sheet now anchors its popover on iPad and resolves the top VC via connectedScenes (with window fallback) instead of deprecated keyWindow; legacy Save QR file I/O moved to Dispatchers.IO; removed unreachable malformed deflate fallback in QrImageExport. iOS still cannot be compiled by the central verifier. Re-running gate_generators5.
 ### [2026-11-21 19:00] session-mother - FINAL GREEN gate_generators5
 - EXIT 0, clean compile, all tests. Critic findings fixed. Committing D-144..D-147 then APKs. NOTE: iosMain is not compiled by the central verifier - iOS share-sheet interop needs an Xcode/device build to confirm.
+### [2026-11-21 19:15] session-mother - FINAL: GENERATOR WAVE COMPLETE
+- Commit 8606ce6 (17 files). gate_generators5 EXIT 0, Critic findings fixed, debug+release APKs BUILD SUCCESSFUL. Tree clean after this docs commit. iOS interop still unverified by central runner.
