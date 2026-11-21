@@ -28,18 +28,24 @@ import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.EmbeddedCourseHalf
 import com.amazecc.app.shared.domain.overhaul.CourseDetailTab
 import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
@@ -47,12 +53,22 @@ import com.amazecc.app.shared.domain.overhaul.M3ECourseDetailAction
 import com.amazecc.app.shared.domain.overhaul.M3ECourseDetailState
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
+import com.amazecc.app.shared.ui.m3e.components.SettingsGroupHeader
+import com.amazecc.app.shared.ui.m3e.components.SettingsMenuRow
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
+
+/**
+ * Pure UI selection for the D-134 embedded-course menu. This is local, ephemeral "which row is
+ * expanded" state — no domain data is ever held here; every number comes from the state halves.
+ */
+private enum class CourseEmbeddedPanel {
+    THEORY_LOG, LAB_LOG, THEORY_PREDICTOR, LAB_PREDICTOR
+}
 
 /**
  * Material 3 Expressive Course Detail Hub.
@@ -70,6 +86,8 @@ fun M3ECourseDetailScreen(
     // Compute it here (composable scope) and capture the value; the transitionSpec lambda below
     // is NOT composable and may only return the already-computed transform.
     val tabSwitchTransform = M3ETheme.motion.tabSwitchTransform()
+    // D-134: only the identity of the expanded component panel is local UI state.
+    var selectedEmbeddedPanel by remember { mutableStateOf<CourseEmbeddedPanel?>(null) }
 
     Box(
         modifier = modifier
@@ -166,7 +184,12 @@ fun M3ECourseDetailScreen(
                     transitionSpec = { tabSwitchTransform }
                 ) { tab ->
                     when (tab) {
-                        CourseDetailTab.OVERVIEW -> CourseOverviewSection(state = state)
+                        CourseDetailTab.OVERVIEW -> CourseOverviewSection(
+                            state = state,
+                            selectedEmbeddedPanel = selectedEmbeddedPanel,
+                            onSelectEmbeddedPanel = { selectedEmbeddedPanel = it },
+                            onAction = onAction
+                        )
                         CourseDetailTab.MARKS -> CourseMarksSection(state = state)
                         CourseDetailTab.SYLLABUS -> CourseSyllabusSection(
                             state = state,
@@ -189,7 +212,12 @@ fun M3ECourseDetailScreen(
 }
 
 @Composable
-private fun CourseOverviewSection(state: M3ECourseDetailState) {
+private fun CourseOverviewSection(
+    state: M3ECourseDetailState,
+    selectedEmbeddedPanel: CourseEmbeddedPanel?,
+    onSelectEmbeddedPanel: (CourseEmbeddedPanel) -> Unit,
+    onAction: (M3ECourseDetailAction) -> Unit,
+) {
     val colors = M3ETheme.colors
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -387,6 +415,99 @@ private fun CourseOverviewSection(state: M3ECourseDetailState) {
                 }
             }
         }
+
+        // D-134: web-style course sections menu. Component rows exist only for a real
+        // theory+lab pair; every row either emits a real action or opens a real inline panel.
+        CourseEmbeddedMenuSection(
+            halves = state.halves,
+            attendanceTarget = state.attendanceTarget,
+            selectedEmbeddedPanel = selectedEmbeddedPanel,
+            onSelectEmbeddedPanel = onSelectEmbeddedPanel,
+            onAction = onAction
+        )
+    }
+}
+
+/**
+ * Android-Settings-style menu (plain rows on the surface, never nested cards).
+ *
+ * Rows omitted on purpose — none of these destinations is reachable from this stateless screen
+ * and the state carries no data for a real inline panel: Grades (no published final grade here),
+ * Review Course Details (the overview cards above already show that data), VTOP Course Page
+ * (no uploaded-files payload/URL), QBank (no question-bank payload), Tasks & Homework / Add Task
+ * (no task list or task-creation action on this screen). Adding them would be dead controls.
+ */
+@Composable
+private fun CourseEmbeddedMenuSection(
+    halves: List<EmbeddedCourseHalf>,
+    attendanceTarget: Float,
+    selectedEmbeddedPanel: CourseEmbeddedPanel?,
+    onSelectEmbeddedPanel: (CourseEmbeddedPanel) -> Unit,
+    onAction: (M3ECourseDetailAction) -> Unit,
+) {
+    val pair = embeddedPair(halves)
+
+    if (pair != null) {
+        val (theory, lab) = pair
+        SettingsGroupHeader(title = "Component Logs")
+        SettingsMenuRow(
+            icon = Icons.Rounded.Assessment,
+            title = "Theory Log",
+            subtitle = componentAttendanceText(theory),
+            onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.THEORY_LOG) }
+        )
+        SettingsMenuRow(
+            icon = Icons.Rounded.Assessment,
+            title = "Lab Log",
+            subtitle = componentAttendanceText(lab),
+            onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.LAB_LOG) }
+        )
+        SettingsMenuRow(
+            icon = Icons.Rounded.TrendingUp,
+            title = "Theory Predictor",
+            subtitle = "${theory.marks?.assessments?.size ?: 0} assessments published",
+            onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.THEORY_PREDICTOR) }
+        )
+        SettingsMenuRow(
+            icon = Icons.Rounded.TrendingUp,
+            title = "Lab Predictor",
+            subtitle = "${lab.marks?.assessments?.size ?: 0} assessments published",
+            onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.LAB_PREDICTOR) }
+        )
+    }
+
+    SettingsGroupHeader(title = "Academics")
+    SettingsMenuRow(
+        icon = Icons.Rounded.Book,
+        title = "Marks Breakdown",
+        subtitle = if (pair != null) {
+            "Theory and lab internal marks are credit-weighted"
+        } else {
+            "Internal marks and assessments"
+        },
+        onClick = { onAction(M3ECourseDetailAction.SelectTab(CourseDetailTab.MARKS)) }
+    )
+    SettingsMenuRow(
+        icon = Icons.Rounded.TrendingUp,
+        title = "Grade Predictor",
+        subtitle = "Simulate the final exam score for a target grade",
+        onClick = { onAction(M3ECourseDetailAction.SelectTab(CourseDetailTab.PREDICTOR)) }
+    )
+
+    if (pair != null && selectedEmbeddedPanel != null) {
+        val half = when (selectedEmbeddedPanel) {
+            CourseEmbeddedPanel.THEORY_LOG, CourseEmbeddedPanel.THEORY_PREDICTOR -> pair.first
+            CourseEmbeddedPanel.LAB_LOG, CourseEmbeddedPanel.LAB_PREDICTOR -> pair.second
+        }
+        when (selectedEmbeddedPanel) {
+            CourseEmbeddedPanel.THEORY_LOG, CourseEmbeddedPanel.LAB_LOG ->
+                M3EComponentLogPanel(
+                    half = half,
+                    attendanceTargetPercent = attendanceTarget.toDouble()
+                )
+            CourseEmbeddedPanel.THEORY_PREDICTOR, CourseEmbeddedPanel.LAB_PREDICTOR ->
+                M3EComponentPredictorPanel(half = half)
+        }
     }
 }
 
@@ -395,6 +516,15 @@ private fun CourseMarksSection(state: M3ECourseDetailState) {
     val colors = M3ETheme.colors
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        // Embedded pairs publish one credit-weighted total on one ladder — never a per-half grade.
+        if (embeddedPair(state.halves) != null) {
+            Text(
+                text = "Theory and lab credits are combined into one weighted score on a single grading ladder.",
+                fontSize = 12.sp,
+                color = colors.onSurfaceVariant
+            )
+        }
+
         // Internal Marks Hero Card
         M3ESurfaceCard(
             containerLevel = SurfaceContainerLevel.HIGH,

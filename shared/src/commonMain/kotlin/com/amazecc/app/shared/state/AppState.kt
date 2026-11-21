@@ -102,8 +102,24 @@ object AppState {
     val headerOverride = MutableStateFlow<com.amazecc.app.shared.ui.components.HeaderConfig?>(null)
     private val _headerOverrideOwner = MutableStateFlow<Set<Screen>?>(null)
     
-    private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ACADEMICS, Screen.PROFILE))
+    // D-136: tabScreens prepends HOME, so the default bar is HOME / ACADEMICS / PROFILE / MORE.
+    private val _pinnedNavTabs = MutableStateFlow(listOf(Screen.ACADEMICS, Screen.PROFILE, Screen.MORE))
     val pinnedNavTabs: StateFlow<List<Screen>> = _pinnedNavTabs.asStateFlow()
+
+    // D-131: a reactive owner for the user-selectable nav treatment. The scaffold
+    // collects this, so changing the preference recomposes the whole nav immediately.
+    private val _navBarStyle = MutableStateFlow(
+        SettingsManager.getString("nav_bar_style", "expanding").ifBlank { "expanding" }
+    )
+    val navBarStyle: StateFlow<String> = _navBarStyle.asStateFlow()
+
+    fun setNavBarStyle(style: String) {
+        val normalized = if (style.equals("labelled_docked", ignoreCase = true) ||
+            style.equals("docked", ignoreCase = true)
+        ) "labelled_docked" else "expanding"
+        _navBarStyle.value = normalized
+        SettingsManager.setString("nav_bar_style", normalized)
+    }
 
     private val _isAppLibraryOpen = MutableStateFlow(false)
     val isAppLibraryOpen: StateFlow<Boolean> = _isAppLibraryOpen.asStateFlow()
@@ -476,9 +492,11 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         if (savedNav.isNotEmpty()) {
             val tabs = savedNav.split(",").mapNotNull { name ->
                 try { Screen.valueOf(name) } catch (e: Exception) { null }
-            }.filter { it != Screen.HOME && it != Screen.MORE && it != Screen.ATTENDANCE && it != Screen.LIBRARIES }
+                // D-136: MORE is a default pinned tab, so it must survive a reload like any
+                // other saved pin. HOME is always prepended by tabScreens and stays excluded.
+            }.filter { it != Screen.HOME && it != Screen.ATTENDANCE && it != Screen.LIBRARIES }
             if (tabs.isNotEmpty()) {
-                _pinnedNavTabs.value = tabs.take(3)
+                _pinnedNavTabs.value = tabs.take(4)
             }
         }
     }
@@ -3111,7 +3129,7 @@ val results = supervisorScope {
         _statsCardsOrder.value = listOf("attendance", "cgpa", "credits", "od")
         _enabledStatsCards.value = setOf("attendance", "cgpa", "credits", "od")
         _gpaGoal.value = "9.0"
-        _pinnedNavTabs.value = listOf(Screen.ACADEMICS, Screen.PROFILE)
+        _pinnedNavTabs.value = listOf(Screen.ACADEMICS, Screen.PROFILE, Screen.MORE)
         _updateDialogDismissedVersion.value = ""
         _latestReleaseNotes.value = ""
         _pendingExamSeatAlerts.value = emptyList()

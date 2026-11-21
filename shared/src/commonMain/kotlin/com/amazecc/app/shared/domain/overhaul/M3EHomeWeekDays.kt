@@ -69,7 +69,8 @@ object M3EHomeWeekDays {
                 isHoliday = homeDay.holidayInfo != null,
                 examCount = homeDay.exams.size,
                 holidayName = homeDay.holidayInfo,
-                hasDeadline = homeDay.hasDeadline
+                hasDeadline = homeDay.hasDeadline,
+                detectedDayOrder = homeDay.detectedDayOrder
             )
         }
     }

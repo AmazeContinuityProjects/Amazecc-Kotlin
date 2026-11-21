@@ -107,6 +107,7 @@ import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.LocalMotionReduced
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EBottomStack
 import com.amazecc.app.shared.utils.toFixed
 import com.amazecc.app.shared.vtop.VtopSource
 import kotlinx.coroutines.delay
@@ -292,6 +293,11 @@ fun M3ESyncNotification(
         // ==========================================
         // 1. MINIMIZED FLOATING PILL (ENERGY BAR)
         // ==========================================
+        // D-131: agreed bottom overlay stack (see M3EBottomStack) — nav pill
+        // 24..~92 dp, this sync pill 104..164 dp, end-lane FAB 104..160 dp,
+        // MORE button 172 dp+. Keeping `end = 88.dp` with fillMaxWidth() makes the
+        // pill's box [16, W-88]: clear of the nav vertically and clear of the
+        // FAB's end lane horizontally, while zIndex(100f) stays on the root.
         AnimatedVisibility(
             visible = isMinimized,
             // D-119: all specs come from the composable M3ETheme.motion providers,
@@ -308,7 +314,11 @@ fun M3ESyncNotification(
             Box(
                 modifier = Modifier
                     .navigationBarsPadding()
-                    .padding(bottom = 86.dp, start = 16.dp, end = 16.dp)
+                    .padding(
+                        start = M3EBottomStack.OUTER_GUTTER.dp,
+                        end = M3EBottomStack.SYNC_END_CLEARANCE.dp,
+                        bottom = M3EBottomStack.SYNC_BOTTOM.dp
+                    )
                     .fillMaxWidth()
                     .height(60.dp)
                     .shadow(16.dp, RoundedCornerShape(20.dp), clip = false)

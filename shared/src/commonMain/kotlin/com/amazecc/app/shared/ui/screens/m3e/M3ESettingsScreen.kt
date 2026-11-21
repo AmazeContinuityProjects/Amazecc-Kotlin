@@ -138,18 +138,8 @@ fun M3ESettingsScreen(
                         color = colors.onSurfaceVariant
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(colors.surfaceContainerHigh)
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = state.appVersion,
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                        color = colors.primary
-                    )
-                }
+                // D-135: no "material overhaul" version badge in the header.
+                // The real version lives on the About screen; it is not a setting.
             }
             Spacer(Modifier.height(12.dp))
         }

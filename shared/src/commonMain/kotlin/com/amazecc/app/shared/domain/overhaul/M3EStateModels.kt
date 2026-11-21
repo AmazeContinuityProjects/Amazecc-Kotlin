@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.domain.overhaul
 
 import androidx.compose.runtime.Immutable
+import com.amazecc.app.shared.domain.EmbeddedCourseHalf
 import kotlinx.datetime.LocalDate
 
 /**
@@ -33,7 +34,9 @@ data class M3EWeekDay(
     val examCount: Int = 0,
     val holidayName: String? = null,
     /** An unfinished assignment is due on this date (super-calendar Moodle source). */
-    val hasDeadline: Boolean = false
+    val hasDeadline: Boolean = false,
+    /** Published day-order override for this date (e.g. Saturday follows Monday's timetable). */
+    val detectedDayOrder: com.amazecc.app.shared.utils.AttendanceDay? = null
 )
 
 data class M3EQuickStatsState(
@@ -75,12 +78,23 @@ data class M3EInsightSlide(
     val priorityColorHex: String? = null
 )
 
+/** A real exam paper on the selected home day, shown in place of regular classes. */
+data class M3EHomeExamItem(
+    val courseCode: String,
+    val courseTitle: String,
+    val examSeries: String,
+    val examTime: String,
+    val venue: String,
+    val seatNo: String
+)
+
 data class M3EHomeState(
     val identity: M3EUserIdentityState,
     val weekDays: List<M3EWeekDay>,
     val selectedDayDate: LocalDate,
     val quickStats: M3EQuickStatsState,
     val todayClasses: List<M3EClassTimelineItem>,
+    val todayExams: List<M3EHomeExamItem> = emptyList(),
     val insights: List<M3EInsightSlide>,
     /** Real name of the selected semester from AppState.semesterMap / domain.Semester.name. */
     val semesterName: String = "",
@@ -322,6 +336,10 @@ data class M3ECourseDetailState(
     val syllabusUnits: List<M3ECourseSyllabusUnit> = emptyList(),
     val targetGrade: String = "A",
     val requiredFinalScore: Double? = null,
+    /** Raw theory/lab components of an embedded course; empty for a standalone course. */
+    val halves: List<EmbeddedCourseHalf> = emptyList(),
+    /** The live effective attendance target from the host, not a hardcoded per-course guess. */
+    val attendanceTarget: Float = 75f,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
 )
@@ -1447,7 +1465,6 @@ data class M3ESettingsState(
     val cacheSizeText: String = "0 B",
     val isDiagnosticsRunning: Boolean = false,
     val diagnosticStatus: String? = null,
-    val appVersion: String = "2.4.0 (M3E Overhaul)",
     val classAlertsEnabled: Boolean = true,
     val attendanceAlertsEnabled: Boolean = true,
     val examRemindersEnabled: Boolean = true,
@@ -1470,7 +1487,9 @@ data class M3ESettingsState(
     val homePillStyle: com.amazecc.app.shared.state.HomePillStyle =
         com.amazecc.app.shared.state.HomePillStyle.COMPACT,
     /** Non-null when a settings menu is open; its id is an [allSettingsSections] id. */
-    val openSettingsMenu: String? = null
+    val openSettingsMenu: String? = null,
+    /** User-selectable nav treatment: "expanding" or "labelled_docked". */
+    val navBarStyle: String = "expanding"
 )
 
 sealed interface M3ESettingsAction {
@@ -1508,6 +1527,8 @@ sealed interface M3ESettingsAction {
     data class OpenSettingsMenu(val id: String) : M3ESettingsAction
     /** Returns from a settings detail screen to the grouped menu list. */
     data object CloseSettingsMenu : M3ESettingsAction
+    /** Switches the compact nav bar between expanding and labelled-docked styles. */
+    data class SelectNavBarStyle(val style: String) : M3ESettingsAction
 }
 
 // ==========================================

@@ -253,8 +253,11 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
         )
     }
 
-    val todayClasses = remember(courses, selectedDate, calendarRes) {
-        val attendanceDay = AttendanceTimetable.getAttendanceDayForDate(selectedDate, calendarRes)
+    val todayClasses = remember(courses, selectedDate, calendarRes, weekDays) {
+        // D-132: honour a published day-order override (e.g. Saturday follows Monday's
+        // timetable) so the timetable and the week strip agree on what a day means.
+        val attendanceDay = weekDays.firstOrNull { it.date == selectedDate }?.detectedDayOrder
+            ?: AttendanceTimetable.getAttendanceDayForDate(selectedDate, calendarRes)
         val dayKey = attendanceDay.name // "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"
 
         data class RawSlotEvent(
@@ -328,12 +331,30 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
         }
     }
 
+    // D-132: real papers on the selected date, shown in place of regular classes.
+    val todayExams = remember(academicState, selectedSemId, selectedDate) {
+        com.amazecc.app.shared.utils.ExamUtils.examsForDate(
+            academicState.semesters[selectedSemId]?.exams.orEmpty(),
+            selectedDate
+        ).map { exam ->
+            com.amazecc.app.shared.domain.overhaul.M3EHomeExamItem(
+                courseCode = exam.courseCode,
+                courseTitle = exam.courseTitle,
+                examSeries = exam.examSession,
+                examTime = exam.examTime,
+                venue = exam.venue,
+                seatNo = exam.seatNo
+            )
+        }
+    }
+
     val homeState = M3EHomeState(
         identity = identity,
         weekDays = weekDays,
         selectedDayDate = selectedDate,
         quickStats = quickStats,
         todayClasses = todayClasses,
+        todayExams = todayExams,
         insights = emptyList(),
         isRefreshing = isLoading,
         errorMessage = errorMsg,
@@ -727,6 +748,8 @@ fun M3ECourseDetailScreen(
         assessments = internalAssessments,
         targetGrade = targetGrade,
         requiredFinalScore = requiredFinalScore,
+        halves = course?.halves.orEmpty(),
+        attendanceTarget = attendanceTarget,
         // No structured per-course syllabus-unit payload exists in the app state: the syllabus
         // endpoint streams a PDF only. Never fabricate modules — the screen shows "Not available".
         syllabusUnits = emptyList(),
@@ -1979,6 +2002,7 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
     var visibleSettingsSections = com.amazecc.app.shared.domain.overhaul.settingsSectionsForQuery(settingsSearchQuery)
     // Master-detail settings navigation: null = grouped menu list, otherwise a section id.
     var openSettingsMenu by remember { mutableStateOf<String?>(null) }
+    val navBarStyle by AppState.navBarStyle.collectAsState()
     // System back must first return from a detail screen to the grouped menu;
     // only App.kt's global handler should ever navigate away from Settings.
     AppBackHandler(enabled = openSettingsMenu != null) { openSettingsMenu = null }
@@ -2024,7 +2048,8 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
         apiTargetName = apiTargetName,
         appIconTheme = appIconTheme,
         homePillStyle = AppState.homePillStyle.value,
-        openSettingsMenu = openSettingsMenu
+        openSettingsMenu = openSettingsMenu,
+        navBarStyle = navBarStyle
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -2187,6 +2212,7 @@ fun M3ESettingsScreen(modifier: Modifier = Modifier) {
                     M3ESettingsAction.OpenShortcutsHelp -> AppState.openShortcutsHelp()
                     is M3ESettingsAction.OpenSettingsMenu -> openSettingsMenu = action.id
                     M3ESettingsAction.CloseSettingsMenu -> openSettingsMenu = null
+                    is M3ESettingsAction.SelectNavBarStyle -> AppState.setNavBarStyle(action.style)
                 }
             },
             modifier = modifier

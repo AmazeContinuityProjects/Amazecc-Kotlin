@@ -50,6 +50,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EQuickStatsState
 import com.amazecc.app.shared.domain.overhaul.M3EStatTone
 import com.amazecc.app.shared.domain.overhaul.M3EUserIdentityState
 import com.amazecc.app.shared.domain.overhaul.M3EWeekDay
+import com.amazecc.app.shared.ui.m3e.components.M3EHomeExamTimelineCard
 import com.amazecc.app.shared.ui.m3e.components.M3EInsightCarouselCard
 import com.amazecc.app.shared.ui.m3e.components.M3EStatCard
 import com.amazecc.app.shared.ui.m3e.components.M3EStatItem
@@ -259,8 +260,9 @@ fun M3EHomeScreen(
                 }
             }
 
-            // 5. Classes Timeline — a pending load is not an empty schedule.
-            if (state.isRefreshing && state.todayClasses.isEmpty()) {
+            // 5. Schedule timeline — a pending load is not an empty schedule, and a real
+            //    exam day honestly replaces the lecture list with the day's papers.
+            if (state.isRefreshing && state.todayClasses.isEmpty() && state.todayExams.isEmpty()) {
                 item(key = "loading_classes") {
                     M3ESurfaceCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -290,6 +292,36 @@ fun M3EHomeScreen(
                             }
                         }
                     }
+                }
+            } else if (state.todayExams.isNotEmpty()) {
+                // D-132: the web does not run lectures on a full exam day. Show the real
+                // papers with an honest subtitle instead of a misleading lecture list.
+                item(key = "exam_day_notice") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Warning,
+                            contentDescription = null,
+                            tint = colors.warning,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "No regular lectures on exam day",
+                            color = colors.warning,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                items(
+                    items = state.todayExams,
+                    key = { "${it.courseCode}_${it.examSeries}_${it.examTime}" }
+                ) { exam ->
+                    // Non-clickable: there is no real exam action in M3EHomeAction yet.
+                    M3EHomeExamTimelineCard(item = exam)
                 }
             } else if (state.todayClasses.isEmpty()) {
                 item(key = "empty_classes") {

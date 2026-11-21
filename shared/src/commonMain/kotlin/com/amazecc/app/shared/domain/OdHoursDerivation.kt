@@ -70,17 +70,24 @@ fun totalOdHours(days: List<OdHoursDay>): Int = days.sumOf { it.total }
 
 /**
  * The *raw* per-course attendance rows for the semester that actually carries attendance —
- * deliberately WITHOUT `EmbeddedLinkMerge`.
+ * re-expanded from `Course.halves` so the web's row grain is restored.
  *
  * D-125: the web counts `attendanceRes.attendance` row by row (see
  * `../AmazeCC/src/components/custom/app/useAttendanceState.ts`). An embedded theory/lab pair is two
- * rows with two `slotName`s and two `viewLink`s there. The OD screens used to read
- * `Projections.currentSemesterAttendance`, which runs the snapshot through `EmbeddedLinkMerge`:
- * that merge folds the pair into one row, de-duplicates their logs by `(date, status)` and joins
- * their slots with the theory slot first (`"C1+L31"`). A lab OD period then stopped starting with
- * `L` and was charged 1h instead of 2h, and a second OD log on a shared date vanished entirely.
+ * rows with two `slotName`s and two `viewLink`s there.
+ *
+ * D-133: the snapshot the app stores is *already merged*. `VtopIngestor.fromLegacy()` runs
+ * `EmbeddedLinkMerge.mergeSnapshot` at ingest time, folding the pair into one `Course` whose
+ * `halves` retain the original per-component rows. Production never holds an unmerged snapshot, so
+ * "raw" here does not mean "unmerged" — it means re-expanding each merged course into one row per
+ * half, built from that half's OWN slot and OWN logs (i.e. before the merge's `(date, status)`
+ * de-duplication). Going through `Course.asAttendance()` instead yields a single `"C1+L31"` row:
+ * the merged slot no longer starts with `L` (lab charged 1h instead of 2h) and the merge dropped
+ * any second OD log that two halves shared on a date. Fields a half does not carry (venue,
+ * faculty, category) fall back to the parent course.
+ *
  * The widget, which reads the unmerged `SemesterData`, never had that bug — which is exactly why
- * the two surfaces disagreed. Counting the raw rows keeps every consumer on the web's grain.
+ * the two surfaces disagreed. Counting these re-expanded rows keeps every consumer on the web's grain.
  */
 internal fun rawReportingAttendance(snapshot: DomainSnapshot): List<CourseAttendance> {
     val semester = snapshot.academics.semesters.values
@@ -89,7 +96,36 @@ internal fun rawReportingAttendance(snapshot: DomainSnapshot): List<CourseAttend
             compareBy<Semester> { it.courses.values.count { c -> c.attendance != null } }
                 .thenBy { it.id }
         ) ?: return emptyList()
-    return semester.courses.values.map { it.asAttendance() }
+    return semester.courses.values.flatMap { course ->
+        if (course.halves.isEmpty()) {
+            listOf(course.asAttendance())
+        } else {
+            course.halves.map { half -> half.asReportingAttendance(parent = course) }
+        }
+    }
+}
+
+/**
+ * One [CourseAttendance] row from an embedded half's own slot and logs. Only fields the half does
+ * not carry fall back to the merged [parent] course; crucially the slot stays the half's raw slot
+ * (so an `L31` half still reads as a 2h lab) and the logs stay the half's own, un-deduplicated ones.
+ */
+private fun EmbeddedCourseHalf.asReportingAttendance(parent: Course): CourseAttendance {
+    val att = attendance
+    return CourseAttendance(
+        courseCode = code,
+        courseTitle = title,
+        courseType = type,
+        slotName = slots.joinToString("+"),
+        slotVenue = parent.venue,
+        faculty = parent.faculty ?: "",
+        credits = credits ?: parent.credits,
+        category = parent.category,
+        attendedClasses = att?.attended ?: 0,
+        totalClasses = att?.total ?: 0,
+        attendancePercentage = att?.percentage ?: "",
+        logs = att?.logs.orEmpty(),
+    )
 }
 
 /** Web-parity OD days straight from the synced snapshot, one raw course row at a time. */

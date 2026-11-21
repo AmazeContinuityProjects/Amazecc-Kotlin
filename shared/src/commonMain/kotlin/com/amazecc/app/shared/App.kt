@@ -370,11 +370,18 @@ fun App() {
                     // Reachable entry point for the academic report from More. No dead control:
                     // the button pushes the overlay whose host performs the real exports.
                     if (currentScreen == Screen.MORE && !timetableOpen && !reportOpen && !commandPaletteIsOpen) {
+                        // D-131: agreed bottom stack — nav pill 24..~92 dp, sync pill
+                        // 104..164 dp, end-lane FAB 104..160 dp, this button 172 dp+.
+                        // Lifting the end-aligned button above the whole sync band keeps
+                        // it clear of both the pill (now [16, W-88]) and the FAB lane.
                         Button(
                             onClick = { AppState.pushOverlay(STUDENT_REPORT_OVERLAY_ID) },
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
-                                .padding(bottom = 104.dp, end = 16.dp)
+                                // This Box has no system-bar inset of its own: establish the
+                                // same inset bottom (B) baseline the rest of M3EBottomStack uses.
+                                .navigationBarsPadding()
+                                .padding(bottom = M3EBottomStack.MORE_BOTTOM.dp, end = 16.dp)
                                 .heightIn(min = 48.dp)
                         ) {
                             Text("Academic report")

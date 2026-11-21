@@ -181,4 +181,75 @@ class OdHoursWebParityTest {
         assertEquals(setOf("C1", "L31"), rows.map { it.slotName }.toSet())
         assertEquals(3, totalOdHours(deriveOdHoursDays(rows)))
     }
+
+    // ── D-133: the PRODUCTION grain — the stored snapshot is already merged ──────────
+
+    @Test
+    fun mergedEmbeddedCourseReexpandsBothHalvesAndCountsTheoryOneLabTwoOnSharedDate() {
+        // VtopIngestor.fromLegacy() runs EmbeddedLinkMerge.mergeSnapshot at ingest time, so the
+        // Course the app stores is ONE merged row: its two raw components live in `halves`, and
+        // the merged attendance has already de-duplicated their On Duty logs by (date, status).
+        // Both halves report On Duty on the SAME date — the web counts a 1h C1 row and a 2h L31
+        // row; EmbeddedLinkMerge would have collapsed them into a single "C1+L31" log.
+        val date = "2026-11-02"
+        val theoryLog = AttendanceDay(date, "On Duty")
+        val labLog = AttendanceDay(date, "On Duty")
+        val theoryHalf = EmbeddedCourseHalf(
+            code = "BCSE203E",
+            title = "Database Systems",
+            type = "Embedded Theory",
+            half = "T",
+            slots = listOf("C1"),
+            attendance = Attendance(logs = listOf(theoryLog)),
+        )
+        val labHalf = EmbeddedCourseHalf(
+            code = "BCSE203E(L)",
+            title = "Database Systems Lab",
+            type = "Embedded Lab",
+            half = "L",
+            slots = listOf("L31"),
+            attendance = Attendance(logs = listOf(labLog)),
+        )
+        val snapshot = DomainSnapshot(
+            academics = Academics(
+                semesters = mapOf(
+                    "S1" to Semester(
+                        id = "S1",
+                        courses = mapOf(
+                            "BCSE203E" to Course(
+                                code = "BCSE203E",
+                                title = "Database Systems",
+                                type = "Embedded Theory and Lab",
+                                slots = listOf("C1", "L31"),
+                                // The merge's combinedAttendance de-duplicates the shared date.
+                                attendance = Attendance(
+                                    logs = listOf(theoryLog, labLog).distinctBy { it.date to it.status },
+                                ),
+                                halves = listOf(theoryHalf, labHalf),
+                                isEmbeddedMerged = true,
+                                linkedBaseCode = "BCSE203E",
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        val rows = rawReportingAttendance(snapshot)
+        // Two separate rows, each with its own raw slot — never one merged "C1+L31" row.
+        assertEquals(2, rows.size)
+        assertEquals(setOf("C1", "L31"), rows.map { it.slotName }.toSet())
+
+        val days = deriveOdDaysFromSnapshot(snapshot)
+        val day = days.single()
+        assertEquals(date, day.date)
+        assertEquals(2, day.entries.size)
+        assertEquals(3, day.total)
+        assertEquals(3, totalOdHours(days))
+        // Theory (C1) is 1h TH; lab (L31) is 2h LAB — both counted on the shared date.
+        assertEquals(
+            setOf("TH" to 1, "LAB" to 2),
+            day.entries.map { it.type to it.hours }.toSet(),
+        )
+    }
 }

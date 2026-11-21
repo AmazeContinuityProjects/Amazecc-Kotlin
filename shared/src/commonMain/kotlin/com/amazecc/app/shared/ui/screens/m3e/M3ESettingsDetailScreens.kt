@@ -92,6 +92,19 @@ fun M3ESettingsDetailScreen(
 
                 SettingsGroupHeader(title = "Identity")
                 AppIconChoiceRow(state = state, onAction = onAction)
+
+                // D-131: make both nav treatments user-selectable, not just persisted.
+                SettingsGroupHeader(title = "Navigation bar")
+                SettingsSegmentedRow(
+                    title = "Style",
+                    subtitle = "Expanding floats and reveals the selected label; labelled docks to the bottom.",
+                    items = listOf("expanding", "labelled_docked"),
+                    selectedItem = state.navBarStyle,
+                    onItemSelected = { onAction(M3ESettingsAction.SelectNavBarStyle(it)) },
+                    labelProvider = {
+                        if (it == "labelled_docked") "Labelled (docked)" else "Expanding"
+                    }
+                )
             }
 
             "privacy" -> {

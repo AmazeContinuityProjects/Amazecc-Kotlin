@@ -148,3 +148,20 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 - EXIT 0, all tests pass. All Critic findings fixed and verified. Committing D-128..D-130, then rebuilding APKs.
 ### [2026-11-21 03:25] session-mother - FINAL: HOME WAVE COMPLETE
 - Commit 523c528 (12 files). gate_home_wave5 EXIT 0 (all tests), Critic findings all fixed, debug+release APKs BUILD SUCCESSFUL from final tree. Tree clean after this docs commit. No further edits.
+### [2026-11-21 03:40] session-mother - CLAIM/EDIT (wave D-131..D-136)
+- User items: (1) nav bar - restore expanding version or offer two variants (labelled+docked vs icon-only+floating), fix sync-pill/FAB/nav overlap; (2) home - exam card in place of classes, apply overridden day order (esp Saturday); (3) OD hours - lab 2h + same-day theory+lab (D-133 worker done); (4) embedded course subpage per ../AmazeCC CourseDetailSubpage (Theory/Lab logs + predictors, shared marks/grades, QBank, Add Task); (5) remove 2.4.0 overhaul badge (DONE); (6) default pinned tabs HOME/ACADEMICS/PROFILE/MORE (DONE).
+- Mother owns M3EStateBridge.kt + M3EStateModels.kt + AppState.kt wiring, single verifier, commits. Workers: nav (M3EFloatingToolbar/M3EAppScaffold/M3EPageActionsMenu/M3ESyncNotification/App.kt), home exam (M3EHomeScreen + helper/tests), course subpage (M3ECourseDetailScreen + new components/tests). No worker runs Gradle.
+### [2026-11-21 04:05] session-mother - DONE (3 workers) VERIFIER NEXT
+- Workers landed: D-131 nav styles + bottom-stack overlap fix; D-132 home exam card + day-order override; D-134 embedded course subpage menu + per-half panels. Mother wired state/bridge (M3EWeekDay.detectedDayOrder, M3EHomeExamItem/todayExams, M3ECourseDetailState.halves + live attendanceTarget), fixed the AttendanceDay package, and did D-135/D-136 earlier. No worker ran Gradle. Running gate_overlays1 now.
+### [2026-11-21 07:05] session-mother - FIX gate_overlays1 + RE-GATE
+- Compile RED (23 diagnostics, all from mother wiring): (1) CourseEmbeddedMenuSection needed attendanceTarget threaded as a param instead of referencing out-of-scope state; (2) examsForDate lives in object ExamUtils so needed ExamUtils.examsForDate qualification. Fixed both. Re-running gate_overlays2.
+### [2026-11-21 07:10] session-mother - FIX gate_overlays2 + RE-GATE
+- M3EComponentPredictorPanel has no attendanceTargetPercent parameter (only the log panel does); removed the argument from its call site. Re-running gate_overlays3.
+### [2026-11-21 07:15] session-mother - FIX gate_overlays3 + RE-GATE
+- Main sources GREEN; test compile RED on one invalid import: androidx.compose.ui.test.onNode does not exist here (onNode is a v2 receiver extension used without import in M3ESettingsScreenUiTest). Removed the import. Re-running gate_overlays4.
+### [2026-11-21 07:22] session-mother - RESULT gate_overlays4 (GREEN)
+- EXIT 0: BUILD SUCCESSFUL in 6m24s, clean compile, all tests pass. D-131..D-136 landed. Launching independent Critic audit before commit.
+### [2026-11-21 07:40] session-mother - CRITIC FIXES + RE-GATE
+- Critic NEEDS_FIXES, all 4 fixed: (MAJOR) MORE button gained navigationBarsPadding so its 172dp uses the same inset baseline as the stack; (MAJOR) nav style now user-selectable - AppState.navBarStyle StateFlow + setNavBarStyle writer, scaffold collects it, Settings > Appearance has a Style row, host/action wired; (MINOR) removed dead appVersion field; (MINOR) saved-tab load no longer strips MORE and allows 4 pins. Re-running gate_overlays5.
+### [2026-11-21 07:45] session-mother - FINAL GREEN gate_overlays5
+- EXIT 0, all tests pass. All Critic findings fixed and verified. Committing D-131..D-136, then rebuilding APKs.

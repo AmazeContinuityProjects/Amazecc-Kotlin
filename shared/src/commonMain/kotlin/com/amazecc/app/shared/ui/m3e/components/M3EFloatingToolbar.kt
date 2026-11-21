@@ -1,7 +1,13 @@
 package com.amazecc.app.shared.ui.m3e.components
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -34,35 +40,64 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.amazecc.app.shared.domain.overhaul.M3EDestination
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
+ * D-131: the two compact-window navigation treatments.
+ *
+ * - [EXPANDING] is the restored M3E pill: unselected destinations are icon-only
+ *   and the selected one animates its label in with the project's motion tokens.
+ * - [LABELLED_DOCKED] keeps every label visible and docks the bar flush to the
+ *   scaffold's inset bottom edge, full width.
+ *
+ * The expanded-window rail ignores this value: it is always a labelled vertical
+ * rail so wide windows keep their established layout.
+ */
+enum class M3ENavBarStyle { EXPANDING, LABELLED_DOCKED }
+
+/**
  * Material 3 Expressive floating navigation, sourced from M3E specification §9.6.
  *
- * D-119: this is the *single* nav implementation used by [M3EFloatingToolbar]'s
- * host scaffold. It renders a compact horizontal bar (icon above label, like a
- * Material NavigationBar) on small windows and a vertical rail on expanded
- * windows. Every item is a labelled [clickableA11y] target of at least 48 dp;
- * labels are always visible so icon-only buttons never regress again.
+ * D-131: [M3ENavBarStyle.EXPANDING] is the default so users get the nice old
+ * behaviour back; [M3ENavBarStyle.LABELLED_DOCKED] preserves the always-labelled
+ * bar for anyone who prefers it. Every item stays a labelled [clickableA11y]
+ * target of at least 48 dp: when the text is hidden the destination name is
+ * still exposed as the merged node's content description.
  */
 @Composable
 fun M3EFloatingToolbar(
     currentDestination: M3EDestination,
     onDestinationSelected: (M3EDestination) -> Unit,
     modifier: Modifier = Modifier,
-    useRail: Boolean = false
+    useRail: Boolean = false,
+    style: M3ENavBarStyle = M3ENavBarStyle.EXPANDING,
+    destinations: List<M3EDestination> = M3EDestination.entries
 ) {
     val colors = M3ETheme.colors
-    val containerShape = RoundedCornerShape(28.dp)
+    // A docked bar is a surface that meets the bottom edge; the expanding bar
+    // stays a floating pill with all four corners rounded and no shadow.
+    val docked = !useRail && style == M3ENavBarStyle.LABELLED_DOCKED
+    val containerShape = if (docked) {
+        RoundedCornerShape(
+            topStart = 28.dp,
+            topEnd = 28.dp,
+            bottomStart = 0.dp,
+            bottomEnd = 0.dp
+        )
+    } else {
+        RoundedCornerShape(28.dp)
+    }
 
     if (useRail) {
         // Expanded windows: vertical rail. The host aligns this to CenterStart
         // and reserves space for it so content never sits underneath.
         Box(
             modifier = modifier
+                .zIndex(101f)
                 .clip(containerShape)
                 .background(colors.surfaceContainerHighest.copy(alpha = 0.95f))
                 .border(1.dp, colors.outlineVariant.copy(alpha = 0.4f), containerShape)
@@ -70,41 +105,53 @@ fun M3EFloatingToolbar(
             contentAlignment = Alignment.TopCenter
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                M3EDestination.entries.forEach { destination ->
+                destinations.forEach { destination ->
                     M3EToolbarItem(
                         destination = destination,
                         icon = iconFor(destination),
                         isSelected = destination == currentDestination,
                         onClick = { onDestinationSelected(destination) },
-                        rail = true
+                        rail = true,
+                        style = style
                     )
                 }
             }
         }
     } else {
-        // Compact / medium windows: horizontal floating bar.
+        // Compact / medium windows: horizontal bar. Docked fills the width and
+        // drops the toolbar's own gutter; expanding keeps the floating pill.
         Box(
             modifier = modifier
+                .zIndex(101f)
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 12.dp),
+                .padding(
+                    horizontal = if (docked) 0.dp else 8.dp,
+                    vertical = if (docked) 0.dp else 12.dp
+                ),
             contentAlignment = Alignment.Center
         ) {
             Row(
                 modifier = Modifier
+                    .then(if (docked) Modifier.fillMaxWidth() else Modifier)
                     .clip(containerShape)
                     .background(colors.surfaceContainerHighest.copy(alpha = 0.95f))
                     .border(1.dp, colors.outlineVariant.copy(alpha = 0.4f), containerShape)
-                    .padding(horizontal = 6.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    .padding(horizontal = 6.dp, vertical = if (docked) 10.dp else 6.dp),
+                horizontalArrangement = if (docked) {
+                    Arrangement.SpaceEvenly
+                } else {
+                    Arrangement.spacedBy(2.dp)
+                },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                M3EDestination.entries.forEach { destination ->
+                destinations.forEach { destination ->
                     M3EToolbarItem(
                         destination = destination,
                         icon = iconFor(destination),
                         isSelected = destination == currentDestination,
                         onClick = { onDestinationSelected(destination) },
-                        rail = false
+                        rail = false,
+                        style = style
                     )
                 }
             }
@@ -126,7 +173,8 @@ private fun M3EToolbarItem(
     icon: ImageVector,
     isSelected: Boolean,
     onClick: () -> Unit,
-    rail: Boolean
+    rail: Boolean,
+    style: M3ENavBarStyle
 ) {
     val colors = M3ETheme.colors
     val interactionSource = remember { MutableInteractionSource() }
@@ -150,14 +198,27 @@ private fun M3EToolbarItem(
         label = "ToolbarItemContent"
     )
 
-    // 56 dp tall / 60 dp (bar) or 168 dp (rail) wide: the touch target includes
-    // the padding because clickableA11y is applied before the padding modifier.
+    // D-131: only the expanding compact pill animates its horizontal padding;
+    // docked compact items and rail items keep their fixed, stable footprint.
+    val expandingPill = !rail && style == M3ENavBarStyle.EXPANDING
+    val horizontalPadding by animateDpAsState(
+        targetValue = when {
+            expandingPill && isSelected -> 20.dp
+            expandingPill -> 16.dp
+            else -> 8.dp
+        },
+        animationSpec = M3ETheme.motion.spatialDefault(),
+        label = "ToolbarItemPadding"
+    )
+
+    // 56 dp tall / 60–168 dp wide (56 dp icon-only when expanding): the touch
+    // target includes the padding because clickableA11y is applied before it.
     val itemModifier = Modifier
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
         }
-        .clip(RoundedCornerShape(18.dp))
+        .clip(if (expandingPill) RoundedCornerShape(28.dp) else RoundedCornerShape(18.dp))
         .background(activeBgColor)
         .clickableA11y(
             onClickLabel = destination.label,
@@ -165,52 +226,96 @@ private fun M3EToolbarItem(
             onClick = onClick
         )
         .defaultMinSize(
-            minWidth = if (rail) 168.dp else 60.dp,
+            minWidth = when {
+                rail -> 168.dp
+                expandingPill -> 56.dp
+                else -> 60.dp
+            },
             minHeight = 56.dp
         )
-        .padding(horizontal = 8.dp, vertical = 6.dp)
+        .padding(
+            horizontal = if (expandingPill) horizontalPadding else 8.dp,
+            vertical = 6.dp
+        )
 
-    if (rail) {
-        Row(
-            modifier = itemModifier,
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null, // parent clickableA11y owns the label
-                tint = contentColor,
-                modifier = Modifier.size(22.dp)
-            )
-            Text(
-                text = destination.label,
-                color = contentColor,
-                fontSize = 13.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                maxLines = 1,
-                softWrap = false
-            )
+    when {
+        rail -> {
+            Row(
+                modifier = itemModifier,
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null, // parent clickableA11y owns the label
+                    tint = contentColor,
+                    modifier = Modifier.size(22.dp)
+                )
+                Text(
+                    text = destination.label,
+                    color = contentColor,
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
         }
-    } else {
-        Column(
-            modifier = itemModifier,
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null, // parent clickableA11y owns the label
-                tint = contentColor,
-                modifier = Modifier.size(20.dp)
-            )
-            Text(
-                text = destination.label,
-                color = contentColor,
-                fontSize = 10.sp,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                maxLines = 1,
-                softWrap = false
-            )
+
+        style == M3ENavBarStyle.LABELLED_DOCKED -> {
+            Column(
+                modifier = itemModifier,
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null, // parent clickableA11y owns the label
+                    tint = contentColor,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = destination.label,
+                    color = contentColor,
+                    fontSize = 10.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
+
+        else -> {
+            // D-131: restored expanding pill — unselected items are icon-only,
+            // the selected item animates its label in with the M3E motion tokens.
+            Row(
+                modifier = itemModifier,
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null, // parent clickableA11y owns the label
+                    tint = contentColor,
+                    modifier = Modifier.size(20.dp)
+                )
+                AnimatedVisibility(
+                    visible = isSelected,
+                    enter = expandHorizontally(animationSpec = M3ETheme.motion.spatialDefault()) +
+                        fadeIn(animationSpec = M3ETheme.motion.effectsDefault()),
+                    exit = shrinkHorizontally(animationSpec = M3ETheme.motion.spatialDefault()) +
+                        fadeOut(animationSpec = M3ETheme.motion.effectsDefault())
+                ) {
+                    Text(
+                        text = destination.label,
+                        color = contentColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                }
+            }
         }
     }
 }
@@ -245,6 +350,18 @@ private fun M3EFloatingToolbarRailPreview() {
             currentDestination = M3EDestination.TIMETABLE,
             onDestinationSelected = {},
             useRail = true
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun M3EFloatingToolbarDockedPreview() {
+    AmazeM3ETheme(isDark = false) {
+        M3EFloatingToolbar(
+            currentDestination = M3EDestination.HOME,
+            onDestinationSelected = {},
+            style = M3ENavBarStyle.LABELLED_DOCKED
         )
     }
 }

@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import com.amazecc.app.shared.ui.screens.m3e.M3EBottomStack
 
 /**
  * D-116 / D-124: one M3E page-actions menu, used wherever a header used to expose
@@ -318,7 +319,14 @@ private fun M3EPageActionMenuItem(
 
 private val MENU_SHAPE = RoundedCornerShape(20.dp)
 private val MENU_GAP = 4.dp
+
+/*
+ * D-131: agreed bottom overlay stack (see M3EBottomStack) — nav pill 24..~92 dp,
+ * sync pill 104..164 dp in the middle lane, this FAB 104..160 dp in the end lane,
+ * MORE button 172 dp+. The FAB's end lane [W-72, W-16] is outside the sync pill's
+ * [16, W-88], so raising it to 104 dp clears both the nav and the sync band.
+ */
 /** End inset matching DESIGN.md's 16 px outer gutter. */
-private val FAB_END_INSET = 16.dp
-/** Bottom inset clearing the centred nav pill (≈80 dp pill + 12 dp lift). */
-private val FAB_BOTTOM_INSET = 96.dp
+private val FAB_END_INSET = M3EBottomStack.FAB_END.dp
+/** Bottom inset clearing the centred nav pill and the sync band. */
+private val FAB_BOTTOM_INSET = M3EBottomStack.FAB_BOTTOM.dp
