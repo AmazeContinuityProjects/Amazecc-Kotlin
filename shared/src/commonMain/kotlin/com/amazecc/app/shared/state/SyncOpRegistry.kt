@@ -183,7 +183,8 @@ object SyncOpRegistry {
         ),
         "feedbackStatus" to SyncOp(
             "feedbackStatus", SyncOpAuth.VTOP,
-            meta = SyncOpMeta("Feedback status", "Course feedback completion status.", SyncOpCategory.CAMPUS, SyncOpCost.LIGHT),
+            // D-155: canonical fetch is POST /api/ffcs with section=feedback — not a standalone route.
+            meta = SyncOpMeta("Feedback status", "Course feedback completion status, fetched via POST /api/ffcs (section=feedback).", SyncOpCategory.CAMPUS, SyncOpCost.LIGHT),
         ),
         "calendarsList" to SyncOp(
             "calendarsList", SyncOpAuth.VTOP,

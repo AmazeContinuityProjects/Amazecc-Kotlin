@@ -30,6 +30,7 @@ import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SocialApiError
 import com.amazecc.app.shared.state.SocialClient
 import com.amazecc.app.shared.state.SocialVisibility
+import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ContentData
@@ -1086,8 +1087,16 @@ fun M3EClubDetailScreenHost(modifier: Modifier = Modifier) {
 // 9. Feedback Status
 // ============================================================================
 
+/**
+ * Feedback status is synced centrally ([SyncModule.FEEDBACK_STATUS]); this host only reads the
+ * cached [AppState.feedbackStatus] flow. Refresh asks the central sync to retry that one module.
+ * [onRefreshFeedback] is injectable so the wiring can be tested without a central sweep.
+ */
 @Composable
-fun M3EFeedbackStatusScreenHost(modifier: Modifier = Modifier) {
+fun M3EFeedbackStatusScreenHost(
+    modifier: Modifier = Modifier,
+    onRefreshFeedback: () -> Unit = { AppState.refreshFeedbackStatus() }
+) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     // Participate in the app's state/sync path: the feedback payload now arrives via AppState,
     // sourced from POST /api/ffcs with {semesterId, section: "feedback"} (legacy alias
@@ -1143,9 +1152,7 @@ fun M3EFeedbackStatusScreenHost(modifier: Modifier = Modifier) {
             onAction = { action ->
                 when (action) {
                     is M3EFeedbackStatusAction.SelectSemester -> selectedSemester = action.value
-                    is M3EFeedbackStatusAction.Refresh -> {
-                        selectedSemester?.let { AppState.refreshFeedbackStatus(it) }
-                    }
+                    is M3EFeedbackStatusAction.Refresh -> onRefreshFeedback()
                     is M3EFeedbackStatusAction.Back -> backTo(Screen.ACADEMICS)
                 }
             },

@@ -175,6 +175,9 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
     // Last-known FFCS registration slot (used for change detection + reminder re-scheduling)
     const val CACHE_FFCS_REG_INFO = "cache_ffcs_reg_info"
 
+    // D-154: last-known FFCS feedback status, mirrored from AppDataStore for cold starts
+    const val CACHE_FFCS_FEEDBACK_STATUS = "cache_ffcs_feedback_status"
+
     // Custom attendance target percentage (overrides bus subscriber / standard defaults)
     const val KEY_CUSTOM_ATTENDANCE_TARGET = "custom_attendance_target_pct"
 

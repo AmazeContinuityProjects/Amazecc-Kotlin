@@ -34,7 +34,13 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonEncoder
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.builtins.ListSerializer
 import com.amazecc.app.shared.utils.AnalyzeCalendar
 import com.amazecc.app.shared.utils.FacultyUtils
@@ -149,13 +155,92 @@ private data class AttendanceSyncResponse(
     val message: String? = null
 )
 
-/** Slice of `POST /api/ffcs` used by the feedback-status wire path. */
+/**
+ * D-154: the combined `POST /api/ffcs` `section=all` wire contract. Only the feedback
+ * slice is consumed here; every other slice stays an opaque [JsonObject] so this decoder
+ * does not depend on (or duplicate) the other FFCS parsers. `section=feedback` answers
+ * with the status object at the top level instead — both shapes are handled by
+ * [extractFeedbackStatus].
+ */
 @Serializable
+private data class FfcsAllResponse(
+    val success: Boolean = true,
+    val registrationSchedule: JsonObject? = null,
+    val feedbackStatus: JsonObject? = null,
+    val feedback: JsonObject? = null,
+    val wishlist: JsonObject? = null,
+    val schedule: JsonObject? = null,
+    val qcmView: JsonObject? = null
+)
+
+/** Lenient JSON for the feedback slice only, so unrelated FFCS fields are ignored. */
+private val ffcsStatusJson = Json { ignoreUnknownKeys = true }
+
+/**
+ * D-154: the single rule that turns any `POST /api/ffcs` body into a [FeedbackStatusRes].
+ * Mirrors the web `extractDetailedFeedbackStatus`: a `feedbackStatus` member wins when
+ * present (including an explicit null), otherwise the whole body *is* the status. A
+ * missing, corrupt or unexpected shape yields null — no status is ever fabricated.
+ * kotlinx.serialization preserves non-ASCII semester labels / feedback rows verbatim.
+ */
+internal fun extractFeedbackStatus(body: JsonElement): FeedbackStatusRes? {
+    if (body !is JsonObject) return null
+    // Read the member directly rather than gating on a full FfcsAllResponse decode: unrelated
+    // FFCS slices may be arrays/scalars on the wire, and must not hide a valid status slice.
+    // An explicit `feedbackStatus: null` is JsonNull here — present, so it wins and yields null.
+    val candidate = body["feedbackStatus"] ?: body
+    if (candidate !is JsonObject) return null
+    return runCatching {
+        ffcsStatusJson.decodeFromJsonElement(FeedbackStatusRes.serializer(), candidate)
+    }.getOrNull()
+}
+
+/** Slice of `POST /api/ffcs` used by the feedback-status wire path. */
+@Serializable(with = FfcsFeedbackResponseSerializer::class)
 private data class FfcsFeedbackResponse(
     val success: Boolean = true,
     val feedbackStatus: FeedbackStatusRes? = null,
     val error: String? = null
 )
+
+/**
+ * D-154: decode [FfcsFeedbackResponse] from the whole FFCS body so [extractFeedbackStatus]
+ * is the only extraction rule. Callers keep their typed `success` / `feedbackStatus`
+ * accessors; the fetch path in [AmazeClient.getFeedbackStatus] is otherwise untouched.
+ */
+private object FfcsFeedbackResponseSerializer : KSerializer<FfcsFeedbackResponse> {
+    override val descriptor: SerialDescriptor = JsonObject.serializer().descriptor
+
+    override fun deserialize(decoder: Decoder): FfcsFeedbackResponse {
+        val body = (decoder as? JsonDecoder)?.runCatching { decodeJsonElement() }?.getOrNull()
+        if (body !is JsonObject) return FfcsFeedbackResponse(success = false)
+        val envelope = runCatching {
+            ffcsStatusJson.decodeFromJsonElement(FfcsAllResponse.serializer(), body)
+        }.getOrNull()
+        val success = envelope?.success
+            ?: (body["success"] as? JsonPrimitive)?.booleanOrNull
+            ?: true
+        val error = (body["error"] as? JsonPrimitive)?.content
+            ?: (body["message"] as? JsonPrimitive)?.content
+        return FfcsFeedbackResponse(
+            success = success,
+            feedbackStatus = extractFeedbackStatus(body),
+            error = error
+        )
+    }
+
+    override fun serialize(encoder: Encoder, value: FfcsFeedbackResponse) {
+        if (encoder !is JsonEncoder) return
+        val status = value.feedbackStatus?.let {
+            runCatching { ffcsStatusJson.encodeToJsonElement(FeedbackStatusRes.serializer(), it) }.getOrNull()
+        }
+        encoder.encodeJsonElement(buildJsonObject {
+            put("success", value.success)
+            value.error?.let { put("error", it) }
+            if (status != null) put("feedbackStatus", status)
+        })
+    }
+}
 
 /**
  * Pure mapping from one LOCAL `StudentGradeHistory` scrape to the server's `AllGradesRes`

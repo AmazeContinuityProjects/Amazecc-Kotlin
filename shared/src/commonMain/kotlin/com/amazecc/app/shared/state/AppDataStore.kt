@@ -132,9 +132,35 @@ object AppDataStore {
     val odDetails: StateFlow<OdDetailsRes?> = _odDetails.asStateFlow()
     fun setOdDetails(res: OdDetailsRes?) { _odDetails.value = res }
 
+    /**
+     * D-154: the feedback status is mirrored to [SettingsManager.CACHE_FFCS_FEEDBACK_STATUS]
+     * so it survives a cold start. It deliberately stays out of [AppDataSnapshot], avoiding a
+     * schema migration; [restore] reloads the mirror before the snapshot is read.
+     */
     private val _feedbackStatus = MutableStateFlow<FeedbackStatusRes?>(null)
     val feedbackStatus: StateFlow<FeedbackStatusRes?> = _feedbackStatus.asStateFlow()
-    fun setFeedbackStatus(res: FeedbackStatusRes?) { _feedbackStatus.value = res }
+
+    /** Set the flow and mirror the payload to disk (a null payload removes the mirror). */
+    fun setFeedbackStatus(res: FeedbackStatusRes?) {
+        _feedbackStatus.value = res
+        if (res == null) {
+            SettingsManager.remove(SettingsManager.CACHE_FFCS_FEEDBACK_STATUS)
+            return
+        }
+        runCatching {
+            SettingsManager.setString(
+                SettingsManager.CACHE_FFCS_FEEDBACK_STATUS,
+                json.encodeToString(FeedbackStatusRes.serializer(), res)
+            )
+        }
+    }
+
+    /** Reload the flow from disk; a missing/corrupt payload leaves it null — never fabricated. */
+    private fun restoreFeedbackStatusFromCache() {
+        val cached = SettingsManager.getNullableString(SettingsManager.CACHE_FFCS_FEEDBACK_STATUS)
+            ?.let { runCatching { json.decodeFromString(FeedbackStatusRes.serializer(), it) }.getOrNull() }
+        _feedbackStatus.value = cached
+    }
 
     // ── On-demand action results ────────────────────────────────────────────
     // Transient by design: receipt details and downloaded binaries are fetched only when the
@@ -232,6 +258,7 @@ object AppDataStore {
      * [SnapshotCodec] and re-persisted (see docs/features/schemas/03-migration.md).
      */
     fun restore() {
+        restoreFeedbackStatusFromCache()
         val raw = SettingsManager.getNullableString(SettingsManager.CACHE_APP_DATA)
         if (raw != null) {
             val decoded = runCatching { Encryption.decryptOrPlain(raw) }.getOrNull()
@@ -264,6 +291,7 @@ object AppDataStore {
             runCatching { decodeSnapshot(decoded) }.getOrNull() ?: AppDataSnapshot()
         )
         restoreGradesFromCache(restored.academic.publishedCgpa)
+        restoreFeedbackStatusFromCache()
         return restored
     }
 
@@ -308,6 +336,7 @@ object AppDataStore {
     fun clear() {
         _data.value = AppDataSnapshot()
         _allGrades.value = null
+        _feedbackStatus.value = null
     }
 
     /** Directly replaces the whole snapshot (backup import). */

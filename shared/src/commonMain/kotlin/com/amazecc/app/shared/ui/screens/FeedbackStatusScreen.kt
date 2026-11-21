@@ -31,11 +31,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.FeedbackSemester
+import com.amazecc.app.shared.model.FeedbackStatusRes
 import com.amazecc.app.shared.model.FeedbackTableRow
-import com.amazecc.app.shared.repository.SessionManager
-import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
@@ -46,10 +44,6 @@ import com.amazecc.app.shared.ui.components.bouncySpring
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.screens.m3e.M3EStateBridge
 import com.amazecc.app.shared.utils.toFixed
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 
 private data class SemesterFeedbackState(
     val semester: FeedbackSemester,
@@ -63,26 +57,30 @@ fun FeedbackStatusScreen() {
     val isDark = M3EStateBridge.isDarkThemeActive()
     AmazeM3ETheme(isDark = isDark) {
         val colors = AmazeTheme.colors
-        val scope = rememberCoroutineScope()
+        // Feedback status is synced centrally (SyncModule.FEEDBACK_STATUS). This screen only
+        // reads the cached AppState.feedbackStatus flow — there is no page-local fetch.
+        val feedbackRes by AppState.feedbackStatus.collectAsState()
+        val isSyncing by AppState.isLoading.collectAsState()
+        val selectedAppSemester by AppState.selectedSemester.collectAsState()
+        val semesterMap by AppState.semesterMap.collectAsState()
+
         var semestersData by remember { mutableStateOf<List<SemesterFeedbackState>>(emptyList()) }
-        var loading by remember { mutableStateOf(true) }
-        var error by remember { mutableStateOf<String?>(null) }
         var selectedSemValue by remember { mutableStateOf<String?>(null) }
+
+        val loading = isSyncing || feedbackRes == null
+        val error = feedbackRes?.error?.takeIf { it.isNotBlank() }
+
+        LaunchedEffect(feedbackRes) {
+            val mapped = mapCachedFeedbackStatus(feedbackRes, semesterMap, selectedAppSemester)
+            semestersData = mapped
+            if (selectedSemValue == null) {
+                selectedSemValue = mapped.firstOrNull { it.semester.selected }?.semester?.value
+                    ?: mapped.firstOrNull()?.semester?.value
+            }
+        }
 
         AppBackHandler {
             if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS)
-        }
-
-        LaunchedEffect(Unit) {
-            refreshSession()
-            loadFeedback { data, err ->
-                semestersData = data
-                error = err
-                loading = false
-                if (data.isNotEmpty()) {
-                    selectedSemValue = data.firstOrNull { it.semester.selected }?.semester?.value ?: data.firstOrNull()?.semester?.value
-                }
-            }
         }
 
         Column(modifier = Modifier.fillMaxSize().background(colors.background)) {
@@ -92,18 +90,7 @@ fun FeedbackStatusScreen() {
                 showBackButton = true,
                 showSyncButton = true,
                 enabledScreens = setOf(Screen.FEEDBACK_STATUS),
-                onRefresh = {
-                    scope.launch {
-                        loading = true
-                        error = null
-                        refreshSession()
-                        loadFeedback { data, err ->
-                            semestersData = data
-                            error = err
-                            loading = false
-                        }
-                    }
-                }
+                onRefresh = { AppState.refreshFeedbackStatus() }
             )
 
             HeaderSpacer()
@@ -270,120 +257,36 @@ fun FeedbackStatusScreen() {
     }
 }
 
-private suspend fun refreshSession() {
-    val creds = SettingsManager.getCredentials() ?: return
-    try {
-        val loginRes = AmazeClient.login(creds.first, creds.second)
-        if (loginRes.success && loginRes.cookies != null && loginRes.csrf != null && loginRes.authorizedID != null) {
-            SessionManager.saveSession(
-                cookies = loginRes.cookies,
-                csrf = loginRes.csrf,
-                authorizedID = loginRes.authorizedID,
-                clubToken = loginRes.clubToken
+/**
+ * Maps the centrally-synced [FeedbackStatusRes] cache onto this screen's existing row/semester
+ * state. No network path: semester names fall back to the local academic cache, and the cached
+ * feedback table supplies the real status rows. A null cache maps to an empty list so the screen
+ * shows its existing loading/empty copy instead of a fabricated status.
+ */
+private fun mapCachedFeedbackStatus(
+    res: FeedbackStatusRes?,
+    semesterMap: Map<String, String>,
+    selectedSemester: String?
+): List<SemesterFeedbackState> {
+    if (res == null) return emptyList()
+    val academic = AppDataStore.academic.value
+    val semesters = res.semesters.orEmpty().ifEmpty {
+        academic.semesters.keys.map { id ->
+            FeedbackSemester(
+                text = semesterMap[id] ?: AppState.deriveSemesterName(id),
+                value = id,
+                selected = id == selectedSemester
             )
-            SettingsManager.setString(SettingsManager.SESSION_COOKIES, loginRes.cookies)
-            SettingsManager.setString(SettingsManager.SESSION_CSRF, loginRes.csrf)
-            SettingsManager.setString(SettingsManager.SESSION_AUTHORIZED_ID, loginRes.authorizedID)
-            loginRes.clubToken?.let { SettingsManager.setString(SettingsManager.SESSION_CLUB_TOKEN, it) }
         }
-    } catch (_: Exception) { }
-}
-
-private suspend fun loadFeedback(onResult: (List<SemesterFeedbackState>, String?) -> Unit) {
-    try {
-        // ── Prefer locally-cached data for the semester list ──
-        val academic = AppDataStore.academic.value
-        val localSemIds = academic.semesters.keys.toList()
-
-        val selectedSem = AppState.selectedSemester.value
-        val sems: List<FeedbackSemester>
-        val initialSelectedIdx: Int
-        if (localSemIds.isNotEmpty()) {
-            sems = localSemIds.map { semId ->
-                val name = AppState.semesterMap.value[semId] ?: AppState.deriveSemesterName(semId)
-                FeedbackSemester(text = name, value = semId, selected = semId == selectedSem)
-            }
-            initialSelectedIdx = sems.indexOfFirst { it.selected }
-        } else {
-            val initialRes = AmazeClient.getFeedbackStatus()
-            sems = initialRes.semesters ?: emptyList()
-            initialSelectedIdx = sems.indexOfFirst { it.selected }
-        }
-
-        val stateList = coroutineScope {
-            sems.mapIndexed { idx, sem ->
-                async {
-                    // Feedback is per semester, not per course: one status set per semester
-                    // covering Course (Mid/End) and Curriculum (Mid/End) submissions.
-                    val localGradeList = academic.semesters[sem.value]?.courses?.values?.toList()
-                    var courseCount = localGradeList?.size ?: 0
-
-                    var midCourseGiven = false
-                    var teeCourseGiven = false
-                    var midCurrGiven = false
-                    var teeCurrGiven = false
-
-                    val statusOf = { given: Boolean -> if (given) "Given" else "Not Given" }
-
-                    if (localGradeList != null) {
-                        // Local course list available — fetch only the per-semester statuses
-                        try {
-                            val gradesRes = AmazeClient.getGrades(sem.value)
-                            if (gradesRes.success && gradesRes.feedback != null) {
-                                midCourseGiven = gradesRes.feedback.MidSem?.Course == true
-                                teeCourseGiven = gradesRes.feedback.EndSem?.Course == true
-                                midCurrGiven = gradesRes.feedback.MidSem?.Curriculum == true
-                                teeCurrGiven = gradesRes.feedback.EndSem?.Curriculum == true
-                            }
-                        } catch (_: Exception) { }
-                    } else {
-                        // No local data — try the network for the course list and statuses
-                        try {
-                            val gradesRes = AmazeClient.getGrades(sem.value)
-                            if (gradesRes.success && !gradesRes.effectiveGrades.isNullOrEmpty()) {
-                                courseCount = gradesRes.effectiveGrades.filter {
-                                    !it.basketTitle.isNullOrBlank() && it.basketTitle != "Course Title"
-                                }.size
-                                midCourseGiven = gradesRes.feedback?.MidSem?.Course == true
-                                teeCourseGiven = gradesRes.feedback?.EndSem?.Course == true
-                                midCurrGiven = gradesRes.feedback?.MidSem?.Curriculum == true
-                                teeCurrGiven = gradesRes.feedback?.EndSem?.Curriculum == true
-                            }
-                        } catch (_: Exception) { }
-                    }
-
-                    val finalRows = if (courseCount > 0 ||
-                        midCourseGiven || teeCourseGiven || midCurrGiven || teeCurrGiven
-                    ) {
-                        listOf(
-                            FeedbackTableRow(
-                                feedbackType = "Course Feedback",
-                                midSemester = statusOf(midCourseGiven),
-                                teeSemester = statusOf(teeCourseGiven)
-                            ),
-                            FeedbackTableRow(
-                                feedbackType = "Curriculum Feedback",
-                                midSemester = statusOf(midCurrGiven),
-                                teeSemester = statusOf(teeCurrGiven)
-                            )
-                        )
-                    } else {
-                        emptyList()
-                    }
-
-                    SemesterFeedbackState(
-                        sem,
-                        finalRows,
-                        courseCount = courseCount,
-                        isExpanded = (idx == initialSelectedIdx || idx == 0)
-                    )
-                }
-            }.awaitAll()
-        }
-
-        onResult(stateList, null)
-    } catch (e: Exception) {
-        onResult(emptyList(), e.message)
+    }
+    val rows = res.feedbackTable.orEmpty()
+    return semesters.map { sem ->
+        SemesterFeedbackState(
+            semester = sem,
+            rows = rows,
+            courseCount = academic.semesters[sem.value]?.courses?.size ?: 0,
+            isExpanded = sem.selected || sem.value == selectedSemester
+        )
     }
 }
 

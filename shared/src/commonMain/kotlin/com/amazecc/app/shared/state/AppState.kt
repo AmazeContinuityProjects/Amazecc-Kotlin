@@ -1672,6 +1672,11 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             }
                         }
                     }
+                    // D-156: manual Sync (Quick/Daily/Weekly/...) steps include FEEDBACK_STATUS,
+                    // so the mode sweep must run the same canonical module pipeline as Sync All.
+                    if (SyncModule.FEEDBACK_STATUS in sweepModules) {
+                        jobs += async { syncFeedbackStatusModule(sem) }
+                    }
                     if (SyncModule.MOODLE in sweepModules) {
                         jobs += async {
                             val creds = SettingsManager.getMoodleCredentials()
@@ -1714,6 +1719,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     /** D-029: single-module retry — re-run one module immediately from the progress sheet. */
     fun retryModule(module: SyncModule) {
         if (_isLoading.value) return
+        // D-156: feedback has a real single-module pipeline. The generic empty-block launchSweep
+        // would mark the module ERROR ("No result reported by module") without ever fetching.
+        if (module == SyncModule.FEEDBACK_STATUS) {
+            refreshFeedbackStatus()
+            return
+        }
         launchSweep(setOf(module))
     }
 
@@ -2068,15 +2079,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                                 update = { AppDataStore.setOdDetails(it) }
                             )
                         },
-                        async {
-                            syncModule(
-                                name = "Feedback Status",
-                                fetch = { AmazeClient.getFeedbackStatus(sem) },
-                                isSuccess = { it.success && it.error == null },
-                                errorMessage = { it.error ?: "Feedback status unavailable" },
-                                update = { AppDataStore.setFeedbackStatus(it) }
-                            )
-                        },
+                        async { syncFeedbackStatusModule(sem) },
                         async {
                             val anyIdentityEnabled = ConsolidatedIdentityModuleNames.any { name ->
                                 SyncEngine.moduleOf(name)?.let { SyncEngine.isModuleEnabled(it) } ?: false
@@ -2756,6 +2759,34 @@ val results = supervisorScope {
         }
     }
 
+    /**
+     * D-156 test seam: the single feedback fetch entry point. Production behaviour is unchanged;
+     * tests swap in a fake to prove the module pipeline actually executes. The default is restored
+     * by each test in its own `finally` block.
+     */
+    internal var feedbackStatusFetcher: suspend (String) -> FeedbackStatusRes = { AmazeClient.getFeedbackStatus(it) }
+
+    /**
+     * D-156: the one canonical feedback module pipeline, shared by [loadAllData], [loadMode] and
+     * the targeted [refreshFeedbackStatus] retry, so no path can drift into a page-local fetch.
+     */
+    internal suspend fun syncFeedbackStatusModule(sem: String): SyncModuleResult = syncModule(
+        name = "Feedback Status",
+        fetch = { feedbackStatusFetcher(sem) },
+        isSuccess = { it.success && it.error == null },
+        errorMessage = { it.error ?: "Feedback status unavailable" },
+        update = { AppDataStore.setFeedbackStatus(it) }
+    )
+
+    /** D-156: working targeted refresh — a real single-module sweep with a reported result. */
+    fun refreshFeedbackStatus(semesterId: String? = null) {
+        if (_isLoading.value) return
+        val sem = semesterId ?: _selectedSemester.value
+        launchSweep(setOf(SyncModule.FEEDBACK_STATUS)) {
+            updateSyncSummary(listOf(syncFeedbackStatusModule(sem)))
+        }
+    }
+
     fun refreshOdDetails(semesterId: String) {
         if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
         launchSweep(setOf(SyncModule.OD_DETAILS)) {
@@ -2765,22 +2796,6 @@ val results = supervisorScope {
                 isSuccess = { it.success && it.error == null },
                 errorMessage = { it.error ?: "OD details unavailable" },
                 update = { AppDataStore.setOdDetails(it) }
-            )
-            _error.value = if (result.success) null else result.message
-            updateSyncSummary(listOf(result))
-        }
-    }
-
-    fun refreshFeedbackStatus(semesterId: String? = null) {
-        if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
-        val sem = semesterId ?: _selectedSemester.value.takeIf { it.isNotBlank() }
-        launchSweep(setOf(SyncModule.FEEDBACK_STATUS)) {
-            val result = syncModule(
-                name = "Feedback Status",
-                fetch = { AmazeClient.getFeedbackStatus(sem) },
-                isSuccess = { it.success && it.error == null },
-                errorMessage = { it.error ?: "Feedback status unavailable" },
-                update = { AppDataStore.setFeedbackStatus(it) }
             )
             _error.value = if (result.success) null else result.message
             updateSyncSummary(listOf(result))
@@ -3909,7 +3924,7 @@ private fun StudentIdentity.hasProfileDetail(): Boolean =
     registrationFields.isNotEmpty() || registrationTables.isNotEmpty() ||
     universityDayTitle != null || universityDayFields.isNotEmpty() || universityDayTables.isNotEmpty()
 
-private data class SyncModuleResult(
+internal data class SyncModuleResult(
     val name: String,
     val success: Boolean,
     val message: String? = null

@@ -184,6 +184,9 @@ val DAILY_STEPS: List<SyncModeStep> = listOf(
     step(SyncModule.TIMETABLE, everyDays = 1),
     step(SyncModule.MARKS, everyDays = 1),
     step(SyncModule.HOSTEL_DETAILS, background = true, everyDays = 1),
+    // D-155: feedback is part of the FFCS fetch on every manual tier. Weekly inherits this step
+    // directly; monthly/quarterly carry the same 7-day cadence in their own step lists.
+    step(SyncModule.FEEDBACK_STATUS, background = true, everyDays = 7),
 )
 
 val WEEKLY_STEPS: List<SyncModeStep> = DAILY_STEPS + listOf(
@@ -216,7 +219,9 @@ val MONTHLY_STEPS: List<SyncModeStep> = listOf(
     step(SyncModule.DOCUMENTS, background = true, everyDays = 30),
     step(SyncModule.FREE_CLASSROOMS, background = true, everyDays = 30),
     step(SyncModule.OD_DETAILS, background = true, everyDays = 30),
-    step(SyncModule.FEEDBACK_STATUS, background = true, everyDays = 30),
+    // D-155: kept (MONTHLY_STEPS is standalone, not derived from DAILY_STEPS) but aligned to the
+    // canonical web `ffcs.every = 7` cadence so monthly/quarterly match daily/weekly.
+    step(SyncModule.FEEDBACK_STATUS, background = true, everyDays = 7),
 )
 
 val QUARTERLY_STEPS: List<SyncModeStep> = MONTHLY_STEPS + listOf(
@@ -235,12 +240,13 @@ val BUILT_IN_MODES: List<SyncMode> = listOf(
     SyncMode(
         id = "quick",
         label = "Quick Sync",
-        description = "Attendance, timetable and marks — the per-class check.",
+        description = "Attendance, timetable and marks — the per-class check, plus FFCS feedback status.",
         isBuiltIn = true,
         steps = listOf(
             step(SyncModule.ATTENDANCE),
             step(SyncModule.TIMETABLE),
-            step(SyncModule.MARKS)
+            step(SyncModule.MARKS),
+            step(SyncModule.FEEDBACK_STATUS, background = true, everyDays = 7)
         )
     ),
     SyncMode(
@@ -303,7 +309,7 @@ val BUILT_IN_MODES: List<SyncMode> = listOf(
     SyncMode(
         id = "campus",
         label = "Campus Life",
-        description = "Events, clubs, buses, transport, hostel details, dayboarder and services.",
+        description = "Events, clubs, buses, transport, hostel details, dayboarder and services, plus FFCS feedback status.",
         isBuiltIn = true,
         steps = listOf(
             step(SyncModule.EVENTS),
@@ -315,7 +321,8 @@ val BUILT_IN_MODES: List<SyncMode> = listOf(
             step(SyncModule.PAYMENTS, background = true),
             step(SyncModule.LIBRARY, background = true),
             step(SyncModule.FREE_CLASSROOMS, background = true),
-            step(SyncModule.DOCUMENTS, background = true)
+            step(SyncModule.DOCUMENTS, background = true),
+            step(SyncModule.FEEDBACK_STATUS, background = true, everyDays = 7)
         )
     ),
     SyncMode(
@@ -365,11 +372,12 @@ val DEFAULT_SYNC_PROFILES = listOf(
     ),
     SyncConfigProfile(
         id = "quick_sync",
-        name = "Quick Sync (3 Modules)",
+        name = "Quick Sync (4 Modules)",
         enabledModules = setOf(
             SyncModule.ATTENDANCE,
             SyncModule.TIMETABLE,
-            SyncModule.MARKS
+            SyncModule.MARKS,
+            SyncModule.FEEDBACK_STATUS
         ),
         isBuiltIn = true
     ),
@@ -423,7 +431,7 @@ val DEFAULT_SYNC_PROFILES = listOf(
     ),
     SyncConfigProfile(
         id = "campus_life",
-        name = "Campus Life (8 Modules)",
+        name = "Campus Life (9 Modules)",
         enabledModules = setOf(
             SyncModule.EVENTS,
             SyncModule.CLUBS,
@@ -432,13 +440,14 @@ val DEFAULT_SYNC_PROFILES = listOf(
             SyncModule.HOSTEL_DETAILS,
             SyncModule.DAYBOARDER,
             SyncModule.PAYMENTS,
-            SyncModule.LIBRARY
+            SyncModule.LIBRARY,
+            SyncModule.FEEDBACK_STATUS
         ),
         isBuiltIn = true
     ),
     SyncConfigProfile(
         id = "daily_reload",
-        name = "Daily Reload (9 Modules)",
+        name = "Daily Reload (10 Modules)",
         enabledModules = setOf(
             SyncModule.ATTENDANCE,
             SyncModule.TIMETABLE,
@@ -448,11 +457,55 @@ val DEFAULT_SYNC_PROFILES = listOf(
             SyncModule.CALENDARS_LIST,
             SyncModule.MOODLE,
             SyncModule.CIRCULARS,
-            SyncModule.LMS
+            SyncModule.LMS,
+            SyncModule.FEEDBACK_STATUS
         ),
         isBuiltIn = true
     )
 )
+
+/**
+ * Persisted sync-profile schema version (the *value* stored under
+ * [SettingsManager.KEY_SYNC_PROFILES_VERSION], whose key constant lives in SettingsManager).
+ *
+ * D-155 follow-up: bumped 1 -> 2. v1 devices stored built-in profiles without FEEDBACK_STATUS, and
+ * the old loader only re-unioned defaults when the version key was empty — so upgraded users kept
+ * stale quick_sync / campus_life / daily_reload gating even though the manual mode steps were fixed.
+ * Bumping the value makes [SyncEngine.loadProfiles] run the backfill once on upgrade.
+ */
+internal const val SYNC_PROFILES_SCHEMA_VERSION = "2"
+private const val SYNC_PROFILES_SCHEMA_V1 = "1"
+
+/**
+ * Pure, deterministic profile migration used by [SyncEngine.loadProfiles].
+ *
+ * The shape is always reconciled (built-ins the device never stored are added, user profiles are
+ * kept). The module backfill is version-scoped: a legacy pre-v1 device still gets the original
+ * union of every built-in module, while a v1 -> v2 upgrade backfills **only** FEEDBACK_STATUS so
+ * unrelated user customisations inside built-in profiles survive.
+ */
+internal fun migrateStoredSyncProfiles(
+    stored: List<SyncConfigProfile>,
+    fromVersion: String,
+): List<SyncConfigProfile> {
+    val backfill: (SyncConfigProfile) -> Set<SyncModule> = when (fromVersion) {
+        "" -> { def -> def.enabledModules }
+        SYNC_PROFILES_SCHEMA_V1 -> { _ -> setOf(SyncModule.FEEDBACK_STATUS) }
+        else -> { _ -> emptySet() }
+    }
+    val byId = stored.associateBy { it.id }
+    return DEFAULT_SYNC_PROFILES.map { def ->
+        val existing = byId[def.id]
+        when {
+            existing == null -> def
+            else -> {
+                val added = backfill(def)
+                if (added.isEmpty()) existing
+                else existing.copy(enabledModules = existing.enabledModules + added)
+            }
+        }
+    } + stored.filterNot { it.isBuiltIn }
+}
 
 object SyncEngine {
     private val _activeJobs = MutableStateFlow<Set<Job>>(emptySet())
@@ -758,10 +811,11 @@ object SyncEngine {
         }
     }
 
-    private fun loadProfiles(): List<SyncConfigProfile> {
+    /** Visible to JVM tests so the real v1 -> v2 upgrade path can be exercised deterministically. */
+    internal fun loadProfiles(): List<SyncConfigProfile> {
         val raw = SettingsManager.getString(SettingsManager.KEY_SYNC_PROFILES)
         if (raw.isNullOrBlank()) {
-            SettingsManager.setString(SettingsManager.KEY_SYNC_PROFILES_VERSION, "1")
+            SettingsManager.setString(SettingsManager.KEY_SYNC_PROFILES_VERSION, SYNC_PROFILES_SCHEMA_VERSION)
             return DEFAULT_SYNC_PROFILES
         }
         val stored = try {
@@ -769,20 +823,10 @@ object SyncEngine {
         } catch (_: Exception) {
             DEFAULT_SYNC_PROFILES
         }
-        val byId = stored.associateBy { it.id }
         val version = SettingsManager.getString(SettingsManager.KEY_SYNC_PROFILES_VERSION)
-        // One-time migration: union built-in defaults into stored built-ins so
-        // newly added modules (e.g. MOODLE) appear without undoing later edits.
-        val migrated = DEFAULT_SYNC_PROFILES.map { def ->
-            val existing = byId[def.id]
-            when {
-                existing == null -> def
-                version.isEmpty() -> existing.copy(enabledModules = (existing.enabledModules + def.enabledModules).toSet())
-                else -> existing
-            }
-        } + stored.filterNot { it.isBuiltIn }
-        if (version.isEmpty()) {
-            SettingsManager.setString(SettingsManager.KEY_SYNC_PROFILES_VERSION, "1")
+        val migrated = migrateStoredSyncProfiles(stored, version)
+        if (version != SYNC_PROFILES_SCHEMA_VERSION) {
+            SettingsManager.setString(SettingsManager.KEY_SYNC_PROFILES_VERSION, SYNC_PROFILES_SCHEMA_VERSION)
             saveProfiles(migrated)
         }
         return migrated

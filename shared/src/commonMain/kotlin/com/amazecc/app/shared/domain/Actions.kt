@@ -135,7 +135,11 @@ object Actions {
      */
     fun clearCache(): Result<Unit> = runCatching {
         AppDataStore.clear()
-        SettingsManager.remove(SettingsManager.CACHE_APP_DATA)
+        runCatching { SettingsManager.remove(SettingsManager.CACHE_APP_DATA) }
+        // D-156: the durable FFCS feedback mirror is separate from the app-data snapshot key;
+        // AppDataStore.clear() already resets the in-memory flow, so only the persisted mirror
+        // needs removing here. Guarded so one bad key cannot abort the rest of the clear.
+        runCatching { SettingsManager.remove(SettingsManager.CACHE_FFCS_FEEDBACK_STATUS) }
     }
 
     private const val MODULE_TASKS = "Tasks"
