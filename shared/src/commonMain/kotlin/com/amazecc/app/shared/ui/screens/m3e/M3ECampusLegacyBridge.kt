@@ -1213,7 +1213,9 @@ private fun splitTimetableTime(raw: String?): Pair<String, String> {
 @Composable
 fun M3ETimetableHost(
     modifier: Modifier = Modifier,
-    onClose: () -> Unit = {}
+    onClose: () -> Unit = {},
+    /** Home's full-timetable bottom sheet: renders [M3ETimetableSheet] instead of the screen shell. */
+    sheetMode: Boolean = false
 ) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val selectedSemId by AppState.selectedSemester.collectAsState()
@@ -1224,7 +1226,10 @@ fun M3ETimetableHost(
     var timetableRes by remember {
         mutableStateOf<TimetableRes?>(AmazeClient.fallbackCachedTimetable(selectedSemId))
     }
-    var viewMode by remember { mutableStateOf(TimetableViewMode.SCHEDULE) }
+    var viewMode by remember {
+        mutableStateOf(if (sheetMode) TimetableViewMode.VERTICAL else TimetableViewMode.SCHEDULE)
+    }
+    var denseGrid by remember { mutableStateOf(false) }
     var selectedDayIndex by remember { mutableStateOf(0) }
     var isRefreshing by remember { mutableStateOf(false) }
     var loadError by remember { mutableStateOf<String?>(null) }
@@ -1310,24 +1315,43 @@ fun M3ETimetableHost(
         viewMode = viewMode,
         totalCredits = semester?.courses?.values?.sumOf { it.credits?.toDoubleOrNull()?.toInt() ?: 0 } ?: 0,
         totalCourses = timetableRes?.slots.orEmpty().mapNotNull { it.courseCode }.distinct().size,
-        isLoading = isRefreshing
+        isLoading = isRefreshing,
+        denseGrid = denseGrid
     )
 
-    AmazeM3ETheme(isDark = isDark) {
-        M3ETimetableScreen(
-            state = state,
-            onAction = { action ->
-                when (action) {
-                    is M3ETimetableAction.SelectDay -> selectedDayIndex = action.dayIndex
-                    is M3ETimetableAction.SetViewMode -> viewMode = action.mode
-                    is M3ETimetableAction.SlotClicked -> Unit // the screen already renders slot details
-                    M3ETimetableAction.Refresh -> refreshTimetable()
-                }
-            },
-            modifier = modifier
-        )
+    val onTimetableAction: (M3ETimetableAction) -> Unit = { action ->
+        when (action) {
+            is M3ETimetableAction.SelectDay -> selectedDayIndex = action.dayIndex
+            is M3ETimetableAction.SetViewMode -> viewMode = action.mode
+            is M3ETimetableAction.SetDenseGrid -> denseGrid = action.enabled
+            is M3ETimetableAction.SlotClicked -> Unit // the screen already renders slot details
+            M3ETimetableAction.Refresh -> refreshTimetable()
+        }
     }
-    if (loadError != null) {
+
+    if (sheetMode) {
+        // The sheet owns its own dismissal routes and insets: no page shell, no AppBackHandler.
+        AmazeM3ETheme(isDark = isDark) {
+            M3ETimetableSheet(
+                state = state,
+                onAction = onTimetableAction,
+                onDismiss = onClose,
+                modifier = modifier,
+                errorMessage = loadError
+            )
+        }
+    } else {
+        AmazeM3ETheme(isDark = isDark) {
+            M3ETimetableScreen(
+                state = state,
+                onAction = onTimetableAction,
+                modifier = modifier
+            )
+        }
+    }
+    // In sheet mode the error is rendered inline by M3ETimetableSheet, so never stack a
+    // second Dialog on top of the already-open sheet.
+    if (!sheetMode && loadError != null) {
         AmazeM3ETheme(isDark = isDark) {
             M3EDismissibleSheet(
                 isOpen = true,
@@ -1342,7 +1366,9 @@ fun M3ETimetableHost(
             }
         }
     }
-    AppBackHandler(onBack = onClose)
+    if (!sheetMode) {
+        AppBackHandler(onBack = onClose)
+    }
 }
 
 // ==========================================

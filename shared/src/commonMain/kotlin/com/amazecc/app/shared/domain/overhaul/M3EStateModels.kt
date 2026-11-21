@@ -113,6 +113,8 @@ sealed interface M3EHomeAction {
     data object OpenTimetableHub : M3EHomeAction
     data object OpenAcademicsHub : M3EHomeAction
     data object DismissError : M3EHomeAction
+    /** Home's "View Full Timetable" button opens the timetable bottom sheet. */
+    data object OpenTimetableSheet : M3EHomeAction
 }
 
 // ==========================================
@@ -226,7 +228,9 @@ data class M3ETimetableState(
     val viewMode: TimetableViewMode = TimetableViewMode.SCHEDULE,
     val totalCredits: Int = 0,
     val totalCourses: Int = 0,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    /** Compact density for the dense grids; opt-in so the default stays readable. */
+    val denseGrid: Boolean = false
 )
 
 sealed interface M3ETimetableAction {
@@ -234,6 +238,7 @@ sealed interface M3ETimetableAction {
     data class SetViewMode(val mode: TimetableViewMode) : M3ETimetableAction
     data class SlotClicked(val slot: M3ETimetableSlot) : M3ETimetableAction
     data object Refresh : M3ETimetableAction
+    data class SetDenseGrid(val enabled: Boolean) : M3ETimetableAction
 }
 
 // ==========================================

@@ -1,9 +1,14 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.amazecc.app.shared.domain.Attendance
 import com.amazecc.app.shared.domain.Course
@@ -332,6 +337,30 @@ class M3EHomeScreenUiTest {
         onNodeWithContentDescription("Dismiss error").performClick()
         assertTrue(actions.any { it is M3EHomeAction.RefreshData })
         assertTrue(actions.any { it is M3EHomeAction.DismissError })
+    }
+
+    @Test
+    fun view_timetable_button_emits_open_timetable_sheet_action() = runComposeUiTest {
+        val actions = mutableListOf<M3EHomeAction>()
+
+        setContent {
+            AmazeM3ETheme {
+                M3EHomeScreen(state = sampleState(), onAction = { actions.add(it) })
+            }
+        }
+
+        // "View Timetable" sits in the vertical LazyColumn. The home also has a horizontal
+        // pager that exposes ScrollToIndex, so disambiguate by the vertical scroll axis.
+        val verticalScroller = SemanticsMatcher("vertical scroller") { node ->
+            node.config.contains(SemanticsProperties.VerticalScrollAxisRange)
+        }
+        onNode(hasScrollToNodeAction() and verticalScroller)
+            .performScrollToNode(hasText("View Timetable"))
+        onNodeWithText("View Timetable").performClick()
+
+        assertTrue(actions.any { it is M3EHomeAction.OpenTimetableSheet })
+        // The button must no longer emit the navigation action that opens the Calendar screen.
+        assertTrue(actions.none { it is M3EHomeAction.OpenTimetableHub })
     }
 
     @Test

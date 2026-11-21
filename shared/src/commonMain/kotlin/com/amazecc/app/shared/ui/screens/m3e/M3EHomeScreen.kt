@@ -247,7 +247,7 @@ fun M3EHomeScreen(
                         color = colors.onBackground
                     )
                     TextButton(
-                        onClick = { onAction(M3EHomeAction.OpenTimetableHub) },
+                        onClick = { onAction(M3EHomeAction.OpenTimetableSheet) },
                         modifier = Modifier.heightIn(min = 48.dp)
                     ) {
                         Text(

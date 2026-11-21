@@ -1,7 +1,10 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -373,24 +376,45 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
         semesterName = semesterMap[selectedSemId] ?: currentSem?.name ?: selectedSemId
     )
 
+    // D-160: the home "View Timetable" button opens the full timetable as a modal sheet.
+    // Local UI state only — no screen navigation, so the bottom nav stays mounted behind it.
+    var showTimetableSheet by remember { mutableStateOf(false) }
+
+    // The sheet's LIFO guard requires its id on the overlay stack; without this every
+    // dismissal route (X / swipe / backdrop / Escape / system back) is a no-op.
+    LaunchedEffect(showTimetableSheet) {
+        if (showTimetableSheet) AppState.pushOverlay(HOME_TIMETABLE_OVERLAY_ID)
+        else AppState.popOverlay(HOME_TIMETABLE_OVERLAY_ID)
+    }
+    DisposableEffect(Unit) {
+        onDispose { AppState.popOverlay(HOME_TIMETABLE_OVERLAY_ID) }
+    }
+
     AmazeM3ETheme(isDark = isDark) {
-        M3EHomeScreen(
-            state = homeState,
-            onAction = { action ->
-                when (action) {
-                    is M3EHomeAction.SelectDay -> selectedDate = action.date
-                    is M3EHomeAction.RefreshData -> AppState.loadAllData()
-                    is M3EHomeAction.ClickCourse -> {
-                        AppState.openCourseDetail(action.courseCode)
+        Box(modifier = modifier.fillMaxSize()) {
+            M3EHomeScreen(
+                state = homeState,
+                onAction = { action ->
+                    when (action) {
+                        is M3EHomeAction.SelectDay -> selectedDate = action.date
+                        is M3EHomeAction.RefreshData -> AppState.loadAllData()
+                        is M3EHomeAction.ClickCourse -> {
+                            AppState.openCourseDetail(action.courseCode)
+                        }
+                        is M3EHomeAction.OpenAttendanceHub -> AppState.navigateTo(Screen.ATTENDANCE)
+                        // Kept for the other entry points (bottom nav / More hub / App Library).
+                        is M3EHomeAction.OpenTimetableHub -> AppState.navigateTo(Screen.CALENDAR)
+                        is M3EHomeAction.OpenTimetableSheet -> showTimetableSheet = true
+                        is M3EHomeAction.OpenAcademicsHub -> AppState.navigateTo(Screen.ACADEMICS)
+                        is M3EHomeAction.DismissError -> AppState.dismissError()
                     }
-                    is M3EHomeAction.OpenAttendanceHub -> AppState.navigateTo(Screen.ATTENDANCE)
-                    is M3EHomeAction.OpenTimetableHub -> AppState.navigateTo(Screen.CALENDAR)
-                    is M3EHomeAction.OpenAcademicsHub -> AppState.navigateTo(Screen.ACADEMICS)
-                    is M3EHomeAction.DismissError -> AppState.dismissError()
-                }
-            },
-            modifier = modifier
-        )
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+            if (showTimetableSheet) {
+                M3ETimetableHost(sheetMode = true, onClose = { showTimetableSheet = false })
+            }
+        }
     }
 }
 
