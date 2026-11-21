@@ -420,6 +420,8 @@ private fun iconFor(screen: M3ESubScreen): ImageVector = when (screen) {
     M3ESubScreen.OD_TRACKER -> Icons.Rounded.TaskAlt
     M3ESubScreen.FEEDBACK_STATUS -> Icons.Rounded.RateReview
     M3ESubScreen.QBANK -> Icons.Rounded.Topic
+    // D-153: academic report tile uses the document/report glyph.
+    M3ESubScreen.STUDENT_REPORT -> Icons.Rounded.Description
     M3ESubScreen.HOSTEL -> Icons.Rounded.Hotel
     M3ESubScreen.TRANSPORT -> Icons.Rounded.DirectionsBus
     M3ESubScreen.CAB_SHARE -> Icons.Rounded.DirectionsCar

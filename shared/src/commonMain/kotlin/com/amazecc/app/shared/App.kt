@@ -62,13 +62,11 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 
 /**
- * D-116 / D-115: Screen has no TIMETABLE or STUDENT_REPORT constant, and adding one
- * requires editing AppState.kt (owned by another worker). These named overlay ids
- * give both surfaces a real, back-dismissible route through the existing LIFO stack
- * without touching that file. They are pushed/popped only by this navigation code.
+ * D-116: Screen still has no TIMETABLE constant, so that one surface keeps a named
+ * LIFO overlay id. D-153 moved the academic report to a real Screen route, so it is
+ * no longer an overlay and it keeps the bottom nav bar visible.
  */
 private const val TIMETABLE_OVERLAY_ID = "m3e-timetable"
-private const val STUDENT_REPORT_OVERLAY_ID = "m3e-student-report"
 
 /** The one destination ↔ Screen mapping used by the canonical M3E scaffold. */
 private fun screenForM3eDestination(destination: M3EDestination): Screen = when (destination) {
@@ -84,7 +82,7 @@ private fun m3eDestinationForScreen(screen: Screen): M3EDestination = when (scre
     // D-138: the predictor keeps the Attendance tab lit in the bottom bar.
     Screen.ATTENDANCE, Screen.COURSE_ATTENDANCE, Screen.ATTENDANCE_PREDICTOR -> M3EDestination.ATTENDANCE
     Screen.ACADEMICS, Screen.CURRICULUM, Screen.COURSE_DETAIL, Screen.COURSE_DASHBOARD,
-    Screen.GRADES, Screen.GPA_PREDICTOR -> M3EDestination.ACADEMICS
+    Screen.GRADES, Screen.GPA_PREDICTOR, Screen.STUDENT_REPORT -> M3EDestination.ACADEMICS
     else -> M3EDestination.MORE
 }
 
@@ -206,7 +204,6 @@ fun App() {
                 ) {
                     val overlayStack by AppState.overlayStack.collectAsState()
                     val timetableOpen = TIMETABLE_OVERLAY_ID in overlayStack
-                    val reportOpen = STUDENT_REPORT_OVERLAY_ID in overlayStack
                     val currentDestination = when {
                         timetableOpen -> M3EDestination.TIMETABLE
                         else -> m3eDestinationForScreen(currentScreen)
@@ -222,12 +219,10 @@ fun App() {
                             onDestinationSelected = { destination ->
                                 when (destination) {
                                     M3EDestination.TIMETABLE -> {
-                                        AppState.popOverlay(STUDENT_REPORT_OVERLAY_ID)
                                         AppState.pushOverlay(TIMETABLE_OVERLAY_ID)
                                     }
                                     else -> {
                                         AppState.popOverlay(TIMETABLE_OVERLAY_ID)
-                                        AppState.popOverlay(STUDENT_REPORT_OVERLAY_ID)
                                         AppState.navigateTo(screenForM3eDestination(destination))
                                     }
                                 }
@@ -236,7 +231,7 @@ fun App() {
                             navigationVisible = currentScreen != Screen.LOGIN &&
                                 currentScreen != Screen.SPLASH &&
                                 currentScreen != Screen.ONBOARDING &&
-                                !timetableOpen && !reportOpen
+                                !timetableOpen
                         ) {
                     // Global Spotlight Search Overlay
                     val commandPaletteOpen by AppState.commandPaletteOpen.collectAsState()
@@ -307,6 +302,11 @@ fun App() {
                                 Screen.EXAM_SCHEDULE -> M3EExamScheduleHost()
                                 Screen.CHANGELOG -> M3EChangelogScreenHost()
                                 Screen.HALL_OF_FAME -> M3EHallOfFameScreenHost()
+                                // D-153: normal route — the host owns its state and its
+                                // M3E app bar; back follows the regular AppState back stack.
+                                Screen.STUDENT_REPORT -> M3EStudentReportHost(
+                                    onClose = { AppState.navigateBack(); Unit }
+                                )
                                 Screen.HOME -> M3EHomeScreen()
                                 Screen.ATTENDANCE -> M3EAttendanceScreen()
                                 Screen.ACADEMICS -> M3EAcademicsScreen()
@@ -355,39 +355,13 @@ fun App() {
 
                     } // M3EAppScaffold content — navigation and insets owned by the scaffold.
 
-                    // D-116 / D-115: real full-screen overlay routes on the same LIFO stack.
-                    // Back and each host's close control pop the exact id they pushed.
+                    // D-116: the timetable is the only remaining full-screen LIFO overlay.
+                    // The academic report is a normal Screen route with the nav bar visible.
                     if (timetableOpen) {
                         M3ETimetableHost(
                             modifier = Modifier.fillMaxSize(),
                             onClose = { AppState.popOverlay(TIMETABLE_OVERLAY_ID) }
                         )
-                    }
-                    if (reportOpen) {
-                        M3EStudentReportHost(
-                            modifier = Modifier.fillMaxSize(),
-                            onClose = { AppState.popOverlay(STUDENT_REPORT_OVERLAY_ID) }
-                        )
-                    }
-                    // Reachable entry point for the academic report from More. No dead control:
-                    // the button pushes the overlay whose host performs the real exports.
-                    if (currentScreen == Screen.MORE && !timetableOpen && !reportOpen && !commandPaletteIsOpen) {
-                        // D-131: agreed bottom stack — nav pill 24..~92 dp, sync pill
-                        // 104..164 dp, end-lane FAB 104..160 dp, this button 172 dp+.
-                        // Lifting the end-aligned button above the whole sync band keeps
-                        // it clear of both the pill (now [16, W-88]) and the FAB lane.
-                        Button(
-                            onClick = { AppState.pushOverlay(STUDENT_REPORT_OVERLAY_ID) },
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                // This Box has no system-bar inset of its own: establish the
-                                // same inset bottom (B) baseline the rest of M3EBottomStack uses.
-                                .navigationBarsPadding()
-                                .padding(bottom = M3EBottomStack.MORE_BOTTOM.dp, end = 16.dp)
-                                .heightIn(min = 48.dp)
-                        ) {
-                            Text("Academic report")
-                        }
                     }
 
                     // Material 3 Expressive Sync Notification & Modal (replaces legacy popup)

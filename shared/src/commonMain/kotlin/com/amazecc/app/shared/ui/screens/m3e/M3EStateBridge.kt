@@ -2634,6 +2634,8 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                             M3ESubScreen.OD_TRACKER -> AppState.navigateTo(Screen.OD_TRACKER)
                             M3ESubScreen.FEEDBACK_STATUS -> AppState.navigateTo(Screen.FEEDBACK_STATUS)
                             M3ESubScreen.QBANK -> AppState.navigateTo(Screen.QBANK)
+                            // D-153: the report tile opens the normal, nav-bar-visible route.
+                            M3ESubScreen.STUDENT_REPORT -> AppState.navigateTo(Screen.STUDENT_REPORT)
                             M3ESubScreen.HOSTEL -> AppState.navigateTo(Screen.HOSTEL)
                             M3ESubScreen.TRANSPORT -> AppState.navigateTo(Screen.TRANSPORT)
                             M3ESubScreen.CAB_SHARE -> AppState.navigateTo(Screen.CABSHARE)

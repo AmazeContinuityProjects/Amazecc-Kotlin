@@ -269,5 +269,6 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showSyncButton = false,
         onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
-    Screen.SPLASH, Screen.LOGIN, Screen.ONBOARDING, Screen.HOME, Screen.MORE -> null
+    // D-153: the report supplies its own M3E top app bar; no legacy header is needed.
+    Screen.STUDENT_REPORT, Screen.SPLASH, Screen.LOGIN, Screen.ONBOARDING, Screen.HOME, Screen.MORE -> null
 }

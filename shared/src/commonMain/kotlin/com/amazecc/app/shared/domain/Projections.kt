@@ -146,9 +146,10 @@ object Projections {
 
     /**
      * The semester attendance reports from: most attendance-bearing courses, ties to the higher
-     * semester id. Lifted out so [currentSemesterAttendance] and its tests read as one rule.
+     * semester id. Lifted out so [currentSemesterAttendance], the report's subject dossiers and
+     * their tests all read as one rule: a past grade-only course never becomes an empty dossier.
      */
-    private fun reportingSemester(snapshot: DomainSnapshot): Semester? =
+    fun reportingSemester(snapshot: DomainSnapshot): Semester? =
         snapshot.academics.semesters.values
             .filter { it.courses.values.any { c -> c.attendance != null } }
             .maxWithOrNull(

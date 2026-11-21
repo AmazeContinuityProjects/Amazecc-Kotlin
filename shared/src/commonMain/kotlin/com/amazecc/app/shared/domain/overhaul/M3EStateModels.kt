@@ -1564,6 +1564,8 @@ enum class M3ESubScreen(val label: String, val category: String, val description
     OD_TRACKER("OD Tracker", "Academics", "Track on-duty hours, lab & theory approvals"),
     FEEDBACK_STATUS("Feedback Status", "Academics", "VTOP faculty feedback completion status"),
     QBANK("Question Bank", "Academics", "Previous CAT and FAT exam question papers"),
+    // D-153: reachable More-hub route to the normal Screen.STUDENT_REPORT (ACADEMICS nav tab).
+    STUDENT_REPORT("Academic Report", "Academics", "Student profile, performance, credits and real exports"),
 
     HOSTEL("Hostel & Mess", "Campus Life", "Room details, block info and monthly mess menus"),
     TRANSPORT("Bus Routes & Transit", "Campus Life", "Shuttle timings, pickup points and routes"),

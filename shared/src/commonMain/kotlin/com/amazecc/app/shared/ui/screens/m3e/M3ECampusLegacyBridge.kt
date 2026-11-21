@@ -1,15 +1,6 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -1419,14 +1410,23 @@ private fun m3eBuildReportPdf(lines: List<String>): ByteArray =
     )
 
 /**
- * Stateful host for [M3EStudentReportScreen] (D-115). Every figure comes from the
- * identity and academic caches; export success/error state is written only from a
- * real save or share result — never from a button press alone.
+ * Stateful host for [M3EStudentReportScreen] (D-115, restructured in D-153). Every figure
+ * comes from the identity and academic caches; export success/error state is written only
+ * from a real save or share result — never from a button press alone.
+ *
+ * D-153: this is now a normal screen route. The host owns the M3E top app bar (back via the
+ * regular AppState stack, refresh via the existing Refresh action) and back handling;
+ * the stateless screen owns only the scrollable report body.
+ *
+ * Refresh is a real re-sync of every cache the report reads (the same sweep as the app's
+ * "Sync All"), not an identity-only warm-up that would silently do nothing once identity is
+ * already populated. [onRefreshReportData] is injectable so the wiring can be tested.
  */
 @Composable
 fun M3EStudentReportHost(
     modifier: Modifier = Modifier,
-    onClose: () -> Unit = {}
+    onClose: () -> Unit = { navigateBackOrMore() },
+    onRefreshReportData: () -> Unit = { AppState.loadAllData() }
 ) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val identity by UserStore.identity.collectAsState()
@@ -1499,69 +1499,56 @@ fun M3EStudentReportHost(
         }
     }
 
-    AmazeM3ETheme(isDark = isDark) {
-        Column(modifier = modifier.fillMaxSize()) {
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                IconButton(onClick = onClose) {
-                    Icon(
-                        imageVector = Icons.Rounded.Close,
-                        contentDescription = "Close academic report",
-                        tint = com.amazecc.app.shared.ui.m3e.theme.M3ETheme.colors.onSurface
-                    )
-                }
-                Text(
-                    text = "Academic Report",
-                    color = com.amazecc.app.shared.ui.m3e.theme.M3ETheme.colors.onSurface
-                )
-            }
-            if (!actionNotice.isNullOrBlank()) {
-                Text(
-                    text = actionNotice.orEmpty(),
-                    color = com.amazecc.app.shared.ui.m3e.theme.M3ETheme.colors.primary,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-            M3EStudentReportScreen(
-                state = state,
-                onAction = { action ->
-                    when (action) {
-                        M3EStudentReportAction.ExportPdfReport -> exportPdf()
-                        M3EStudentReportAction.ExportJsonData -> {
-                            scope.launch {
-                                val fileName = "amazecc-student-report.json"
-                                val bytes = m3eReportJson(state).toByteArray()
-                                actionNotice = if (saveFile(fileName, bytes)) {
-                                    "Saved $fileName to Downloads"
-                                } else {
-                                    "Could not save $fileName"
-                                }
-                            }
-                        }
-                        M3EStudentReportAction.ExportHtmlReport -> {
-                            scope.launch {
-                                // Same real rows the PDF/JSON/share paths use; the first row is
-                                // the report's own heading, so it doubles as the HTML title.
-                                val lines = m3eReportLinesForHtml(state)
-                                val html = buildSimpleHtml(lines.first(), lines)
-                                val fileName = "amazecc-student-report.html"
-                                actionNotice = if (saveFile(fileName, html.toByteArray())) {
-                                    "Saved $fileName to Downloads"
-                                } else {
-                                    "Could not save $fileName"
-                                }
-                            }
-                        }
-                        M3EStudentReportAction.ShareReport -> {
-                            val shared = shareText(m3eReportLines(state).joinToString("\n"))
-                            actionNotice = if (shared) "Report handed to the share sheet" else "No app is available to share this report"
-                        }
-                        M3EStudentReportAction.Refresh -> AppState.syncIdentityIfThin()
+    /** One action sink so both the screen and the app bar's Refresh control emit the same actions. */
+    fun handleReportAction(action: M3EStudentReportAction) {
+        when (action) {
+            M3EStudentReportAction.ExportPdfReport -> exportPdf()
+            M3EStudentReportAction.ExportJsonData -> {
+                scope.launch {
+                    val fileName = "amazecc-student-report.json"
+                    val bytes = m3eReportJson(state).toByteArray()
+                    actionNotice = if (saveFile(fileName, bytes)) {
+                        "Saved $fileName to Downloads"
+                    } else {
+                        "Could not save $fileName"
                     }
-                },
-                exportErrorMessage = exportErrorMessage,
-                modifier = Modifier.weight(1f)
-            )
+                }
+            }
+            M3EStudentReportAction.ExportHtmlReport -> {
+                scope.launch {
+                    // Same real rows the PDF/JSON/share paths use; the first row is
+                    // the report's own heading, so it doubles as the HTML title.
+                    val lines = m3eReportLinesForHtml(state)
+                    val html = buildSimpleHtml(lines.first(), lines)
+                    val fileName = "amazecc-student-report.html"
+                    actionNotice = if (saveFile(fileName, html.toByteArray())) {
+                        "Saved $fileName to Downloads"
+                    } else {
+                        "Could not save $fileName"
+                    }
+                }
+            }
+            M3EStudentReportAction.ShareReport -> {
+                val shared = shareText(m3eReportLines(state).joinToString("\n"))
+                actionNotice = if (shared) "Report handed to the share sheet" else "No app is available to share this report"
+            }
+            // The report is assembled from many caches (attendance, grades, curriculum,
+            // finance, OD, events, services). A thin-identity warm-up would be a no-op for
+            // all of them, so Refresh runs the same full sweep as the rest of the app.
+            M3EStudentReportAction.Refresh -> onRefreshReportData()
         }
+    }
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3EStudentReportContent(
+            state = state,
+            onAction = { action -> handleReportAction(action) },
+            onBack = onClose,
+            exportErrorMessage = exportErrorMessage,
+            // Real JSON/HTML/share outcome from the action sink above, never a fabricated success.
+            notice = actionNotice,
+            modifier = modifier
+        )
     }
     AppBackHandler(onBack = onClose)
 }
