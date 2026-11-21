@@ -217,6 +217,12 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showBackButton = true,
         showSyncButton = false
     )
+    Screen.ATTENDANCE_PREDICTOR -> HeaderConfig(
+        title = "Attendance Predictor",
+        description = "Simulate attendance and safe bunk margins",
+        showBackButton = true,
+        showSyncButton = false
+    )
     Screen.SETTINGS -> HeaderConfig(
         title = "App Settings",
         description = "Customize your experience & app preferences",

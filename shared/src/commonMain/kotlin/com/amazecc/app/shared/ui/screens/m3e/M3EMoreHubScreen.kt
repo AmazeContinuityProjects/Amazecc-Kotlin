@@ -404,6 +404,7 @@ private fun FeatureTileCard(
 private fun iconFor(screen: M3ESubScreen): ImageVector = when (screen) {
     M3ESubScreen.ACADEMICS_HUB -> Icons.Rounded.Dashboard
     M3ESubScreen.ATTENDANCE -> Icons.Rounded.EventAvailable
+    M3ESubScreen.ATTENDANCE_PREDICTOR -> Icons.Rounded.TrendingUp
     M3ESubScreen.LIBRARIES -> Icons.AutoMirrored.Rounded.LibraryBooks
     M3ESubScreen.COURSE_DETAIL -> Icons.Rounded.School
     M3ESubScreen.COURSE_ATTENDANCE -> Icons.Rounded.FactCheck

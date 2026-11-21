@@ -18,8 +18,16 @@ import kotlinx.coroutines.launch
 import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.api.SyllabusResult
+import com.amazecc.app.shared.domain.AttendancePredictor
+import com.amazecc.app.shared.domain.CalendarDay
+import com.amazecc.app.shared.domain.CalendarMonth
 import com.amazecc.app.shared.domain.ClassStats
+import com.amazecc.app.shared.domain.DayLike
+import com.amazecc.app.shared.domain.PredictorCourse
+import com.amazecc.app.shared.domain.PredictorDayEvent
+import com.amazecc.app.shared.domain.ScheduleInput
 import com.amazecc.app.shared.domain.asCurveStats
+import com.amazecc.app.shared.domain.buildMilestoneDates
 import com.amazecc.app.shared.model.batchClassStats
 import com.amazecc.app.shared.model.singleClassStats
 import com.amazecc.app.shared.utils.ExportImportManager
@@ -32,6 +40,7 @@ import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.domain.Course
 import com.amazecc.app.shared.domain.splitSlots
 import com.amazecc.app.shared.utils.AttendanceTimetable
+import com.amazecc.app.shared.utils.SlotInfo
 import com.amazecc.app.shared.utils.dialPhoneNumber
 import com.amazecc.app.shared.utils.openExternalUrl
 import com.amazecc.app.shared.model.ExamScheduleRes
@@ -46,6 +55,8 @@ import com.amazecc.app.shared.domain.overhaul.M3EAcademicsAction
 import com.amazecc.app.shared.domain.overhaul.M3EAcademicsState
 import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
 import com.amazecc.app.shared.domain.overhaul.M3EAttendanceAction
+import com.amazecc.app.shared.domain.overhaul.M3EAttendancePredictorAction
+import com.amazecc.app.shared.domain.overhaul.M3EAttendancePredictorState
 import com.amazecc.app.shared.domain.overhaul.M3EAttendanceState
 import com.amazecc.app.shared.domain.overhaul.M3EBunkSummary
 import com.amazecc.app.shared.domain.overhaul.M3EBusRoute
@@ -103,6 +114,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EMarksPredictorState
 import com.amazecc.app.shared.domain.overhaul.M3EMoreHubAction
 import com.amazecc.app.shared.domain.overhaul.M3EMoreHubState
 import com.amazecc.app.shared.domain.overhaul.M3EPalettePreset
+import com.amazecc.app.shared.domain.overhaul.M3EPredictorCalendarDay
 import com.amazecc.app.shared.domain.overhaul.M3EProfileAction
 import com.amazecc.app.shared.domain.overhaul.M3EProfileState
 import com.amazecc.app.shared.domain.overhaul.M3EQuickStatsState
@@ -506,7 +518,333 @@ fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
                     is M3EAttendanceAction.CourseClicked -> {
                         AppState.openCourseDetail(action.courseCode)
                     }
+                    is M3EAttendanceAction.OpenPredictor -> AppState.navigateTo(Screen.ATTENDANCE_PREDICTOR)
                     is M3EAttendanceAction.Refresh -> AppState.loadAllData()
+                }
+            },
+            modifier = modifier
+        )
+    }
+}
+
+// ── D-138: attendance (bunk) predictor ─────────────────────────────────────
+// Small pure helpers shared by the host's derived state. They read only the published
+// calendar so a month's year/order never depends on parsing a display string alone.
+
+private fun predictorMonthYear(month: CalendarMonth): Int =
+    month.label.split(" ").lastOrNull()?.toIntOrNull() ?: 0
+
+private fun predictorMonthNumber(month: CalendarMonth): Int =
+    AttendanceTimetable.parseMonthNumber(month.label) ?: 0
+
+/** The same "instructional day, not a holiday" rule the rest of the app uses for working days. */
+private fun isPredictorWorkingDay(day: CalendarDay): Boolean {
+    val isWorking = day.events.any {
+        val type = it.type.lowercase()
+        val text = it.text.lowercase()
+        type == "instructional day" || text.contains("instructional day") ||
+            text.contains("working") || text.contains("order") ||
+            AttendanceTimetable.getDayOrderLabelFromText(it.text) != null
+    }
+    val isHoliday = day.events.any {
+        val type = it.type.lowercase()
+        val text = it.text.lowercase()
+        type.contains("holiday") || text.contains("holiday") ||
+            text.contains("pooja") || text.contains("vacation")
+    }
+    return isWorking && !isHoliday
+}
+
+@Composable
+fun M3EAttendancePredictorHost(modifier: Modifier = Modifier) {
+    val isDark = M3EStateBridge.isDarkThemeActive()
+    val domain by AppState.domain.collectAsState()
+    val selectedSemId by AppState.selectedSemester.collectAsState()
+    val calendarRes by AppState.calendar.collectAsState()
+    val isLoading by AppState.isLoading.collectAsState()
+    val attendanceTarget = rememberEffectiveAttendanceTarget()
+    // The canonical domain calendar is the same payload AppDataStore.calendar exposes, and it is
+    // the type buildMilestoneDates accepts. Keep the raw CalendarRes only for day-order overrides.
+    val calendarMonths = remember(domain) { domain.schedule.calendar }
+
+    val todayDate = remember {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        LocalDate(now.year, now.monthNumber, now.dayOfMonth)
+    }
+    val todayMillis = remember { Clock.System.now().toEpochMilliseconds() }
+
+    // Real milestone dates from the published calendar (CAT-1, CAT-2, LID lab/theory).
+    val milestoneDates = remember(calendarMonths) { buildMilestoneDates(calendarMonths) }
+
+    var targetPercent by remember { mutableStateOf(attendanceTarget.toInt().coerceIn(1, 100)) }
+    // Keep the persisted setting authoritative: a change in Settings flows back into this host.
+    LaunchedEffect(attendanceTarget) {
+        targetPercent = attendanceTarget.toInt().coerceIn(1, 100)
+    }
+
+    val initialMode = remember(milestoneDates, todayMillis) {
+        when {
+            (milestoneDates.cat1Date ?: 0L) > todayMillis -> "CAT1"
+            (milestoneDates.cat2Date ?: 0L) > todayMillis -> "CAT2"
+            else -> "LID"
+        }
+    }
+    var mode by remember(initialMode) { mutableStateOf(initialMode) }
+
+    // Simulation state is intentionally process-local, matching the web predictor.
+    var dayStates by remember { mutableStateOf<Map<Long, Int>>(emptyMap()) }
+    var courseSkips by remember { mutableStateOf<Map<String, Set<Long>>>(emptyMap()) }
+    var searchQuery by remember { mutableStateOf("") }
+    var filter by remember { mutableStateOf("ALL") }
+    var expandedCourseCode by remember { mutableStateOf<String?>(null) }
+
+    val monthOptions = remember(calendarMonths) {
+        calendarMonths.mapNotNull { mo ->
+            val year = predictorMonthYear(mo)
+            val monthNumber = predictorMonthNumber(mo)
+            if (year > 0 && monthNumber in 1..12) mo else null
+        }.sortedWith(compareBy({ predictorMonthYear(it) }, { predictorMonthNumber(it) }))
+    }
+    // Real timetable day cards, keyed by the weekday token the predictor consumes.
+    val slotMapTyped = remember {
+        SlotMap.map.mapValues { (_, inner) -> inner.mapValues { (_, time) -> SlotInfo(time) } }
+    }
+    val dayCardsMap = remember(domain) {
+        val attendance = com.amazecc.app.shared.domain.Projections.currentSemesterAttendance(domain)
+        AttendanceTimetable.buildAttendanceDayCardsMap(
+            attendance = attendance.map { item ->
+                val shortType = when (item.courseType.lowercase()) {
+                    "embedded theory" -> "ETH"
+                    "embedded lab" -> "ELA"
+                    "theory only" -> "TO"
+                    "lab only" -> "LO"
+                    "soft skill" -> "SS"
+                    else -> item.courseType
+                }
+                mapOf(
+                    "courseCode" to item.courseCode,
+                    "courseTitle" to item.courseTitle,
+                    "courseType" to shortType,
+                    "faculty" to item.faculty,
+                    "slotName" to item.slotName,
+                    "attendancePercentage" to item.attendancePercentage,
+                    "venue" to (item.slotVenue ?: "")
+                )
+            },
+            slotMap = slotMapTyped
+        ).mapKeys { it.key.name }.mapValues { (_, cards) ->
+            cards.map { card ->
+                mapOf(
+                    "courseCode" to (card.courseCode ?: ""),
+                    "courseTitle" to (card.courseTitle ?: ""),
+                    "courseType" to (card.courseType ?: ""),
+                    "slotName" to (card.slotName ?: "")
+                )
+            }
+        }
+    }
+
+    val courseInputs = remember(domain) {
+        com.amazecc.app.shared.domain.Projections.currentSemesterAttendance(domain)
+            .filter { AttendancePredictor.isProjectableCourse(it.courseCode, it.slotName, it.totalClasses) }
+            .map { course ->
+                PredictorCourse(
+                    courseCode = course.courseCode,
+                    courseTitle = course.courseTitle,
+                    courseType = course.courseType,
+                    slotName = course.slotName,
+                    faculty = course.faculty,
+                    attendedClasses = course.attendedClasses,
+                    totalClasses = course.totalClasses
+                )
+            }
+    }
+
+    // Real exams are attached to their day so the predictor's effective-weekday scan sees them.
+    val exams = remember(domain, selectedSemId) {
+        com.amazecc.app.shared.domain.Projections.semesterExams(domain, selectedSemId)
+    }
+    val examEventsByDayKey = remember(exams) {
+        exams.mapNotNull { exam ->
+            val parts = exam.date.split("-")
+            if (parts.size != 3) return@mapNotNull null
+            val year = parts[0].toIntOrNull() ?: return@mapNotNull null
+            val monthNumber = parts[1].toIntOrNull() ?: return@mapNotNull null
+            val day = parts[2].toIntOrNull() ?: return@mapNotNull null
+            val timestamp = AttendancePredictor.makeTimestamp(year, monthNumber - 1, day)
+            AttendancePredictor.dayKey(timestamp) to PredictorDayEvent(
+                title = exam.courseTitle,
+                detail = exam.courseCode
+            )
+        }.groupBy({ it.first }, { it.second })
+    }
+
+    // Every real working day of the published calendar, with its effective (possibly overridden) weekday.
+    val workingDays = remember(monthOptions, examEventsByDayKey, calendarRes) {
+        monthOptions.flatMap { mo ->
+            val year = predictorMonthYear(mo)
+            val monthNumber = predictorMonthNumber(mo)
+            mo.days.filter { isPredictorWorkingDay(it) }.mapNotNull { calendarDay ->
+                val localDate = LocalDate(year, monthNumber, calendarDay.date)
+                val timestamp = AttendancePredictor.makeTimestamp(year, monthNumber - 1, calendarDay.date)
+                val effective = AttendanceTimetable.getAttendanceDayForDate(localDate, calendarRes).name
+                val events = calendarDay.events.map { event ->
+                    PredictorDayEvent(text = event.text, category = event.category, detail = event.type)
+                } + examEventsByDayKey[AttendancePredictor.dayKey(timestamp)].orEmpty()
+                DayLike(date = timestamp, weekday = effective, events = events)
+            }
+        }.sortedBy { it.date }
+    }
+    val effectiveMap = remember(workingDays) { AttendancePredictor.buildEffectiveDayMap(workingDays) }
+
+    val courseResults = remember(
+        courseInputs, mode, workingDays, effectiveMap, dayCardsMap, dayStates,
+        courseSkips, milestoneDates, targetPercent
+    ) {
+        courseInputs.map { course ->
+            val isLab = AttendancePredictor.isLabCourse(course.courseCode, course.courseType)
+            AttendancePredictor.projectCourse(
+                ScheduleInput(
+                    course = course,
+                    dayCardsMap = dayCardsMap,
+                    workingDays = workingDays,
+                    effectiveMap = effectiveMap,
+                    dateStates = dayStates,
+                    skips = AttendancePredictor.skipSetFor(courseSkips, course.courseCode),
+                    ceiling = AttendancePredictor.courseCeiling(mode, isLab, milestoneDates),
+                    lockDate = AttendancePredictor.courseLockDate(mode, isLab, milestoneDates),
+                    threshold = targetPercent.toDouble()
+                )
+            )
+        }
+    }
+    val summary = remember(courseResults, targetPercent) {
+        AttendancePredictor.summarise(courseResults, targetPercent.toDouble())
+    }
+
+    // ALL real working days of the published calendar, bounded by the active milestone. The
+    // stateless calendar derives its month switcher from the labels here, and the per-subject
+    // skipper lists every candidate meeting date from this same list — so this must not be
+    // narrowed to one month. Class counts come from the real timetable day cards.
+    val calendarDays = remember(
+        monthOptions, calendarRes, dayCardsMap, dayStates, todayDate, mode, milestoneDates
+    ) {
+        val ceiling = AttendancePredictor.gridCeiling(mode, milestoneDates)
+            ?.let { AttendancePredictor.startOfDay(it) }
+        monthOptions.flatMap { month ->
+            val year = predictorMonthYear(month)
+            val monthNumber = predictorMonthNumber(month)
+            month.days.filter { isPredictorWorkingDay(it) }.mapNotNull { calendarDay ->
+                val localDate = LocalDate(year, monthNumber, calendarDay.date)
+                val timestamp = AttendancePredictor.makeTimestamp(year, monthNumber - 1, calendarDay.date)
+                val key = AttendancePredictor.startOfDay(timestamp)
+                if (ceiling != null && key > ceiling) return@mapNotNull null
+                val effective = AttendanceTimetable.getAttendanceDayForDate(localDate, calendarRes).name
+                M3EPredictorCalendarDay(
+                    date = key,
+                    dayNumber = calendarDay.date,
+                    monthLabel = month.label,
+                    weekdayShort = localDate.dayOfWeek.name.take(3),
+                    effectiveWeekday = effective,
+                    classCount = dayCardsMap[effective]?.size ?: 0,
+                    isToday = localDate == todayDate,
+                    state = dayStates[key] ?: 0
+                )
+            }
+        }
+    }
+    val monthLabels = remember(calendarDays) { calendarDays.map { it.monthLabel }.distinct() }
+    // Stable key: calendarDays is rebuilt on every simulation tick, but the label list is not
+    // a new *selection* unless its contents change, so the chosen month must survive a toggle.
+    val monthKey = monthLabels.joinToString("|")
+    val todayMonthLabel = remember(monthOptions, todayDate) {
+        monthOptions.firstOrNull {
+            predictorMonthYear(it) == todayDate.year && predictorMonthNumber(it) == todayDate.monthNumber
+        }?.label
+    }
+    val initialMonthIndex = remember(monthKey, todayMonthLabel) {
+        val index = if (todayMonthLabel == null) -1 else monthLabels.indexOf(todayMonthLabel)
+        if (index >= 0) index else 0
+    }
+    var monthIndex by remember(monthKey) { mutableStateOf(initialMonthIndex) }
+
+    val state = M3EAttendancePredictorState(
+        targetPercent = targetPercent,
+        mode = mode,
+        milestoneDates = milestoneDates,
+        courseResults = courseResults,
+        calendarDays = calendarDays,
+        monthIndex = monthIndex,
+        dayStates = dayStates,
+        courseSkips = courseSkips,
+        summary = summary,
+        searchQuery = searchQuery,
+        filter = filter,
+        expandedCourseCode = expandedCourseCode,
+        isRefreshing = isLoading
+    )
+
+    AmazeM3ETheme(isDark = isDark) {
+        M3EAttendancePredictorScreen(
+            state = state,
+            onAction = { action ->
+                when (action) {
+                    is M3EAttendancePredictorAction.SetTarget -> {
+                        val next = action.percent.coerceIn(1, 100)
+                        targetPercent = next
+                        AppState.setCustomAttendanceTarget(next.toFloat())
+                    }
+                    is M3EAttendancePredictorAction.SetMode -> mode = action.mode.uppercase()
+                    is M3EAttendancePredictorAction.ToggleDayState -> {
+                        val key = AttendancePredictor.startOfDay(action.date)
+                        dayStates = dayStates.toMutableMap().apply {
+                            this[key] = ((this[key] ?: 0) + 1) % 3
+                        }.toMap()
+                    }
+                    is M3EAttendancePredictorAction.ToggleCourseSkip -> {
+                        courseSkips = AttendancePredictor.toggleCourseSkip(
+                            skips = courseSkips,
+                            courseCode = action.courseCode,
+                            timestamp = AttendancePredictor.startOfDay(action.date)
+                        )
+                    }
+                    is M3EAttendancePredictorAction.AttendAll -> {
+                        dayStates = emptyMap()
+                        courseSkips = emptyMap()
+                    }
+                    is M3EAttendancePredictorAction.SkipFridays -> {
+                        // Merge into existing simulation state (a prior manual absence on a
+                        // Monday must survive), and match both a published Friday day-order
+                        // and a real calendar Friday like the web's handleBunkFridays.
+                        val merged = dayStates.toMutableMap()
+                        calendarDays.forEach { day ->
+                            val calendarFriday = kotlinx.datetime.Instant.fromEpochMilliseconds(day.date)
+                                .toLocalDateTime(TimeZone.currentSystemDefault())
+                                .date.dayOfWeek == kotlinx.datetime.DayOfWeek.FRIDAY
+                            if (day.effectiveWeekday == "FRI" || calendarFriday) {
+                                merged[AttendancePredictor.startOfDay(day.date)] = 1
+                            }
+                        }
+                        dayStates = merged
+                    }
+                    is M3EAttendancePredictorAction.ResetAll -> {
+                        dayStates = emptyMap()
+                        courseSkips = emptyMap()
+                        searchQuery = ""
+                        filter = "ALL"
+                        expandedCourseCode = null
+                    }
+                    is M3EAttendancePredictorAction.SetMonthIndex -> {
+                        monthIndex = action.index.coerceIn(0, maxOf(0, monthLabels.lastIndex))
+                    }
+                    is M3EAttendancePredictorAction.UpdateSearch -> searchQuery = action.query
+                    is M3EAttendancePredictorAction.SetFilter -> filter = action.filter.uppercase()
+                    is M3EAttendancePredictorAction.ToggleCourseExpanded -> {
+                        expandedCourseCode = if (expandedCourseCode == action.code) null else action.code
+                    }
+                    is M3EAttendancePredictorAction.NavigateBack -> {
+                        if (!AppState.navigateBack()) AppState.navigateTo(Screen.ATTENDANCE)
+                    }
                 }
             },
             modifier = modifier
@@ -2240,6 +2578,7 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                         when (action.screen) {
                             M3ESubScreen.ACADEMICS_HUB -> AppState.navigateTo(Screen.ACADEMICS)
                             M3ESubScreen.ATTENDANCE -> AppState.navigateTo(Screen.ATTENDANCE)
+                            M3ESubScreen.ATTENDANCE_PREDICTOR -> AppState.navigateTo(Screen.ATTENDANCE_PREDICTOR)
                             M3ESubScreen.LIBRARIES -> AppState.navigateTo(Screen.LIBRARIES)
                             M3ESubScreen.COURSE_DETAIL -> AppState.navigateTo(Screen.COURSE_DETAIL)
                             M3ESubScreen.COURSE_ATTENDANCE -> AppState.navigateTo(Screen.COURSE_ATTENDANCE)

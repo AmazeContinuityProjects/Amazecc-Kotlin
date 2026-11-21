@@ -81,7 +81,8 @@ private fun screenForM3eDestination(destination: M3EDestination): Screen = when 
 
 private fun m3eDestinationForScreen(screen: Screen): M3EDestination = when (screen) {
     Screen.HOME -> M3EDestination.HOME
-    Screen.ATTENDANCE, Screen.COURSE_ATTENDANCE -> M3EDestination.ATTENDANCE
+    // D-138: the predictor keeps the Attendance tab lit in the bottom bar.
+    Screen.ATTENDANCE, Screen.COURSE_ATTENDANCE, Screen.ATTENDANCE_PREDICTOR -> M3EDestination.ATTENDANCE
     Screen.ACADEMICS, Screen.CURRICULUM, Screen.COURSE_DETAIL, Screen.COURSE_DASHBOARD,
     Screen.GRADES, Screen.GPA_PREDICTOR -> M3EDestination.ACADEMICS
     else -> M3EDestination.MORE
@@ -286,6 +287,7 @@ fun App() {
                                 Screen.CALENDAR -> M3ECalendarScreenHost()
                                 Screen.GRADES -> M3EGradesHistoryScreen()
                                 Screen.GPA_PREDICTOR -> M3EMarksPredictorScreen()
+                                Screen.ATTENDANCE_PREDICTOR -> M3EAttendancePredictorHost()
                                 Screen.COURSE_DETAIL -> M3ECourseDetailScreen()
                                 Screen.COURSE_ATTENDANCE -> M3ECourseAttendanceScreenHost()
                                 Screen.CIRCULARS -> M3ECircularsScreenHost()

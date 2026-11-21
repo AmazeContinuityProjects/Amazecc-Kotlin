@@ -163,6 +163,8 @@ sealed interface M3EAttendanceAction {
     data class UpdateSearch(val query: String) : M3EAttendanceAction
     data class CourseClicked(val courseCode: String) : M3EAttendanceAction
     data object Refresh : M3EAttendanceAction
+    /** D-138: header entry point into the separate attendance (bunk) predictor. */
+    data object OpenPredictor : M3EAttendanceAction
 }
 
 // ==========================================
@@ -1544,6 +1546,7 @@ enum class M3ESubScreen(val label: String, val category: String, val description
     CURRICULUM("Degree Curriculum", "Academics", "Credit baskets, completion audit and non-graded credits"),
     MARKS_PREDICTOR("FAT Marks Predictor", "Academics", "Internal assessment targets and grade boundaries"),
     ATTENDANCE("Live Attendance", "Academics", "Track course-wise attendance, bunk buffer & leaves"),
+    ATTENDANCE_PREDICTOR("Attendance Predictor", "Academics", "Simulate bunks and project attendance to a target"),
     LIBRARIES("Library Catalog", "Academics", "Search books, digital catalogue & dues"),
     EXAM_SCHEDULE("Exam Schedules & Seating", "Academics", "Venue, timing, seat numbers and hall tickets"),
     GRADES_HISTORY("Grades History", "Academics", "Semester-wise grades, GPA and credits earned"),
@@ -1614,3 +1617,53 @@ data class M3EKohaBookDetail(
     val ddc: String = "",
     val holdings: List<M3EKohaHolding> = emptyList()
 )
+
+// ==========================================
+// 24. ATTENDANCE (BUNK) PREDICTOR IMMUTABLE STATE & ACTIONS
+// ==========================================
+// Distinct from the marks/GPA predictor in section 9: this one projects future classes
+// against an attendance target. The host owns all mutable simulation state; the stateless
+// screen only renders this contract and emits these actions.
+
+data class M3EPredictorCalendarDay(
+    val date: Long,
+    val dayNumber: Int,
+    val monthLabel: String,
+    val weekdayShort: String,
+    val effectiveWeekday: String,
+    val classCount: Int,
+    val isToday: Boolean,
+    val state: Int   // 0 present, 1 absent, 2 off
+)
+
+data class M3EAttendancePredictorState(
+    val targetPercent: Int = 75,
+    val mode: String = "CAT1",                 // CAT1 | CAT2 | LID | ALL
+    val milestoneDates: com.amazecc.app.shared.domain.MilestoneDates = com.amazecc.app.shared.domain.MilestoneDates(),
+    val courseResults: List<com.amazecc.app.shared.domain.ScheduleResult> = emptyList(),
+    val calendarDays: List<M3EPredictorCalendarDay> = emptyList(),
+    val monthIndex: Int = 0,
+    val dayStates: Map<Long, Int> = emptyMap(),
+    val courseSkips: Map<String, Set<Long>> = emptyMap(),
+    val summary: com.amazecc.app.shared.domain.OverallSummary =
+        com.amazecc.app.shared.domain.AttendancePredictor.summarise(emptyList(), 75.0),
+    val searchQuery: String = "",
+    val filter: String = "ALL",                // ALL | SAFE | AT_RISK | THEORY | LAB
+    val expandedCourseCode: String? = null,
+    val isRefreshing: Boolean = false
+)
+
+sealed interface M3EAttendancePredictorAction {
+    data class SetTarget(val percent: Int) : M3EAttendancePredictorAction
+    data class SetMode(val mode: String) : M3EAttendancePredictorAction
+    data class ToggleDayState(val date: Long) : M3EAttendancePredictorAction
+    data class ToggleCourseSkip(val courseCode: String, val date: Long) : M3EAttendancePredictorAction
+    data object AttendAll : M3EAttendancePredictorAction
+    data object SkipFridays : M3EAttendancePredictorAction
+    data object ResetAll : M3EAttendancePredictorAction
+    data class SetMonthIndex(val index: Int) : M3EAttendancePredictorAction
+    data class UpdateSearch(val query: String) : M3EAttendancePredictorAction
+    data class SetFilter(val filter: String) : M3EAttendancePredictorAction
+    data class ToggleCourseExpanded(val code: String?) : M3EAttendancePredictorAction
+    data object NavigateBack : M3EAttendancePredictorAction
+}

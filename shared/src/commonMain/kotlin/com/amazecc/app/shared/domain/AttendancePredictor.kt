@@ -2,6 +2,11 @@ package com.amazecc.app.shared.domain
 
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toLocalDateTime
 
 /**
  * Port of AmazeCC's `src/lib/attendancePredictor.ts`.
@@ -71,6 +76,8 @@ data class ScheduleResult(
     val classesNeeded: Int,
     val isLab: Boolean,
     val skippedCount: Int,
+    /** Real course identity, carried through so the simulator can show per-subject rows. */
+    val courseCode: String = "",
 )
 
 data class OverallSummary(
@@ -139,46 +146,39 @@ object AttendancePredictor {
 
     /** Truncates epoch timestamp to midnight local/UTC day boundary. */
     fun startOfDay(timestamp: Long): Long {
-        // One day in millis = 86400000
-        val msPerDay = 86_400_000L
-        val offset = java.util.TimeZone.getDefault().getOffset(timestamp)
-        val localTime = timestamp + offset
-        val startOfLocalDay = (localTime / msPerDay) * msPerDay
-        return startOfLocalDay - offset
+        val zone = TimeZone.currentSystemDefault()
+        return Instant.fromEpochMilliseconds(timestamp)
+            .toLocalDateTime(zone)
+            .date
+            .atStartOfDayIn(zone)
+            .toEpochMilliseconds()
     }
 
     /** Stable join key: YYYY-M-D */
     fun dayKey(timestamp: Long): String {
-        val cal = java.util.Calendar.getInstance()
-        cal.timeInMillis = timestamp
-        val y = cal.get(java.util.Calendar.YEAR)
-        val m = cal.get(java.util.Calendar.MONTH) + 1
-        val d = cal.get(java.util.Calendar.DAY_OF_MONTH)
-        return "$y-$m-$d"
+        val zone = TimeZone.currentSystemDefault()
+        val date = Instant.fromEpochMilliseconds(timestamp).toLocalDateTime(zone).date
+        return "${date.year}-${date.monthNumber}-${date.dayOfMonth}"
     }
 
+    /** Midnight local on the requested (0-based month) date; out-of-range parts normalise. */
     fun makeTimestamp(year: Int, month0Indexed: Int, day: Int): Long {
-        val cal = java.util.Calendar.getInstance()
-        cal.set(java.util.Calendar.YEAR, year)
-        cal.set(java.util.Calendar.MONTH, month0Indexed)
-        cal.set(java.util.Calendar.DAY_OF_MONTH, day)
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        cal.set(java.util.Calendar.MINUTE, 0)
-        cal.set(java.util.Calendar.SECOND, 0)
-        cal.set(java.util.Calendar.MILLISECOND, 0)
-        return cal.timeInMillis
+        val zone = TimeZone.currentSystemDefault()
+        // Epoch-day arithmetic normalises out-of-range day/month parts without relying on
+        // DatePeriod/DateTimePeriod overloads that vary across kotlinx-datetime versions.
+        val firstOfMonth = LocalDate(year, month0Indexed + 1, 1)
+        val normalized = LocalDate.fromEpochDays(firstOfMonth.toEpochDays() + day - 1)
+        return normalized.atStartOfDayIn(zone).toEpochMilliseconds()
     }
 
     fun lockDateFor(milestone: Long?, offsetDays: Int = 0): Long? {
         if (milestone == null) return null
-        val cal = java.util.Calendar.getInstance()
-        cal.timeInMillis = milestone
-        cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        cal.set(java.util.Calendar.MINUTE, 0)
-        cal.set(java.util.Calendar.SECOND, 0)
-        cal.set(java.util.Calendar.MILLISECOND, 0)
-        cal.add(java.util.Calendar.DAY_OF_MONTH, -offsetDays)
-        return cal.timeInMillis
+        val zone = TimeZone.currentSystemDefault()
+        val midnight = startOfDay(milestone)
+        val date = Instant.fromEpochMilliseconds(midnight).toLocalDateTime(zone).date
+        // Plain calendar days, not working days; rebuild local midnight after the shift.
+        return LocalDate.fromEpochDays(date.toEpochDays() - offsetDays)
+            .atStartOfDayIn(zone).toEpochMilliseconds()
     }
 
     fun courseCeiling(mode: String, isLab: Boolean, dates: MilestoneDates): Long? {
@@ -280,6 +280,13 @@ object AttendancePredictor {
     fun skipCountFor(skips: Map<String, Set<Long>>?, courseCode: String): Int =
         skips?.get(EmbeddedLinkCode.baseCode(courseCode))?.size ?: 0
 
+    /**
+     * Count an already-resolved skip set — [ScheduleInput.skips] holds only this course's dates.
+     * Kept as the same-named overload so `projectCourse` reports this course's skips, never a
+     * whole stored `courseCode -> dates` map.
+     */
+    fun skipCountFor(skips: Set<Long>, courseCode: String): Int = skips.size
+
     fun courseMeetingDays(
         courseCode: String,
         dayCardsMap: Map<String, List<Map<String, String>>>?,
@@ -357,7 +364,8 @@ object AttendancePredictor {
                 safeBunks = 0,
                 classesNeeded = 0,
                 isLab = isLab,
-                skippedCount = input.skips.size,
+                skippedCount = skipCountFor(input.skips, input.course.courseCode),
+                courseCode = input.course.courseCode,
             )
         }
 
@@ -427,7 +435,8 @@ object AttendancePredictor {
             safeBunks = safeBunks,
             classesNeeded = classesNeeded,
             isLab = isLab,
-            skippedCount = input.skips.size,
+            skippedCount = skipCountFor(input.skips, input.course.courseCode),
+            courseCode = input.course.courseCode,
         )
     }
 

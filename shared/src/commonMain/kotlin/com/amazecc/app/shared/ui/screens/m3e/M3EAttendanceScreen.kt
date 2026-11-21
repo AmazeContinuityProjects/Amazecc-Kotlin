@@ -21,7 +21,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -71,21 +74,49 @@ fun M3EAttendanceScreen(
             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. Header
+            // 1. Header — D-138: a real, expressive entry point into the separate bunk predictor.
             item(key = "header") {
-                Column {
-                    Text(
-                        text = "Attendance Hub",
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onBackground
-                    )
-                    Text(
-                        text = "${state.semesterName} · Overall ${state.overallPercentage.toFixed(2)}%",
-                        fontSize = 13.sp,
-                        color = colors.primary,
-                        fontWeight = FontWeight.Medium
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Attendance Hub",
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onBackground
+                        )
+                        Text(
+                            text = "${state.semesterName} · Overall ${state.overallPercentage.toFixed(2)}%",
+                            fontSize = 13.sp,
+                            color = colors.primary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Button(
+                        onClick = { onAction(M3EAttendanceAction.OpenPredictor) },
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = colors.primary,
+                            contentColor = colors.onPrimary
+                        ),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.TrendingUp,
+                            contentDescription = "Open attendance predictor",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "Predictor",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 

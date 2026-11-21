@@ -167,3 +167,23 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 - EXIT 0, all tests pass. All Critic findings fixed and verified. Committing D-131..D-136, then rebuilding APKs.
 ### [2026-11-21 07:55] session-mother - FINAL: OVERLAYS WAVE COMPLETE
 - Commit 44ff367 (22 files). gate_overlays5 EXIT 0 (all tests), Critic findings all fixed, debug+release APKs BUILD SUCCESSFUL from final tree. Tree clean after this docs commit. No further edits.
+### [2026-11-21 08:10] session-mother - CLAIM/EDIT (attendance predictor port D-137..D-140)
+- User: port the overall attendance predictor from ../AmazeCC. Exploration found the domain engine is already ~95% ported but orphaned (0 production callers, no UI/state/nav); live attendance uses duplicate inline bunk math. Port needs: domain parity fixes + milestone derivation; state/actions/host/nav; full 10-section simulator UI; acceptance tests.
+- Mother owns build/commits/Critic. 4 file-scoped workers (domain, state+nav+host, UI shell+calendar, UI course sections+tests). No worker runs Gradle. No other session should build.
+### [2026-11-21 08:20] session-mother - SCOPE ADDITION (academics unification)
+- User added: unite the academics hub and course dashboard (modern + legacy) in Kotlin, following ../AmazeCC modern Academics Hub + internal course page philosophy; also inspect and fix the old course page. 2 read-only explorers launched. NO file edits for this scope until D-137..D-140 predictor gate is green - predictor workers are still active.
+### [2026-11-21 08:45] session-mother - ALL 4 PREDICTOR WORKERS DONE, VERIFIER NEXT
+- D-137 domain (kotlinx.datetime, skip count, buildMilestoneDates + 10 tests), D-138 state/nav/host (new Screen route + 12 real actions + predictor entry points), D-139a UI shell/calendar, D-139b course sections/advisor + 6 UI tests. Mother reconciliation: collapsed the duplicate buildMilestoneDates overload (JVM erasure clash), added HeaderConfigs branch for the new Screen, added ScheduleResult.courseCode so rows show real identities, updated fixtures. Running gate_predictor1 now.
+### [2026-11-21 09:00] session-mother - RESET (harness restart) + SCOPE ADDITION
+- gate_predictor1 was CANCELLED by a harness server restart before producing an exit file; no orphan Gradle build found. Re-running as gate_predictor2.
+- User added: audit PDF report generators, HTML generators and image creators in ../AmazeCC for gaps in Kotlin (@swarm). Read-only explorer launched; no file edits for this scope until the predictor gate is green.
+### [2026-11-21 09:15] session-mother - FIX gate_predictor2 + RE-GATE
+- Compile RED (37 diagnostics) from four root causes: (1) kotlinx-datetime 0.6.0 has no LocalDate.plus(DatePeriod)/Instant.plus(DateTimePeriod,zone) as written - replaced makeTimestamp/lockDateFor/screen date formatting with epoch-day arithmetic (toEpochDays/fromEpochDays); (2) ExperimentalLayoutApi imported from wrong package in 2 UI files - fixed to foundation.layout; (3) M3EStateBridge missing SlotInfo import - added. Re-running gate_predictor3.
+- FIX gate_predictor3: SlotInfo is a top-level data class in utils package, not nested in AttendanceTimetable - corrected import to com.amazecc.app.shared.utils.SlotInfo. Re-running gate_predictor4.
+- FIX gate_predictor4: test assertEquals(listOf(...), mutableList) needed explicit listOf<M3EAttendancePredictorAction> type argument. Re-running gate_predictor5.
+- FIX gate_predictor5: 2 predictor UI test failures were copy mismatches - summary tile labels are uppercased (TOTAL SAFE LEAVES / COURSES AT RISK) and skip-date a11y label is "Skip THU 26 NOVEMBER 2026". Aligned the test to real UI. Re-running gate_predictor6.
+### [2026-11-21 15:30] session-mother - RESULT gate_predictor6 (GREEN)
+- EXIT 0: BUILD SUCCESSFUL, clean compile, 1356 tests pass. Attendance predictor port (D-137..D-139b) verified. Launching Critic audit before commit; academics unification + generator gaps remain queued.
+- Critic verdict PASS/SAFE_TO_COMMIT with minor findings. Fixed the one real behavioral bug before commit: SkipFridays now merges into existing dayStates (preserves manual absences) and matches both published Friday day-order and real calendar Fridays, matching web handleBunkFridays. Re-running gate_predictor7.
+### [2026-11-21 15:45] session-mother - FINAL GREEN gate_predictor7
+- EXIT 0, clean compile, all 1356 tests. Critic PASS; SkipFridays bug fixed. Committing predictor port, then APKs.
