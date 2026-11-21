@@ -220,3 +220,20 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 - EXIT 0, clean compile, all tests. Critic findings fixed. Committing D-144..D-147 then APKs. NOTE: iosMain is not compiled by the central verifier - iOS share-sheet interop needs an Xcode/device build to confirm.
 ### [2026-11-21 19:15] session-mother - FINAL: GENERATOR WAVE COMPLETE
 - Commit 8606ce6 (17 files). gate_generators5 EXIT 0, Critic findings fixed, debug+release APKs BUILD SUCCESSFUL. Tree clean after this docs commit. iOS interop still unverified by central runner.
+### [2026-11-21 19:30] session-mother - CLAIM/EDIT (PDF engine wave D-148+)
+- User approved building one shared PDF engine with text wrapping, tables, colors, image XObjects, multi-page flow and honest progress, then migrating the three existing writers (exam schedule, student report, scanner) onto it.
+- 2 read-only explorers launched (web PDF primitives, Kotlin current writers). No file edits until their contracts land; no worker runs Gradle.
+### [2026-11-21 19:50] session-mother - CLAIM/EDIT (PDF engine wave D-148..D-149)
+- Contracts in: three Kotlin writers duplicate xref/font/escape logic; web primitives are wrap + chunked table + rect/line/circle + JPEG/RGBA XObjects + page chrome + section progress.
+- D-148 shared commonMain PDF engine (byte-compatible text/image builders plus additive wrap/table/shape/colour primitives and progress callback). D-149 migrate exam schedule, student report, scanner writers onto the engine, add multi-page scanner and honest progress in hosts.
+- Mother owns build/commits; no worker runs Gradle.
+### [2026-11-21 20:20] session-mother - DONE (PDF engine + migrations) VERIFIER NEXT
+- D-148 shared commonMain PdfEngine + PdfCanvas with byte-compatible text/image builders, wrap/sanitize, chunked tables, shapes, multi-page and progress. D-149 exam/report/scanner writers now delegate to the engine; exam generation moved off Main; scanner build+save moved to coroutine with busy flag. Running gate_pdf1.
+- FIX gate_pdf1: PdfCanvas internal writeText calls in chunkedTable omitted required rotationDeg - passed 0f. Re-running gate_pdf2.
+- FIX gate_pdf2: all 9 PdfEngineTest failures were one off-by-one in the test parser - it searched for the newline at xrefOffset and found the one inside "xref\n" itself. Fixed to search after it. Engine output and the pinned legacy exam-PDF test were already green. Re-running gate_pdf3.
+- FIX gate_pdf3: PdfEngineTest pageCount counted space tokens instead of "N 0 R" object references (3x inflation). Fixed with Regex. Re-running gate_pdf4.
+### [2026-11-21 20:35] session-mother - RESULT gate_pdf4 (GREEN)
+- EXIT 0: clean compile, 1380 tests. Shared PDF engine + 3 writer migrations verified. Launching Critic before commit.
+- Critic PASS on PDF wave. Added one-line comments documenting intentional legacy /Length +1 (no behavior change). Re-running gate_pdf5, then commit.
+### [2026-11-21 20:50] session-mother - FINAL GREEN gate_pdf5
+- EXIT 0, clean compile, 1380 tests. Critic PASS. Committing D-148/D-149 then APKs.

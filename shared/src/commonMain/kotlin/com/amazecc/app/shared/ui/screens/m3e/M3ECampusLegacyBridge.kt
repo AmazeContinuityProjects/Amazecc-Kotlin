@@ -49,6 +49,8 @@ import com.amazecc.app.shared.model.KohaHolding
 import com.amazecc.app.shared.model.NamedCalendar
 import com.amazecc.app.shared.model.PaymentItem
 import com.amazecc.app.shared.model.TimetableRes
+import com.amazecc.app.shared.pdf.PdfEngine
+import com.amazecc.app.shared.pdf.PdfTextOptions
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
@@ -1403,56 +1405,18 @@ private fun m3eReportJson(state: M3EStudentReportState): String = buildString {
     append("}\n")
 }
 
-/** Minimal valid PDF 1.4 (Helvetica) written directly from the real report rows. */
-private fun m3eBuildReportPdf(lines: List<String>): ByteArray {
-    val pageLines = lines.chunked(48)
-    val pageCount = pageLines.size.coerceAtLeast(1)
-    val pageIds = (0 until pageCount).map { 4 + it * 2 }
-    val contentIds = (0 until pageCount).map { 5 + it * 2 }
-    fun escapePdf(value: String): String = buildString {
-        value.forEach { ch ->
-            when (ch) {
-                '\\' -> append("\\\\")
-                '(' -> append("\\(")
-                ')' -> append("\\)")
-                else -> append(if (ch.code in 32..126) ch else '?')
-            }
-        }
-    }
-    val objects = linkedMapOf<Int, String>()
-    objects[1] = "<< /Type /Catalog /Pages 2 0 R >>"
-    objects[2] = "<< /Type /Pages /Kids [${pageIds.joinToString(" ") { "$it 0 R" }}] /Count $pageCount >>"
-    objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
-    pageLines.forEachIndexed { pageIndex, rows ->
-        objects[pageIds[pageIndex]] =
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] " +
-                "/Resources << /Font << /F1 3 0 R >> >> /Contents ${contentIds[pageIndex]} 0 R >>"
-        val stream = buildString {
-            append("BT\n/F1 11 Tf\n36 812 Td\n15 TL\n")
-            rows.forEachIndexed { rowIndex, line ->
-                if (rowIndex > 0) append("T*\n")
-                append("(").append(escapePdf(line)).append(") Tj\n")
-            }
-            append("ET\n")
-        }
-        objects[contentIds[pageIndex]] = "<< /Length ${stream.toByteArray().size} >>\nstream\n$stream\nendstream"
-    }
-    val pdf = StringBuilder("%PDF-1.4\n")
-    val offsets = mutableMapOf<Int, Int>()
-    objects.toSortedMap().forEach { (id, body) ->
-        offsets[id] = pdf.length
-        pdf.append(id).append(" 0 obj\n").append(body).append("\nendobj\n")
-    }
-    val xrefOffset = pdf.length
-    pdf.append("xref\n0 ${objects.size + 1}\n")
-    pdf.append("0000000000 65535 f \n")
-    objects.keys.sorted().forEach { id ->
-        pdf.append(offsets.getValue(id).toString().padStart(10, '0')).append(" 00000 n \n")
-    }
-    pdf.append("trailer\n<< /Size ${objects.size + 1} /Root 1 0 R >>\n")
-    pdf.append("startxref\n$xrefOffset\n%%EOF\n")
-    return pdf.toString().toByteArray()
-}
+/**
+ * Minimal valid PDF 1.4 (Helvetica) written from the real report rows.
+ *
+ * D-149: serialization is delegated to the shared [PdfEngine] with the same 11pt / 15 / 48-line
+ * layout the report used before, so the exported bytes stay identical.
+ */
+private fun m3eBuildReportPdf(lines: List<String>): ByteArray =
+    PdfEngine.buildTextPdf(
+        "AMAZECC STUDENT ACADEMIC REPORT",
+        lines,
+        PdfTextOptions(fontSize = 11, leading = 15, startX = 36, startY = 812, linesPerPage = 48),
+    )
 
 /**
  * Stateful host for [M3EStudentReportScreen] (D-115). Every figure comes from the

@@ -1,6 +1,8 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import com.amazecc.app.shared.domain.overhaul.M3EExamEntry
+import com.amazecc.app.shared.pdf.PdfEngine
+import com.amazecc.app.shared.pdf.PdfTextOptions
 
 /**
  * D-062: real, dependency-free exam schedule exports.
@@ -44,61 +46,19 @@ internal object M3EExamScheduleExports {
         return "amazecc-exam-schedule$suffix.$extension"
     }
 
-    /** Minimal valid PDF 1.4 with Helvetica, one text page per 48 lines. */
-    fun buildPdf(title: String, entries: List<M3EExamEntry>): ByteArray {
-        val allLines = lines(title, entries)
-        val pages = allLines.chunked(48)
-        val pageCount = pages.size.coerceAtLeast(1)
-        // Object ids: 1 catalog, 2 pages tree, 3 font, then (page, content) pairs.
-        val pageIds = (0 until pageCount).map { 4 + it * 2 }
-        val contentIds = (0 until pageCount).map { 5 + it * 2 }
-
-        fun escapePdf(value: String): String = buildString {
-            value.forEach { ch ->
-                when (ch) {
-                    '\\' -> append("\\\\")
-                    '(' -> append("\\(")
-                    ')' -> append("\\)")
-                    else -> append(if (ch.code in 32..126) ch else '?')
-                }
-            }
-        }
-
-        val objects = linkedMapOf<Int, String>()
-        objects[1] = "<< /Type /Catalog /Pages 2 0 R >>"
-        objects[2] = "<< /Type /Pages /Kids [${pageIds.joinToString(" ") { "$it 0 R" }}] /Count $pageCount >>"
-        objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
-        pages.forEachIndexed { index, linesOnPage ->
-            objects[pageIds[index]] =
-                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] " +
-                "/Resources << /Font << /F1 3 0 R >> >> /Contents ${contentIds[index]} 0 R >>"
-            val stream = buildString {
-                append("BT\n/F1 10 Tf\n36 812 Td\n13 TL\n")
-                linesOnPage.forEachIndexed { lineIndex, line ->
-                    if (lineIndex > 0) append("T*\n")
-                    append("(").append(escapePdf(line)).append(") Tj\n")
-                }
-                append("ET\n")
-            }
-            objects[contentIds[index]] = "<< /Length ${stream.toByteArray().size} >>\nstream\n$stream\nendstream"
-        }
-
-        val pdf = StringBuilder("%PDF-1.4\n")
-        val offsets = mutableMapOf<Int, Int>()
-        objects.toSortedMap().forEach { (id, body) ->
-            offsets[id] = pdf.length
-            pdf.append(id).append(" 0 obj\n").append(body).append("\nendobj\n")
-        }
-        val xrefOffset = pdf.length
-        pdf.append("xref\n0 ${objects.size + 1}\n")
-        pdf.append("0000000000 65535 f \n")
-        objects.keys.sorted().forEach { id ->
-            pdf.append(offsets.getValue(id).toString().padStart(10, '0')).append(" 00000 n \n")
-        }
-        pdf.append("trailer\n<< /Size ${objects.size + 1} /Root 1 0 R >>\n")
-        pdf.append("startxref\n$xrefOffset\n%%EOF\n")
-        return pdf.toString().toByteArray()
-    }
+    /**
+     * Minimal valid PDF 1.4 with Helvetica, one text page per 48 lines.
+     *
+     * D-149: the byte-level serializer now lives in the shared [PdfEngine]; this entry point keeps
+     * the exact same rows ([lines]) and layout options so the exported bytes and the pinned
+     * `%PDF-1.4` / `%%EOF\n` contract stay identical.
+     */
+    fun buildPdf(title: String, entries: List<M3EExamEntry>): ByteArray =
+        PdfEngine.buildTextPdf(
+            title,
+            lines(title, entries),
+            PdfTextOptions(fontSize = 10, leading = 13, startX = 36, startY = 812, linesPerPage = 48),
+        )
 
     /** Minimal valid PNG (RGB, 8-bit, stored DEFLATE) with a 5x7 bitmap font for real text. */
     fun buildPng(title: String, entries: List<M3EExamEntry>): ByteArray {

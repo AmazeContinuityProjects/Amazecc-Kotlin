@@ -17,7 +17,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -141,9 +143,16 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
                 val fileName = M3EExamScheduleExports.fileName(extension, request.seriesLabel)
                 val bytes: ByteArray? = when (request.format) {
                     ExamExportFormat.ICS -> buildExamIcs(request.exams)?.toByteArray()
-                    ExamExportFormat.PDF -> M3EExamScheduleExports.buildPdf(
-                        request.seriesLabel ?: "Exam Schedule", request.exams
-                    )
+                    ExamExportFormat.PDF -> {
+                        // D-149: text PDFs have no per-page engine callback, so only report the
+                        // honest generic state while the bytes are built off the UI thread.
+                        exportNotice = "Generating PDF…"
+                        withContext(Dispatchers.Default) {
+                            M3EExamScheduleExports.buildPdf(
+                                request.seriesLabel ?: "Exam Schedule", request.exams
+                            )
+                        }
+                    }
                     ExamExportFormat.PNG -> M3EExamScheduleExports.buildPng(
                         request.seriesLabel ?: "Exam Schedule", request.exams
                     )

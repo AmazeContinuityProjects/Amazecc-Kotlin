@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +62,9 @@ import com.amazecc.app.shared.utils.openDocumentBytes
 import com.amazecc.app.shared.utils.rememberFileImporter
 import com.amazecc.app.shared.utils.rememberFileSaver
 import com.amazecc.app.shared.utils.toImageBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import io.ktor.util.decodeBase64Bytes
 
 private const val MIN_CROP = 0.08f
@@ -91,7 +95,9 @@ fun M3EDocumentScannerScreen(modifier: Modifier = Modifier) {
         var note by remember { mutableStateOf("") }
         var status by remember { mutableStateOf<String?>(null) }
         var error by remember { mutableStateOf<String?>(null) }
+        var isExporting by remember { mutableStateOf(false) }
 
+        val scope = rememberCoroutineScope()
         val saveFile = rememberFileSaver()
 
         fun acceptSource(text: String) {
@@ -272,17 +278,38 @@ fun M3EDocumentScannerScreen(modifier: Modifier = Modifier) {
                                     error = "PDF export needs the original JPEG bytes. Re-save this image as JPEG and import it again."
                                     return@ElevatedButton
                                 }
-                                val pdf = DocumentScannerPdf.buildPdf(source, crop, currentBitmap.width, currentBitmap.height, title, note)
-                                val name = "amazecc-scan.pdf"
-                                val saved = saveFile(name, pdf)
-                                if (saved) {
-                                    status = "Saved $name (${pdf.size / 1024} KB)."
+                                // D-149: JPEG embedding + xref serialization is real work, so run
+                                // it off the UI thread and report only what actually happened.
+                                val jpeg = source
+                                scope.launch {
+                                    isExporting = true
                                     error = null
-                                    openDocumentBytes(pdf, name, "application/pdf")
-                                } else {
-                                    error = "The PDF could not be saved on this device."
+                                    status = "Generating PDF…"
+                                    try {
+                                        val pdf = withContext(Dispatchers.Default) {
+                                            DocumentScannerPdf.buildPdf(
+                                                jpeg, crop, currentBitmap.width, currentBitmap.height, title, note
+                                            )
+                                        }
+                                        val name = "amazecc-scan.pdf"
+                                        val saved = saveFile(name, pdf)
+                                        if (saved) {
+                                            status = "Saved $name (${pdf.size / 1024} KB)."
+                                            error = null
+                                            openDocumentBytes(pdf, name, "application/pdf")
+                                        } else {
+                                            status = null
+                                            error = "The PDF could not be saved on this device."
+                                        }
+                                    } catch (e: Exception) {
+                                        status = null
+                                        error = "Could not generate the PDF: ${e.message ?: "unknown error"}"
+                                    } finally {
+                                        isExporting = false
+                                    }
                                 }
                             },
+                            enabled = !isExporting,
                             modifier = Modifier.fillMaxWidth().height(48.dp),
                             shape = CircleShape,
                             colors = ButtonDefaults.elevatedButtonColors(containerColor = colors.primary, contentColor = colors.onPrimary),
