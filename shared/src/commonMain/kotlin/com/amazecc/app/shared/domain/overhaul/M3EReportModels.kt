@@ -45,6 +45,21 @@ data class M3EReportSections(
         "finance" to finance,
         "services" to services
     )
+
+    /** Returns a copy with one canonical section key set; unknown keys are a no-op. */
+    fun with(key: String, enabled: Boolean): M3EReportSections = when (key) {
+        "overview" -> copy(overview = enabled)
+        "curriculum" -> copy(curriculum = enabled)
+        "subjects" -> copy(subjects = enabled)
+        "history" -> copy(history = enabled)
+        "attendance" -> copy(attendance = enabled)
+        "od" -> copy(od = enabled)
+        "exams" -> copy(exams = enabled)
+        "events" -> copy(events = enabled)
+        "finance" -> copy(finance = enabled)
+        "services" -> copy(services = enabled)
+        else -> this
+    }
 }
 
 data class M3EReportIdentity(

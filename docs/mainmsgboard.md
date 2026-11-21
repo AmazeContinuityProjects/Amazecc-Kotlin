@@ -277,3 +277,10 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 ### [2026-11-22 01:30] session-mother - DONE (D-157 export wiring) VERIFIER NEXT
 - D-157a: ReportSerializers.shareText (UTF-8) via extracted fullTextLines; pdfContentLines unchanged ASCII. D-157b: pure ReportExportBuilder (PDF via PdfEngine, JSON/HTML UTF-8), host assembles one real snapshot (incl. odDetails) and uses it for both displayed canonical metrics and all four exports; 5 legacy scalar helpers removed. Running gate_export1.
 - POLISH (post-Critic PASS): JSON/HTML exports now build on Dispatchers.Default with real failure notices (matching PDF); removed redundant selectedSemId remember key and its now-unused collection. Re-running gate_export2 before commit.
+### [2026-11-22 01:50] session-mother - CLAIM (timetable sheet) + D-158 IN FLIGHT
+- User: port web's full timetable bottom sheet with horizontal/vertical view switcher; wire to home View Timetable button. 2 read-only explorers launched (web implementation, Kotlin gaps).
+- D-158 (10 report section toggles) workers still running; no gate until both waves' workers report.
+### [2026-11-22 02:00] session-mother - DONE (D-158 section toggles) VERIFIER NEXT
+- M3EReportSections.with(key,enabled); M3EStudentReportState.sections + ToggleSection action; host owns live flags and feeds the assembler; screen has a 'Report Sections' group with 10 full-width SettingsToggleRows and emission tests. Running gate_toggles1.
+- FIX gate_toggles1: new ToggleSection branch used implicit 'it' inside a 'when(action)' subject (no lambda) -> switched to smart-cast 'action.key/action.enabled'. Re-running gate_toggles2.
+- FIX gate_toggles2 (3 UI test failures): (1) rendersGroupedSections scrolled to Export before asserting top identity values, and the new 10-toggle group pushed them out of composition - reordered assertions. (2) M3 Switch ToggleableState is not merged onto the labelled row node on this API - dropped direct state matcher; state binding is still proven by emitted ToggleSection(history,false)/ToggleSection(od,true) actions. Re-running gate_toggles3.

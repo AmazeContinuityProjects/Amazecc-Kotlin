@@ -1380,17 +1380,22 @@ fun M3EStudentReportHost(
     var exportSuccessMessage by remember { mutableStateOf<String?>(null) }
     var exportErrorMessage by remember { mutableStateOf<String?>(null) }
     var actionNotice by remember { mutableStateOf<String?>(null) }
+    // Live section toggles. All ten start on (M3EReportSections defaults); flipping one
+    // rebuilds the report snapshot so every export path reflects the current selection.
+    var sections by remember { mutableStateOf(M3EReportSections()) }
 
     LaunchedEffect(Unit) { AppState.syncIdentityIfThin() }
 
     // D-157b — one real, web-parity snapshot feeds the on-screen metrics and every export path.
     // The assembler is pure; the only "now" is the caller's timestamp for the report date/name.
-    val report = remember(domain, allGrades, identity, odDetails) {
+    // `sections` is a key so a toggle rebuilds the snapshot for all exports. generatedAt is
+    // recomputed as part of that assembly — a required consequence of the rebuild, not churn.
+    val report = remember(domain, allGrades, identity, odDetails, sections) {
         ReportDataAssembler.assemble(
             snapshot = domain,
             allGrades = allGrades,
             identity = identity,
-            sections = M3EReportSections(),
+            sections = sections,
             officialOd = odDetails,
             generatedAt = Clock.System.now().toEpochMilliseconds(),
         )
@@ -1412,7 +1417,8 @@ fun M3EStudentReportHost(
         arrearsCount = report.summary.arrearsCount,
         isExportingPdf = isExportingPdf,
         exportSuccessMessage = exportSuccessMessage,
-        isLoading = !identity.hasIdentity && report.subjects.isEmpty()
+        isLoading = !identity.hasIdentity && report.subjects.isEmpty(),
+        sections = sections
     )
 
     fun exportPdf() {
@@ -1483,6 +1489,10 @@ fun M3EStudentReportHost(
             // finance, OD, events, services). A thin-identity warm-up would be a no-op for
             // all of them, so Refresh runs the same full sweep as the rest of the app.
             M3EStudentReportAction.Refresh -> onRefreshReportData()
+            is M3EStudentReportAction.ToggleSection -> {
+                // `when` subject is smart-cast here; there is no implicit `it`.
+                sections = sections.with(action.key, action.enabled)
+            }
         }
     }
 

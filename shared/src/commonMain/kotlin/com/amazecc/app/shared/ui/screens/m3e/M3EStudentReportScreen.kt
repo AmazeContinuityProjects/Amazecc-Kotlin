@@ -52,10 +52,29 @@ import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SettingsGroupHeader
 import com.amazecc.app.shared.ui.m3e.components.SettingsInfoRow
+import com.amazecc.app.shared.ui.m3e.components.SettingsToggleRow
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
+
+/**
+ * D-158: UI-only labels for the ten report section toggles. Kept in the screen (not the
+ * model) because this is a presentation concern. Unknown keys fall back to the raw key so
+ * a newly added section can never silently vanish from the toggle group.
+ */
+private val REPORT_SECTION_LABELS = mapOf(
+    "overview" to "Academic Overview",
+    "curriculum" to "Curriculum",
+    "subjects" to "Subject Dossiers",
+    "history" to "Grade History",
+    "attendance" to "Attendance Register",
+    "od" to "OD Usage",
+    "exams" to "Exam Schedule",
+    "events" to "Events",
+    "finance" to "Finance",
+    "services" to "Student Services"
+)
 
 /**
  * Material 3 Expressive Academic Report (D-153).
@@ -64,7 +83,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
  * The host supplies the real app bar ([M3EStudentReportTopBar]); this composable owns only
  * the scrollable report body — a cover block and grouped Settings-style sections, never a
  * pile of equal cards. No row holds more than two cards or two labelled buttons; the two
- * secondary export actions are icon buttons instead.
+ * secondary export actions are icon buttons instead. The "Report Sections" group (D-158)
+ * renders one full-width [SettingsToggleRow] per [M3EStudentReportState.sections] key; these
+ * are stateless controls that emit [M3EStudentReportAction.ToggleSection] only.
  *
  * Facts are never invented: blank identity fields are omitted, no generated-at line is shown
  * because the state exposes no timestamp, and export outcome copy is shown only when the host
@@ -243,6 +264,27 @@ fun M3EStudentReportScreen(
                             "Clean Record (No Arrears)"
                         }
                     )
+                }
+            }
+
+            // Report Sections (D-158) — one real toggle per canonical section key, in the
+            // stable order from M3EReportSections.keys(). Full-width rows (not cards), so the
+            // "max two cards / two labelled buttons per row" rule is untouched. The screen is
+            // stateless: each row only emits ToggleSection; the host owns the persisted value.
+            item(key = "section_report_sections") {
+                Column(
+                    modifier = Modifier.fillMaxWidth().testTag("report_section_toggles")
+                ) {
+                    SettingsGroupHeader(title = "Report Sections")
+                    state.sections.keys().forEach { (key, checked) ->
+                        SettingsToggleRow(
+                            title = REPORT_SECTION_LABELS[key] ?: key,
+                            checked = checked,
+                            onCheckedChange = { enabled ->
+                                onAction(M3EStudentReportAction.ToggleSection(key, enabled))
+                            }
+                        )
+                    }
                 }
             }
 

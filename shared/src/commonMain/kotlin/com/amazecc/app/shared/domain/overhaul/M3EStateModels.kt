@@ -830,7 +830,8 @@ data class M3EStudentReportState(
     val arrearsCount: Int = 0,
     val isExportingPdf: Boolean = false,
     val exportSuccessMessage: String? = null,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val sections: M3EReportSections = M3EReportSections()
 )
 
 sealed interface M3EStudentReportAction {
@@ -839,6 +840,7 @@ sealed interface M3EStudentReportAction {
     data object ExportHtmlReport : M3EStudentReportAction
     data object ShareReport : M3EStudentReportAction
     data object Refresh : M3EStudentReportAction
+    data class ToggleSection(val key: String, val enabled: Boolean) : M3EStudentReportAction
 }
 
 // ==========================================
