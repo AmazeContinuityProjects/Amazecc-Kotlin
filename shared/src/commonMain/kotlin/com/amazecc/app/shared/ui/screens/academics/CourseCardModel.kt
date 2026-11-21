@@ -131,3 +131,33 @@ fun CourseGroup.cardModel(): CourseCardModel {
         },
     )
 }
+
+// D-140: relocated from the now-deleted legacy CourseDashboard.kt. This pure title/badge
+// normalisation is still consumed by CourseCardModel.cardModel() and its tests; the legacy
+// composable itself had no live call site after the unified academics hub took over.
+data class CleanedTitle(
+    val cleanTitle: String,
+    val typeBadgeOverride: String? = null
+)
+
+fun cleanCourseTitle(rawTitle: String): CleanedTitle {
+    var title = rawTitle.trim()
+    var badge: String? = null
+
+    if (title.contains("(Project)", ignoreCase = true)) {
+        title = title.replace(Regex("(?i)\\(\\s*Project\\s*\\)"), "").trim()
+        badge = "PJ"
+    } else if (title.contains("(Online Course)", ignoreCase = true) || title.contains("(Online)", ignoreCase = true)) {
+        title = title.replace(Regex("(?i)\\(\\s*Online\\s*(Course)?\\s*\\)"), "").trim()
+        badge = "OC"
+    } else if (title.contains("(Theory)", ignoreCase = true)) {
+        title = title.replace(Regex("(?i)\\(\\s*Theory\\s*\\)"), "").trim()
+        badge = "TH"
+    } else if (title.contains("(Lab)", ignoreCase = true)) {
+        title = title.replace(Regex("(?i)\\(\\s*Lab\\s*\\)"), "").trim()
+        badge = "LO"
+    }
+
+    title = title.replace(Regex("\\s+"), " ").trim()
+    return CleanedTitle(cleanTitle = title, typeBadgeOverride = badge)
+}

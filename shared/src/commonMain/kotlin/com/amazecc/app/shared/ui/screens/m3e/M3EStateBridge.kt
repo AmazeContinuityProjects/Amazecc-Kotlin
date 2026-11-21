@@ -864,12 +864,19 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
     var selectedFilter by remember { mutableStateOf(AcademicCourseFilter.ALL) }
     var searchQuery by remember { mutableStateOf("") }
     var expandedCourseCode by remember { mutableStateOf<String?>(null) }
+    // D-140: the unified hub can span semesters, replacing the separate course dashboard.
+    var showAllSemesters by remember { mutableStateOf(false) }
+    val pastSemestersSynced by AppState.pastSemestersSynced.collectAsState()
 
     val currentSem = domain.academics.semesters[selectedSemId]
-    val rawCourses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
-
-    val academicCourses = remember(rawCourses) {
-        rawCourses.map { c ->
+    val academicCourses = remember(domain, selectedSemId, showAllSemesters, semesterMap) {
+        val semesterIds = if (showAllSemesters) {
+            domain.academics.semesters.keys.sortedDescending()
+        } else {
+            listOf(selectedSemId)
+        }
+        semesterIds.flatMap { semId ->
+            com.amazecc.app.shared.domain.Projections.mergedCourses(domain, semId).map { c ->
             val att = c.attendance
             val total = att?.total ?: 0
             val attended = att?.attended ?: 0
@@ -877,14 +884,16 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
             val internalMarks = c.marks?.assessments?.map { m ->
                 M3EAssessmentItem(
                     title = m.name,
-                    maxMarks = m.maxMark.toDoubleOrNull() ?: 50.0,
+                    maxMarks = m.maxMark.toDoubleOrNull() ?: 0.0,
                     scoredMarks = m.score.toDoubleOrNull() ?: 0.0,
                     weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0,
                     weightageMarks = m.weightage.toDoubleOrNull() ?: 0.0,
                     status = m.status
                 )
             } ?: emptyList()
-            val totalInternal = internalMarks.sumOf { it.weightageMarks }
+            // D-140: use the same real weighted-derivation the course page uses, instead
+            // of the old internalMax = 60.0 hardcode that made hub and detail disagree.
+            val derivedInternal = M3EPredictorDerivation.internalMarks(internalMarks)
             M3EAcademicCourse(
                 courseCode = c.code,
                 courseTitle = c.title,
@@ -892,11 +901,13 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
                 courseType = c.type,
                 faculty = c.faculty ?: "",
                 grade = c.grade?.letter,
-                internalScored = totalInternal,
-                internalMax = 60.0,
+                internalScored = derivedInternal?.first ?: 0.0,
+                internalMax = derivedInternal?.second ?: 0.0,
                 assessments = internalMarks,
-                attendancePct = pct
+                attendancePct = pct,
+                semesterLabel = semesterMap[semId] ?: semId
             )
+            }
         }
     }
 
@@ -938,6 +949,8 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
         selectedFilter = selectedFilter,
         searchQuery = searchQuery,
         expandedCourseCode = expandedCourseCode,
+        showAllSemesters = showAllSemesters,
+        pastSemestersSynced = pastSemestersSynced,
         isLoading = isLoading
     )
 
@@ -957,10 +970,30 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
                         expandedCourseCode = if (expandedCourseCode == action.courseCode) null else action.courseCode
                     }
                     is M3EAcademicsAction.Refresh -> AppState.loadAllData()
+                    is M3EAcademicsAction.ToggleAllSemesters -> showAllSemesters = !showAllSemesters
+                    is M3EAcademicsAction.RefreshPastSemesters -> AppState.refreshPastSemesters()
                 }
             },
             modifier = modifier,
-            onOpenCourse = { code -> AppState.openCourseDetail(code) }
+            onOpenCourse = { code ->
+                // In All-Semesters mode resolve WHICH semester owns this course so the detail
+                // host cannot fall back to the globally selected semester and open a different
+                // course with the same code.
+                val ownerSemester = if (showAllSemesters) {
+                    domain.academics.semesters.entries
+                        .firstOrNull { (_, sem) -> sem.courses.containsKey(code) }?.key
+                } else {
+                    selectedSemId
+                }
+                AppState.openCourseDetail(code, ownerSemester)
+            },
+            onOpenExplorer = { key ->
+                when (key) {
+                    "marks_predictor" -> AppState.navigateTo(Screen.GPA_PREDICTOR)
+                    "grades" -> AppState.navigateTo(Screen.GRADES)
+                    "curriculum" -> AppState.navigateTo(Screen.CURRICULUM)
+                }
+            }
         )
     }
 }
@@ -974,6 +1007,10 @@ fun M3ECourseDetailScreen(
     val domain by AppState.domain.collectAsState()
     val selectedCode by AppState.selectedCourseCode.collectAsState()
     val selectedSemId by AppState.selectedSemester.collectAsState()
+    // D-140: a course opened from a past semester must resolve in THAT semester, not the
+    // globally selected one; openCourseDetail(code, semesterId) stores this explicitly.
+    val courseSemesterId by AppState.selectedCourseSemester.collectAsState()
+    val detailSemId = courseSemesterId ?: selectedSemId
     val identityState by UserStore.identity.collectAsState()
     val attendanceTarget = rememberEffectiveAttendanceTarget()
     val scope = rememberCoroutineScope()
@@ -985,8 +1022,8 @@ fun M3ECourseDetailScreen(
     var activeTab by remember { mutableStateOf(CourseDetailTab.OVERVIEW) }
     var targetGrade by remember { mutableStateOf("A") }
 
-    val course = remember(domain, selectedSemId, selectedCode) {
-        val sem = domain.academics.semesters[selectedSemId]
+    val course = remember(domain, detailSemId, selectedCode) {
+        val sem = domain.academics.semesters[detailSemId]
         sem?.courses?.get(selectedCode ?: "") ?: sem?.courses?.values?.firstOrNull()
     }
 
@@ -2580,9 +2617,12 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                             M3ESubScreen.ATTENDANCE -> AppState.navigateTo(Screen.ATTENDANCE)
                             M3ESubScreen.ATTENDANCE_PREDICTOR -> AppState.navigateTo(Screen.ATTENDANCE_PREDICTOR)
                             M3ESubScreen.LIBRARIES -> AppState.navigateTo(Screen.LIBRARIES)
-                            M3ESubScreen.COURSE_DETAIL -> AppState.navigateTo(Screen.COURSE_DETAIL)
+                            // D-140: both legacy tiles now open the single unified hub. The old
+                            // COURSE_DETAIL tile had no course code and fell back to an arbitrary
+                            // course; routing it to the hub avoids that broken deep link.
+                            M3ESubScreen.COURSE_DETAIL -> AppState.navigateTo(Screen.ACADEMICS)
                             M3ESubScreen.COURSE_ATTENDANCE -> AppState.navigateTo(Screen.COURSE_ATTENDANCE)
-                            M3ESubScreen.COURSE_DASHBOARD -> AppState.navigateTo(Screen.COURSE_DASHBOARD)
+                            M3ESubScreen.COURSE_DASHBOARD -> AppState.navigateTo(Screen.ACADEMICS)
                             M3ESubScreen.FACULTY -> AppState.navigateTo(Screen.FACULTY_INFO)
                             M3ESubScreen.CURRICULUM -> AppState.navigateTo(Screen.CURRICULUM)
                             M3ESubScreen.MARKS_PREDICTOR -> AppState.navigateTo(Screen.GPA_PREDICTOR)

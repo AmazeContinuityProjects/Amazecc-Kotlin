@@ -1,13 +1,22 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,14 +37,58 @@ import kotlin.math.floor
 import kotlin.math.round
 
 /**
- * D-134 — the two per-component panels behind the embedded course subpage menu.
+ * Inline panels behind the Course sections hub on the embedded course subpage.
  *
- * Both panels are strict projections of the [EmbeddedCourseHalf] rows already carried by
- * `M3ECourseDetailState.halves` (built by `EmbeddedLinkMerge`). Nothing here invents a mark, a
- * log, a date or a grade: an absent payload renders an honest empty state. Marks and grades stay
- * common on the parent screen — these panels only split the *attendance log* and the *predictor*
- * inputs by component, exactly as the web `CourseDetailSubpage` does.
+ * The D-134 per-component panels (attendance log + predictor) are strict projections of the
+ * [EmbeddedCourseHalf] rows already carried by `M3ECourseDetailState.halves` (built by
+ * `EmbeddedLinkMerge`). The D-141 course-level panels (Grades, Review Course Details) project only
+ * fields already on the state. Nothing here invents a mark, a log, a date or a grade: an absent
+ * payload renders an honest empty state. Exactly as the web `CourseDetailSubpage` does, the
+ * component panels only split the *attendance log* and *predictor* inputs by component, while
+ * marks and grades stay common on the parent screen.
  */
+
+/**
+ * D-141 hierarchical back header shared by every expanded inline panel on the course hub.
+ *
+ * This control only clears the *local* "which panel is expanded" selection in the caller — it
+ * never emits a global `Back` action. That gives the web-style hierarchy
+ * `sub-panel -> "Course sections" hub -> (global back button -> leave the course)`. Its
+ * content description deliberately differs from the global button's `"Back"` so tests that
+ * click the global button by exact description stay unambiguous.
+ */
+@Composable
+internal fun M3EInlinePanelBackHeader(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = M3ETheme.colors
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(colors.surfaceContainerHigh)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                contentDescription = "Back to course sections",
+                tint = colors.onSurface,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Text(
+            text = "Back to course sections",
+            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.primary
+        )
+    }
+}
 
 /** Which side of an embedded pair this row is. Uses the canonical classifier, never a code string test. */
 internal fun isLabHalf(half: EmbeddedCourseHalf): Boolean =
@@ -117,6 +170,8 @@ fun M3EComponentLogPanel(
     half: EmbeddedCourseHalf,
     modifier: Modifier = Modifier,
     attendanceTargetPercent: Double = 75.0,
+    /** D-141: non-null only when opened from the course hub; clears the local panel selection. */
+    onBack: (() -> Unit)? = null,
 ) {
     val colors = M3ETheme.colors
     val label = m3eComponentLabel(half)
@@ -129,6 +184,9 @@ fun M3EComponentLogPanel(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (onBack != null) {
+                M3EInlinePanelBackHeader(onBack = onBack)
+            }
             Text(
                 text = "$label attendance",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -200,6 +258,8 @@ fun M3EComponentLogPanel(
 fun M3EComponentPredictorPanel(
     half: EmbeddedCourseHalf,
     modifier: Modifier = Modifier,
+    /** D-141: non-null only when opened from the course hub; clears the local panel selection. */
+    onBack: (() -> Unit)? = null,
 ) {
     val colors = M3ETheme.colors
     val label = m3eComponentLabel(half)
@@ -232,6 +292,9 @@ fun M3EComponentPredictorPanel(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (onBack != null) {
+                M3EInlinePanelBackHeader(onBack = onBack)
+            }
             Text(
                 text = "$label predictor",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
@@ -294,5 +357,106 @@ fun M3EComponentPredictorPanel(
                 }
             }
         }
+    }
+}
+
+/**
+ * D-141 "Grades" destination for the Course sections hub.
+ *
+ * `M3ECourseDetailState` deliberately carries no published final-grade field — it has internal
+ * scored/max, assessments and a FAT target grade, but no released final grade. This panel is
+ * therefore a *real* inline destination that always reports the honest no-data state; it is not a
+ * dead control and it invents no letter/grade. If a published final grade is added to the state
+ * later, only this panel needs to learn how to project it.
+ */
+@Composable
+fun M3ECourseGradesPanel(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.HIGH,
+        cornerRadius = 24.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            M3EInlinePanelBackHeader(onBack = onBack)
+            Text(
+                text = "Grades",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+            Text(
+                text = "Not available — no published final grade for this course",
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * D-141 "Review Course Details" destination for the Course sections hub.
+ *
+ * Every value below is a real field already held by [com.amazecc.app.shared.domain.overhaul.M3ECourseDetailState]
+ * and already shown on the overview — this panel re-projects those same values, never a mock or
+ * a fabricated duplicate. Nullable fields degrade to an explicit "Not published" instead of a
+ * placeholder value.
+ */
+@Composable
+fun M3ECourseReviewPanel(
+    facultyName: String,
+    facultyDesignation: String?,
+    facultyCabin: String?,
+    facultyEmail: String?,
+    venue: String,
+    slot: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.HIGH,
+        cornerRadius = 24.dp,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            M3EInlinePanelBackHeader(onBack = onBack)
+            Text(
+                text = "Review Course Details",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = colors.onSurface
+            )
+            M3EFactRow(label = "Faculty", value = facultyName)
+            if (!facultyDesignation.isNullOrBlank()) {
+                M3EFactRow(label = "Designation", value = facultyDesignation)
+            }
+            M3EFactRow(label = "Cabin", value = facultyCabin ?: "Not published")
+            M3EFactRow(label = "Email", value = facultyEmail ?: "Not published")
+            M3EFactRow(label = "Venue", value = venue)
+            M3EFactRow(label = "Slot", value = slot)
+        }
+    }
+}
+
+/** One label/value pair inside [M3ECourseReviewPanel], painted on the card surface. */
+@Composable
+private fun M3EFactRow(label: String, value: String) {
+    val colors = M3ETheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+            color = colors.onSurface
+        )
     }
 }

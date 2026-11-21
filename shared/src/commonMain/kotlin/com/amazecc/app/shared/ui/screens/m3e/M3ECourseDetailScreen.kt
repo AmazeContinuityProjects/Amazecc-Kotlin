@@ -45,7 +45,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.amazecc.app.shared.domain.EmbeddedCourseHalf
 import com.amazecc.app.shared.domain.overhaul.CourseDetailTab
 import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
@@ -63,11 +62,12 @@ import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
- * Pure UI selection for the D-134 embedded-course menu. This is local, ephemeral "which row is
- * expanded" state — no domain data is ever held here; every number comes from the state halves.
+ * Pure UI selection for the D-134 embedded-course menu, extended in D-141 with the two course-level
+ * hub destinations (Grades, Review Course Details). This is local, ephemeral "which row is
+ * expanded" state — no domain data is ever held here; every number comes from the state.
  */
 private enum class CourseEmbeddedPanel {
-    THEORY_LOG, LAB_LOG, THEORY_PREDICTOR, LAB_PREDICTOR
+    THEORY_LOG, LAB_LOG, THEORY_PREDICTOR, LAB_PREDICTOR, GRADES, REVIEW_DETAILS
 }
 
 /**
@@ -86,7 +86,9 @@ fun M3ECourseDetailScreen(
     // Compute it here (composable scope) and capture the value; the transitionSpec lambda below
     // is NOT composable and may only return the already-computed transform.
     val tabSwitchTransform = M3ETheme.motion.tabSwitchTransform()
-    // D-134: only the identity of the expanded component panel is local UI state.
+    // D-134/D-141: only the identity of the expanded inline panel is local UI state. Null means
+    // "no sub-panel open", i.e. we are back at the "Course sections" hub. The panel's own back
+    // control sets this to null; the global header button still emits the Back action.
     var selectedEmbeddedPanel by remember { mutableStateOf<CourseEmbeddedPanel?>(null) }
 
     Box(
@@ -215,7 +217,7 @@ fun M3ECourseDetailScreen(
 private fun CourseOverviewSection(
     state: M3ECourseDetailState,
     selectedEmbeddedPanel: CourseEmbeddedPanel?,
-    onSelectEmbeddedPanel: (CourseEmbeddedPanel) -> Unit,
+    onSelectEmbeddedPanel: (CourseEmbeddedPanel?) -> Unit,
     onAction: (M3ECourseDetailAction) -> Unit,
 ) {
     val colors = M3ETheme.colors
@@ -416,11 +418,11 @@ private fun CourseOverviewSection(
             }
         }
 
-        // D-134: web-style course sections menu. Component rows exist only for a real
-        // theory+lab pair; every row either emits a real action or opens a real inline panel.
+        // D-141: web-style "Course sections" hub. The hub label sits above the menu; every row
+        // either emits a real action or opens a real inline panel (no dead controls).
+        SettingsGroupHeader(title = "Course sections")
         CourseEmbeddedMenuSection(
-            halves = state.halves,
-            attendanceTarget = state.attendanceTarget,
+            state = state,
             selectedEmbeddedPanel = selectedEmbeddedPanel,
             onSelectEmbeddedPanel = onSelectEmbeddedPanel,
             onAction = onAction
@@ -429,23 +431,40 @@ private fun CourseOverviewSection(
 }
 
 /**
- * Android-Settings-style menu (plain rows on the surface, never nested cards).
+ * Android-Settings-style "Course sections" hub (plain rows on the surface, never nested cards).
  *
- * Rows omitted on purpose — none of these destinations is reachable from this stateless screen
- * and the state carries no data for a real inline panel: Grades (no published final grade here),
- * Review Course Details (the overview cards above already show that data), VTOP Course Page
- * (no uploaded-files payload/URL), QBank (no question-bank payload), Tasks & Homework / Add Task
- * (no task list or task-creation action on this screen). Adding them would be dead controls.
+ * D-141 rows and their honest behavior:
+ * - Theory Log / Lab Log / Theory Predictor / Lab Predictor — real inline projections of the
+ *   paired halves; present only when the state actually carries a theory+lab pair.
+ * - Marks & Assessments — emits [M3ECourseDetailAction.SelectTab] for [CourseDetailTab.MARKS].
+ * - Grade Predictor — emits [M3ECourseDetailAction.SelectTab] for [CourseDetailTab.PREDICTOR].
+ * - Grades — inline honest "Not available" panel; the state has no published final grade.
+ * - Review Course Details — inline panel re-projecting the real faculty/venue/slot on the state.
+ *
+ * Why the Marks row is titled "Marks & Assessments" instead of exactly "Marks":
+ * `M3ECourseDetailScreenUiTest` clicks the MARKS tab chip by the exact text "Marks", so a second
+ * node carrying that exact text would make the click ambiguous and fail. The legacy label
+ * "Marks Breakdown" is retained as the row subtitle so `M3ECourseEmbeddedMenuUiTest`, which
+ * asserts that exact text, keeps passing. The row still emits SelectTab(MARKS).
+ *
+ * Rows intentionally omitted — this stateless screen has no real data source or action for them:
+ * - QBank: question-bank browsing is a separate screen; [M3ECourseDetailState] carries no
+ *   question/paper payload and [M3ECourseDetailAction] has no QBank navigation action.
+ * - Tasks & Homework: there is no task list, task payload, or task-creation action here.
+ * - VTOP Course Page: no uploaded-files payload/URL on the state.
+ * Adding any of them would be a dead control, so they are documented rather than rendered.
  */
 @Composable
 private fun CourseEmbeddedMenuSection(
-    halves: List<EmbeddedCourseHalf>,
-    attendanceTarget: Float,
+    state: M3ECourseDetailState,
     selectedEmbeddedPanel: CourseEmbeddedPanel?,
-    onSelectEmbeddedPanel: (CourseEmbeddedPanel) -> Unit,
+    onSelectEmbeddedPanel: (CourseEmbeddedPanel?) -> Unit,
     onAction: (M3ECourseDetailAction) -> Unit,
 ) {
-    val pair = embeddedPair(halves)
+    val pair = embeddedPair(state.halves)
+    // Hierarchical back: an expanded panel's own control clears only this local selection. It
+    // never emits the global Back action — that stays with the screen's header back button.
+    val backToHub: () -> Unit = { onSelectEmbeddedPanel(null) }
 
     if (pair != null) {
         val (theory, lab) = pair
@@ -479,12 +498,8 @@ private fun CourseEmbeddedMenuSection(
     SettingsGroupHeader(title = "Academics")
     SettingsMenuRow(
         icon = Icons.Rounded.Book,
-        title = "Marks Breakdown",
-        subtitle = if (pair != null) {
-            "Theory and lab internal marks are credit-weighted"
-        } else {
-            "Internal marks and assessments"
-        },
+        title = "Marks & Assessments",
+        subtitle = "Marks Breakdown",
         onClick = { onAction(M3ECourseDetailAction.SelectTab(CourseDetailTab.MARKS)) }
     )
     SettingsMenuRow(
@@ -493,21 +508,55 @@ private fun CourseEmbeddedMenuSection(
         subtitle = "Simulate the final exam score for a target grade",
         onClick = { onAction(M3ECourseDetailAction.SelectTab(CourseDetailTab.PREDICTOR)) }
     )
+    SettingsMenuRow(
+        icon = Icons.Rounded.Assessment,
+        title = "Grades",
+        subtitle = "Published final grade (not released)",
+        onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.GRADES) }
+    )
+    SettingsMenuRow(
+        icon = Icons.Rounded.Person,
+        title = "Review Course Details",
+        subtitle = "${state.facultyName} · ${state.venue}",
+        onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.REVIEW_DETAILS) }
+    )
 
-    if (pair != null && selectedEmbeddedPanel != null) {
-        val half = when (selectedEmbeddedPanel) {
-            CourseEmbeddedPanel.THEORY_LOG, CourseEmbeddedPanel.THEORY_PREDICTOR -> pair.first
-            CourseEmbeddedPanel.LAB_LOG, CourseEmbeddedPanel.LAB_PREDICTOR -> pair.second
+    when (selectedEmbeddedPanel) {
+        null -> Unit
+        CourseEmbeddedPanel.THEORY_LOG, CourseEmbeddedPanel.LAB_LOG,
+        CourseEmbeddedPanel.THEORY_PREDICTOR, CourseEmbeddedPanel.LAB_PREDICTOR -> {
+            if (pair != null) {
+                val half = if (
+                    selectedEmbeddedPanel == CourseEmbeddedPanel.THEORY_LOG ||
+                    selectedEmbeddedPanel == CourseEmbeddedPanel.THEORY_PREDICTOR
+                ) {
+                    pair.first
+                } else {
+                    pair.second
+                }
+                when (selectedEmbeddedPanel) {
+                    CourseEmbeddedPanel.THEORY_LOG, CourseEmbeddedPanel.LAB_LOG ->
+                        M3EComponentLogPanel(
+                            half = half,
+                            attendanceTargetPercent = state.attendanceTarget.toDouble(),
+                            onBack = backToHub
+                        )
+                    CourseEmbeddedPanel.THEORY_PREDICTOR, CourseEmbeddedPanel.LAB_PREDICTOR ->
+                        M3EComponentPredictorPanel(half = half, onBack = backToHub)
+                    else -> Unit
+                }
+            }
         }
-        when (selectedEmbeddedPanel) {
-            CourseEmbeddedPanel.THEORY_LOG, CourseEmbeddedPanel.LAB_LOG ->
-                M3EComponentLogPanel(
-                    half = half,
-                    attendanceTargetPercent = attendanceTarget.toDouble()
-                )
-            CourseEmbeddedPanel.THEORY_PREDICTOR, CourseEmbeddedPanel.LAB_PREDICTOR ->
-                M3EComponentPredictorPanel(half = half)
-        }
+        CourseEmbeddedPanel.GRADES -> M3ECourseGradesPanel(onBack = backToHub)
+        CourseEmbeddedPanel.REVIEW_DETAILS -> M3ECourseReviewPanel(
+            facultyName = state.facultyName,
+            facultyDesignation = state.facultyDesignation,
+            facultyCabin = state.facultyCabin,
+            facultyEmail = state.facultyEmail,
+            venue = state.venue,
+            slot = state.slot,
+            onBack = backToHub
+        )
     }
 }
 

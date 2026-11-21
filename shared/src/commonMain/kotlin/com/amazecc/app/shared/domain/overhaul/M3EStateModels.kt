@@ -264,9 +264,11 @@ data class M3EAcademicCourse(
     val faculty: String,
     val grade: String? = null,
     val internalScored: Double = 0.0,
-    val internalMax: Double = 60.0,
+    val internalMax: Double = 0.0,
     val assessments: List<M3EAssessmentItem> = emptyList(),
-    val attendancePct: Double? = null
+    val attendancePct: Double? = null,
+    /** Semester this course belongs to, for the unified hub's cross-semester grouping. */
+    val semesterLabel: String = ""
 )
 
 data class M3EAcademicSummary(
@@ -284,6 +286,9 @@ data class M3EAcademicsState(
     val selectedFilter: AcademicCourseFilter = AcademicCourseFilter.ALL,
     val searchQuery: String = "",
     val expandedCourseCode: String? = null,
+    /** Unified hub mode: group courses across semesters instead of the selected one only. */
+    val showAllSemesters: Boolean = false,
+    val pastSemestersSynced: Boolean = false,
     val isLoading: Boolean = false
 )
 
@@ -293,6 +298,8 @@ sealed interface M3EAcademicsAction {
     data class UpdateSearch(val query: String) : M3EAcademicsAction
     data class ToggleExpandCourse(val courseCode: String) : M3EAcademicsAction
     data object Refresh : M3EAcademicsAction
+    data object ToggleAllSemesters : M3EAcademicsAction
+    data object RefreshPastSemesters : M3EAcademicsAction
 }
 
 // ==========================================
@@ -331,7 +338,7 @@ data class M3ECourseDetailState(
     val tone: M3ECardTone = M3ECardTone.NEUTRAL,
     val activeTab: CourseDetailTab = CourseDetailTab.OVERVIEW,
     val internalScored: Double = 0.0,
-    val internalMax: Double = 60.0,
+    val internalMax: Double = 0.0,
     val classAverage: Double? = null,
     val classMax: Double? = null,
     val assessments: List<M3EAssessmentItem> = emptyList(),

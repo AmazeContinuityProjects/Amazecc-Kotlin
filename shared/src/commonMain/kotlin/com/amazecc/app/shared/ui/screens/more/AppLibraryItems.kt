@@ -36,7 +36,8 @@ val appLibraryItems: List<AppLibraryItem> = listOf(
     AppLibraryItem("Attendance", "Class attendance & slot tracker", Icons.Rounded.EventAvailable, "Study", targetScreen = Screen.ATTENDANCE),
     AppLibraryItem("Timetable Calendar", "Daily schedule & exam calendar", Icons.Rounded.CalendarMonth, "Study", targetScreen = Screen.CALENDAR),
     AppLibraryItem("Academics Hub", "Academic sub-panel & grade tools", Icons.Rounded.School, "Study", type = "panel", panelTarget = LibraryPanel.ACADEMICS, pinnableScreen = null),
-    AppLibraryItem("Course Hub", "Courses, grades, arrears & more", Icons.Rounded.Dashboard, "Academics", targetScreen = Screen.COURSE_DASHBOARD),
+    // D-140: one canonical hub. The old Course Hub opened a second course-dashboard UI.
+    AppLibraryItem("Course Hub", "Courses, grades, arrears & more", Icons.Rounded.Dashboard, "Academics", targetScreen = Screen.ACADEMICS),
     AppLibraryItem("Grade History", "Semester SGPA & grade breakdown", Icons.Rounded.History, "Academics", targetScreen = Screen.GRADES),
     AppLibraryItem("Curriculum", "Completed courses & credit requirements", Icons.AutoMirrored.Rounded.MenuBook, "Academics", targetScreen = Screen.CURRICULUM),
     AppLibraryItem("CGPA Predictor", "Estimate future CGPA from expected grades", Icons.AutoMirrored.Rounded.TrendingUp, "Academics", targetScreen = Screen.GPA_PREDICTOR),

@@ -187,3 +187,14 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 - Critic verdict PASS/SAFE_TO_COMMIT with minor findings. Fixed the one real behavioral bug before commit: SkipFridays now merges into existing dayStates (preserves manual absences) and matches both published Friday day-order and real calendar Fridays, matching web handleBunkFridays. Re-running gate_predictor7.
 ### [2026-11-21 15:45] session-mother - FINAL GREEN gate_predictor7
 - EXIT 0, clean compile, all 1356 tests. Critic PASS; SkipFridays bug fixed. Committing predictor port, then APKs.
+### [2026-11-21 15:55] session-mother - CLAIM/EDIT (academics unification D-140..D-142)
+- Predictor wave committed be6f9d6, APKs green. Now unifying academics hub + course dashboard (modern + legacy) per ../AmazeCC SimplifiedAcademicsPage/CourseDetailSubpage philosophy: hub -> detail -> sub-detail, one canonical hub and one canonical course page.
+- Workers own UI files; mother owns M3EStateModels/M3EStateBridge/App/AppState/legacy deletion. No worker runs Gradle.
+### [2026-11-21 16:20] session-mother - DONE (academics workers) VERIFIER NEXT
+- D-140 hub: All Semesters grouping + past-semester sync + Academic Explorer in M3EAcademicsScreen; mother wired state/actions/host, removed internalMax=60 hardcode (now real weighted derivation), fixed course-detail semester deep links, redirected both legacy More tiles to the unified hub, deleted dead legacy CourseDashboard.kt after relocating cleanCourseTitle into CourseCardModel.kt. D-141 course page: Course sections header + Grades/Review panels + hierarchical panel back. Running gate_academics1 now.
+### [2026-11-21 16:25] session-mother - RESULT gate_academics1 (GREEN)
+- EXIT 0: clean compile, all tests pass. Academics unification verified. Launching Critic audit before commit.
+### [2026-11-21 16:35] session-mother - CRITIC FIXES + RE-GATE
+- Critic FAIL, all 4 MAJOR + NIT fixed: (1) All-Semesters course click now resolves the owning semester so detail cannot open an arbitrary course; (2) RefreshPastSemesters calls AppState.refreshPastSemesters (force-refetch) instead of the skip-on-already-synced refreshAllAcademic; (3) hub assessment maxMark fallback 50.0 -> 0.0 to match detail/predictor; (4) App Library "Course Hub" retargeted to the unified ACADEMICS hub; internalMax defaults 60.0 -> 0.0. Re-running gate_academics2.
+### [2026-11-21 16:45] session-mother - FINAL GREEN gate_academics2
+- EXIT 0, all tests. Critic findings all fixed. Committing D-140/D-141, then APKs.
