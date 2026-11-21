@@ -19,6 +19,7 @@ import com.amazecc.app.shared.domain.DayEvent
 import com.amazecc.app.shared.domain.DayType
 import com.amazecc.app.shared.domain.EventKind
 import com.amazecc.app.shared.domain.MonthModel
+import com.amazecc.app.shared.domain.ReportDataAssembler
 import com.amazecc.app.shared.domain.buildEnrichedCalendars
 import com.amazecc.app.shared.domain.calendarSources
 import com.amazecc.app.shared.domain.kindLabel
@@ -26,6 +27,7 @@ import com.amazecc.app.shared.domain.leadingBlanks
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
 import com.amazecc.app.shared.domain.overhaul.M3EKohaBookDetail
 import com.amazecc.app.shared.domain.overhaul.M3EKohaHolding
+import com.amazecc.app.shared.domain.overhaul.M3EReportSections
 import com.amazecc.app.shared.domain.overhaul.M3EStudentReportAction
 import com.amazecc.app.shared.domain.overhaul.M3EStudentReportState
 import com.amazecc.app.shared.domain.overhaul.M3ETimetableAction
@@ -40,8 +42,6 @@ import com.amazecc.app.shared.model.KohaHolding
 import com.amazecc.app.shared.model.NamedCalendar
 import com.amazecc.app.shared.model.PaymentItem
 import com.amazecc.app.shared.model.TimetableRes
-import com.amazecc.app.shared.pdf.PdfEngine
-import com.amazecc.app.shared.pdf.PdfTextOptions
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
@@ -53,8 +53,9 @@ import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ChangelogEntry
 import com.amazecc.app.shared.utils.ContentData
+import com.amazecc.app.shared.utils.ReportExportBuilder
+import com.amazecc.app.shared.utils.ReportExportFormat
 import com.amazecc.app.shared.utils.UpdateConfig
-import com.amazecc.app.shared.utils.buildSimpleHtml
 import com.amazecc.app.shared.utils.openDocumentBytes
 import com.amazecc.app.shared.utils.openExternalUrl
 import com.amazecc.app.shared.utils.rememberFileSaver
@@ -1348,67 +1349,6 @@ fun M3ETimetableHost(
 // STUDENT REPORT (D-115)
 // ==========================================
 
-/** Real report rows, shared by PDF, JSON and share so the three exports cannot disagree. */
-private fun m3eReportLines(state: M3EStudentReportState): List<String> = buildList {
-    add("AMAZECC STUDENT ACADEMIC REPORT")
-    add("")
-    add("Student: ${state.studentName}")
-    add("Registration: ${state.registrationNumber}")
-    add("Programme: ${state.programme}")
-    add("School: ${state.school} | Campus: ${state.campus}")
-    state.proctorName?.takeIf { it.isNotBlank() }?.let { add("Proctor: $it") }
-    state.proctorEmail?.takeIf { it.isNotBlank() }?.let { add("Proctor email: $it") }
-    add("")
-    add("CGPA: ${state.cgpa}")
-    add("Overall attendance: ${state.overallAttendancePct}%")
-    add("Credits: ${state.completedCredits} / ${state.totalRequiredCredits}")
-    add(if (state.hasArrears) "Standing arrears: ${state.arrearsCount}" else "Standing arrears: none")
-}
-
-/** Internal seam so the HTML export reads the exact same real rows as the PDF / JSON / share. */
-internal fun m3eReportLinesForHtml(state: M3EStudentReportState): List<String> = m3eReportLines(state)
-
-private fun m3eJsonEscape(raw: String): String = buildString {
-    raw.forEach { ch ->
-        when (ch) {
-            '\\' -> append("\\\\")
-            '"' -> append("\\\"")
-            '\n' -> append("\\n")
-            '\r' -> append("\\r")
-            '\t' -> append("\\t")
-            else -> append(if (ch.code in 32..126) ch else '?')
-        }
-    }
-}
-
-private fun m3eReportJson(state: M3EStudentReportState): String = buildString {
-    append("{\n")
-    append("  \"studentName\": \"${m3eJsonEscape(state.studentName)}\",\n")
-    append("  \"registrationNumber\": \"${m3eJsonEscape(state.registrationNumber)}\",\n")
-    append("  \"programme\": \"${m3eJsonEscape(state.programme)}\",\n")
-    append("  \"school\": \"${m3eJsonEscape(state.school)}\",\n")
-    append("  \"campus\": \"${m3eJsonEscape(state.campus)}\",\n")
-    append("  \"cgpa\": ${state.cgpa},\n")
-    append("  \"overallAttendancePct\": ${state.overallAttendancePct},\n")
-    append("  \"completedCredits\": ${state.completedCredits},\n")
-    append("  \"totalRequiredCredits\": ${state.totalRequiredCredits},\n")
-    append("  \"arrearsCount\": ${state.arrearsCount}\n")
-    append("}\n")
-}
-
-/**
- * Minimal valid PDF 1.4 (Helvetica) written from the real report rows.
- *
- * D-149: serialization is delegated to the shared [PdfEngine] with the same 11pt / 15 / 48-line
- * layout the report used before, so the exported bytes stay identical.
- */
-private fun m3eBuildReportPdf(lines: List<String>): ByteArray =
-    PdfEngine.buildTextPdf(
-        "AMAZECC STUDENT ACADEMIC REPORT",
-        lines,
-        PdfTextOptions(fontSize = 11, leading = 15, startX = 36, startY = 812, linesPerPage = 48),
-    )
-
 /**
  * Stateful host for [M3EStudentReportScreen] (D-115, restructured in D-153). Every figure
  * comes from the identity and academic caches; export success/error state is written only
@@ -1431,8 +1371,8 @@ fun M3EStudentReportHost(
     val isDark = M3EStateBridge.isDarkThemeActive()
     val identity by UserStore.identity.collectAsState()
     val domain by AppState.domain.collectAsState()
-    val selectedSemId by AppState.selectedSemester.collectAsState()
     val allGrades by AppState.allGrades.collectAsState()
+    val odDetails by AppState.odDetails.collectAsState()
     val scope = rememberCoroutineScope()
     val saveFile = rememberFileSaver()
 
@@ -1443,37 +1383,36 @@ fun M3EStudentReportHost(
 
     LaunchedEffect(Unit) { AppState.syncIdentityIfThin() }
 
-    val courses = remember(domain, selectedSemId) {
-        com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId)
+    // D-157b — one real, web-parity snapshot feeds the on-screen metrics and every export path.
+    // The assembler is pure; the only "now" is the caller's timestamp for the report date/name.
+    val report = remember(domain, allGrades, identity, odDetails) {
+        ReportDataAssembler.assemble(
+            snapshot = domain,
+            allGrades = allGrades,
+            identity = identity,
+            sections = M3EReportSections(),
+            officialOd = odDetails,
+            generatedAt = Clock.System.now().toEpochMilliseconds(),
+        )
     }
-    val attended = courses.sumOf { it.attendance?.attended ?: 0 }
-    val totalClasses = courses.sumOf { it.attendance?.total ?: 0 }
-    val attendancePct = if (totalClasses > 0) attended * 100.0 / totalClasses else 0.0
-    val semester = domain.academics.semesters[selectedSemId]
-    val completedCredits = courses.sumOf { it.credits?.toDoubleOrNull()?.toInt() ?: 0 }
-    val requiredCredits = allGrades?.overall?.cgpa?.creditsRegistered?.toDoubleOrNull()?.toInt() ?: 0
-    val arrearsCount = courses.count { it.grade?.letter.equals("F", ignoreCase = true) }
-    val proctor = identity.proctor
 
     val state = M3EStudentReportState(
-        studentName = if (identity.hasIdentity) identity.displayName else "",
-        registrationNumber = identity.regNo.orEmpty(),
-        programme = identity.program.orEmpty(),
-        school = identity.school.orEmpty(),
-        campus = identity.campus.orEmpty(),
-        proctorName = proctor?.name?.takeIf { it.isNotBlank() },
-        proctorEmail = proctor?.email?.takeIf { it.isNotBlank() },
-        cgpa = allGrades?.publishedCgpa?.toDoubleOrNull()
-            ?: semester?.gpa?.trim()?.toDoubleOrNull()
-            ?: 0.0,
-        overallAttendancePct = attendancePct,
-        completedCredits = completedCredits,
-        totalRequiredCredits = requiredCredits,
-        hasArrears = arrearsCount > 0,
-        arrearsCount = arrearsCount,
+        studentName = report.identity.name,
+        registrationNumber = report.identity.registrationNumber,
+        programme = report.identity.programme,
+        school = report.identity.school,
+        campus = report.identity.campus,
+        proctorName = report.identity.proctorName?.takeIf { it.isNotBlank() },
+        proctorEmail = report.identity.proctorEmail?.takeIf { it.isNotBlank() },
+        cgpa = report.summary.cgpa,
+        overallAttendancePct = report.summary.attendancePct,
+        completedCredits = report.summary.creditsEarned,
+        totalRequiredCredits = report.summary.creditsRegistered,
+        hasArrears = report.summary.arrearsCount > 0,
+        arrearsCount = report.summary.arrearsCount,
         isExportingPdf = isExportingPdf,
         exportSuccessMessage = exportSuccessMessage,
-        isLoading = !identity.hasIdentity && courses.isEmpty()
+        isLoading = !identity.hasIdentity && report.subjects.isEmpty()
     )
 
     fun exportPdf() {
@@ -1482,14 +1421,14 @@ fun M3EStudentReportHost(
             exportSuccessMessage = null
             exportErrorMessage = null
             try {
-                val fileName = "amazecc-student-report.pdf"
-                val bytes = withContext(Dispatchers.Default) {
-                    m3eBuildReportPdf(m3eReportLines(state))
+                val file = withContext(Dispatchers.Default) {
+                    ReportExportBuilder.build(report, ReportExportFormat.PDF)
                 }
                 when {
-                    saveFile(fileName, bytes) ->
-                        exportSuccessMessage = "Saved to Downloads as $fileName"
-                    else -> exportErrorMessage = "Could not save $fileName. Check device storage and retry."
+                    saveFile(file.filename, file.bytes) ->
+                        exportSuccessMessage = "Saved to Downloads as ${file.filename}"
+                    else -> exportErrorMessage =
+                        "Could not save ${file.filename}. Check device storage and retry."
                 }
             } catch (e: Exception) {
                 exportErrorMessage = e.message ?: "Could not generate the PDF"
@@ -1505,31 +1444,39 @@ fun M3EStudentReportHost(
             M3EStudentReportAction.ExportPdfReport -> exportPdf()
             M3EStudentReportAction.ExportJsonData -> {
                 scope.launch {
-                    val fileName = "amazecc-student-report.json"
-                    val bytes = m3eReportJson(state).toByteArray()
-                    actionNotice = if (saveFile(fileName, bytes)) {
-                        "Saved $fileName to Downloads"
-                    } else {
-                        "Could not save $fileName"
+                    try {
+                        // Serialising a full report is CPU work — keep it off Main like the PDF path.
+                        val file = withContext(Dispatchers.Default) {
+                            ReportExportBuilder.build(report, ReportExportFormat.JSON)
+                        }
+                        actionNotice = if (saveFile(file.filename, file.bytes)) {
+                            "Saved ${file.filename} to Downloads"
+                        } else {
+                            "Could not save ${file.filename}"
+                        }
+                    } catch (e: Exception) {
+                        actionNotice = "Could not generate JSON: ${e.message ?: "unknown error"}"
                     }
                 }
             }
             M3EStudentReportAction.ExportHtmlReport -> {
                 scope.launch {
-                    // Same real rows the PDF/JSON/share paths use; the first row is
-                    // the report's own heading, so it doubles as the HTML title.
-                    val lines = m3eReportLinesForHtml(state)
-                    val html = buildSimpleHtml(lines.first(), lines)
-                    val fileName = "amazecc-student-report.html"
-                    actionNotice = if (saveFile(fileName, html.toByteArray())) {
-                        "Saved $fileName to Downloads"
-                    } else {
-                        "Could not save $fileName"
+                    try {
+                        val file = withContext(Dispatchers.Default) {
+                            ReportExportBuilder.build(report, ReportExportFormat.HTML)
+                        }
+                        actionNotice = if (saveFile(file.filename, file.bytes)) {
+                            "Saved ${file.filename} to Downloads"
+                        } else {
+                            "Could not save ${file.filename}"
+                        }
+                    } catch (e: Exception) {
+                        actionNotice = "Could not generate HTML: ${e.message ?: "unknown error"}"
                     }
                 }
             }
             M3EStudentReportAction.ShareReport -> {
-                val shared = shareText(m3eReportLines(state).joinToString("\n"))
+                val shared = shareText(ReportExportBuilder.shareText(report))
                 actionNotice = if (shared) "Report handed to the share sheet" else "No app is available to share this report"
             }
             // The report is assembled from many caches (attendance, grades, curriculum,
