@@ -245,3 +245,8 @@ Format mirrors `SwarmBoard.boardMarkdown()`: `**[id | date] KIND â†’ to â�
 - Report UX is now a normal M3E screen: bottom nav visible, real app bar (Back + Refresh that performs a full data sweep), grouped Settings-style sections, max two cards/buttons per row, honest skeleton.
 - Verified gate_report7 EXIT 0; Critic SAFE_TO_COMMIT.
 - Next: D-154..D-156 move feedback status into the FFCS sync engine and stop per-screen refetching; then D-157 wires the rich serializers into the live report exports.
+## 2026-11-22 - D-154..D-156 feedback sync (committed 5e31a15)
+- Feedback status is now fetched only by the FFCS sync engine: one canonical fetch helper used by Sync All, every manual mode (Quick/Daily/Weekly/Monthly/Quarterly/Full/Balanced/Academics/Campus) and screen Refresh.
+- Durable cache_ffcs_feedback_status survives cold start; profile schema v1 to v2 backfill upgrades existing devices without wiping user settings.
+- Screens read the cached flow; the legacy screen no longer fetches on entry. Verified gate_feedback3 EXIT 0; Critic PASS.
+- Remaining toward full report-export parity: D-157 wire ReportDataAssembler/ReportSerializers into the live PDF/JSON/HTML/Share exports (currently the rich serializers are used only by tests).
