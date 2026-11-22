@@ -279,3 +279,4 @@ Format mirrors `SwarmBoard.boardMarkdown()`: `**[id | date] KIND â†’ to â�
 - Scanner rebuilt with real gallery/camera capture, FileProvider PDF share, and a crash fix (launchers hoisted outside the Dialog). Phase 0 also added on-device OCR/Gemini Nano backend, cached VTOP course materials and a real attendance forecast.
 - Scanner now surfaces real on-device OCR/inference chips, preserves user-typed titles, and names exports from inferred facts; stale results are guarded by generation + byte identity.
 - Geotag photos: CameraX + OEM extensions, fused location, EXIF GPS, OpenStreetMap overlay card, FileProvider share, pinnable home shortcut and amazecc://geotag deep link. Device smoke test still required.
+- Document scanner now performs real edge detection, perspective straightening, deskew and cleanup: ML Kit Document Scanner primary, explicit OpenCV contour/warp fallback, then OCR/inference on the cleaned page. Device verification still required.
