@@ -23,9 +23,13 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Crop
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.FileOpen
+import androidx.compose.material.icons.rounded.HourglassTop
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Lightbulb
 import androidx.compose.material.icons.rounded.PictureAsPdf
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PhotoLibrary
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
@@ -56,6 +60,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.amazecc.app.shared.domain.PaperInference
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.M3EColorPalette
@@ -68,6 +73,9 @@ internal const val SCANNER_TITLE_FIELD_TAG = "scanner_title_field"
 internal const val SCANNER_NOTE_FIELD_TAG = "scanner_note_field"
 internal const val SCANNER_EXPORT_TAG = "scanner_export_pdf"
 internal const val SCANNER_SHARE_TAG = "scanner_share_pdf"
+internal const val SCANNER_READING_TAG = "scanner_on_device_reading"
+internal const val SCANNER_ANALYSIS_PROGRESS_TAG = "scanner_analysis_progress"
+internal const val SCANNER_ANALYZE_TAG = "scanner_reanalyse"
 
 /** Immutable snapshot handed to [M3EDocumentScannerScreen] by [M3EDocumentScannerHost]. */
 data class M3EDocumentScannerState(
@@ -81,6 +89,12 @@ data class M3EDocumentScannerState(
     val errorMessage: String? = null,
     val isExporting: Boolean = false,
     val shareNotice: String? = null,
+    // D-171 — on-device reading. Every field is optional: the platform may be unable to read
+    // text or to infer details, and the UI must report that instead of inventing values.
+    val inference: PaperInference? = null,
+    val ocrText: String? = null,
+    val isAnalyzing: Boolean = false,
+    val analysisNotice: String? = null,
 )
 
 /** Every state change the stateless screen can request. Validation stays in the host. */
@@ -94,6 +108,8 @@ sealed interface M3EDocumentScannerAction {
     data class SetNote(val value: String) : M3EDocumentScannerAction
     data object ExportPdf : M3EDocumentScannerAction
     data object SharePdf : M3EDocumentScannerAction
+    /** Re-run on-device reading on the currently loaded image bytes. */
+    data object Analyze : M3EDocumentScannerAction
     data object Clear : M3EDocumentScannerAction
 }
 
@@ -101,13 +117,15 @@ sealed interface M3EDocumentScannerAction {
  * D-009 — honest, **stateless** document scanner surface.
  *
  * What IS real here: gallery/camera capture (Android), preview, drag a crop rectangle over the
- * image, edit title/note, and export/share a standards-compliant PDF that embeds the original
- * JPEG with the crop applied as a clipping path.
+ * image, on-device text recognition and paper-detail inference (supported Android devices),
+ * edit title/note, and export/share a standards-compliant PDF that embeds the original JPEG
+ * with the crop applied as a clipping path.
  *
- * What is NOT shown here yet (reported, never faked): automatic edge detection and the
- * on-device OCR/inference results (the Android engine exists but is not wired into this surface
- * yet). Camera/gallery picking is unavailable on desktop and iOS, where the base64 fallback is
- * the real import path. Title/note are user-editable, not simulated OCR output.
+ * What is NOT shown here (reported, never faked): automatic edge detection. OCR/inference are
+ * real platform capabilities now, but they return empty/null on unsupported devices and the
+ * surface says so. Camera/gallery picking is unavailable on desktop and iOS, where the base64
+ * fallback is the real import path. Title/note are user-editable; an inferred title is only
+ * prefilled into a blank field and remains editable.
  *
  * This composable deliberately has no theme wrapper and no ActivityResult launcher. It is
  * composed inside `M3EDismissibleSheet`'s `Dialog` content, so all launchers live in the host
@@ -137,9 +155,11 @@ fun M3EDocumentScannerScreen(
                 SectionTitle("DOCUMENT SCANNER", Icons.Rounded.Crop, colors)
                 Text(
                     "Choose a photo from the gallery or take one with the camera (Android), then crop the page, " +
-                        "add a title and note, and export or share a real PDF. On desktop and iOS, capture is not " +
-                        "wired up — paste a base64 JPEG instead. Automatic edge detection is unavailable, and " +
-                        "on-device OCR results are not shown here yet; the text fields are manual, never simulated.",
+                        "read it on-device, add a title and note, and export or share a real PDF. On desktop and " +
+                        "iOS, capture is not wired up — paste a base64 JPEG instead. Automatic edge detection is " +
+                        "unavailable. On-device text recognition and paper-detail inference ARE available on " +
+                        "supported Android devices; elsewhere the scanner reports that reading is unavailable " +
+                        "rather than inventing results. Title and note stay user-editable.",
                     style = MaterialTheme.typography.bodySmall,
                     color = colors.onSurfaceVariant,
                 )
@@ -262,6 +282,90 @@ fun M3EDocumentScannerScreen(
             }
         }
 
+        // D-171 — real on-device reading, between crop and edit/export. Only facts returned by
+        // the platform are rendered; absent fields are skipped rather than shown as placeholders.
+        M3ESurfaceCard(
+            containerLevel = SurfaceContainerLevel.LOW,
+            cornerRadius = 22.dp,
+            modifier = Modifier.fillMaxWidth().testTag(SCANNER_READING_TAG),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(16.dp)) {
+                SectionTitle("ON-DEVICE READING", Icons.Rounded.Insights, colors)
+                if (state.isAnalyzing) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(colors.primaryContainer)
+                            .padding(12.dp)
+                            .testTag(SCANNER_ANALYSIS_PROGRESS_TAG),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(Icons.Rounded.HourglassTop, null, tint = colors.primary, modifier = Modifier.size(18.dp))
+                        Text(
+                            "Reading this document on-device…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onPrimaryContainer,
+                        )
+                    }
+                }
+                val reading = state.inference
+                if (reading != null) {
+                    // Scalars and joined list values become real, labelled chips (max two per row).
+                    val chips = mutableListOf<Pair<String, String>>().apply {
+                        reading.assessmentType?.takeIf { it.isNotBlank() }?.let { add("Assessment" to it) }
+                        reading.subject?.takeIf { it.isNotBlank() }?.let { add("Subject" to it) }
+                        reading.subjectCode?.takeIf { it.isNotBlank() }?.let { add("Subject code" to it) }
+                        reading.documentDate?.takeIf { it.isNotBlank() }?.let { add("Document date" to it) }
+                        reading.classCodes.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }
+                            ?.let { add("Class codes" to it.joinToString(", ")) }
+                        reading.faculties.filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }
+                            ?.let { add("Faculties" to it.joinToString(", ")) }
+                        reading.confidence?.let { add("Confidence" to "${(it * 100).toInt()}%") }
+                    }
+                    chips.chunked(2).forEach { rowChips ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            rowChips.forEach { (label, value) ->
+                                ScannerInfoChip(label, value, colors, Modifier.weight(1f))
+                            }
+                        }
+                    }
+                    reading.insights.filter { it.isNotBlank() }.forEach { insight ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Icon(Icons.Rounded.Lightbulb, null, tint = colors.primary, modifier = Modifier.size(16.dp))
+                            Text(insight, style = MaterialTheme.typography.bodySmall, color = colors.onSurface)
+                        }
+                    }
+                }
+                // The real OCR text is kept even when structured inference is unavailable.
+                state.ocrText?.takeIf { it.isNotBlank() }?.let { text ->
+                    val preview = if (text.length > 160) "${text.take(160)}…" else text
+                    Text("Read text: $preview", style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                }
+                // Every analysisNotice is a failure/validation message (no text, unavailable,
+                // or no image) — never paint it with the success checkmark.
+                state.analysisNotice?.let { ScannerFeedback(it, isError = true, colors = colors) }
+                ElevatedButton(
+                    onClick = { onAction(M3EDocumentScannerAction.Analyze) },
+                    enabled = state.imageBytes != null && !state.isAnalyzing,
+                    modifier = Modifier.fillMaxWidth().height(44.dp).testTag(SCANNER_ANALYZE_TAG),
+                    shape = CircleShape,
+                ) {
+                    Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Re-analyse", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                }
+            }
+        }
+
         M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(16.dp)) {
                 SectionTitle("3 · EDIT & EXPORT", Icons.Rounded.PictureAsPdf, colors)
@@ -325,6 +429,20 @@ fun M3EDocumentScannerScreen(
         state.status?.let { ScannerFeedback(it, false, colors) }
         state.shareNotice?.let { ScannerFeedback(it, false, colors) }
         state.errorMessage?.let { ScannerFeedback(it, true, colors) }
+    }
+}
+
+/** One labelled fact from a real [PaperInference]; never renders a placeholder value. */
+@Composable
+private fun ScannerInfoChip(label: String, value: String, colors: M3EColorPalette, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(colors.surfaceContainerHigh)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+        Text(value, style = MaterialTheme.typography.bodyMedium, color = colors.onSurface)
     }
 }
 
