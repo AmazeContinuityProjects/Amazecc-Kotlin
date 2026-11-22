@@ -65,6 +65,8 @@ val appLibraryItems: List<AppLibraryItem> = listOf(
     // TOOLS & UTILITIES
     AppLibraryItem("Social Feed", "Anonymous campus discussion feed", Icons.Rounded.Public, "Tools", targetScreen = Screen.SOCIAL),
     AppLibraryItem("Friend Finder", "Find classmates in your registered classes", Icons.Rounded.Groups, "Tools", targetScreen = Screen.FRIEND_FINDER),
+    // D-173: geotag photo capture — real camera + GPS, shares a normal screen route.
+    AppLibraryItem("Geotag Photos", "Camera photos stamped with their real GPS location", Icons.Rounded.PhotoCamera, "Tools", targetScreen = Screen.GEOTAG_PHOTO),
     AppLibraryItem("Event Hub", "Campus fests, hackathons & events", Icons.Rounded.Event, "Tools", targetScreen = Screen.EVENTS),
     AppLibraryItem("Club Hub", "Student clubs, chapters & teams", Icons.Rounded.Groups, "Tools", targetScreen = Screen.CLUB_HUB, onClickOverride = { AppState.openClubHub("Directory") }),
 

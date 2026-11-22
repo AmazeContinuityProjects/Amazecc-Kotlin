@@ -34,6 +34,10 @@ class MainActivity : ComponentActivity() {
                 AppState.navigateTo(targetScreen)
             } catch (_: Exception) {}
         }
+
+        // D-167: `amazecc://geotag` (and any other amazecc deep link) arrives as intent.data.
+        // Hand the raw URI to the shared deep-link queue; `target_screen` above stays supported.
+        intent?.data?.let { AppState.setPendingDeepLink(it.toString()) }
         
         setContent {
             val isAppLibraryOpen by AppState.isAppLibraryOpen.collectAsState()
@@ -67,6 +71,15 @@ class MainActivity : ComponentActivity() {
                 MainView()
             }
         }
+    }
+
+    override fun onNewIntent(newIntent: android.content.Intent) {
+        super.onNewIntent(newIntent)
+        setIntent(newIntent)
+        newIntent.getStringExtra("target_screen")?.takeIf { it.isNotBlank() }?.let { raw ->
+            runCatching { AppState.navigateTo(Screen.valueOf(raw)) }
+        }
+        newIntent.data?.let { AppState.setPendingDeepLink(it.toString()) }
     }
 
     override fun onResume() {

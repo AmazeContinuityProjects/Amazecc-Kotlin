@@ -14,6 +14,11 @@ datetime = "0.6.0"
 mlkit-genai-prompt = "1.0.0-beta4"
 mlkit-text-recognition = "16.0.1"
 androidx-exifinterface = "1.4.2"
+# D-167 — geotagged camera: one stable CameraX version across all four artifacts.
+camerax = "1.4.0"
+play-services-location = "21.3.0"
+osmdroid = "6.1.20"
+androidx-core-ktx = "1.16.0"
 
 [libraries]
 kamel-image = { module = "media.kamel:kamel-image", version.ref = "kamel" }
@@ -42,6 +47,15 @@ ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidx-appcompat" }
 androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "androidx-exifinterface" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core-ktx" }
+
+# D-167 — geotagged camera (CameraX + on-device OEM extensions + OSM map)
+androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
+androidx-camera-extensions = { module = "androidx.camera:camera-extensions", version.ref = "camerax" }
+play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
+osmdroid-android = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
 
 # ML Kit on-device document intelligence (D-166, Android only)
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkit-text-recognition" }

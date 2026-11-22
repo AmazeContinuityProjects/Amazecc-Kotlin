@@ -270,6 +270,6 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
     // D-153/D-164: the report and friend finder supply their own M3E top app bars.
-    Screen.STUDENT_REPORT, Screen.FRIEND_FINDER, Screen.SPLASH, Screen.LOGIN,
+    Screen.STUDENT_REPORT, Screen.FRIEND_FINDER, Screen.GEOTAG_PHOTO, Screen.SPLASH, Screen.LOGIN,
         Screen.ONBOARDING, Screen.HOME, Screen.MORE -> null
 }

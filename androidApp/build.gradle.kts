@@ -127,4 +127,15 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.compose)
     debugImplementation(libs.compose.ui.tooling)
+
+    // D-167 — geotagged camera. One CameraX version for every artifact; camera-extensions is the
+    // supported OEM integration point (Night/Bokeh/Face retouch/HDR), not an unverified "codec" hack.
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.androidx.camera.extensions)
+    implementation(libs.play.services.location)
+    implementation(libs.androidx.exifinterface)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.kotlinx.coroutines.android)
 }

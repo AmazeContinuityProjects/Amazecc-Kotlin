@@ -8,7 +8,14 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- D-167 — geotagged camera. Runtime-requested by GeotagCameraActivity, never granted silently. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
+    <!-- The app works without a camera (scanner/camera surfaces degrade honestly); do not gate Play. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
     <application
         android:allowBackup="false"
@@ -24,6 +31,21 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:theme="@style/Theme.App.Starting">
+            <!-- D-167: amazecc://geotag — also used as the pinned-shortcut target. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="amazecc" android:host="geotag" />
+            </intent-filter>
+        </activity>
+
+        <!-- D-167: internal-only capture surface; launched by rememberGeotagCamera by class name. -->
+        <activity
+            android:name=".GeotagCameraActivity"
+            android:exported="false"
+            android:label="Capture geotagged photo"
             android:theme="@style/Theme.App.Starting" />
 
         <!-- Launcher aliases for the app-icon theme setting (D-059).

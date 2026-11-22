@@ -106,6 +106,10 @@ kotlin {
             implementation(libs.mlkit.text.recognition)
             implementation(libs.mlkit.genai.prompt)
             implementation(libs.androidx.exifinterface)
+            // D-167: ShortcutManagerCompat / IconCompat for the honest home-screen pinner.
+            implementation(libs.androidx.core.ktx)
+            // D-167: GeotagMap renders real OpenStreetMap tiles — no Maps API key required.
+            implementation(libs.osmdroid.android)
         }
         
         iosMain.dependencies {

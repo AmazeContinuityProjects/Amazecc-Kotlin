@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="platform_intents_cache" path="." />
+    <!-- D-167: temp JPEGs written by GeotagCameraActivity before EXIF stamping / MediaStore insert. -->
+    <cache-path name="camera_images" path="camera-images/" />
 </paths>

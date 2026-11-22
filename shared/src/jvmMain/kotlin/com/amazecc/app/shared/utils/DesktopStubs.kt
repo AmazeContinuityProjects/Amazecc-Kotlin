@@ -3,8 +3,10 @@ package com.amazecc.app.shared.utils
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import com.amazecc.app.shared.domain.GeotagPhoto
 import com.amazecc.app.shared.domain.PaperInference
 import java.awt.Desktop
 import java.io.File
@@ -117,4 +119,23 @@ actual fun rememberUrlOpener(): (url: String) -> Unit = { url ->
 actual fun ShareIcsButton(icsContent: String) {
     // There is no system share sheet on desktop; the file saver covers the export path.
     Column { Text("Export ICS is available on mobile") }
+}
+
+// ── D-167 geotagged camera (desktop unsupported) ──────────────────────────────
+
+/** No camera or location hardware: report "nothing captured" instead of a fake photo. */
+@Composable
+actual fun rememberGeotagCamera(onCaptured: (GeotagPhoto?) -> Unit): () -> Unit = { onCaptured(null) }
+
+/** There is no desktop launcher/dock pinning API wired here. */
+@Composable
+actual fun rememberShortcutPinner(): (label: String) -> Boolean = { false }
+
+/** No map renderer on desktop; show coordinates honestly. */
+@Composable
+actual fun GeotagMap(latitude: Double, longitude: Double, modifier: Modifier) {
+    Column(modifier = modifier) {
+        Text("Map unavailable on this device")
+        Text("Latitude: $latitude, Longitude: $longitude")
+    }
 }
