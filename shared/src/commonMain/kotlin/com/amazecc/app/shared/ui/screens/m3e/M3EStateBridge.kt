@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -41,7 +42,9 @@ import com.amazecc.app.shared.utils.rememberFileSaver
 import com.amazecc.app.shared.vtop.VtopSource
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.domain.Course
+import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.domain.splitSlots
+import com.amazecc.app.shared.domain.gradeHistory
 import com.amazecc.app.shared.utils.AttendanceTimetable
 import com.amazecc.app.shared.utils.SlotInfo
 import com.amazecc.app.shared.utils.dialPhoneNumber
@@ -69,6 +72,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ECabShareHub
 import com.amazecc.app.shared.domain.overhaul.M3ECabShareRide
 import com.amazecc.app.shared.domain.overhaul.M3ECabShareState
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
+import com.amazecc.app.shared.domain.overhaul.M3ECourseGradeTerm
 import com.amazecc.app.shared.domain.overhaul.M3EClassTimelineItem
 import com.amazecc.app.shared.domain.overhaul.M3EClassroomBuilding
 import com.amazecc.app.shared.domain.overhaul.M3EClassroomSlot
@@ -885,11 +889,12 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
     val semesterMap by AppState.semesterMap.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
 
-    var selectedFilter by remember { mutableStateOf(AcademicCourseFilter.ALL) }
-    var searchQuery by remember { mutableStateOf("") }
-    var expandedCourseCode by remember { mutableStateOf<String?>(null) }
+    var selectedFilter by rememberSaveable { mutableStateOf(AcademicCourseFilter.ALL) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var expandedCourseCode by rememberSaveable { mutableStateOf<String?>(null) }
+    var expandedCourseSemesterId by rememberSaveable { mutableStateOf<String?>(null) }
     // D-140: the unified hub can span semesters, replacing the separate course dashboard.
-    var showAllSemesters by remember { mutableStateOf(false) }
+    var showAllSemesters by rememberSaveable { mutableStateOf(false) }
     val pastSemestersSynced by AppState.pastSemestersSynced.collectAsState()
 
     val currentSem = domain.academics.semesters[selectedSemId]
@@ -921,7 +926,7 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
             M3EAcademicCourse(
                 courseCode = c.code,
                 courseTitle = c.title,
-                credits = c.credits?.toIntOrNull() ?: 3,
+                credits = c.credits?.toIntOrNull(),
                 courseType = c.type,
                 faculty = c.faculty ?: "",
                 grade = c.grade?.letter,
@@ -929,7 +934,8 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
                 internalMax = derivedInternal?.second ?: 0.0,
                 assessments = internalMarks,
                 attendancePct = pct,
-                semesterLabel = semesterMap[semId] ?: semId
+                semesterLabel = semesterMap[semId] ?: semId,
+                semesterId = semId
             )
             }
         }
@@ -955,8 +961,8 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
         val cgpa = allGrades?.publishedCgpa?.toDoubleOrNull()
             ?: currentSem?.gpa?.trim()?.toDoubleOrNull()
             ?: 0.0
-        val earned = academicCourses.filter { it.grade != null && it.grade != "F" }.sumOf { it.credits }
-        val reg = academicCourses.sumOf { it.credits }
+        val earned = academicCourses.filter { it.grade != null && it.grade != "F" }.sumOf { it.credits ?: 0 }
+        val reg = academicCourses.sumOf { it.credits ?: 0 }
         M3EAcademicSummary(
             cgpa = cgpa,
             creditsEarned = earned,
@@ -975,7 +981,8 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
         expandedCourseCode = expandedCourseCode,
         showAllSemesters = showAllSemesters,
         pastSemestersSynced = pastSemestersSynced,
-        isLoading = isLoading
+        isLoading = isLoading,
+        expandedCourseSemesterId = expandedCourseSemesterId
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -991,7 +998,10 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
                     is M3EAcademicsAction.SetFilter -> selectedFilter = action.filter
                     is M3EAcademicsAction.UpdateSearch -> searchQuery = action.query
                     is M3EAcademicsAction.ToggleExpandCourse -> {
-                        expandedCourseCode = if (expandedCourseCode == action.courseCode) null else action.courseCode
+                        val collapse = expandedCourseCode == action.courseCode &&
+                            expandedCourseSemesterId == action.semesterId
+                        expandedCourseCode = if (collapse) null else action.courseCode
+                        expandedCourseSemesterId = if (collapse) null else action.semesterId
                     }
                     is M3EAcademicsAction.Refresh -> AppState.loadAllData()
                     is M3EAcademicsAction.ToggleAllSemesters -> showAllSemesters = !showAllSemesters
@@ -999,17 +1009,8 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
                 }
             },
             modifier = modifier,
-            onOpenCourse = { code ->
-                // In All-Semesters mode resolve WHICH semester owns this course so the detail
-                // host cannot fall back to the globally selected semester and open a different
-                // course with the same code.
-                val ownerSemester = if (showAllSemesters) {
-                    domain.academics.semesters.entries
-                        .firstOrNull { (_, sem) -> sem.courses.containsKey(code) }?.key
-                } else {
-                    selectedSemId
-                }
-                AppState.openCourseDetail(code, ownerSemester)
+            onOpenCourse = { course ->
+                AppState.openCourseDetail(course.courseCode, course.semesterId)
             },
             onOpenExplorer = { key ->
                 when (key) {
@@ -1035,27 +1036,37 @@ fun M3ECourseDetailScreen(
     // globally selected one; openCourseDetail(code, semesterId) stores this explicitly.
     val courseSemesterId by AppState.selectedCourseSemester.collectAsState()
     val detailSemId = courseSemesterId ?: selectedSemId
+    val semesterMap by AppState.semesterMap.collectAsState()
     val identityState by UserStore.identity.collectAsState()
+    val tasks by AppState.tasks.collectAsState()
+    val currentScreen by AppState.currentScreen.collectAsState()
+    val overlays by AppState.overlayStack.collectAsState()
+    val appLibraryOpen by AppState.isAppLibraryOpen.collectAsState()
     val attendanceTarget = rememberEffectiveAttendanceTarget()
     val scope = rememberCoroutineScope()
     val saveFile = rememberFileSaver()
     // One nullable status line feeds the syllabus section. It carries both download failures and
     // the honest post-save note; the stateless screen presents it neutrally.
-    var syllabusStatus by remember { mutableStateOf<String?>(null) }
+    var syllabusStatus by remember(detailSemId, selectedCode) { mutableStateOf<String?>(null) }
 
-    var activeTab by remember { mutableStateOf(CourseDetailTab.OVERVIEW) }
-    var targetGrade by remember { mutableStateOf("A") }
+    var activeTab by rememberSaveable(detailSemId, selectedCode) {
+        mutableStateOf(CourseDetailTab.OVERVIEW)
+    }
+    var targetGrade by rememberSaveable(detailSemId, selectedCode) { mutableStateOf("A") }
 
     val course = remember(domain, detailSemId, selectedCode) {
-        val sem = domain.academics.semesters[detailSemId]
-        sem?.courses?.get(selectedCode ?: "") ?: sem?.courses?.values?.firstOrNull()
+        selectedCode?.takeIf { it.isNotBlank() }?.let { code ->
+            val courseKey = Projections.canonicalCourseKey(code)
+            Projections.mergedCourses(domain, detailSemId)
+                .firstOrNull { Projections.canonicalCourseKey(it.code).equals(courseKey, ignoreCase = true) }
+        }
     }
 
     // Real cohort curve for this one class when the service has one. With no curve the predictor
     // derivation falls back to the published absolute grade ladder; it never invents a cohort.
     val curveClassId = remember(course) { course?.marks?.classNbr ?: course?.classId }
-    var courseCurve by remember { mutableStateOf<ClassStats?>(null) }
-    LaunchedEffect(curveClassId) {
+    var courseCurve by remember(detailSemId, curveClassId) { mutableStateOf<ClassStats?>(null) }
+    LaunchedEffect(detailSemId, curveClassId) {
         courseCurve = null
         if (curveClassId.isNullOrBlank()) return@LaunchedEffect
         courseCurve = runCatching { AmazeClient.getServiceCurvesByClassIds(listOf(curveClassId)) }
@@ -1117,19 +1128,33 @@ fun M3ECourseDetailScreen(
     // it here only when this course is actually taught by that proctor. Never invent one.
     val facultyEmail = identityState.proctor?.email?.takeIf { email ->
         email.isNotBlank() &&
+            !course?.faculty.isNullOrBlank() &&
             course?.faculty?.equals(identityState.proctor?.name, ignoreCase = true) == true
+    }
+    val history = remember(domain, course?.code, semesterMap) {
+        course?.let { resolved ->
+            gradeHistory(domain, resolved.code).mapNotNull { (semesterId, entry) ->
+                val grade = entry?.grade?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                M3ECourseGradeTerm(
+                    semester = semesterMap[semesterId] ?: domain.academics.semesters[semesterId]?.name ?: semesterId,
+                    grade = grade,
+                    total = entry?.grandTotal?.takeIf { it.isNotBlank() }
+                )
+            }.distinct()
+        }.orEmpty()
     }
     val state = M3ECourseDetailState(
         courseCode = syllabusCourseCode,
-        courseTitle = course?.title ?: "Course Detail",
-        credits = course?.credits?.toIntOrNull() ?: 3,
-        courseType = course?.type ?: "Theory",
+        courseTitle = course?.title?.takeIf { it.isNotBlank() } ?: syllabusCourseCode.ifBlank { "Course Details" },
+        credits = course?.credits?.toIntOrNull(),
+        courseType = course?.type?.takeIf { it.isNotBlank() } ?: "Not published",
         slot = course?.slots?.firstOrNull()?.takeIf { it.isNotBlank() } ?: "Not published",
-        venue = course?.venue ?: "SJT",
-        facultyName = course?.faculty ?: "Faculty",
+        venue = course?.venue?.takeIf { it.isNotBlank() } ?: "Not published",
+        facultyName = course?.faculty?.takeIf { it.isNotBlank() } ?: "Not published",
         facultyEmail = facultyEmail,
         facultyCabin = identityState.proctor?.cabin?.takeIf {
             it.isNotBlank() &&
+                !course?.faculty.isNullOrBlank() &&
                 course?.faculty?.equals(identityState.proctor?.name, ignoreCase = true) == true
         },
         attendedClasses = attended,
@@ -1152,7 +1177,16 @@ fun M3ECourseDetailScreen(
         // No structured per-course syllabus-unit payload exists in the app state: the syllabus
         // endpoint streams a PDF only. Never fabricate modules — the screen shows "Not available".
         syllabusUnits = emptyList(),
-        errorMessage = syllabusStatus
+        errorMessage = syllabusStatus,
+        semesterId = detailSemId,
+        isCourseAvailable = course != null,
+        publishedGrade = course?.grade?.letter?.takeIf { it.isNotBlank() },
+        pendingTaskCount = course?.let { selected ->
+            tasks.count { !it.completed && it.courseCode.equals(selected.code, ignoreCase = true) }
+        },
+        standaloneAttendance = course?.takeUnless { it.isEmbeddedMerged }?.attendance,
+        courseSlots = course?.slots.orEmpty(),
+        gradeHistory = history
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -1162,6 +1196,7 @@ fun M3ECourseDetailScreen(
                 when (action) {
                     is M3ECourseDetailAction.SelectTab -> activeTab = action.tab
                     is M3ECourseDetailAction.SetTargetGrade -> targetGrade = action.grade
+                    is M3ECourseDetailAction.OpenQBank -> course?.let { AppState.openQBankCourse(it.code) }
                     is M3ECourseDetailAction.DownloadSyllabus -> scope.launch {
                         syllabusStatus = null
                         val result = AmazeClient.getSyllabusPdf(syllabusCourseCode)
@@ -1180,7 +1215,16 @@ fun M3ECourseDetailScreen(
                     is M3ECourseDetailAction.Back -> onBack()
                 }
             },
-            modifier = modifier
+            modifier = modifier,
+            handleSystemBack = currentScreen == Screen.COURSE_DETAIL && overlays.isEmpty() && !appLibraryOpen,
+            materialsContent = if (course != null) {
+                { M3ECourseMaterialsSection(detailSemId, course.code) }
+            } else null,
+            onCreateTask = { draft ->
+                course?.let { selected ->
+                    AppState.addTask(draft.copy(courseCode = selected.code, courseTitle = selected.title).toHomeworkTask())
+                }
+            }
         )
     }
 }
@@ -2316,26 +2360,7 @@ fun M3ETasksScreen(modifier: Modifier = Modifier) {
             },
             modifier = modifier,
             onCreateTask = { draft ->
-                val now = Clock.System.now().toString()
-                AppState.addTask(
-                    com.amazecc.app.shared.model.HomeworkTask(
-                        id = "local-${Clock.System.now().toEpochMilliseconds()}",
-                        courseCode = draft.courseCode.trim(),
-                        courseTitle = draft.courseTitle.trim(),
-                        title = draft.title.trim(),
-                        description = draft.description.trim(),
-                        dueDate = draft.dueDate.trim(),
-                        dueTime = draft.dueTime.ifBlank { "23:59" },
-                        type = draft.type,
-                        priority = draft.priority,
-                        estimatedMinutes = draft.estimatedMinutes.toIntOrNull() ?: 0,
-                        reminderAt = draft.reminderAt.ifBlank { null },
-                        reminderRepeat = draft.reminderRepeat,
-                        showOnCalendar = draft.showOnCalendar,
-                        showOnTimetable = draft.showOnTimetable,
-                        createdAt = now
-                    )
-                )
+                AppState.addTask(draft.toHomeworkTask())
                 isCreateDialogOpen = false
             }
         )

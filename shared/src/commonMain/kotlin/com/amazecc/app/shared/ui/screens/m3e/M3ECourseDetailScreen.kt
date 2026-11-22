@@ -1,6 +1,5 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
-import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,11 +15,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Assessment
+import androidx.compose.material.icons.rounded.QuestionAnswer
+import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material.icons.rounded.Book
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Email
@@ -34,10 +36,12 @@ import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,14 +49,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.EmbeddedCourseHalf
 import com.amazecc.app.shared.domain.overhaul.CourseDetailTab
 import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
 import com.amazecc.app.shared.domain.overhaul.M3ECourseDetailAction
 import com.amazecc.app.shared.domain.overhaul.M3ECourseDetailState
+import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SettingsGroupHeader
+import com.amazecc.app.shared.ui.m3e.components.SettingsMenuIsland
 import com.amazecc.app.shared.ui.m3e.components.SettingsMenuRow
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -61,204 +68,235 @@ import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.utils.toFixed
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
-/**
- * Pure UI selection for the D-134 embedded-course menu, extended in D-141 with the two course-level
- * hub destinations (Grades, Review Course Details). This is local, ephemeral "which row is
- * expanded" state — no domain data is ever held here; every number comes from the state.
- */
-private enum class CourseEmbeddedPanel {
-    THEORY_LOG, LAB_LOG, THEORY_PREDICTOR, LAB_PREDICTOR, GRADES, REVIEW_DETAILS
+private enum class CourseSection(val title: String) {
+    ATTENDANCE_LOG("Attendance Log"),
+    THEORY_LOG("Theory Log"),
+    LAB_LOG("Lab Log"),
+    ATTENDANCE_FORECAST("Attendance Forecast"),
+    THEORY_FORECAST("Theory Attendance Forecast"),
+    LAB_FORECAST("Lab Attendance Forecast"),
+    THEORY_ASSESSMENTS("Theory Assessments"),
+    LAB_ASSESSMENTS("Lab Assessments"),
+    GRADES("Grades"),
+    REVIEW("Review Course Details"),
+    MATERIALS("VTOP Course Page"),
 }
 
-/**
- * Material 3 Expressive Course Detail Hub.
- * 100% Stateless: accepts [M3ECourseDetailState] and emits [M3ECourseDetailAction].
- * Features Multi-tab view: Overview, Marks Breakdown, Syllabus Units, and What-if Grade Predictor.
- */
 @Composable
 fun M3ECourseDetailScreen(
     state: M3ECourseDetailState,
     onAction: (M3ECourseDetailAction) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    handleSystemBack: Boolean = true,
+    onCreateTask: ((M3ETaskDraft) -> Unit)? = null,
+    materialsContent: (@Composable () -> Unit)? = null,
+) {
+    key(state.semesterId, state.courseCode) {
+        var showTaskSheet by rememberSaveable { mutableStateOf(false) }
+        var sectionName by rememberSaveable { mutableStateOf<String?>(null) }
+        val section = sectionName?.let(CourseSection::valueOf)
+        val isOverview = section == null && state.activeTab == CourseDetailTab.OVERVIEW
+        val canOpenSections = state.isCourseAvailable
+        val goBack: () -> Unit = {
+            when {
+                showTaskSheet -> showTaskSheet = false
+                !canOpenSections || isOverview -> onAction(M3ECourseDetailAction.Back)
+                section != null -> sectionName = null
+                else -> onAction(M3ECourseDetailAction.SelectTab(CourseDetailTab.OVERVIEW))
+            }
+        }
+        AppBackHandler(
+            enabled = handleSystemBack && canOpenSections && (!isOverview || showTaskSheet),
+            onBack = goBack
+        )
+
+        val colors = M3ETheme.colors
+        val overviewScroll = rememberLazyListState()
+        val sectionScroll = key(section, state.activeTab) { rememberLazyListState() }
+        val headerTitle = if (!canOpenSections || isOverview) state.courseCode else {
+            section?.title ?: when (state.activeTab) {
+                CourseDetailTab.PREDICTOR -> "Grade Predictor"
+                else -> state.activeTab.label
+            }
+        }
+
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .background(colors.surface)
+        ) {
+            CourseDetailHeader(
+                state = state,
+                title = headerTitle,
+                isOverview = isOverview && canOpenSections,
+                onBack = goBack
+            )
+            LazyColumn(
+                state = if (isOverview) overviewScroll else sectionScroll,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 140.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (!canOpenSections) {
+                    item {
+                        Text(
+                            text = "Course details are unavailable for this semester.",
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                } else if (isOverview) {
+                    item(key = "course_title") {
+                        Text(
+                            text = state.courseTitle,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurface
+                        )
+                    }
+                    item(key = "attendance_summary") { CourseAttendanceSummary(state) }
+                    item(key = "marks_summary") { CourseMarksSummary(state) }
+                    item(key = "course_sections") {
+                        CourseSectionsMenu(
+                            state = state,
+                            onOpenSection = { sectionName = it.name },
+                            onOpenTab = { onAction(M3ECourseDetailAction.SelectTab(it)) },
+                            onOpenQBank = { onAction(M3ECourseDetailAction.OpenQBank) },
+                            showMaterials = materialsContent != null,
+                            onAddTask = if (onCreateTask != null) ({ showTaskSheet = true }) else null
+                        )
+                    }
+                } else {
+                    item(key = section?.name ?: state.activeTab.name) {
+                        when (section) {
+                            CourseSection.ATTENDANCE_LOG, CourseSection.THEORY_LOG, CourseSection.LAB_LOG,
+                            CourseSection.ATTENDANCE_FORECAST, CourseSection.THEORY_FORECAST, CourseSection.LAB_FORECAST,
+                            CourseSection.THEORY_ASSESSMENTS, CourseSection.LAB_ASSESSMENTS ->
+                                CourseComponentSection(state, section)
+                            CourseSection.GRADES ->
+                                M3ECourseGradesPanel(publishedGrade = state.publishedGrade, history = state.gradeHistory)
+                            CourseSection.REVIEW -> CourseReviewSection(
+                                state = state,
+                                onDownload = { onAction(M3ECourseDetailAction.DownloadSyllabus) }
+                            )
+                            CourseSection.MATERIALS -> materialsContent?.invoke()
+                            null -> when (state.activeTab) {
+                                CourseDetailTab.OVERVIEW -> Unit
+                                CourseDetailTab.MARKS -> CourseMarksSection(state)
+                                CourseDetailTab.SYLLABUS -> CourseSyllabusSection(
+                                    state, onDownload = { onAction(M3ECourseDetailAction.DownloadSyllabus) }
+                                )
+                                CourseDetailTab.PREDICTOR -> CoursePredictorSection(
+                                    state, onSelectGrade = { onAction(M3ECourseDetailAction.SetTargetGrade(it)) }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (canOpenSections && showTaskSheet && onCreateTask != null) {
+            M3ETaskCreateSheet(
+                initialDraft = M3ETaskDraft(courseCode = state.courseCode, courseTitle = state.courseTitle),
+                onDismiss = { showTaskSheet = false },
+                onSave = { draft ->
+                    onCreateTask(draft)
+                    showTaskSheet = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun CourseDetailHeader(
+    state: M3ECourseDetailState,
+    title: String,
+    isOverview: Boolean,
+    onBack: () -> Unit
 ) {
     val colors = M3ETheme.colors
-    // D-114: M3ETheme.motion.* is composable and reads LocalMotionReduced at the call site.
-    // Compute it here (composable scope) and capture the value; the transitionSpec lambda below
-    // is NOT composable and may only return the already-computed transform.
-    val tabSwitchTransform = M3ETheme.motion.tabSwitchTransform()
-    // D-134/D-141: only the identity of the expanded inline panel is local UI state. Null means
-    // "no sub-panel open", i.e. we are back at the "Course sections" hub. The panel's own back
-    // control sets this to null; the global header button still emits the Back action.
-    var selectedEmbeddedPanel by remember { mutableStateOf<CourseEmbeddedPanel?>(null) }
-
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(colors.surface)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(colors.surfaceContainerLow)
         ) {
-            // Header: Back Button + Code + Credits
-            item(key = "header_row") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        IconButton(
-                            onClick = { onAction(M3ECourseDetailAction.Back) },
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(colors.surfaceContainerLow)
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                contentDescription = "Back",
-                                tint = colors.onSurface
-                            )
-                        }
-
-                        Column {
-                            Text(
-                                text = state.courseCode,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.primary
-                            )
-                            Text(
-                                text = "${state.courseType} • Slot ${state.slot}",
-                                fontSize = 12.sp,
-                                color = colors.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(colors.primaryContainer)
-                            .padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "${state.credits} Credits",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.onPrimaryContainer
-                        )
-                    }
-                }
-            }
-
-            // Course Title Hero
-            item(key = "title_hero") {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = colors.onSurface)
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isOverview) colors.primary else colors.onSurface
+            )
+            if (isOverview) {
                 Text(
-                    text = state.courseTitle,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.onSurface
+                    text = "${state.courseType} · Slot ${state.slot}",
+                    fontSize = 12.sp,
+                    color = colors.onSurfaceVariant
                 )
+            } else if (state.isCourseAvailable) {
+                Text(state.courseCode, fontSize = 12.sp, color = colors.onSurfaceVariant)
             }
-
-            // Tab Switcher
-            item(key = "tabs_switcher") {
-                M3EConnectedButtonGroup(
-                    items = CourseDetailTab.entries,
-                    selectedItem = state.activeTab,
-                    onItemSelected = { onAction(M3ECourseDetailAction.SelectTab(it)) },
-                    labelProvider = { it.label }
-                )
-            }
-
-            // Active Tab Content
-            item(key = "tab_content_${state.activeTab}") {
-                AnimatedContent(
-                    targetState = state.activeTab,
-                    // Captured from the composable scope above so the reduce-motion decision is
-                    // read from LocalMotionReduced; a raw fadeIn/fadeOut would bypass it (D-117).
-                    transitionSpec = { tabSwitchTransform }
-                ) { tab ->
-                    when (tab) {
-                        CourseDetailTab.OVERVIEW -> CourseOverviewSection(
-                            state = state,
-                            selectedEmbeddedPanel = selectedEmbeddedPanel,
-                            onSelectEmbeddedPanel = { selectedEmbeddedPanel = it },
-                            onAction = onAction
-                        )
-                        CourseDetailTab.MARKS -> CourseMarksSection(state = state)
-                        CourseDetailTab.SYLLABUS -> CourseSyllabusSection(
-                            state = state,
-                            onDownload = { onAction(M3ECourseDetailAction.DownloadSyllabus) }
-                        )
-                        CourseDetailTab.PREDICTOR -> CoursePredictorSection(
-                            state = state,
-                            onSelectGrade = { onAction(M3ECourseDetailAction.SetTargetGrade(it)) }
-                        )
-                    }
+        }
+        if (isOverview) {
+            state.credits?.let { credits ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(colors.primaryContainer)
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "$credits Credits",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onPrimaryContainer
+                    )
                 }
-            }
-
-            // Bottom Spacing for floating navigation bar clearance (140dp)
-            item(key = "bottom_spacer") {
-                Spacer(Modifier.height(140.dp))
             }
         }
     }
 }
 
 @Composable
-private fun CourseOverviewSection(
-    state: M3ECourseDetailState,
-    selectedEmbeddedPanel: CourseEmbeddedPanel?,
-    onSelectEmbeddedPanel: (CourseEmbeddedPanel?) -> Unit,
-    onAction: (M3ECourseDetailAction) -> Unit,
-) {
+private fun CourseAttendanceSummary(state: M3ECourseDetailState) {
     val colors = M3ETheme.colors
-
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        // Attendance Overview Card
-        M3ESurfaceCard(
-            containerLevel = SurfaceContainerLevel.HIGH,
-            cornerRadius = 24.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Attendance",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onSurface
-                    )
-                    Text(
-                        text = state.attendancePct.toFixed(2, "%"),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Black,
-                        color = when (state.tone) {
-                            M3ECardTone.GOOD -> colors.success
-                            M3ECardTone.WARNING -> colors.warning
-                            M3ECardTone.CRITICAL -> colors.error
-                            M3ECardTone.NEUTRAL -> colors.primary
-                            else -> colors.primary
-                        }
-                    )
-                }
-
-                M3EWavyLinearProgress(
-                    progress = (state.attendancePct / 100.0).toFloat(),
-                    label = "Course attendance",
-                    activeColor = when (state.tone) {
+    if (state.totalClasses <= 0) {
+        M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, modifier = Modifier.fillMaxWidth()) {
+            Text("Attendance unavailable", color = colors.onSurfaceVariant)
+        }
+        return
+    }
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.HIGH,
+        cornerRadius = 24.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Attendance",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onSurface
+                )
+                Text(
+                    text = state.attendancePct.toFixed(2, "%"),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = when (state.tone) {
                         M3ECardTone.GOOD -> colors.success
                         M3ECardTone.WARNING -> colors.warning
                         M3ECardTone.CRITICAL -> colors.error
@@ -266,26 +304,67 @@ private fun CourseOverviewSection(
                         else -> colors.primary
                     }
                 )
+            }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "${state.attendedClasses}/${state.totalClasses} classes attended",
-                        fontSize = 12.sp,
-                        color = colors.onSurfaceVariant
-                    )
-                    Text(
-                        text = state.bunkMarginSummary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.primary
-                    )
+            M3EWavyLinearProgress(
+                progress = (state.attendancePct / 100.0).toFloat(),
+                label = "Course attendance",
+                activeColor = when (state.tone) {
+                    M3ECardTone.GOOD -> colors.success
+                    M3ECardTone.WARNING -> colors.warning
+                    M3ECardTone.CRITICAL -> colors.error
+                    M3ECardTone.NEUTRAL -> colors.primary
+                    else -> colors.primary
                 }
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "${state.attendedClasses}/${state.totalClasses} classes attended",
+                    fontSize = 12.sp,
+                    color = colors.onSurfaceVariant
+                )
+                Text(
+                    text = state.bunkMarginSummary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.primary
+                )
             }
         }
+    }
+}
 
+@Composable
+private fun CourseMarksSummary(state: M3ECourseDetailState) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Internal Marks", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
+            Text(
+                text = if (state.internalMax > 0.0) {
+                    "${state.internalScored.toFixed(2)} / ${state.internalMax.toFixed(2)}"
+                } else {
+                    "Marks unavailable"
+                },
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.primary
+            )
+        }
+    }
+}
+
+@Composable
+private fun CourseReviewSection(
+    state: M3ECourseDetailState,
+    onDownload: () -> Unit,
+) {
+    val colors = M3ETheme.colors
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         // Faculty Info Card
         M3ESurfaceCard(
             containerLevel = SurfaceContainerLevel.LOW,
@@ -418,145 +497,176 @@ private fun CourseOverviewSection(
             }
         }
 
-        // D-141: web-style "Course sections" hub. The hub label sits above the menu; every row
-        // either emits a real action or opens a real inline panel (no dead controls).
-        SettingsGroupHeader(title = "Course sections")
-        CourseEmbeddedMenuSection(
-            state = state,
-            selectedEmbeddedPanel = selectedEmbeddedPanel,
-            onSelectEmbeddedPanel = onSelectEmbeddedPanel,
-            onAction = onAction
-        )
+        M3ECourseReviewAdditions(state.semesterId.orEmpty(), state.courseCode, onDownload, state.errorMessage)
     }
 }
 
-/**
- * Android-Settings-style "Course sections" hub (plain rows on the surface, never nested cards).
- *
- * D-141 rows and their honest behavior:
- * - Theory Log / Lab Log / Theory Predictor / Lab Predictor — real inline projections of the
- *   paired halves; present only when the state actually carries a theory+lab pair.
- * - Marks & Assessments — emits [M3ECourseDetailAction.SelectTab] for [CourseDetailTab.MARKS].
- * - Grade Predictor — emits [M3ECourseDetailAction.SelectTab] for [CourseDetailTab.PREDICTOR].
- * - Grades — inline honest "Not available" panel; the state has no published final grade.
- * - Review Course Details — inline panel re-projecting the real faculty/venue/slot on the state.
- *
- * Why the Marks row is titled "Marks & Assessments" instead of exactly "Marks":
- * `M3ECourseDetailScreenUiTest` clicks the MARKS tab chip by the exact text "Marks", so a second
- * node carrying that exact text would make the click ambiguous and fail. The legacy label
- * "Marks Breakdown" is retained as the row subtitle so `M3ECourseEmbeddedMenuUiTest`, which
- * asserts that exact text, keeps passing. The row still emits SelectTab(MARKS).
- *
- * Rows intentionally omitted — this stateless screen has no real data source or action for them:
- * - QBank: question-bank browsing is a separate screen; [M3ECourseDetailState] carries no
- *   question/paper payload and [M3ECourseDetailAction] has no QBank navigation action.
- * - Tasks & Homework: there is no task list, task payload, or task-creation action here.
- * - VTOP Course Page: no uploaded-files payload/URL on the state.
- * Adding any of them would be a dead control, so they are documented rather than rendered.
- */
 @Composable
-private fun CourseEmbeddedMenuSection(
+private fun CourseSectionsMenu(
     state: M3ECourseDetailState,
-    selectedEmbeddedPanel: CourseEmbeddedPanel?,
-    onSelectEmbeddedPanel: (CourseEmbeddedPanel?) -> Unit,
-    onAction: (M3ECourseDetailAction) -> Unit,
+    onOpenSection: (CourseSection) -> Unit,
+    onOpenTab: (CourseDetailTab) -> Unit,
+    onOpenQBank: () -> Unit,
+    showMaterials: Boolean,
+    onAddTask: (() -> Unit)?
 ) {
-    val pair = embeddedPair(state.halves)
-    // Hierarchical back: an expanded panel's own control clears only this local selection. It
-    // never emits the global Back action — that stays with the screen's header back button.
-    val backToHub: () -> Unit = { onSelectEmbeddedPanel(null) }
+    SettingsGroupHeader(title = "Course sections")
+    SettingsMenuIsland {
+        val pair = embeddedPair(state.halves)
+        if (pair != null) {
+            val (theory, lab) = pair
+            SettingsMenuRow(
+                icon = Icons.Rounded.Assessment,
+                title = CourseSection.THEORY_LOG.title,
+                subtitle = componentAttendanceText(theory),
+                onClick = { onOpenSection(CourseSection.THEORY_LOG) }
+            )
+            SettingsMenuRow(
+                icon = Icons.Rounded.Assessment,
+                title = CourseSection.LAB_LOG.title,
+                subtitle = componentAttendanceText(lab),
+                onClick = { onOpenSection(CourseSection.LAB_LOG) }
+            )
+            if (theory.attendance != null) {
+                CourseForecastRow(CourseSection.THEORY_FORECAST, onOpenSection)
+            }
+            if (lab.attendance != null) {
+                CourseForecastRow(CourseSection.LAB_FORECAST, onOpenSection)
+            }
+            SettingsMenuRow(
+                icon = Icons.Rounded.Book,
+                title = CourseSection.THEORY_ASSESSMENTS.title,
+                subtitle = "${theory.marks?.assessments?.size ?: 0} assessments published",
+                onClick = { onOpenSection(CourseSection.THEORY_ASSESSMENTS) }
+            )
+            SettingsMenuRow(
+                icon = Icons.Rounded.Book,
+                title = CourseSection.LAB_ASSESSMENTS.title,
+                subtitle = "${lab.marks?.assessments?.size ?: 0} assessments published",
+                onClick = { onOpenSection(CourseSection.LAB_ASSESSMENTS) }
+            )
+        } else {
+            standaloneAttendanceHalf(state)?.let { half ->
+                SettingsMenuRow(
+                    icon = Icons.Rounded.Assessment,
+                    title = CourseSection.ATTENDANCE_LOG.title,
+                    subtitle = componentAttendanceText(half),
+                    onClick = { onOpenSection(CourseSection.ATTENDANCE_LOG) }
+                )
+                CourseForecastRow(CourseSection.ATTENDANCE_FORECAST, onOpenSection)
+            }
+        }
+        SettingsMenuRow(
+            icon = Icons.Rounded.Book,
+            title = "Marks",
+            subtitle = "Marks Breakdown",
+            onClick = { onOpenTab(CourseDetailTab.MARKS) }
+        )
+        SettingsMenuRow(
+            icon = Icons.Rounded.TrendingUp,
+            title = "Grade Predictor",
+            subtitle = "Simulate the final exam score for a target grade",
+            onClick = { onOpenTab(CourseDetailTab.PREDICTOR) }
+        )
+        SettingsMenuRow(
+            icon = Icons.Rounded.Assessment,
+            title = CourseSection.GRADES.title,
+            subtitle = "Published final grade",
+            value = state.publishedGrade,
+            onClick = { onOpenSection(CourseSection.GRADES) }
+        )
+        SettingsMenuRow(
+            icon = Icons.Rounded.Person,
+            title = CourseSection.REVIEW.title,
+            subtitle = "Faculty, venue and official syllabus",
+            onClick = { onOpenSection(CourseSection.REVIEW) }
+        )
+        if (showMaterials) {
+            SettingsMenuRow(
+                icon = Icons.Rounded.Download,
+                title = CourseSection.MATERIALS.title,
+                subtitle = "Lecture plan and files uploaded by faculty",
+                onClick = { onOpenSection(CourseSection.MATERIALS) }
+            )
+        }
+        val pendingTasks = state.pendingTaskCount
+        SettingsMenuRow(
+            icon = Icons.Rounded.QuestionAnswer,
+            title = "QBank",
+            subtitle = "Papers and extracted questions",
+            onClick = onOpenQBank,
+            showDivider = pendingTasks != null && onAddTask != null
+        )
+        if (pendingTasks != null && onAddTask != null) {
+            CourseTasksRow(pendingTasks, onAddTask)
+        }
+    }
+}
 
-    if (pair != null) {
-        val (theory, lab) = pair
-        SettingsGroupHeader(title = "Component Logs")
-        SettingsMenuRow(
-            icon = Icons.Rounded.Assessment,
-            title = "Theory Log",
-            subtitle = componentAttendanceText(theory),
-            onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.THEORY_LOG) }
-        )
-        SettingsMenuRow(
-            icon = Icons.Rounded.Assessment,
-            title = "Lab Log",
-            subtitle = componentAttendanceText(lab),
-            onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.LAB_LOG) }
-        )
-        SettingsMenuRow(
-            icon = Icons.Rounded.TrendingUp,
-            title = "Theory Predictor",
-            subtitle = "${theory.marks?.assessments?.size ?: 0} assessments published",
-            onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.THEORY_PREDICTOR) }
-        )
-        SettingsMenuRow(
-            icon = Icons.Rounded.TrendingUp,
-            title = "Lab Predictor",
-            subtitle = "${lab.marks?.assessments?.size ?: 0} assessments published",
-            onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.LAB_PREDICTOR) }
+@Composable
+private fun CourseForecastRow(section: CourseSection, onOpenSection: (CourseSection) -> Unit) {
+    SettingsMenuRow(
+        icon = Icons.Rounded.TrendingUp,
+        title = section.title,
+        subtitle = "Simulate attendance for upcoming classes",
+        onClick = { onOpenSection(section) }
+    )
+}
+
+@Composable
+private fun CourseTasksRow(pendingTasks: Int, onAddTask: () -> Unit) {
+    val colors = M3ETheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(colors.surfaceContainerHigh),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Rounded.TaskAlt, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Tasks & Homework", fontWeight = FontWeight.SemiBold, color = colors.onSurface)
+            Text("$pendingTasks pending", fontSize = 12.sp, color = colors.onSurfaceVariant)
+        }
+        TextButton(onClick = onAddTask) { Text("Add Task") }
+    }
+}
+
+private fun standaloneAttendanceHalf(state: M3ECourseDetailState): EmbeddedCourseHalf? =
+    state.standaloneAttendance?.let { attendance ->
+        EmbeddedCourseHalf(
+            code = state.courseCode,
+            title = state.courseTitle,
+            type = state.courseType,
+            slots = state.courseSlots,
+            attendance = attendance
         )
     }
 
-    SettingsGroupHeader(title = "Academics")
-    SettingsMenuRow(
-        icon = Icons.Rounded.Book,
-        title = "Marks & Assessments",
-        subtitle = "Marks Breakdown",
-        onClick = { onAction(M3ECourseDetailAction.SelectTab(CourseDetailTab.MARKS)) }
-    )
-    SettingsMenuRow(
-        icon = Icons.Rounded.TrendingUp,
-        title = "Grade Predictor",
-        subtitle = "Simulate the final exam score for a target grade",
-        onClick = { onAction(M3ECourseDetailAction.SelectTab(CourseDetailTab.PREDICTOR)) }
-    )
-    SettingsMenuRow(
-        icon = Icons.Rounded.Assessment,
-        title = "Grades",
-        subtitle = "Published final grade (not released)",
-        onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.GRADES) }
-    )
-    SettingsMenuRow(
-        icon = Icons.Rounded.Person,
-        title = "Review Course Details",
-        subtitle = "${state.facultyName} · ${state.venue}",
-        onClick = { onSelectEmbeddedPanel(CourseEmbeddedPanel.REVIEW_DETAILS) }
-    )
-
-    when (selectedEmbeddedPanel) {
-        null -> Unit
-        CourseEmbeddedPanel.THEORY_LOG, CourseEmbeddedPanel.LAB_LOG,
-        CourseEmbeddedPanel.THEORY_PREDICTOR, CourseEmbeddedPanel.LAB_PREDICTOR -> {
-            if (pair != null) {
-                val half = if (
-                    selectedEmbeddedPanel == CourseEmbeddedPanel.THEORY_LOG ||
-                    selectedEmbeddedPanel == CourseEmbeddedPanel.THEORY_PREDICTOR
-                ) {
-                    pair.first
-                } else {
-                    pair.second
-                }
-                when (selectedEmbeddedPanel) {
-                    CourseEmbeddedPanel.THEORY_LOG, CourseEmbeddedPanel.LAB_LOG ->
-                        M3EComponentLogPanel(
-                            half = half,
-                            attendanceTargetPercent = state.attendanceTarget.toDouble(),
-                            onBack = backToHub
-                        )
-                    CourseEmbeddedPanel.THEORY_PREDICTOR, CourseEmbeddedPanel.LAB_PREDICTOR ->
-                        M3EComponentPredictorPanel(half = half, onBack = backToHub)
-                    else -> Unit
-                }
-            }
-        }
-        CourseEmbeddedPanel.GRADES -> M3ECourseGradesPanel(onBack = backToHub)
-        CourseEmbeddedPanel.REVIEW_DETAILS -> M3ECourseReviewPanel(
-            facultyName = state.facultyName,
-            facultyDesignation = state.facultyDesignation,
-            facultyCabin = state.facultyCabin,
-            facultyEmail = state.facultyEmail,
-            venue = state.venue,
-            slot = state.slot,
-            onBack = backToHub
-        )
+@Composable
+private fun CourseComponentSection(state: M3ECourseDetailState, section: CourseSection) {
+    val pair = embeddedPair(state.halves)
+    val half = when (section) {
+        CourseSection.ATTENDANCE_LOG, CourseSection.ATTENDANCE_FORECAST -> standaloneAttendanceHalf(state)
+        CourseSection.THEORY_LOG, CourseSection.THEORY_FORECAST, CourseSection.THEORY_ASSESSMENTS -> pair?.first
+        CourseSection.LAB_LOG, CourseSection.LAB_FORECAST, CourseSection.LAB_ASSESSMENTS -> pair?.second
+        CourseSection.GRADES, CourseSection.REVIEW, CourseSection.MATERIALS -> null
+    }
+    if (half == null) {
+        Text("Component details are unavailable.", color = M3ETheme.colors.onSurfaceVariant)
+    } else if (section == CourseSection.THEORY_ASSESSMENTS || section == CourseSection.LAB_ASSESSMENTS) {
+        M3EComponentPredictorPanel(half = half)
+    } else if (section == CourseSection.ATTENDANCE_FORECAST ||
+        section == CourseSection.THEORY_FORECAST || section == CourseSection.LAB_FORECAST
+    ) {
+        M3ECourseAttendanceForecast(state.semesterId, half, state.attendanceTarget.toDouble())
+    } else {
+        M3EComponentLogPanel(half = half, attendanceTargetPercent = state.attendanceTarget.toDouble())
     }
 }
 

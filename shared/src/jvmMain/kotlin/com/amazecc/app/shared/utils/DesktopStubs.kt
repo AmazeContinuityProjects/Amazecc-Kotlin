@@ -5,6 +5,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import com.amazecc.app.shared.domain.PaperInference
 import java.awt.Desktop
 import java.io.File
 import javax.imageio.ImageIO
@@ -42,6 +43,16 @@ actual fun ByteArray.toImageBitmap(): ImageBitmap? = runCatching {
     ImageIO.read(java.io.ByteArrayInputStream(this))?.toComposeImageBitmap()
 }.getOrNull()
 
+// ── D-166 on-device document intelligence (desktop unsupported) ─────────────
+
+/**
+ * No ML Kit OCR or Gemini Nano bridge exists on desktop. Returning empty/null
+ * keeps the common API honest: the UI must report the feature as unavailable.
+ */
+actual suspend fun recognizeDocumentText(bytes: ByteArray): List<String> = emptyList()
+
+actual suspend fun inferPaperDetails(text: String): PaperInference? = null
+
 // ── file + URL + share ────────────────────────────────────────────────────────
 
 /**
@@ -75,6 +86,21 @@ actual fun rememberPdfOpener(): (fileName: String, bytes: ByteArray) -> Boolean 
  */
 @Composable
 actual fun rememberFileImporter(onResult: (String?) -> Unit): () -> Unit = { onResult(null) }
+
+/**
+ * Desktop has no camera / photo picker / system share sheet wired into Compose. Fail closed so
+ * the host can show an honest "unavailable on this platform" notice instead of hanging or
+ * pretending a picture was captured.
+ */
+@Composable
+actual fun rememberImagePicker(onResult: (ByteArray?) -> Unit): () -> Unit = { onResult(null) }
+
+@Composable
+actual fun rememberPhotoCapture(onResult: (ByteArray?) -> Unit): () -> Unit = { onResult(null) }
+
+@Composable
+actual fun rememberFileSharer(): (fileName: String, bytes: ByteArray, mimeType: String) -> Boolean =
+    { _, _, _ -> false }
 
 @Composable
 actual fun rememberUrlOpener(): (url: String) -> Unit = { url ->

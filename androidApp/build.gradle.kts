@@ -78,7 +78,7 @@ android {
 
     defaultConfig {
         applicationId = "com.amazecc.app.android"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 35
         versionCode = verCode
         versionName = verName

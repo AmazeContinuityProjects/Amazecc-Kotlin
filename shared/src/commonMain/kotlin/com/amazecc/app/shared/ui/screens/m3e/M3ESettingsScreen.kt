@@ -49,6 +49,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EThemeMode
 import com.amazecc.app.shared.domain.overhaul.allSettingsSections
 import com.amazecc.app.shared.ui.m3e.components.SettingsDetailScaffold
 import com.amazecc.app.shared.ui.m3e.components.SettingsGroupHeader
+import com.amazecc.app.shared.ui.m3e.components.SettingsMenuIsland
 import com.amazecc.app.shared.ui.m3e.components.SettingsMenuRow
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -165,18 +166,19 @@ fun M3ESettingsScreen(
             if (rows.isNotEmpty()) {
                 item(key = "settings_group_${group.header}") {
                     SettingsGroupHeader(group.header)
-                }
-                rows.forEach { section ->
-                    item(key = "settings_menu_${section.id}") {
-                        val spec = menuRowSpec(section, state)
-                        SettingsMenuRow(
-                            icon = spec.icon,
-                            title = section.title,
-                            subtitle = spec.subtitle,
-                            value = spec.value,
-                            danger = spec.danger,
-                            onClick = { onAction(M3ESettingsAction.OpenSettingsMenu(section.id)) }
-                        )
+                    SettingsMenuIsland(Modifier.padding(horizontal = 16.dp)) {
+                        rows.forEachIndexed { index, section ->
+                            val spec = menuRowSpec(section, state)
+                            SettingsMenuRow(
+                                icon = spec.icon,
+                                title = section.title,
+                                subtitle = spec.subtitle,
+                                value = spec.value,
+                                danger = spec.danger,
+                                onClick = { onAction(M3ESettingsAction.OpenSettingsMenu(section.id)) },
+                                showDivider = index < rows.lastIndex,
+                            )
+                        }
                     }
                 }
             }
@@ -192,14 +194,15 @@ fun M3ESettingsScreen(
         if (showAdvanced) {
             item(key = "settings_group_advanced") {
                 SettingsGroupHeader("Advanced")
-            }
-            item(key = "settings_menu_advanced") {
-                SettingsMenuRow(
-                    icon = Icons.Rounded.Build,
-                    title = advancedTitle,
-                    subtitle = advancedSubtitle,
-                    onClick = { onAction(M3ESettingsAction.OpenSettingsMenu("advanced")) }
-                )
+                SettingsMenuIsland(Modifier.padding(horizontal = 16.dp)) {
+                    SettingsMenuRow(
+                        icon = Icons.Rounded.Build,
+                        title = advancedTitle,
+                        subtitle = advancedSubtitle,
+                        onClick = { onAction(M3ESettingsAction.OpenSettingsMenu("advanced")) },
+                        showDivider = false,
+                    )
+                }
             }
         }
 

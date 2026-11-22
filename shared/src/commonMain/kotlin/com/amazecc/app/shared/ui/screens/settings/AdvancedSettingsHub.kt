@@ -54,7 +54,7 @@ import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3EColorPalette
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.ui.screens.m3e.M3EAmazeIdSignInScreen
-import com.amazecc.app.shared.ui.screens.m3e.M3EDocumentScannerScreen
+import com.amazecc.app.shared.ui.screens.m3e.M3EDocumentScannerHost
 import com.amazecc.app.shared.utils.ExportImportManager
 import com.amazecc.app.shared.utils.rememberFileImporter
 import com.amazecc.app.shared.utils.rememberFileSaver
@@ -477,24 +477,11 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                 }
             }
         }
+        // D-009 crash fix: the host owns all ActivityResult launchers and is composed OUTSIDE
+        // the sheet's Dialog — it renders the sheet itself. Only the stateless scanner screen
+        // lives inside the Dialog content, and no extra theme wrapper is applied.
         if (showScanner) {
-            M3EDismissibleSheet(
-                isOpen = showScanner,
-                onDismiss = { showScanner = false },
-                title = "Document scanner"
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 520.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp)
-                        .padding(bottom = 20.dp)
-                ) {
-                    M3EDocumentScannerScreen()
-                    TextButton(onClick = { showScanner = false }, modifier = Modifier.align(Alignment.End)) { Text("Close") }
-                }
-            }
+            M3EDocumentScannerHost(onDismiss = { showScanner = false })
         }
         if (showLogoutConfirm) {
             M3EDismissibleSheet(

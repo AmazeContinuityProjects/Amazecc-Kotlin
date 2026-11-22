@@ -21,6 +21,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -97,6 +98,13 @@ fun App() {
     val customAccent by AppState.customAccentColor.collectAsState()
     val customPalette by AppState.customPalette.collectAsState()
     val currentScreen by AppState.currentScreen.collectAsState()
+    val academicsStateHolder = rememberSaveableStateHolder()
+    val academicsContent: @Composable () -> Unit = {
+        academicsStateHolder.SaveableStateProvider(Screen.ACADEMICS.name) { M3EAcademicsScreen() }
+    }
+    LaunchedEffect(currentScreen) {
+        if (currentScreen == Screen.LOGIN) academicsStateHolder.removeState(Screen.ACADEMICS.name)
+    }
     // Which home the Home tab renders. Read as a flow so switching the style in
     // Settings repaints the tab rather than waiting for the next navigation.
     val isLoading by AppState.isLoading.collectAsState()
@@ -244,6 +252,9 @@ fun App() {
                         )
                     }
 
+                    // Destination handlers are registered after the screen stack fallback.
+                    AppBackHandler(enabled = true) { AppState.navigateBack() }
+
                     // Crossfade screen transitions. tabSwitchSpec is resolved in the
                     // root M3E theme provider above (D-114), not here.
                     Box(modifier = Modifier.fillMaxSize()) {
@@ -262,7 +273,8 @@ fun App() {
                             MainTabPager(
                                 tabScreens = tabList,
                                 currentScreen = targetScreen,
-                                onScreenChange = { AppState.navigateTo(it) }
+                                onScreenChange = { AppState.navigateTo(it) },
+                                academicsContent = academicsContent
                             )
                         } else {
                             when (targetScreen) {
@@ -312,7 +324,7 @@ fun App() {
                                 )
                                 Screen.HOME -> M3EHomeScreen()
                                 Screen.ATTENDANCE -> M3EAttendanceScreen()
-                                Screen.ACADEMICS -> M3EAcademicsScreen()
+                                Screen.ACADEMICS -> academicsContent()
                                 Screen.LIBRARIES -> M3ELibrariesScreenHost()
                                 Screen.PROFILE -> M3EProfileHost()
                                 Screen.MORE -> M3EMoreHubScreen()
@@ -347,13 +359,13 @@ fun App() {
                     ShortcutsHelpSheet(isOpen = shortcutsHelpOpen, onClose = AppState::closeShortcutsHelp)
 
                     // D-070: overlay-first back — the top overlay closes before any screen back.
-                    AppBackHandler(enabled = true) {
+                    val appLibraryOpen by AppState.isAppLibraryOpen.collectAsState()
+                    AppBackHandler(enabled = overlayStack.isNotEmpty() || appLibraryOpen) {
                         if (AppState.closeTopOverlay()) return@AppBackHandler
                         if (AppState.isAppLibraryOpen.value) {
                             AppState.closeAppLibrary()
                             return@AppBackHandler
                         }
-                        AppState.navigateBack()
                     }
 
                     } // M3EAppScaffold content — navigation and insets owned by the scaffold.

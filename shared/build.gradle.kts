@@ -97,8 +97,15 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.kotlinx.coroutines.android)
+            // D-166: await() on ML Kit's Task-based TextRecognizer without blocking a thread.
+            implementation(libs.kotlinx.coroutines.play.services)
             implementation(libs.androidx.activity.compose)
             implementation(libs.compose.ui.tooling)
+            // D-166: on-device OCR + Gemini Nano inference. Kept in shared/androidMain so the
+            // expect/actual API is available to common callers and the app needs no extra deps.
+            implementation(libs.mlkit.text.recognition)
+            implementation(libs.mlkit.genai.prompt)
+            implementation(libs.androidx.exifinterface)
         }
         
         iosMain.dependencies {
@@ -129,7 +136,8 @@ kotlin {
         namespace = "com.amazecc.app.shared"
         // Compose 1.12.x AARs declare minCompileSdk 37 (D-123 follow-up).
         compileSdk = 37
-        minSdk = 24
+        // D-166: ML Kit GenAI Prompt API (Gemini Nano) requires API 26+.
+        minSdk = 26
         androidResources {
             enable = true
         }

@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.model.QBankQuestion
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AppBackStack
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.ui.components.AppBackHandler
@@ -156,22 +157,11 @@ fun M3EQBankWorkspaceHost(modifier: Modifier = Modifier) {
     // ---- consume cross-screen course target and open the workspace ----
     LaunchedEffect(qbankCourseTarget) {
         val target = qbankCourseTarget ?: return@LaunchedEffect
-        AppState.consumeQBankCourseTarget()
-        if (selectedCourse?.courseCode?.equals(target, ignoreCase = true) == true) return@LaunchedEffect
-        val match = courses.firstOrNull { it.courseCode.equals(target, ignoreCase = true) }
-        if (match != null) {
-            selectedCourse = match
-        } else {
-            try {
-                val res = AmazeClient.getQBankCourses()
-                val refreshed = res.courses.distinctBy { it.courseCode }.map { M3EQBankCourse(it.courseCode, it.courseTitle) }
-                courses = refreshed
-                selectedCourse = refreshed.firstOrNull { it.courseCode.equals(target, ignoreCase = true) }
-                    ?: M3EQBankCourse(target, "")
-            } catch (e: Exception) {
-                selectedCourse = M3EQBankCourse(target, "")
-            }
+        if (selectedCourse?.courseCode?.equals(target, ignoreCase = true) != true) {
+            selectedCourse = courses.firstOrNull { it.courseCode.equals(target, ignoreCase = true) }
+                ?: M3EQBankCourse(target, "")
         }
+        AppState.consumeQBankCourseTarget()
     }
 
     fun resetQuizState() {
@@ -280,6 +270,9 @@ fun M3EQBankWorkspaceHost(modifier: Modifier = Modifier) {
                 wsView = M3EQBankWorkspaceView.OVERVIEW
                 reviewQueue = emptyList()
             }
+            selectedCourse != null && AppBackStack.entries.value.dropLast(1).lastOrNull()?.screen == Screen.COURSE_DETAIL.name -> {
+                AppState.navigateBack()
+            }
             selectedCourse != null -> {
                 selectedCourse = null
                 qbankStats = SettingsManager.getQBankStats()
@@ -298,7 +291,9 @@ fun M3EQBankWorkspaceHost(modifier: Modifier = Modifier) {
     }
 
     AmazeM3ETheme(isDark = isDark) {
-        val course = selectedCourse
+        val course = selectedCourse?.let { selected ->
+            courses.firstOrNull { it.courseCode.equals(selected.courseCode, ignoreCase = true) } ?: selected
+        }
         if (course == null) {
             M3EQBankScreen(
                 state = M3EQBankState(

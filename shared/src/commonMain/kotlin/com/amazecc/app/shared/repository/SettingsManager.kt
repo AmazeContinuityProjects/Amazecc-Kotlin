@@ -121,6 +121,8 @@ const val CACHE_HOSTEL_COUNSELLING = "cache_hostel_counselling"
     const val CACHE_ALL_SEMESTER_MARKS = "cache_all_semester_marks"
     const val CACHE_ALL_SEMESTER_EXAMS = "cache_all_semester_exams"
     const val CACHE_CALENDARS_LIST = "cache_calendars_list"
+    /** Cached VTOP course-page rows; the entry itself carries its semester + course scope. */
+    const val CACHE_COURSE_PAGE = "cache_course_page"
     const val CACHE_QCM_VIEW = "cache_qcm_view"
     const val CACHE_TASKS = "cache_tasks"
     const val CACHE_CIRCULARS = "cache_circulars"

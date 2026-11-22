@@ -1,5 +1,6 @@
 package com.amazecc.app.shared.ui.m3e.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +19,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -34,10 +36,8 @@ import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
  * Android-Settings-style primitives for the M3E settings overhaul.
  *
  * Design rules (why these exist):
- * - **No nested cards.** A group is a [SettingsGroupHeader] plus a run of rows
- *   painted directly on the surface. There is no `M3ESurfaceCard` wrapper and no
- *   row-level `background`, which is what caused the old double padding (card
- *   padding + row padding stacked).
+ * - [SettingsMenuIsland] provides a shared tonal surface for related destinations.
+ *   It leaves row spacing and padding to the content.
  * - **One padding owner.** Every row owns exactly 16 dp of horizontal padding;
  *   group headers share the same 16 dp start edge so text aligns optically.
  * - **Real controls only.** A row either navigates ([SettingsMenuRow]), toggles
@@ -47,6 +47,22 @@ import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
  * All composables are stateless: they take values + callbacks and can be
  * previewed/tested without AppState, SettingsManager or a network client.
  */
+
+@Composable
+fun SettingsMenuIsland(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val colors = M3ETheme.colors
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        color = colors.surfaceContainerLow,
+        border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.5f)),
+    ) {
+        Column { content() }
+    }
+}
 
 /** Section label above a run of setting rows (Android Settings category header). */
 @Composable
@@ -87,7 +103,8 @@ fun SettingsMenuRow(
     value: String? = null,
     danger: Boolean = false,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showDivider: Boolean = true,
 ) {
     val colors = M3ETheme.colors
     val tint = if (danger) colors.error else colors.primary
@@ -127,7 +144,7 @@ fun SettingsMenuRow(
             modifier = Modifier.size(18.dp)
         )
     }
-    SettingsRowDivider()
+    if (showDivider) SettingsRowDivider()
 }
 
 /** A row with a real on/off switch. The whole row is the touch target. */

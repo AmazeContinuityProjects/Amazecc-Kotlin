@@ -27,7 +27,9 @@ object AppBackStack {
         /** [Screen.name] of the visited screen. */
         val screen: String,
         /** Sub-tab key when the screen carries one (e.g. the attendance initial view). */
-        val subTab: String? = null
+        val subTab: String? = null,
+        val courseCode: String? = null,
+        val semesterId: String? = null
     )
 
     private const val KEY = "screen_history_stack"
@@ -44,6 +46,13 @@ object AppBackStack {
         val stack = _entries.value
         if (stack.lastOrNull() == entry) return
         _entries.value = stack + entry
+        persist()
+    }
+
+    fun replaceTop(entry: Entry) {
+        val stack = _entries.value
+        if (stack.lastOrNull() == entry) return
+        _entries.value = stack.dropLast(1) + entry
         persist()
     }
 

@@ -154,7 +154,9 @@ data class StoredAttendance(
     val attendedClasses: Int = 0,
     val totalClasses: Int = 0,
     val attendancePercentage: String = "",
-    val logs: List<AttendanceLog> = emptyList()
+    val logs: List<AttendanceLog> = emptyList(),
+    val classId: String? = null,
+    val facultyErpId: String? = null,
 )
 
 @Serializable

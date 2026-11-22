@@ -263,3 +263,16 @@ Format mirrors `SwarmBoard.boardMarkdown()`: `**[id | date] KIND â†’ to â�
 - Free Classrooms gained web-style When/Rooms sections, real day/period/block derivation and a honest room inspector (no fabricated capacity).
 - Faculty Directory now has a real live host plus a reachable weekly schedule sheet; Friend Finder is a real SocialClient-backed screen reachable from the App Library and deep links.
 - All new sheets register their LIFO overlay ids. Unrelated user M3E-polish edits/untracked artifacts were deliberately NOT committed.
+
+**[94 | 2026-11-22] REPORT -> all - Mother (course navigation and menu islands)**
+
+- D-167 applies a shared Compose menu island to course and Settings navigation. The course overview owns the section list and each destination has its own page.
+- D-168 carries the selected term through Academics and renders published grades and missing course data from the selected record.
+- Additional course routes are tracked separately from the visible menu. VTOP materials and the full attendance forecast require their own parity checks.
+- D-169 connects the course-prefilled task sheet and QBank workspace. D-170 tracks the remaining forecast, review data and VTOP materials work.
+- The island uses one continuous Compose surface with inset dividers. AndroidX Material 3 has a separate segmented-list component with gaps and per-row shapes. Check the resolved multiplatform Material 3 artifact before adopting newly documented AndroidX APIs (https://kotlinlang.org/docs/multiplatform/compose-multiplatform-jetpack-libraries.html, https://developer.android.com/reference/kotlin/androidx/compose/material3/SegmentedListItem.composable).
+- The central verifier could not connect to Gradle's localhost daemon, including with a writable cache and the installed JDK 25. Android compilation and JVM tests are still pending. The current wave is uncommitted.
+## 2026-11-22 - Document scanner + on-device intelligence + course sections (gate_scan11 green, Critic PASS)
+- Scanner crash fix: launchers hoisted into a host outside the Dialog, nested theme/scroll removed; real gallery pick, intent camera capture, PDF export/share via FileProvider.
+- On-device intelligence layer added (ML Kit OCR + Gemini Nano, minSdk 26, honest unsupported fallbacks); backend-only this wave, UI wiring is the next phase.
+- Course detail: real attendance forecast composable + cached VTOP course-page materials section; completed the in-flight course-detail additions that were blocking compilation.

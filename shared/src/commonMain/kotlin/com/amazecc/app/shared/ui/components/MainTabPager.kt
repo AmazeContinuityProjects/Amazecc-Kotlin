@@ -81,7 +81,8 @@ private fun Modifier.tabSwipe(
 fun MainTabPager(
     tabScreens: List<Screen>,
     currentScreen: Screen,
-    onScreenChange: (Screen) -> Unit
+    onScreenChange: (Screen) -> Unit,
+    academicsContent: @Composable () -> Unit = { M3EAcademicsScreen() }
 ) {
     val currentPage = remember(currentScreen, tabScreens) {
         (tabScreens.indexOf(currentScreen)).coerceAtLeast(0)
@@ -138,7 +139,7 @@ fun MainTabPager(
         when (val screen = tabScreens[page]) {
             Screen.HOME -> M3EHomeScreen()
             Screen.ATTENDANCE -> M3EAttendanceScreen()
-            Screen.ACADEMICS -> M3EAcademicsScreen()
+            Screen.ACADEMICS -> academicsContent()
             Screen.LIBRARIES -> M3ELibrariesScreenHost()
             Screen.PROFILE -> M3EProfileScreen()
             Screen.MORE -> M3EMoreHubScreen()

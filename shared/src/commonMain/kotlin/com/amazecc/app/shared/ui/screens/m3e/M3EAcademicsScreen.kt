@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -28,7 +27,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -38,7 +36,6 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.School
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.TrendingUp
-import androidx.compose.material3.Divider
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -50,7 +47,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +60,9 @@ import com.amazecc.app.shared.ui.m3e.components.M3EAccordionChevron
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
+import com.amazecc.app.shared.ui.m3e.components.SettingsGroupHeader
+import com.amazecc.app.shared.ui.m3e.components.SettingsMenuIsland
+import com.amazecc.app.shared.ui.m3e.components.SettingsMenuRow
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
@@ -81,7 +80,7 @@ fun M3EAcademicsScreen(
     onAction: (M3EAcademicsAction) -> Unit,
     modifier: Modifier = Modifier,
     /** Navigation is a host concern; the immutable action set carries no course-detail intent. */
-    onOpenCourse: (String) -> Unit = {},
+    onOpenCourse: (M3EAcademicCourse) -> Unit = {},
     /** D-140: hub -> detail destinations for the Academic Explorer (real app routes). */
     onOpenExplorer: (String) -> Unit = {}
 ) {
@@ -261,11 +260,10 @@ fun M3EAcademicsScreen(
             // semesterLabel (most-recent first); the default keeps the flat list.
             if (state.showAllSemesters) {
                 state.courses
-                    .groupBy { it.semesterLabel }
-                    .toList()
-                    .sortedByDescending { it.first }
-                    .forEach { (label, semesterCourses) ->
-                        item(key = "academics_semester_group_$label") {
+                    .groupBy { it.semesterId.ifBlank { it.semesterLabel } }
+                    .forEach { (semesterKey, semesterCourses) ->
+                        val label = semesterCourses.first().semesterLabel
+                        item(key = "academics_semester_group_$semesterKey") {
                             M3ESemesterSectionHeader(
                                 label = label.ifBlank { state.semesterName },
                                 courseCount = semesterCourses.size
@@ -275,8 +273,7 @@ fun M3EAcademicsScreen(
                             courses = semesterCourses,
                             state = state,
                             onAction = onAction,
-                            onOpenCourse = onOpenCourse,
-                            keyPrefix = "$label|"
+                            onOpenCourse = onOpenCourse
                         )
                     }
             } else {
@@ -290,11 +287,7 @@ fun M3EAcademicsScreen(
 
             // D-140: hub -> detail navigation, after the courses and before the spacer.
             item(key = "academics_explorer") {
-                AcademicExplorerSection(
-                    showAllSemesters = state.showAllSemesters,
-                    hasMultipleSemesters = state.availableSemesters.size > 1,
-                    onOpenExplorer = onOpenExplorer
-                )
+                AcademicExplorerSection(onOpenExplorer = onOpenExplorer)
             }
 
             // Bottom Spacing for floating toolbar (twice nav bar height: 140dp)
@@ -307,25 +300,24 @@ fun M3EAcademicsScreen(
 
 /**
  * D-140: the one and only course-card renderer. Both the flat list and the
- * cross-semester groups emit this same card; the key prefix keeps LazyColumn
- * keys unique when a code appears in more than one semester.
+ * cross-semester groups use the full semester/course identity for each card.
  */
 private fun LazyListScope.academicCourseCards(
     courses: List<M3EAcademicCourse>,
     state: M3EAcademicsState,
     onAction: (M3EAcademicsAction) -> Unit,
-    onOpenCourse: (String) -> Unit,
-    keyPrefix: String = ""
+    onOpenCourse: (M3EAcademicCourse) -> Unit
 ) {
     items(
         items = courses,
-        key = { course -> keyPrefix + course.courseCode }
+        key = { course -> "${course.semesterId.ifBlank { course.semesterLabel }}|${course.courseCode}" }
     ) { course ->
-        val isExpanded = state.expandedCourseCode == course.courseCode
+        val isExpanded = state.expandedCourseCode == course.courseCode &&
+            state.expandedCourseSemesterId.orEmpty() == course.semesterId
         M3EAcademicCourseCard(
             course = course,
             isExpanded = isExpanded,
-            onToggleExpand = { onAction(M3EAcademicsAction.ToggleExpandCourse(course.courseCode)) },
+            onToggleExpand = { onAction(M3EAcademicsAction.ToggleExpandCourse(course.courseCode, course.semesterId)) },
             onOpenCourse = onOpenCourse
         )
     }
@@ -407,148 +399,34 @@ private fun M3EPastSemestersSyncRow(
     }
 }
 
-/** Flat Academic Explorer section — group label plus rows painted on the surface. */
 @Composable
 private fun AcademicExplorerSection(
-    showAllSemesters: Boolean,
-    hasMultipleSemesters: Boolean,
     onOpenExplorer: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        Text(
-            text = "Academic Explorer",
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            color = M3ETheme.colors.primary,
-            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
-        )
-        AcademicExplorerRow(
-            icon = Icons.Rounded.TrendingUp,
-            title = "Marks Predictor & Simulator",
-            subtitle = "Simulate what-if scores, calculate points lost & solve FAT targets",
-            badge = "New",
-            cta = "Predictor",
-            onClick = { onOpenExplorer("marks_predictor") }
-        )
-        AcademicExplorerRow(
-            icon = Icons.Rounded.School,
-            title = "Degree Curriculum",
-            subtitle = "Program credits, baskets & distribution",
-            cta = "Curriculum",
-            onClick = { onOpenExplorer("curriculum") }
-        )
-        AcademicExplorerRow(
-            icon = Icons.Rounded.Grade,
-            title = "Grade History",
-            subtitle = "Cumulative GPA & past semesters",
-            cta = "Grades",
-            onClick = { onOpenExplorer("grades") }
-        )
-        if (!showAllSemesters && hasMultipleSemesters) {
-            AcademicExplorerRow(
-                icon = Icons.Rounded.History,
-                title = "Looking for previous semesters?",
-                subtitle = "Review earlier terms and your GPA",
-                cta = "View History",
-                onClick = { onOpenExplorer("grades") }
-            )
-        }
-    }
-}
-
-/** Flat settings-style row: icon tile, title (+ optional badge), subtitle, CTA, chevron. */
-@Composable
-private fun AcademicExplorerRow(
-    icon: ImageVector,
-    title: String,
-    subtitle: String,
-    cta: String,
-    badge: String? = null,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colors = M3ETheme.colors
     Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClickLabel = "Open $title", onClick = onClick)
-                .heightIn(min = 72.dp)
-                .padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(colors.surfaceContainerHigh),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = colors.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = title,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.onSurface
-                    )
-                    if (badge != null) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(colors.primaryContainer)
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = badge,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-                Text(text = subtitle, fontSize = 12.sp, color = colors.onSurfaceVariant)
-            }
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(colors.surfaceContainerHigh)
-                    .padding(horizontal = 10.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = cta,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.primary
-                )
-            }
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                tint = colors.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
+        SettingsGroupHeader(title = "Academic Explorer")
+        SettingsMenuIsland {
+            SettingsMenuRow(
+                icon = Icons.Rounded.TrendingUp,
+                title = "Marks Predictor & Simulator",
+                subtitle = "Simulate assessment scores and FAT targets",
+                onClick = { onOpenExplorer("marks_predictor") }
+            )
+            SettingsMenuRow(
+                icon = Icons.Rounded.School,
+                title = "Degree Curriculum",
+                subtitle = "Program credits, baskets and distribution",
+                onClick = { onOpenExplorer("curriculum") }
+            )
+            SettingsMenuRow(
+                icon = Icons.Rounded.Grade,
+                title = "Grade History",
+                subtitle = "Cumulative GPA and past semesters",
+                onClick = { onOpenExplorer("grades") },
+                showDivider = false
             )
         }
-        HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.5f))
     }
 }
 
@@ -640,7 +518,7 @@ private fun M3EAcademicCourseCard(
     course: M3EAcademicCourse,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
-    onOpenCourse: (String) -> Unit,
+    onOpenCourse: (M3EAcademicCourse) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
@@ -674,7 +552,7 @@ private fun M3EAcademicCourseCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "${course.credits} Credits",
+                            text = course.credits?.let { "$it Credits" } ?: "Credits not published",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
                             color = colors.onPrimaryContainer
@@ -819,7 +697,7 @@ private fun M3EAcademicCourseCard(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = colors.primary,
-                        modifier = Modifier.clickable { onOpenCourse(course.courseCode) }
+                        modifier = Modifier.clickable { onOpenCourse(course) }
                     )
                 }
             }

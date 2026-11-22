@@ -598,6 +598,7 @@ object VtopDataSource {
                     courseType = match.courseType,
                     slotName = match.slotName,
                     faculty = match.faculty,
+                    classId = course.classId.ifBlank { null },
                     attendedClasses = match.attended,
                     totalClasses = match.total,
                     attendancePercentage = match.percentage,

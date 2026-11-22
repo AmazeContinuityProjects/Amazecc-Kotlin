@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.Attendance
 import com.amazecc.app.shared.domain.EmbeddedCourseHalf
+import com.amazecc.app.shared.domain.overhaul.M3ECourseGradeTerm
 import com.amazecc.app.shared.domain.EmbeddedLinkCode
 import com.amazecc.app.shared.domain.MarkComponent
 import com.amazecc.app.shared.domain.PredictorComponent
@@ -296,7 +297,7 @@ fun M3EComponentPredictorPanel(
                 M3EInlinePanelBackHeader(onBack = onBack)
             }
             Text(
-                text = "$label predictor",
+                text = "$label assessment breakdown",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = colors.onSurface
             )
@@ -360,19 +361,13 @@ fun M3EComponentPredictorPanel(
     }
 }
 
-/**
- * D-141 "Grades" destination for the Course sections hub.
- *
- * `M3ECourseDetailState` deliberately carries no published final-grade field — it has internal
- * scored/max, assessments and a FAT target grade, but no released final grade. This panel is
- * therefore a *real* inline destination that always reports the honest no-data state; it is not a
- * dead control and it invents no letter/grade. If a published final grade is added to the state
- * later, only this panel needs to learn how to project it.
- */
+/** Displays the published final grade for the selected semester. */
 @Composable
 fun M3ECourseGradesPanel(
-    onBack: () -> Unit,
+    publishedGrade: String? = null,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    history: List<M3ECourseGradeTerm> = emptyList(),
 ) {
     val colors = M3ETheme.colors
     M3ESurfaceCard(
@@ -381,17 +376,26 @@ fun M3ECourseGradesPanel(
         modifier = modifier.fillMaxWidth()
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            M3EInlinePanelBackHeader(onBack = onBack)
+            if (onBack != null) {
+                M3EInlinePanelBackHeader(onBack = onBack)
+                Text(
+                    text = "Grades",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = colors.onSurface
+                )
+            }
             Text(
-                text = "Grades",
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = colors.onSurface
-            )
-            Text(
-                text = "Not available — no published final grade for this course",
+                text = publishedGrade?.let { "Final grade: $it" } ?: "No published final grade for this course",
                 style = MaterialTheme.typography.bodyMedium,
                 color = colors.onSurfaceVariant
             )
+            if (history.isNotEmpty()) {
+                Text("Grade History", style = MaterialTheme.typography.titleSmall, color = colors.onSurface)
+                history.forEach { entry ->
+                    val result = entry.total?.let { "${entry.grade} · $it" } ?: entry.grade
+                    M3EFactRow(label = entry.semester, value = result)
+                }
+            }
         }
     }
 }

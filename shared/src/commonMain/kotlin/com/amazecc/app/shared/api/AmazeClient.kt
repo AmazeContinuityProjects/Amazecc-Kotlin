@@ -1942,7 +1942,11 @@ if (useMockData) return DemoData.get("curriculum", CurriculumRes.serializer()) ?
         return postAuthorizedBytes("curriculum/download")
     }
 
-    suspend fun getCalendar(type: String = "ALL", semesterId: String? = null): CalendarRes {
+    suspend fun getCalendar(
+        type: String = "ALL",
+        semesterId: String? = null,
+        allowUnscopedCache: Boolean = true,
+    ): CalendarRes {
 if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: CalendarRes()
         // A blank-but-non-null semester id wins the Elvis chain and bypasses every fallback,
         // making every LOCAL fetch fall through to postAuthorized (a no-op outside REMOTE).
@@ -1954,8 +1958,10 @@ if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: Ca
             firstAcademic = com.amazecc.app.shared.state.AppDataStore.academic.value.semesters.keys
                 .firstOrNull()
         )
+        fun unscopedCalendar() = com.amazecc.app.shared.state.AppDataStore.calendar.value
+            ?.takeIf { allowUnscopedCache && it.months.isNotEmpty() }
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.OFFLINE_CACHE) {
-            return com.amazecc.app.shared.state.AppDataStore.calendar.value
+            return unscopedCalendar()
                 ?: CalendarRes(success = true, message = "Served from local cache")
         }
         // The dedicated headless parser mirrors the reference API's month derivation and
@@ -2000,10 +2006,10 @@ if (useMockData) return DemoData.get("calendar", CalendarRes.serializer()) ?: Ca
                 com.amazecc.app.shared.vtop.VtopCalendarScraper.fetchCalendar(sem, type)
                     ?.takeIf { it.months.isNotEmpty() }?.let { return it }
             }
-            com.amazecc.app.shared.state.AppDataStore.calendar.value?.takeIf { it.months.isNotEmpty() }
+            unscopedCalendar()
                 ?: CalendarRes(success = false, message = "Empty response")
         } catch (e: Exception) {
-            com.amazecc.app.shared.state.AppDataStore.calendar.value?.takeIf { it.months.isNotEmpty() }
+            unscopedCalendar()
                 ?: CalendarRes(success = false, message = e.message, error = e.toString())
         }
     }

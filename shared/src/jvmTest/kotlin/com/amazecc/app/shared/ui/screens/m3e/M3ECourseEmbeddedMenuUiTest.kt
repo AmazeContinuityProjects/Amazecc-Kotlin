@@ -1,7 +1,7 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasScrollToNodeAction
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -101,12 +101,11 @@ class M3ECourseEmbeddedMenuUiTest {
             }
         }
 
-        onNodeWithText("Component Logs").assertExists()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Course sections"))
         onNodeWithText("Theory Log").assertExists()
         onNodeWithText("Lab Log").assertExists()
-        onNodeWithText("Theory Predictor").assertExists()
-        onNodeWithText("Lab Predictor").assertExists()
-        onNodeWithText("Academics").assertExists()
+        onNodeWithText("Theory Assessments").assertExists()
+        onNodeWithText("Lab Assessments").assertExists()
         // Marks/grades stay common: the menu has one Marks row, not per-half grades.
         onNodeWithText("Marks Breakdown").assertExists()
         onNodeWithText("Grade Predictor").assertExists()
@@ -120,8 +119,8 @@ class M3ECourseEmbeddedMenuUiTest {
             }
         }
 
-        onNode(hasScrollToNodeAction()).performScrollToNode(hasContentDescription("Open Lab Log"))
-        onNodeWithContentDescription("Open Lab Log").performClick()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Lab Log"))
+        onNodeWithText("Lab Log").performClick()
 
         // Real lab-half numbers (25/40, 62.5%) and its own log — not the combined course figure.
         onNodeWithText("Lab attendance").assertExists()
@@ -130,20 +129,24 @@ class M3ECourseEmbeddedMenuUiTest {
         onNodeWithText("2026-09-02 · Absent").assertExists()
         // Lab margin halves the session count: 20 needed sessions -> 10 lab meetings.
         onNodeWithText("Need 10 more labs to reach 75%").assertExists()
+
+        onNodeWithContentDescription("Back").performClick()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Course sections"))
+        onNodeWithText("Course sections").assertExists()
     }
 
     @Test
-    fun selectingTheoryPredictorShowsOnlyTheoryAssessments() = runComposeUiTest {
+    fun selectingTheoryAssessmentsShowsOnlyTheoryAssessments() = runComposeUiTest {
         setContent {
             AmazeM3ETheme {
                 M3ECourseDetailScreen(state = embeddedState(), onAction = {})
             }
         }
 
-        onNode(hasScrollToNodeAction()).performScrollToNode(hasContentDescription("Open Theory Predictor"))
-        onNodeWithContentDescription("Open Theory Predictor").performClick()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Theory Assessments"))
+        onNodeWithText("Theory Assessments").performClick()
 
-        onNodeWithText("Theory predictor").assertExists()
+        onNodeWithText("Theory assessment breakdown").assertExists()
         onNodeWithText("CAT-1").assertExists()
         onNodeWithText("Lab CA1").assertDoesNotExist()
     }
@@ -156,13 +159,34 @@ class M3ECourseEmbeddedMenuUiTest {
             }
         }
 
-        onNodeWithText("Component Logs").assertDoesNotExist()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Course sections"))
         onNodeWithText("Theory Log").assertDoesNotExist()
         onNodeWithText("Lab Log").assertDoesNotExist()
-        onNodeWithText("Theory Predictor").assertDoesNotExist()
-        onNodeWithText("Lab Predictor").assertDoesNotExist()
+        onNodeWithText("Theory Assessments").assertDoesNotExist()
+        onNodeWithText("Lab Assessments").assertDoesNotExist()
         // The common academics rows remain real for a standalone course.
         onNodeWithText("Marks Breakdown").assertExists()
+    }
+
+    @Test
+    fun standaloneLabLogUsesTheStandaloneCourseAttendance() = runComposeUiTest {
+        val state = standaloneState().copy(
+            courseType = "Lab Only",
+            slot = "L55",
+            standaloneAttendance = labHalf().attendance
+        )
+        setContent {
+            AmazeM3ETheme {
+                M3ECourseDetailScreen(state = state, onAction = {})
+            }
+        }
+
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Attendance Log"))
+        onNodeWithText("Attendance Log").performClick()
+
+        onNodeWithText("Lab attendance").assertExists()
+        onNodeWithText("25/40 classes attended").assertExists()
+        onNodeWithText("Course sections").assertDoesNotExist()
     }
 
     @Test

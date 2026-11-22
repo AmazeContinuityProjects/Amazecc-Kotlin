@@ -1,9 +1,15 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.amazecc.app.shared.domain.overhaul.CourseDetailTab
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
@@ -52,29 +58,57 @@ class M3ECourseDetailScreenUiTest {
         onNodeWithText("CSE3002").assertExists()
         onNodeWithText("Internet and Web Programming").assertExists()
         onNodeWithText("4 Credits").assertExists()
-        onNodeWithText("Prof. Sundar").assertExists()
         onNodeWithText("93.30%").assertExists()
-        onNodeWithText("Slot B1+TB1").assertExists()
+        onNodeWithText("Slot B1+TB1", substring = true).assertExists()
     }
 
     @Test
-    fun testTabSelectionEmitsAction() = runComposeUiTest {
+    fun marksOpensAsASectionAndBackReturnsToCourseOverview() = runComposeUiTest {
         val capturedActions = mutableListOf<M3ECourseDetailAction>()
+        var state by mutableStateOf(sampleState())
 
         setContent {
             AmazeM3ETheme {
                 M3ECourseDetailScreen(
-                    state = sampleState(),
-                    onAction = { capturedActions.add(it) }
+                    state = state,
+                    onAction = { action ->
+                        capturedActions.add(action)
+                        if (action is M3ECourseDetailAction.SelectTab) {
+                            state = state.copy(activeTab = action.tab)
+                        }
+                    }
                 )
             }
         }
 
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Marks"))
         onNodeWithText("Marks").performClick()
+        onNodeWithText("Total Internal Score").assertExists()
+        onNodeWithText("Course sections").assertDoesNotExist()
 
-        assertTrue(capturedActions.isNotEmpty())
-        val tabAction = capturedActions.filterIsInstance<M3ECourseDetailAction.SelectTab>().firstOrNull()
-        assertEquals(CourseDetailTab.MARKS, tabAction?.tab)
+        onNodeWithContentDescription("Back").performClick()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Course sections"))
+        onNodeWithText("Course sections").assertExists()
+        val expectedActions = listOf<M3ECourseDetailAction>(
+            M3ECourseDetailAction.SelectTab(CourseDetailTab.MARKS),
+            M3ECourseDetailAction.SelectTab(CourseDetailTab.OVERVIEW)
+        )
+        assertEquals(expectedActions, capturedActions.toList())
+    }
+
+    @Test
+    fun gradesOpensThePublishedResult() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3ECourseDetailScreen(state = sampleState().copy(publishedGrade = "A"), onAction = {})
+            }
+        }
+
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Grades"))
+        onNodeWithText("Grades").performClick()
+
+        onNodeWithText("Final grade: A").assertExists()
+        onNodeWithText("No published final grade for this course").assertDoesNotExist()
     }
 
     @Test

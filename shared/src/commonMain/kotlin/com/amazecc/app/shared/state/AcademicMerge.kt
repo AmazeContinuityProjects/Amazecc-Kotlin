@@ -95,7 +95,9 @@ object AcademicMerge {
             attendedClasses = attended,
             totalClasses = total,
             attendancePercentage = pct,
-            logs = (a.logs + b.logs).distinctBy { it.date to it.status }
+            logs = (a.logs + b.logs).distinctBy { it.date to it.status },
+            classId = b.classId ?: a.classId,
+            facultyErpId = if (b.classId != null) b.facultyErpId else a.facultyErpId,
         )
     }
 
@@ -219,7 +221,9 @@ object AcademicMerge {
                     attendedClasses = item.attendedClasses,
                     totalClasses = item.totalClasses,
                     attendancePercentage = item.attendancePercentage,
-                    logs = item.logs
+                    logs = item.logs,
+                    classId = item.classId?.trim()?.takeIf { it.isNotEmpty() },
+                    facultyErpId = Regex("^\\s*(\\d{4,})\\b").find(item.faculty)?.groupValues?.get(1),
                 )
                 // Two rows can share a half (the same course reported by attendance and by the
                 // detail page); summing those is correct, unlike summing across halves.

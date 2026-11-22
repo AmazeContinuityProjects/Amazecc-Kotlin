@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.domain.overhaul
 
 import androidx.compose.runtime.Immutable
+import com.amazecc.app.shared.domain.Attendance
 import com.amazecc.app.shared.domain.EmbeddedCourseHalf
 import com.amazecc.app.shared.domain.FreeClassroomBlockSummary
 import com.amazecc.app.shared.domain.FreeClassroomPeriodOption
@@ -267,7 +268,7 @@ data class M3EAssessmentItem(
 data class M3EAcademicCourse(
     val courseCode: String,
     val courseTitle: String,
-    val credits: Int,
+    val credits: Int?,
     val courseType: String,
     val faculty: String,
     val grade: String? = null,
@@ -276,7 +277,8 @@ data class M3EAcademicCourse(
     val assessments: List<M3EAssessmentItem> = emptyList(),
     val attendancePct: Double? = null,
     /** Semester this course belongs to, for the unified hub's cross-semester grouping. */
-    val semesterLabel: String = ""
+    val semesterLabel: String = "",
+    val semesterId: String = ""
 )
 
 data class M3EAcademicSummary(
@@ -297,14 +299,15 @@ data class M3EAcademicsState(
     /** Unified hub mode: group courses across semesters instead of the selected one only. */
     val showAllSemesters: Boolean = false,
     val pastSemestersSynced: Boolean = false,
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val expandedCourseSemesterId: String? = null
 )
 
 sealed interface M3EAcademicsAction {
     data class SelectSemester(val semester: String) : M3EAcademicsAction
     data class SetFilter(val filter: AcademicCourseFilter) : M3EAcademicsAction
     data class UpdateSearch(val query: String) : M3EAcademicsAction
-    data class ToggleExpandCourse(val courseCode: String) : M3EAcademicsAction
+    data class ToggleExpandCourse(val courseCode: String, val semesterId: String = "") : M3EAcademicsAction
     data object Refresh : M3EAcademicsAction
     data object ToggleAllSemesters : M3EAcademicsAction
     data object RefreshPastSemesters : M3EAcademicsAction
@@ -328,10 +331,16 @@ data class M3ECourseSyllabusUnit(
     val hours: Int = 0
 )
 
+data class M3ECourseGradeTerm(
+    val semester: String,
+    val grade: String,
+    val total: String?,
+)
+
 data class M3ECourseDetailState(
     val courseCode: String,
     val courseTitle: String,
-    val credits: Int,
+    val credits: Int?,
     val courseType: String,
     val slot: String,
     val venue: String,
@@ -358,13 +367,21 @@ data class M3ECourseDetailState(
     /** The live effective attendance target from the host, not a hardcoded per-course guess. */
     val attendanceTarget: Float = 75f,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val semesterId: String? = null,
+    val isCourseAvailable: Boolean = true,
+    val publishedGrade: String? = null,
+    val pendingTaskCount: Int? = null,
+    val standaloneAttendance: Attendance? = null,
+    val courseSlots: List<String> = emptyList(),
+    val gradeHistory: List<M3ECourseGradeTerm> = emptyList(),
 )
 
 sealed interface M3ECourseDetailAction {
     data class SelectTab(val tab: CourseDetailTab) : M3ECourseDetailAction
     data class SetTargetGrade(val grade: String) : M3ECourseDetailAction
     data object DownloadSyllabus : M3ECourseDetailAction
+    data object OpenQBank : M3ECourseDetailAction
     data object Refresh : M3ECourseDetailAction
     data object Back : M3ECourseDetailAction
 }

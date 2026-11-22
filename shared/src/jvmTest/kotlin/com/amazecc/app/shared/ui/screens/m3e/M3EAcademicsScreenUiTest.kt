@@ -1,8 +1,11 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.amazecc.app.shared.domain.overhaul.AcademicCourseFilter
 import com.amazecc.app.shared.domain.overhaul.M3EAcademicCourse
@@ -96,6 +99,32 @@ class M3EAcademicsScreenUiTest {
         assertTrue(capturedActions.isNotEmpty())
         val toggleAction = capturedActions.filterIsInstance<M3EAcademicsAction.ToggleExpandCourse>().firstOrNull()
         assertEquals("CSE3002", toggleAction?.courseCode)
+    }
+
+    @Test
+    fun repeatedCourseOpensTheSemesterOfTheExpandedRow() = runComposeUiTest {
+        val state = sampleState()
+        val current = state.courses.first().copy(semesterId = "term-new", semesterLabel = "Repeat term")
+        val previous = current.copy(semesterId = "term-old", faculty = "Earlier faculty")
+        var opened: M3EAcademicCourse? = null
+        setContent {
+            AmazeM3ETheme {
+                M3EAcademicsScreen(
+                    state = state.copy(
+                        courses = listOf(current, previous),
+                        expandedCourseCode = previous.courseCode,
+                        expandedCourseSemesterId = previous.semesterId,
+                        showAllSemesters = true
+                    ),
+                    onAction = {},
+                    onOpenCourse = { opened = it }
+                )
+            }
+        }
+
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Open course detail", substring = true))
+        onNodeWithText("Open course detail", substring = true).performClick()
+        runOnIdle { assertEquals(previous, opened) }
     }
 
     @Test

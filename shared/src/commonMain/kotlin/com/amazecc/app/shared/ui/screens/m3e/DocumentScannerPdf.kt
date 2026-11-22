@@ -12,7 +12,7 @@ import com.amazecc.app.shared.pdf.PdfImagePage
  * the actual JPEG embedding, clipping and xref serialization all live in one engine instead of
  * three hand-written copies.
  */
-internal object DocumentScannerPdf {
+object DocumentScannerPdf {
 
     /** Normalized (0..1) crop rectangle. Maps 1:1 onto [PdfCrop]. */
     data class Crop(val left: Float, val top: Float, val right: Float, val bottom: Float) {

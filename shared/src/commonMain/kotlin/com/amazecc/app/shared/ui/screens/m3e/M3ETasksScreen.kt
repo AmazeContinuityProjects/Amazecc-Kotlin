@@ -60,6 +60,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ETaskStatus
 import com.amazecc.app.shared.domain.overhaul.M3ETasksAction
 import com.amazecc.app.shared.domain.overhaul.M3ETasksFilter
 import com.amazecc.app.shared.domain.overhaul.M3ETasksState
+import com.amazecc.app.shared.model.HomeworkTask
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
@@ -68,6 +69,7 @@ import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import kotlinx.datetime.Clock
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -247,7 +249,7 @@ fun M3ETasksScreen(
     }
 
         if (state.isCreateDialogOpen) {
-            M3ETaskEditorDialog(
+            M3ETaskCreateSheet(
                 onDismiss = { onAction(M3ETasksAction.CloseCreateDialog) },
                 onSave = onCreateTask
             )
@@ -276,13 +278,35 @@ data class M3ETaskDraft(
     val showOnTimetable: Boolean = false
 )
 
+internal fun M3ETaskDraft.toHomeworkTask(): HomeworkTask {
+    val now = Clock.System.now()
+    return HomeworkTask(
+        id = "local-${now.toEpochMilliseconds()}",
+        courseCode = courseCode.trim(),
+        courseTitle = courseTitle.trim(),
+        title = title.trim(),
+        description = description.trim(),
+        dueDate = dueDate.trim(),
+        dueTime = dueTime.ifBlank { "23:59" },
+        type = type,
+        priority = priority,
+        estimatedMinutes = estimatedMinutes.toIntOrNull() ?: 0,
+        reminderAt = reminderAt.ifBlank { null },
+        reminderRepeat = reminderRepeat,
+        showOnCalendar = showOnCalendar,
+        showOnTimetable = showOnTimetable,
+        createdAt = now.toString()
+    )
+}
+
 @Composable
-private fun M3ETaskEditorDialog(
+internal fun M3ETaskCreateSheet(
     onDismiss: () -> Unit,
-    onSave: (M3ETaskDraft) -> Unit
+    onSave: (M3ETaskDraft) -> Unit,
+    initialDraft: M3ETaskDraft = M3ETaskDraft()
 ) {
     val colors = M3ETheme.colors
-    var draft by remember { mutableStateOf(M3ETaskDraft()) }
+    var draft by remember(initialDraft) { mutableStateOf(initialDraft) }
     val types = listOf("homework", "assignment", "quiz", "exam", "project", "lab", "study", "reminder")
     val priorities = listOf("low", "medium", "high")
 

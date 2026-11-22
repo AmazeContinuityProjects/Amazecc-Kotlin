@@ -740,8 +740,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
 
     fun openCourseDetail(courseCode: String, semesterId: String? = null) {
         _selectedCourseCode.value = courseCode
-        _selectedCourseSemester.value = semesterId
-        navigateTo(Screen.COURSE_DETAIL)
+        _selectedCourseSemester.value = semesterId ?: selectedSemester.value
+        if (_currentScreen.value == Screen.COURSE_DETAIL) {
+            AppBackStack.replaceTop(historyEntryFor(Screen.COURSE_DETAIL))
+        } else {
+            navigateTo(Screen.COURSE_DETAIL)
+        }
     }
 
     fun openCourseAttendance(courseCode: String) {
@@ -961,7 +965,9 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         subTab = when (screen) {
             Screen.ATTENDANCE -> _attendanceInitialView.value.takeIf { it.isNotBlank() }
             else -> null
-        }
+        },
+        courseCode = _selectedCourseCode.value.takeIf { screen == Screen.COURSE_DETAIL },
+        semesterId = _selectedCourseSemester.value.takeIf { screen == Screen.COURSE_DETAIL }
     )
 
     /**
@@ -969,9 +975,13 @@ private val _commandPaletteOpen = MutableStateFlow(false)
      * (web parity: `restoreScreen`; Kotlin sub-tab state lives in [AppState]-owned fields
      * such as [attendanceInitialView]).
      */
-    private fun restoreEntrySubTab(entry: AppBackStack.Entry) {
-        if (entry.screen == Screen.ATTENDANCE.name) {
-            _attendanceInitialView.value = entry.subTab ?: "Timetable"
+    private fun restoreEntryArguments(entry: AppBackStack.Entry) {
+        when (entry.screen) {
+            Screen.ATTENDANCE.name -> _attendanceInitialView.value = entry.subTab ?: "Timetable"
+            Screen.COURSE_DETAIL.name -> {
+                _selectedCourseCode.value = entry.courseCode
+                _selectedCourseSemester.value = entry.semesterId
+            }
         }
     }
 
@@ -1030,7 +1040,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         if (stack.size >= 2) {
             val target = stack[stack.size - 2]
             AppBackStack.pop()
-            restoreEntrySubTab(target)
+            restoreEntryArguments(target)
             _currentScreen.value = target.screen.parseScreen() ?: Screen.HOME
             return true
         }
@@ -1041,7 +1051,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     fun restoreFromHistory() {
         if (!SessionManager.isLoggedIn) return
         AppBackStack.peek()?.let { entry ->
-            restoreEntrySubTab(entry)
+            restoreEntryArguments(entry)
             _currentScreen.value = entry.screen.parseScreen() ?: Screen.SPLASH
         }
     }

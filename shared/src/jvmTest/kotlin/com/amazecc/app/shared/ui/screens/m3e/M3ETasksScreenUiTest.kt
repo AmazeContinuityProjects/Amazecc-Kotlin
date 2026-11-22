@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.amazecc.app.shared.domain.overhaul.M3ETaskItem
 import com.amazecc.app.shared.domain.overhaul.M3ETaskKind
@@ -15,10 +16,12 @@ import com.amazecc.app.shared.domain.overhaul.M3ETaskStatus
 import com.amazecc.app.shared.domain.overhaul.M3ETasksAction
 import com.amazecc.app.shared.domain.overhaul.M3ETasksFilter
 import com.amazecc.app.shared.domain.overhaul.M3ETasksState
+import com.amazecc.app.shared.model.HomeworkTask
 import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsMenuTestTags
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
@@ -117,5 +120,35 @@ class M3ETasksScreenUiTest {
         onNodeWithText("New Task").performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(1, capturedActions.size)
         assertTrue(capturedActions[0] is M3ETasksAction.OpenCreateDialog)
+    }
+
+    @Test
+    fun coursePrefilledTaskRetainsCourseOnCreate() = runComposeUiTest {
+        var created: HomeworkTask? = null
+        setContent {
+            AmazeM3ETheme {
+                M3ETaskCreateSheet(
+                    initialDraft = M3ETaskDraft(
+                        title = "Read chapter 2",
+                        courseCode = "CSE3001",
+                        courseTitle = "Database Management Systems",
+                        dueDate = "2026-11-29"
+                    ),
+                    onDismiss = {},
+                    onSave = { created = it.toHomeworkTask() }
+                )
+            }
+        }
+
+        waitForIdle()
+        onNodeWithText("CSE3001").assertExists()
+        onNodeWithText("Create").performScrollTo().performClick()
+        runOnIdle {
+            val task = assertNotNull(created)
+            assertEquals("CSE3001", task.courseCode)
+            assertEquals("Database Management Systems", task.courseTitle)
+            assertEquals("Read chapter 2", task.title)
+            assertEquals("2026-11-29", task.dueDate)
+        }
     }
 }
