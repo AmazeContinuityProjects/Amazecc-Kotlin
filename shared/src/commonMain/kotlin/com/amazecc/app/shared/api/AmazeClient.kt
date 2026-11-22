@@ -912,7 +912,16 @@ object AmazeClient {
     internal suspend inline fun <reified T> postAuthorizedValues(endpoint: String, extraParams: Map<String, JsonElement>): T? =
         postAuthorizedRaw<T>(endpoint) { builder -> extraParams.forEach { (k, v) -> builder.put(k, v) } }
 
-    private suspend inline fun <reified T> postAuthorizedRaw(endpoint: String, extra: (JsonObjectBuilder) -> Unit): T? {
+    /**
+     * [pathPrefix] selects the API mount family while every guard/credential/decode rule stays
+     * identical. The default preserves the legacy `/api/` mount used by all existing call sites;
+     * the canonical `/api/remote/` mount is reached through [postAuthorizedRemote].
+     */
+    private suspend inline fun <reified T> postAuthorizedRaw(
+        endpoint: String,
+        pathPrefix: String = "/api/",
+        extra: (JsonObjectBuilder) -> Unit = {},
+    ): T? {
         // In LOCAL mode the real JSESSIONID lives in the WebView cookie jar and was never
         // meant to leave the device. There is nothing valid to send.
         if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
@@ -922,7 +931,7 @@ object AmazeClient {
         val csrf = SessionManager.csrf.value ?: return null
 
         return try {
-            val response: HttpResponse = httpClient.post("$baseUrl/api/$endpoint") {
+            val response: HttpResponse = httpClient.post("$baseUrl$pathPrefix$endpoint") {
                 contentType(ContentType.Application.Json)
                 attachAmazeIdAuth()
                 setBody(buildJsonObject {
@@ -943,6 +952,10 @@ object AmazeClient {
             null
         }
     }
+
+    /** D-161: authorized POST against the canonical Hono `/api/remote/` mount. */
+    private suspend inline fun <reified T> postAuthorizedRemote(endpoint: String): T? =
+        postAuthorizedRaw<T>(endpoint, extra = {}, pathPrefix = "/api/remote/")
 
     /**
      * Raw GET for the public social rosters (`GET /api/social/ffcs-match`): unlike
@@ -3003,7 +3016,7 @@ if (useMockData) return DemoData.get("circulars", CircularsRes.serializer()) ?: 
                 CircularsRes(success = false, error = e.toString())
             }
         }
-        return postAuthorized<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
+        return postAuthorizedRemote<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
     }
 
     // ── Document / payment detail actions ──────────────────────────────────
@@ -3012,7 +3025,7 @@ if (useMockData) return DemoData.get("circulars", CircularsRes.serializer()) ?: 
      * Downloads the binary behind a circular (or any document whose [circularId] is the
      * `viewCertificate` id VTOP emitted in the circular tree).
      *
-     * REMOTE: `POST /api/circulars/download` with the authorized session, returning the raw PDF
+     * REMOTE: `POST /api/remote/circulars/download` with the authorized session, returning the raw PDF
      * with its `Content-Type` / `Content-Disposition` headers intact.
      * LOCAL: the on-device scraper walks the same `PATH_CIRCULAR_DOWNLOAD` VTOP path.
      * OFFLINE_CACHE: there is no cached binary, so this returns null rather than inventing one.
@@ -3046,7 +3059,7 @@ if (useMockData) return DemoData.get("circulars", CircularsRes.serializer()) ?: 
         if (!SessionManager.hasRemoteCookies || cookies == null || authorizedID == null || csrf == null) return null
 
         return try {
-            val response: HttpResponse = httpClient.post("$baseUrl/api/circulars/download") {
+            val response: HttpResponse = httpClient.post("$baseUrl/api/remote/circulars/download") {
                 contentType(ContentType.Application.Json)
                 setBody(buildJsonObject {
                     put("cookies", cookies)

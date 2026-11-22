@@ -64,7 +64,10 @@ private val REG_FIELD_NAMES = setOf("username", "date", "fromtime", "totime")
 
 enum class Screen { SPLASH,
     LOGIN, ONBOARDING, HOME, ATTENDANCE, ACADEMICS, PAYMENTS, LIBRARIES, HOSTEL, CABSHARE, TRANSPORT, MORE, PROFILE,
-    EVENTS, QBANK, SOCIAL, FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
+    EVENTS, QBANK, SOCIAL,
+    // D-164: server-backed Friend Finder discovery screen (distinct from SOCIAL).
+    FRIEND_FINDER,
+    FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
     // D-153: the academic report is a normal, nav-bar-visible screen (not a LIFO overlay).
     STUDENT_REPORT,
     // D-138: the attendance (bunk) predictor is a real route, distinct from GPA_PREDICTOR.
@@ -1072,6 +1075,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         Screen.TASKS to ScreenNavMeta(Screen.TASKS, setOf("tools", "tools-tasks"), pinnable = true, pinId = "tools", pinLabel = "Tools", commandPalette = true),
         Screen.QBANK to ScreenNavMeta(Screen.QBANK, setOf("tools-qbank"), commandPalette = true),
         Screen.SOCIAL to ScreenNavMeta(Screen.SOCIAL, setOf("tools-social"), commandPalette = true),
+        // D-164: same surface class as SOCIAL (command-palette discoverable, not a pinned tab).
+        Screen.FRIEND_FINDER to ScreenNavMeta(
+            Screen.FRIEND_FINDER,
+            setOf("friend-finder", "tools-social-friend-finder"),
+            commandPalette = true
+        ),
         Screen.CABSHARE to ScreenNavMeta(Screen.CABSHARE, setOf("tools-cabshare", "cabshare"), pinnable = true, commandPalette = true),
         Screen.PROFILE to ScreenNavMeta(Screen.PROFILE, setOf("profile"), pinnable = true, pinId = "profile", pinLabel = "Profile", sidebar = true, appLibrary = true, commandPalette = true),
         Screen.MORE to ScreenNavMeta(Screen.MORE, setOf("more"), pinnable = true, pinId = "more", pinLabel = "More"),
@@ -1256,6 +1265,14 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     }
 
     fun applyDeepLink(uri: String): Boolean {
+        // D-164: the web opens Friend Finder with `/?open=friend-finder`. Accept the same
+        // `open=<web tab name>` spelling on any amazecc:// URI before the host-based routes,
+        // so a web-originated link lands on the real screen instead of being dropped.
+        val queryPart = uri.trim().substringAfter('?', "")
+        val openTarget = queryPart.substringAfter("open=", "").substringBefore('&')
+        if (openTarget.isNotBlank()) {
+            screenFromTabParam(openTarget)?.let { navigateTo(it); return true }
+        }
         return when (val route = parseDeepLink(uri)) {
             is DeepLinkRoute.ShareCode -> {
                 val friend = try {
@@ -1283,6 +1300,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
      *   (the reader at [com.amazecc.app.shared.utils.SocialUtils.importScheduleCode] accepts
      *   `v6|…` codes and `#s=`/`s=`/`#share=`/`share=` encodings — web parity, D-007)
      * - `amazecc://tab?tab=<Screen>` — web parity: `/?tab=` — open a tab
+     * - `amazecc://tab?open=<Screen>` / `amazecc://open?open=<Screen>` — web parity:
+     *   `/?open=friend-finder` (D-164); [applyDeepLink] also accepts `open=` on any host.
      * - `amazecc://auth-callback/…` — OIDC callback (D-002, deferred)
      */
     fun parseDeepLink(uri: String): DeepLinkRoute? {
@@ -1294,7 +1313,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 val code = query.substringAfter("code=", "").ifBlank { match.groupValues[3] }
                 if (code.isBlank()) null else DeepLinkRoute.ShareCode(code)
             }
-            "tab" -> screenFromTabParam(query.substringAfter("tab=", ""))?.let { DeepLinkRoute.Tab(it) }
+            "tab" -> screenFromTabParam(
+                query.substringAfter("tab=", "").ifBlank { query.substringAfter("open=", "") }
+            )?.let { DeepLinkRoute.Tab(it) }
+            "open" -> screenFromTabParam(query.substringAfter("open=", ""))?.let { DeepLinkRoute.Tab(it) }
             "auth-callback" -> DeepLinkRoute.AuthCallback(uri.trim())
             else -> null
         }
@@ -1318,7 +1340,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             "clubs" -> Screen.CLUB_HUB
             "about" -> Screen.ABOUT
             "qa-bank" -> Screen.QBANK
-            else -> null  // "friend-finder", "community", "paper-scanner", "student-report", ... — no Kotlin screen
+            "friend-finder" -> Screen.FRIEND_FINDER  // D-164: web /?open=friend-finder
+            else -> null  // "community", "paper-scanner", "student-report", ... — no Kotlin screen
         }
     }
 

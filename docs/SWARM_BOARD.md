@@ -258,3 +258,8 @@ Format mirrors `SwarmBoard.boardMarkdown()`: `**[id | date] KIND â†’ to â�
 - Report now has 10 real section toggles that gate all four live exports; committed af788a4.
 - Home View Timetable now opens a full weekly timetable bottom sheet with Vertical/Horizontal and Full/Compact switchers, LIFO dismissal, scrollable capped grid, and inline refresh errors; Calendar route preserved. Committed 0bbf007.
 - Verified gate_toggles3 / gate_timetable4 EXIT 0; Critic PASS. Note: unrelated user audit artifacts (run_audit.ps1, brain_audit_raw.csv, M3E_AUDIT_REPORT.md) were left untracked and were NOT committed.
+## 2026-11-22 - D-161..D-164 feature ports (gate_features7 green, Critic PASS)
+- Circulars now uses canonical Hono /api/remote/circulars (list + download) with network-gate attribution on both paths.
+- Free Classrooms gained web-style When/Rooms sections, real day/period/block derivation and a honest room inspector (no fabricated capacity).
+- Faculty Directory now has a real live host plus a reachable weekly schedule sheet; Friend Finder is a real SocialClient-backed screen reachable from the App Library and deep links.
+- All new sheets register their LIFO overlay ids. Unrelated user M3E-polish edits/untracked artifacts were deliberately NOT committed.

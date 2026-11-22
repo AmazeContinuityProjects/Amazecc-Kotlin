@@ -268,7 +268,7 @@ object NetworkGate {
  * Endpoint → module fallback for calls made outside a [NetworkScope] (screens, bridges, widgets).
  * An explicit scope always wins; this only makes the unscoped traffic attributable.
  */
-private fun inferModule(url: String): SyncModule? {
+internal fun inferModule(url: String): SyncModule? {
     val u = url.lowercase()
     return when {
         "/api/health" in u || "github" in u -> null
@@ -292,7 +292,7 @@ private fun inferModule(url: String): SyncModule? {
         "/api/events" in u -> SyncModule.EVENTS
         "/api/clubs" in u -> SyncModule.CLUBS
         "/api/qcm" in u -> SyncModule.QCM_VIEW
-        "/api/circular" in u -> SyncModule.CIRCULARS
+        "/api/circular" in u || "/api/remote/circular" in u -> SyncModule.CIRCULARS
         "/api/free-classroom" in u -> SyncModule.FREE_CLASSROOMS
         "/api/document" in u || "/api/bonafide" in u || "/api/e-transcript" in u ||
             "/api/additional-learning" in u -> SyncModule.DOCUMENTS

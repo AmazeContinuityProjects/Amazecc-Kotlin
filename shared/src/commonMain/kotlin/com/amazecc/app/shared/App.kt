@@ -277,6 +277,9 @@ fun App() {
                                 Screen.SETTINGS -> M3ESettingsScreen()
                                 Screen.QBANK -> M3EQBankWorkspaceHost()
                                 Screen.SOCIAL -> M3ESocialScreenHost()
+                                // D-164: dedicated server-backed Friend Finder route (normal screen;
+                                // keeps the bottom nav mounted, no LIFO overlay).
+                                Screen.FRIEND_FINDER -> M3EFriendFinderHost()
                                 Screen.FFCS_PLANNER -> M3EFfcsPlannerScreenHost()
                                 Screen.FREE_CLASSROOMS -> M3EFreeClassroomsHost()
                                 Screen.CALENDAR -> M3ECalendarScreenHost()
@@ -289,7 +292,7 @@ fun App() {
                                 Screen.CURRICULUM -> M3ECurriculumScreen()
                                 Screen.OD_TRACKER -> M3EODTrackerScreenHost()
                                 Screen.COURSE_DASHBOARD -> M3ECourseDashboardScreenHost()
-                                Screen.FACULTY_INFO -> M3EFacultyDirectoryHost()
+                                Screen.FACULTY_INFO -> M3EFacultyLiveHost()
                                 Screen.FEEDBACK_STATUS -> M3EFeedbackStatusScreenHost()
                                 Screen.FRESHER_WELCOME -> M3EFresherWelcomeScreenHost()
                                 Screen.DOCUMENTS -> M3EDocumentsScreenHost()

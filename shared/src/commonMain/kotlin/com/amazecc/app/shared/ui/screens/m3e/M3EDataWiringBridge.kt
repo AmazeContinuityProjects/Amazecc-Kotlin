@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -8,14 +9,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.amazecc.app.shared.domain.FreeClassroomDeriver
+import com.amazecc.app.shared.domain.FreeClassroomDay
 import com.amazecc.app.shared.domain.overhaul.M3EClassroomBuilding
 import com.amazecc.app.shared.domain.overhaul.M3EClassroomSlot
+import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomKindFilter
 import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomsAction
 import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomsState
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.ui.components.AppBackHandler
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import kotlinx.datetime.Clock
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 
 /**
  * Stateful hosts for campus screens that previously had their data faked inside
@@ -48,7 +56,9 @@ import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 @Composable
 fun M3EFreeClassroomsHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
+    val domain by AppState.domain.collectAsState()
     val freeClassroomsRes by AppState.freeClassrooms.collectAsState()
+    val freeRoomTarget by AppState.freeRoomTarget.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
     val error by AppState.error.collectAsState()
 
@@ -56,10 +66,71 @@ fun M3EFreeClassroomsHost(modifier: Modifier = Modifier) {
     var selectedBuilding by remember { mutableStateOf(M3EClassroomBuilding.ALL) }
     var onlyAvailableNow by remember { mutableStateOf(true) }
 
+    // D-162: the "When" / block answer is derived from real snapshot rows, so changing the day
+    // or period genuinely changes which rooms come back. The legacy cache still feeds the
+    // per-room card list below (one derivation, no duplicated occupancy logic).
+    val periodOptions = remember { FreeClassroomDeriver.periodOptions() }
+    var selectedDay by remember { mutableStateOf(FreeClassroomDay.MON.key) }
+    var selectedPeriodKey by remember { mutableStateOf(periodOptions.first().key) }
+    var kindFilter by remember { mutableStateOf(M3EFreeClassroomKindFilter.ALL) }
+    var blockFilter by remember { mutableStateOf("All") }
+    var selectedRoom by remember { mutableStateOf<String?>(null) }
+
+    val derivation = remember(domain, selectedDay, selectedPeriodKey) {
+        FreeClassroomDeriver.derive(domain, selectedDay, selectedPeriodKey)
+    }
+
+    // Search deep-links are write-only in AppState; consume the value once on entry so a user
+    // clearing the field is not immediately overwritten by the same target on recomposition.
+    var targetApplied by remember { mutableStateOf(false) }
+    LaunchedEffect(freeRoomTarget) {
+        if (!targetApplied && !freeRoomTarget.isNullOrBlank()) {
+            searchQuery = freeRoomTarget!!
+            targetApplied = true
+        }
+    }
+
+    // Real current time, used only for the "Now" affordance label and its target. The deriver
+    // itself stays clock-free; this is host-side presentation state.
+    val (nowDayKey, nowPeriodKey, nowLabel) = remember(periodOptions) {
+        val local = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val key = when (local.date.dayOfWeek) {
+            DayOfWeek.MONDAY -> "MON"
+            DayOfWeek.TUESDAY -> "TUE"
+            DayOfWeek.WEDNESDAY -> "WED"
+            DayOfWeek.THURSDAY -> "THU"
+            DayOfWeek.FRIDAY -> "FRI"
+            DayOfWeek.SATURDAY -> "SAT"
+            DayOfWeek.SUNDAY -> "MON"
+        }
+        val minute = local.time.hour * 60 + local.time.minute
+        val pick = periodOptions.firstOrNull { !it.isLunch && minute in it.startMinute until it.endMinute }
+            ?: periodOptions.firstOrNull { !it.isLunch }
+            ?: periodOptions.firstOrNull()
+        Triple(
+            key,
+            pick?.key.orEmpty(),
+            if (pick == null) "" else "Now · ${FreeClassroomDay.fromKey(key).label} ${pick.label}"
+        )
+    }
+
+    // The inspector sheet's LIFO guard requires its id on the overlay stack; without this
+    // every dismissal route (X / swipe / backdrop / Escape / back) would be a no-op.
+    val inspectorOpen = selectedRoom != null
+    LaunchedEffect(inspectorOpen) {
+        if (inspectorOpen) AppState.pushOverlay(FREE_CLASSROOM_INSPECTOR_OVERLAY_ID)
+        else AppState.popOverlay(FREE_CLASSROOM_INSPECTOR_OVERLAY_ID)
+    }
+    DisposableEffect(Unit) {
+        onDispose { AppState.popOverlay(FREE_CLASSROOM_INSPECTOR_OVERLAY_ID) }
+    }
+
     // Free classrooms are derived by the central Sync All sweep (SyncModule.FREE_CLASSROOMS).
     // Page entry only reads the cached flow; the Refresh action remains the explicit recompute.
     AppBackHandler {
-        if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS)
+        // Close the open inspector first; do not navigate the whole screen away under a sheet.
+        if (selectedRoom != null) selectedRoom = null
+        else if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS)
     }
 
     val classrooms = remember(freeClassroomsRes) {
@@ -90,7 +161,17 @@ fun M3EFreeClassroomsHost(modifier: Modifier = Modifier) {
         onlyAvailableNow = onlyAvailableNow,
         searchQuery = searchQuery,
         isLoading = isLoading && classrooms.isEmpty(),
-        errorMessage = error ?: responseError
+        errorMessage = error ?: responseError,
+        selectedDay = derivation.day.key,
+        selectedPeriodKey = derivation.period.key,
+        availablePeriodOptions = periodOptions,
+        kindFilter = kindFilter,
+        blockFilter = blockFilter,
+        blockSummaries = derivation.blocks,
+        selectedRoom = selectedRoom,
+        nowLabel = nowLabel,
+        nowDayKey = nowDayKey,
+        nowPeriodKey = nowPeriodKey
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -102,6 +183,22 @@ fun M3EFreeClassroomsHost(modifier: Modifier = Modifier) {
                     is M3EFreeClassroomsAction.ToggleOnlyAvailable -> onlyAvailableNow = action.onlyAvailable
                     is M3EFreeClassroomsAction.SearchQueryChanged -> searchQuery = action.query
                     is M3EFreeClassroomsAction.Refresh -> AppState.refreshFreeClassrooms()
+                    is M3EFreeClassroomsAction.SelectDay -> {
+                        selectedDay = action.day
+                        blockFilter = "All"
+                        selectedRoom = null
+                    }
+                    is M3EFreeClassroomsAction.SelectPeriod -> selectedPeriodKey = action.periodKey
+                    is M3EFreeClassroomsAction.StepPeriod -> {
+                        val current = periodOptions.indexOfFirst { it.key == selectedPeriodKey }
+                            .takeIf { it >= 0 } ?: 0
+                        val next = (current + action.delta).coerceIn(0, periodOptions.lastIndex)
+                        selectedPeriodKey = periodOptions[next].key
+                    }
+                    is M3EFreeClassroomsAction.SetKindFilter -> kindFilter = action.filter
+                    is M3EFreeClassroomsAction.SetBlockFilter -> blockFilter = action.block
+                    is M3EFreeClassroomsAction.SelectRoom -> selectedRoom = action.roomCode
+                    M3EFreeClassroomsAction.ToggleRoomInspector -> selectedRoom = null
                 }
             },
             modifier = modifier

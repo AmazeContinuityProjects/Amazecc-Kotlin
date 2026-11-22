@@ -2,6 +2,9 @@ package com.amazecc.app.shared.domain.overhaul
 
 import androidx.compose.runtime.Immutable
 import com.amazecc.app.shared.domain.EmbeddedCourseHalf
+import com.amazecc.app.shared.domain.FreeClassroomBlockSummary
+import com.amazecc.app.shared.domain.FreeClassroomPeriodOption
+import com.amazecc.app.shared.domain.FreeClassroomRoomRow
 import kotlinx.datetime.LocalDate
 
 /**
@@ -1071,6 +1074,13 @@ data class M3EClassroomSlot(
     val nextOccupiedTime: String? = null
 )
 
+/** Web parity: the Rooms segmented control (All / Rooms / Labs). */
+enum class M3EFreeClassroomKindFilter(val label: String) {
+    ALL("All"),
+    THEORY("Rooms"),
+    LAB("Labs")
+}
+
 data class M3EFreeClassroomsState(
     val classrooms: List<M3EClassroomSlot> = emptyList(),
     val filteredClassrooms: List<M3EClassroomSlot> = emptyList(),
@@ -1078,14 +1088,48 @@ data class M3EFreeClassroomsState(
     val onlyAvailableNow: Boolean = true,
     val searchQuery: String = "",
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
-)
+    val errorMessage: String? = null,
+    // ── D-162: real day/period/block derivation (all defaults keep legacy constructors) ──
+    /** Day key from [FreeClassroomDay]: MON..SAT. */
+    val selectedDay: String = "MON",
+    /** Key of [FreeClassroomPeriodOption] currently selected. */
+    val selectedPeriodKey: String = "p1",
+    /** Period windows, from the canonical timetable grid. */
+    val availablePeriodOptions: List<FreeClassroomPeriodOption> = emptyList(),
+    val kindFilter: M3EFreeClassroomKindFilter = M3EFreeClassroomKindFilter.ALL,
+    /** "All" or a real block name derived from snapshot venues. */
+    val blockFilter: String = "All",
+    /** Real block counts for the selected day/period; the block is the unit, not the room. */
+    val blockSummaries: List<FreeClassroomBlockSummary> = emptyList(),
+    /** Venue code of the room whose schedule inspector sheet is open. */
+    val selectedRoom: String? = null,
+    /** Human label for the real current time, e.g. "Now · Mon 08:00". Blank when unavailable. */
+    val nowLabel: String = "",
+    /** Real current day/period targets for the "Now" affordance; blank hides it. */
+    val nowDayKey: String = "",
+    val nowPeriodKey: String = ""
+) {
+    /** All real rooms behind the current answer, flattened for the inspector lookup. */
+    val allDerivedRooms: List<FreeClassroomRoomRow> get() = blockSummaries.flatMap { it.rooms }
+}
 
 sealed interface M3EFreeClassroomsAction {
     data class SelectBuilding(val building: M3EClassroomBuilding) : M3EFreeClassroomsAction
     data class ToggleOnlyAvailable(val onlyAvailable: Boolean) : M3EFreeClassroomsAction
     data class SearchQueryChanged(val query: String) : M3EFreeClassroomsAction
     data object Refresh : M3EFreeClassroomsAction
+    /** Select a weekday (MON..SAT) for the "When" section. */
+    data class SelectDay(val day: String) : M3EFreeClassroomsAction
+    /** Select a period window by its key. */
+    data class SelectPeriod(val periodKey: String) : M3EFreeClassroomsAction
+    /** Move -1 / +1 period from the current selection; clamped by the host. */
+    data class StepPeriod(val delta: Int) : M3EFreeClassroomsAction
+    data class SetKindFilter(val filter: M3EFreeClassroomKindFilter) : M3EFreeClassroomsAction
+    data class SetBlockFilter(val block: String) : M3EFreeClassroomsAction
+    /** Open the room inspector for a real venue code. */
+    data class SelectRoom(val roomCode: String) : M3EFreeClassroomsAction
+    /** Close (or toggle) the room inspector sheet. */
+    data object ToggleRoomInspector : M3EFreeClassroomsAction
 }
 
 // ==========================================

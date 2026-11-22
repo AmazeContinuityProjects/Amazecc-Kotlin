@@ -64,6 +64,7 @@ val appLibraryItems: List<AppLibraryItem> = listOf(
 
     // TOOLS & UTILITIES
     AppLibraryItem("Social Feed", "Anonymous campus discussion feed", Icons.Rounded.Public, "Tools", targetScreen = Screen.SOCIAL),
+    AppLibraryItem("Friend Finder", "Find classmates in your registered classes", Icons.Rounded.Groups, "Tools", targetScreen = Screen.FRIEND_FINDER),
     AppLibraryItem("Event Hub", "Campus fests, hackathons & events", Icons.Rounded.Event, "Tools", targetScreen = Screen.EVENTS),
     AppLibraryItem("Club Hub", "Student clubs, chapters & teams", Icons.Rounded.Groups, "Tools", targetScreen = Screen.CLUB_HUB, onClickOverride = { AppState.openClubHub("Directory") }),
 

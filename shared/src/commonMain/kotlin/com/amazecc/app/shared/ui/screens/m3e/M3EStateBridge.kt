@@ -1987,6 +1987,9 @@ fun M3EFreeClassroomsScreen(
                     is M3EFreeClassroomsAction.ToggleOnlyAvailable -> onlyAvailableNow = action.onlyAvailable
                     is M3EFreeClassroomsAction.SearchQueryChanged -> searchQuery = action.query
                     is M3EFreeClassroomsAction.Refresh -> {}
+                    // This legacy overload is not routed; the live host handles the richer
+                    // day/period/block actions. Keep the statement exhaustive without faking work.
+                    else -> Unit
                 }
             },
             modifier = modifier
