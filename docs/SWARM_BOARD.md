@@ -276,3 +276,6 @@ Format mirrors `SwarmBoard.boardMarkdown()`: `**[id | date] KIND â†’ to â�
 - Scanner crash fix: launchers hoisted into a host outside the Dialog, nested theme/scroll removed; real gallery pick, intent camera capture, PDF export/share via FileProvider.
 - On-device intelligence layer added (ML Kit OCR + Gemini Nano, minSdk 26, honest unsupported fallbacks); backend-only this wave, UI wiring is the next phase.
 - Course detail: real attendance forecast composable + cached VTOP course-page materials section; completed the in-flight course-detail additions that were blocking compilation.
+- Scanner rebuilt with real gallery/camera capture, FileProvider PDF share, and a crash fix (launchers hoisted outside the Dialog). Phase 0 also added on-device OCR/Gemini Nano backend, cached VTOP course materials and a real attendance forecast.
+- Scanner now surfaces real on-device OCR/inference chips, preserves user-typed titles, and names exports from inferred facts; stale results are guarded by generation + byte identity.
+- Geotag photos: CameraX + OEM extensions, fused location, EXIF GPS, OpenStreetMap overlay card, FileProvider share, pinnable home shortcut and amazecc://geotag deep link. Device smoke test still required.
