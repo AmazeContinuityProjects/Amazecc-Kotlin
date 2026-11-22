@@ -19,6 +19,9 @@ camerax = "1.4.0"
 play-services-location = "21.3.0"
 osmdroid = "6.1.20"
 androidx-core-ktx = "1.16.0"
+# D-174 — auto document scanning: ML Kit (primary) + OpenCV (fallback).
+play-services-mlkit-document-scanner = "16.0.0"
+opencv = "4.12.0"
 
 [libraries]
 kamel-image = { module = "media.kamel:kamel-image", version.ref = "kamel" }
@@ -60,6 +63,14 @@ osmdroid-android = { module = "org.osmdroid:osmdroid-android", version.ref = "os
 # ML Kit on-device document intelligence (D-166, Android only)
 mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkit-text-recognition" }
 mlkit-genai-prompt = { module = "com.google.mlkit:genai-prompt", version.ref = "mlkit-genai-prompt" }
+
+# D-174 — auto document scanning (Android only). The official OpenCV AAR (org.opencv:opencv)
+# exposes the real org.opencv Java API plus native libs for all ABIs; unlike the third-party
+# ai.eye2you mirror it is maintained by the OpenCV team and available on Maven Central.
+# Size trade-off: that AAR carries native libs for every ABI (~117 MB unpacked), so androidApp
+# applies ndk.abiFilters = [arm64-v8a, armeabi-v7a] and ships only those two.
+play-services-mlkit-document-scanner = { module = "com.google.android.gms:play-services-mlkit-document-scanner", version.ref = "play-services-mlkit-document-scanner" }
+opencv-android = { module = "org.opencv:opencv", version.ref = "opencv" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

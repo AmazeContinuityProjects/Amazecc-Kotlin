@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import com.amazecc.app.shared.domain.PaperInference
+import com.amazecc.app.shared.domain.ScanSource
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.suggestedDocumentName
 import kotlin.test.Test
@@ -67,6 +68,8 @@ class M3EDocumentScannerScreenUiTest {
             }
         }
 
+        // D-174 — gallery/camera are still present, but explicitly framed as fallbacks.
+        onNodeWithText("Or use an explicit fallback:").assertExists()
         onNodeWithText("Choose photo from gallery").assertExists()
         onNodeWithText("Take photo").assertExists()
 
@@ -76,6 +79,121 @@ class M3EDocumentScannerScreenUiTest {
         assertEquals(2, actions.size)
         assertTrue(actions[0] is M3EDocumentScannerAction.PickFromGallery)
         assertTrue(actions[1] is M3EDocumentScannerAction.TakePhoto)
+    }
+
+    // ---- D-174: auto document scanning is the primary path ----
+
+    @Test
+    fun scanDocumentIsThePrimaryControlAndEmitsScanDocument() = runComposeUiTest {
+        val actions = mutableListOf<M3EDocumentScannerAction>()
+        setContent {
+            AmazeM3ETheme {
+                M3EDocumentScannerScreen(state = sampleState(), onAction = { actions.add(it) })
+            }
+        }
+
+        onNodeWithTag(SCANNER_SCAN_TAG).assertExists()
+        onNodeWithText("Scan document (straighten & clean)").assertExists()
+        onNodeWithText("auto-crops the page", substring = true).assertExists()
+
+        onNodeWithTag(SCANNER_SCAN_TAG).performClick()
+        assertEquals(1, actions.size)
+        assertTrue(actions[0] is M3EDocumentScannerAction.ScanDocument, "actions=$actions")
+        assertFalse(
+            actions.any {
+                it is M3EDocumentScannerAction.PickFromGallery || it is M3EDocumentScannerAction.TakePhoto
+            },
+        )
+    }
+
+    @Test
+    fun straightenWithOpenCvEmitsItsActionWhenAnImageIsLoaded() = runComposeUiTest {
+        val actions = mutableListOf<M3EDocumentScannerAction>()
+        setContent {
+            AmazeM3ETheme {
+                M3EDocumentScannerScreen(state = sampleState(), onAction = { actions.add(it) })
+            }
+        }
+
+        onNodeWithTag(SCANNER_STRAIGHTEN_OPENCV_TAG).assertExists()
+        onNodeWithText("Straighten with OpenCV (fallback)").assertExists()
+        onNodeWithText("Used when the main on-device scanner is unavailable", substring = true).assertExists()
+
+        onNodeWithTag(SCANNER_STRAIGHTEN_OPENCV_TAG).performClick()
+        assertEquals(1, actions.size)
+        assertTrue(actions[0] is M3EDocumentScannerAction.StraightenWithOpenCV, "actions=$actions")
+    }
+
+    @Test
+    fun straightenWithOpenCvIsDisabledWithoutAnImage() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3EDocumentScannerScreen(
+                    state = M3EDocumentScannerState(imageBytes = null),
+                    onAction = {},
+                )
+            }
+        }
+
+        onNodeWithTag(SCANNER_STRAIGHTEN_OPENCV_TAG).assertExists()
+        onNodeWithTag(SCANNER_STRAIGHTEN_OPENCV_TAG).assertIsNotEnabled()
+    }
+
+    @Test
+    fun scanNoticeAndSourceRenderOnlyWhenReported() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3EDocumentScannerScreen(
+                    state = sampleState().copy(
+                        scanNotice = "Fallback engine used because the on-device scanner was unavailable.",
+                        lastScanSource = ScanSource.OPENCV,
+                    ),
+                    onAction = {},
+                )
+            }
+        }
+
+        onNodeWithTag(SCANNER_SCAN_NOTICE_TAG).assertExists()
+        onNodeWithText("Fallback engine used because the on-device scanner was unavailable.").assertExists()
+        onNodeWithTag(SCANNER_SCAN_SOURCE_TAG).assertExists()
+        onNodeWithText("Processed by OpenCV fallback").assertExists()
+        onAllNodesWithText("Processed by ML Kit Document Scanner").assertCountEquals(0)
+    }
+
+    @Test
+    fun mlKitSourceRendersItsOwnHonestLabel() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3EDocumentScannerScreen(
+                    state = sampleState().copy(
+                        scanNotice = "Page detected and cleaned.",
+                        lastScanSource = ScanSource.ML_KIT,
+                    ),
+                    onAction = {},
+                )
+            }
+        }
+
+        onNodeWithText("Page detected and cleaned.").assertExists()
+        onNodeWithText("Processed by ML Kit Document Scanner").assertExists()
+        onAllNodesWithText("Processed by OpenCV fallback").assertCountEquals(0)
+    }
+
+    @Test
+    fun cancelledScanNoticeNeverClaimsAProcessedPage() = runComposeUiTest {
+        val cancelNotice = "No document was scanned; you can still import or photograph a page."
+        setContent {
+            AmazeM3ETheme {
+                M3EDocumentScannerScreen(
+                    state = sampleState().copy(scanNotice = cancelNotice, lastScanSource = null),
+                    onAction = {},
+                )
+            }
+        }
+
+        onNodeWithText(cancelNotice).assertExists()
+        onAllNodesWithText("Processed by ML Kit Document Scanner").assertCountEquals(0)
+        onAllNodesWithText("Processed by OpenCV fallback").assertCountEquals(0)
     }
 
     @Test
@@ -156,12 +274,13 @@ class M3EDocumentScannerScreenUiTest {
         onNodeWithText("Take photo").assertExists()
         onAllNodesWithText("Import base64 / data-URI text file").assertCountEquals(0)
 
-        // Capabilities are described exactly: camera/gallery on Android; OCR on supported
-        // devices; automatic edge detection is still unavailable.
+        // D-174 — capabilities are described exactly: the scanner now provides edge detection,
+        // perspective straightening, deskew and cleanup, with manual crop as a fallback.
         onNodeWithText(
-            "Automatic edge detection is unavailable",
+            "on-device edge detection, perspective straightening, deskew and cleanup",
             substring = true,
         ).assertExists()
+        onAllNodesWithText("Automatic edge detection is unavailable").assertCountEquals(0)
         onNodeWithText("The image could not be decoded on this device.").assertExists()
         onNodeWithText("Sharing is not available on this device.").assertExists()
     }
@@ -174,6 +293,7 @@ class M3EDocumentScannerScreenUiTest {
 
         onNodeWithText("Document scanner").assertExists()
         onNodeWithText("DOCUMENT SCANNER").assertExists()
+        onNodeWithText("Scan document (straighten & clean)").assertExists()
         onNodeWithText("Choose photo from gallery").assertExists()
         onNodeWithText("Take photo").assertExists()
         onNodeWithText("ON-DEVICE READING").assertExists()
@@ -280,9 +400,12 @@ class M3EDocumentScannerScreenUiTest {
         val actions = mutableListOf<M3EDocumentScannerAction>()
         setContent {
             AmazeM3ETheme {
-                M3EDocumentScannerScreen(state = sampleState(), onAction = { actions.add(it) })
+                Column(modifier = androidx.compose.ui.Modifier.verticalScroll(rememberScrollState())) {
+                    M3EDocumentScannerScreen(state = sampleState(), onAction = { actions.add(it) })
+                }
             }
         }
+        onRoot().performTouchInput { swipeUp() }
         onNodeWithText("Re-analyse").performClick()
         assertTrue(actions.any { it is M3EDocumentScannerAction.Analyze }, "Analyze missing; actions=$actions")
     }

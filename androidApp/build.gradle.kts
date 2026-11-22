@@ -83,6 +83,15 @@ android {
         versionCode = verCode
         versionName = verName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // D-174: the OpenCV AAR bundles native libs for every ABI (~117 MB unpacked). Shipping
+        // only arm64-v8a + armeabi-v7a cuts that down sharply. Trade-off: the APK will not install
+        // on other ABIs (including x86 emulators), and any native-library-dependent code — OpenCV
+        // fallback AND on-device OCR/inference — is unavailable there. Kotlin-only paths (UI,
+        // manual crop, share) are unaffected. Accept only if these two ABIs are the support target.
+        ndk {
+            abiFilters.add("arm64-v8a")
+            abiFilters.add("armeabi-v7a")
+        }
     }
 
     signingConfigs {

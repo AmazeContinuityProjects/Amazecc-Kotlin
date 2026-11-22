@@ -110,6 +110,11 @@ kotlin {
             implementation(libs.androidx.core.ktx)
             // D-167: GeotagMap renders real OpenStreetMap tiles — no Maps API key required.
             implementation(libs.osmdroid.android)
+            // D-174: auto document scan — ML Kit is the primary path (dynamic Play services
+            // model), OpenCV is the on-device edge detection / deskew fallback. Both live in
+            // shared/androidMain so the expect/actual seam is available to common callers.
+            implementation(libs.play.services.mlkit.document.scanner)
+            implementation(libs.opencv.android)
         }
         
         iosMain.dependencies {

@@ -19,14 +19,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.domain.PaperInference
+import com.amazecc.app.shared.domain.ScanSource
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.utils.inferPaperDetails
 import com.amazecc.app.shared.utils.openDocumentBytes
 import com.amazecc.app.shared.utils.recognizeDocumentText
+import com.amazecc.app.shared.utils.rememberDocumentScanner
 import com.amazecc.app.shared.utils.rememberFileSaver
 import com.amazecc.app.shared.utils.rememberFileSharer
 import com.amazecc.app.shared.utils.rememberImagePicker
 import com.amazecc.app.shared.utils.rememberPhotoCapture
+import com.amazecc.app.shared.utils.straightenDocumentWithOpenCV
 import com.amazecc.app.shared.utils.suggestedDocumentName
 import com.amazecc.app.shared.utils.toImageBitmap
 import io.ktor.util.decodeBase64Bytes
@@ -40,9 +43,9 @@ import kotlinx.datetime.Clock
 /**
  * D-009 — stateful host for the document scanner.
  *
- * This composable is rendered by `AdvancedSettingsHub` **outside** any `Dialog`. All three
- * ActivityResult seams (gallery, camera, share) are registered here, in the host composition,
- * and the sheet is created below them. The stateless [M3EDocumentScannerScreen] is the only
+ * This composable is rendered by `AdvancedSettingsHub` **outside** any `Dialog`. All four
+ * ActivityResult seams (auto document scan, gallery, camera, share) are registered here, in the
+ * host composition, and the sheet is created below them. The stateless [M3EDocumentScannerScreen] is the only
  * thing inside `M3EDismissibleSheet`'s `Dialog` content — no launcher and no nested theme
  * wrapper live in that subcomposition. That is the crash regression fix.
  *
@@ -135,6 +138,38 @@ fun M3EDocumentScannerHost(
     }
 
     // Launchers are deliberately registered here, outside the Dialog created below.
+    // D-174 — a real scan goes through the exact same image/analysis path as gallery/camera
+    // capture. The scanner already straightened and cropped the page, so crop resets to FULL;
+    // manual crop handles remain available as a fallback. A cancelled scan never fabricates a
+    // processed page or claims a source.
+    val scanDocument = rememberDocumentScanner { result ->
+        if (result == null) {
+            state = state.copy(
+                status = null,
+                scanNotice = "No document was scanned; you can still import or photograph a page.",
+                lastScanSource = null,
+            )
+        } else {
+            // Only attach scan metadata when the bytes were ACTUALLY accepted. If
+            // acceptCapturedBytes rejected them (empty/undecodable), re-applying result.notice /
+            // result.source would fabricate a processed page on top of an honest rejection.
+            val accepted = acceptCapturedBytes(
+                state.copy(crop = DocumentScannerPdf.Crop.FULL),
+                result.imageBytes,
+            )
+            if (accepted.imageBytes != null) {
+                commitImage(
+                    accepted.copy(
+                        crop = DocumentScannerPdf.Crop.FULL,
+                        scanNotice = result.notice,
+                        lastScanSource = result.source,
+                    )
+                )
+            } else {
+                state = accepted
+            }
+        }
+    }
     val pickFromGallery = rememberImagePicker { bytes -> commitImage(acceptCapturedBytes(state, bytes)) }
     val takePhoto = rememberPhotoCapture { bytes -> commitImage(acceptCapturedBytes(state, bytes)) }
 
@@ -205,6 +240,50 @@ fun M3EDocumentScannerHost(
 
     fun handleAction(action: M3EDocumentScannerAction) {
         when (action) {
+            M3EDocumentScannerAction.ScanDocument -> scanDocument()
+            M3EDocumentScannerAction.StraightenWithOpenCV -> {
+                val bytes = state.imageBytes
+                if (bytes == null) {
+                    // No image to process: honest no-op rather than a pretend straightened page.
+                    state = state.copy(
+                        status = null,
+                        scanNotice = "Import or photograph a page first.",
+                        lastScanSource = null,
+                    )
+                } else {
+                    scope.launch {
+                        val straightened = withContext(Dispatchers.Default) {
+                            straightenDocumentWithOpenCV(bytes)
+                        }
+                        // A newer import or a Clear while we were working must not be overwritten
+                        // by a result computed from the older image.
+                        if (state.imageBytes !== bytes) return@launch
+                        if (straightened == null) {
+                            state = state.copy(
+                                status = null,
+                                scanNotice = "OpenCV was unavailable or found no page in this image.",
+                                lastScanSource = null,
+                            )
+                            return@launch
+                        }
+                        val accepted = acceptCapturedBytes(
+                            state.copy(crop = DocumentScannerPdf.Crop.FULL),
+                            straightened,
+                        )
+                        if (accepted.imageBytes != null) {
+                            commitImage(
+                                accepted.copy(
+                                    crop = DocumentScannerPdf.Crop.FULL,
+                                    scanNotice = "Straightened and cleaned with OpenCV fallback.",
+                                    lastScanSource = ScanSource.OPENCV,
+                                )
+                            )
+                        } else {
+                            state = accepted
+                        }
+                    }
+                }
+            }
             M3EDocumentScannerAction.PickFromGallery -> pickFromGallery()
             M3EDocumentScannerAction.TakePhoto -> takePhoto()
             is M3EDocumentScannerAction.UpdateBase64 -> state = state.copy(base64Input = action.value, errorMessage = null)
@@ -276,10 +355,15 @@ internal fun applyInferenceResult(
 /** Accept bytes from gallery/camera and decode them, reporting exactly what happened. */
 private fun acceptCapturedBytes(current: M3EDocumentScannerState, bytes: ByteArray?): M3EDocumentScannerState {
     if (bytes == null || bytes.isEmpty()) {
-        return current.copy(status = null, errorMessage = "No image was selected.")
+        return current.copy(status = null, errorMessage = "No image was selected.", scanNotice = null, lastScanSource = null)
     }
     val decoded = runCatching { bytes.toImageBitmap() }.getOrNull()
-        ?: return current.copy(status = null, errorMessage = "The image could not be decoded on this device.")
+        ?: return current.copy(
+            status = null,
+            errorMessage = "The image could not be decoded on this device.",
+            scanNotice = null,
+            lastScanSource = null,
+        )
     return current.copy(
         imageBytes = bytes,
         image = decoded,
@@ -288,6 +372,9 @@ private fun acceptCapturedBytes(current: M3EDocumentScannerState, bytes: ByteArr
         errorMessage = if (DocumentScannerPdf.isJpeg(bytes)) null
         else "This image is not a JPEG. PDF export embeds the original JPEG bytes, so please re-save it as JPEG before exporting.",
         shareNotice = null,
+        // A gallery/camera/base64 import is not a scan: never leave a stale scan claim on screen.
+        scanNotice = null,
+        lastScanSource = null,
     )
 }
 

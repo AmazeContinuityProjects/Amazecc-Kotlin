@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoFixHigh
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Crop
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -61,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.domain.PaperInference
+import com.amazecc.app.shared.domain.ScanSource
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.M3EColorPalette
@@ -76,6 +78,10 @@ internal const val SCANNER_SHARE_TAG = "scanner_share_pdf"
 internal const val SCANNER_READING_TAG = "scanner_on_device_reading"
 internal const val SCANNER_ANALYSIS_PROGRESS_TAG = "scanner_analysis_progress"
 internal const val SCANNER_ANALYZE_TAG = "scanner_reanalyse"
+internal const val SCANNER_SCAN_TAG = "scanner_scan_document"
+internal const val SCANNER_SCAN_NOTICE_TAG = "scanner_scan_notice"
+internal const val SCANNER_SCAN_SOURCE_TAG = "scanner_scan_source"
+internal const val SCANNER_STRAIGHTEN_OPENCV_TAG = "scanner_straighten_opencv"
 
 /** Immutable snapshot handed to [M3EDocumentScannerScreen] by [M3EDocumentScannerHost]. */
 data class M3EDocumentScannerState(
@@ -95,10 +101,18 @@ data class M3EDocumentScannerState(
     val ocrText: String? = null,
     val isAnalyzing: Boolean = false,
     val analysisNotice: String? = null,
+    // D-174 — auto document scanning. Both are optional: a cancelled scan or a device with no
+    // scanner must leave the UI reporting no scan rather than inventing a processed page.
+    val scanNotice: String? = null,
+    val lastScanSource: ScanSource? = null,
 )
 
 /** Every state change the stateless screen can request. Validation stays in the host. */
 sealed interface M3EDocumentScannerAction {
+    /** Primary path: on-device auto scanning (edge detection, perspective, deskew, cleanup). */
+    data object ScanDocument : M3EDocumentScannerAction
+    /** Explicit OpenCV fallback over an image that is already loaded. */
+    data object StraightenWithOpenCV : M3EDocumentScannerAction
     data object PickFromGallery : M3EDocumentScannerAction
     data object TakePhoto : M3EDocumentScannerAction
     data class UpdateBase64(val value: String) : M3EDocumentScannerAction
@@ -116,16 +130,18 @@ sealed interface M3EDocumentScannerAction {
 /**
  * D-009 — honest, **stateless** document scanner surface.
  *
- * What IS real here: gallery/camera capture (Android), preview, drag a crop rectangle over the
- * image, on-device text recognition and paper-detail inference (supported Android devices),
- * edit title/note, and export/share a standards-compliant PDF that embeds the original JPEG
- * with the crop applied as a clipping path.
+ * What IS real here (D-174): on-device auto document scanning is the primary path — it detects
+ * page edges, auto-crops, straightens perspective, deskews and cleans the page before the image
+ * is loaded. Gallery/camera capture remain explicit fallbacks, as does dragging a crop
+ * rectangle over any loaded image. On-device text recognition and paper-detail inference
+ * (supported Android devices), editable title/note, and export/share of a standards-compliant
+ * PDF that embeds the JPEG with the crop applied as a clipping path are all real.
  *
- * What is NOT shown here (reported, never faked): automatic edge detection. OCR/inference are
- * real platform capabilities now, but they return empty/null on unsupported devices and the
- * surface says so. Camera/gallery picking is unavailable on desktop and iOS, where the base64
- * fallback is the real import path. Title/note are user-editable; an inferred title is only
- * prefilled into a blank field and remains editable.
+ * What is reported rather than faked: a cancelled or unavailable scan says so and never claims a
+ * page was processed. OCR/inference return empty/null on unsupported devices and the surface
+ * says so. Camera/gallery picking is unavailable on desktop and iOS, where the base64 fallback
+ * is the real import path. Title/note are user-editable; an inferred title is only prefilled
+ * into a blank field and remains editable.
  *
  * This composable deliberately has no theme wrapper and no ActivityResult launcher. It is
  * composed inside `M3EDismissibleSheet`'s `Dialog` content, so all launchers live in the host
@@ -154,10 +170,10 @@ fun M3EDocumentScannerScreen(
             Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(16.dp)) {
                 SectionTitle("DOCUMENT SCANNER", Icons.Rounded.Crop, colors)
                 Text(
-                    "Choose a photo from the gallery or take one with the camera (Android), then crop the page, " +
-                        "read it on-device, add a title and note, and export or share a real PDF. On desktop and " +
-                        "iOS, capture is not wired up — paste a base64 JPEG instead. Automatic edge detection is " +
-                        "unavailable. On-device text recognition and paper-detail inference ARE available on " +
+                    "Scan a page first: on-device edge detection, perspective straightening, deskew and cleanup " +
+                        "are automatic, and the manual crop handles stay available as a fallback. Gallery and " +
+                        "camera capture (Android) are explicit fallbacks too; on desktop and iOS, paste a base64 " +
+                        "JPEG instead. On-device text recognition and paper-detail inference ARE available on " +
                         "supported Android devices; elsewhere the scanner reports that reading is unavailable " +
                         "rather than inventing results. Title and note stay user-editable.",
                     style = MaterialTheme.typography.bodySmall,
@@ -169,6 +185,73 @@ fun M3EDocumentScannerScreen(
         M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, cornerRadius = 22.dp, modifier = Modifier.fillMaxWidth()) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(16.dp)) {
                 SectionTitle("1 · IMPORT IMAGE", Icons.Rounded.FileOpen, colors)
+                // D-174 — auto scanning is the primary control. It runs on-device: detects the
+                // page edges, auto-crops the page, straightens perspective and cleans the image.
+                ElevatedButton(
+                    onClick = { onAction(M3EDocumentScannerAction.ScanDocument) },
+                    modifier = Modifier.fillMaxWidth().height(52.dp).testTag(SCANNER_SCAN_TAG),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.elevatedButtonColors(containerColor = colors.primary, contentColor = colors.onPrimary),
+                ) {
+                    Icon(Icons.Rounded.Crop, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Scan document (straighten & clean)",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    )
+                }
+                Text(
+                    "On-device scanning detects the page edges, auto-crops the page, straightens perspective and " +
+                        "cleans the image. No manual cropping needed for scanned pages.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant,
+                )
+                state.scanNotice?.let { notice ->
+                    Text(
+                        notice,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().testTag(SCANNER_SCAN_NOTICE_TAG),
+                    )
+                }
+                state.lastScanSource?.let { source ->
+                    Text(
+                        scanSourceLabel(source),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().testTag(SCANNER_SCAN_SOURCE_TAG),
+                    )
+                }
+                // D-174 — real, explicit OpenCV fallback. It straightens the image already loaded
+                // above; it stays disabled until there is something to process. Kept on its own
+                // full-width row: two labelled buttons never share a row on mobile.
+                ElevatedButton(
+                    onClick = { onAction(M3EDocumentScannerAction.StraightenWithOpenCV) },
+                    enabled = state.imageBytes != null,
+                    modifier = Modifier.fillMaxWidth().height(46.dp).testTag(SCANNER_STRAIGHTEN_OPENCV_TAG),
+                    shape = CircleShape,
+                    colors = ButtonDefaults.elevatedButtonColors(
+                        containerColor = colors.primaryContainer,
+                        contentColor = colors.onPrimaryContainer,
+                    ),
+                ) {
+                    Icon(Icons.Rounded.AutoFixHigh, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Straighten with OpenCV (fallback)",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    )
+                }
+                Text(
+                    "Used when the main on-device scanner is unavailable: detects and straightens a page in the image already loaded above.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant,
+                )
+                Text(
+                    "Or use an explicit fallback:",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = colors.onSurfaceVariant,
+                )
                 ElevatedButton(
                     onClick = { onAction(M3EDocumentScannerAction.PickFromGallery) },
                     modifier = Modifier.fillMaxWidth().height(46.dp),
@@ -514,6 +597,12 @@ private fun ScannerFeedback(text: String, isError: Boolean, colors: M3EColorPale
         )
         Text(text, style = MaterialTheme.typography.bodySmall, color = if (isError) colors.error else colors.onPrimaryContainer)
     }
+}
+
+/** Honest label for the platform that actually produced a scan; never claims the other engine. */
+internal fun scanSourceLabel(source: ScanSource): String = when (source) {
+    ScanSource.ML_KIT -> "Processed by ML Kit Document Scanner"
+    ScanSource.OPENCV -> "Processed by OpenCV fallback"
 }
 
 @Composable

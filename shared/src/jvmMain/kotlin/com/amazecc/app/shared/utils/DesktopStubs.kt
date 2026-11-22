@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import com.amazecc.app.shared.domain.GeotagPhoto
 import com.amazecc.app.shared.domain.PaperInference
+import com.amazecc.app.shared.domain.ScannedDocument
 import java.awt.Desktop
 import java.io.File
 import javax.imageio.ImageIO
@@ -139,3 +140,15 @@ actual fun GeotagMap(latitude: Double, longitude: Double, modifier: Modifier) {
         Text("Latitude: $latitude, Longitude: $longitude")
     }
 }
+
+// ── D-174 auto document scan (desktop unsupported) ────────────────────────────
+
+/**
+ * Desktop has neither ML Kit nor an OpenCV native bridge wired here. Report "nothing scanned"
+ * immediately so the host keeps its honest manual import/crop path — no fake page or source.
+ */
+@Composable
+actual fun rememberDocumentScanner(onResult: (ScannedDocument?) -> Unit): () -> Unit = { onResult(null) }
+
+/** No OpenCV native bridge on desktop either — return null honestly, never a fake straightened page. */
+actual suspend fun straightenDocumentWithOpenCV(bytes: ByteArray): ByteArray? = null
