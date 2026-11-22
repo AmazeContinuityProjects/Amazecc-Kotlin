@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -186,7 +185,6 @@ fun AmazeCard(
                 scaleY = scale
             }
             .clipToBounds()
-            .shadow(1.dp, RoundedCornerShape(radius.medium), clip = false)
             .clip(RoundedCornerShape(radius.medium))
             .background(bgColor)
             .border(1.dp, borderColor, RoundedCornerShape(radius.medium))

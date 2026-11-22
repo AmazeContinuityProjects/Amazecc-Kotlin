@@ -47,7 +47,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -149,10 +148,9 @@ private fun M3ENavigationBarContent(
     ) {
         Row(
             modifier = Modifier
-                .shadow(elevation = 8.dp, shape = CircleShape, clip = false)
                 .clip(CircleShape)
                 .background(colors.surfaceContainerHighest.copy(alpha = 0.98f))
-                .border(1.5.dp, colors.outlineVariant.copy(alpha = 0.50f), CircleShape)
+                .border(1.dp, colors.outlineVariant.copy(alpha = 0.50f), CircleShape)
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically

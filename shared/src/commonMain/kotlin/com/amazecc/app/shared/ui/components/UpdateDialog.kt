@@ -3,6 +3,7 @@
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,6 +24,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import com.amazecc.app.shared.model.GitHubRelease
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.utils.isAndroid
 
 @Composable
@@ -33,6 +35,7 @@ fun UpdateDialog(
     onDownload: () -> Unit
 ) {
     val colors = AmazeTheme.colors
+    val m3eColors = M3ETheme.colors
     val isAndroid = isAndroid()
     val uriHandler = LocalUriHandler.current
 
@@ -64,24 +67,24 @@ fun UpdateDialog(
                 Box(
                     modifier = Modifier
                         .size(64.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(updateIconGradient),
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(m3eColors.primaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Rounded.NewReleases, null, tint = colors.background, modifier = Modifier.size(32.dp))
+                    Icon(Icons.Rounded.NewReleases, null, tint = m3eColors.onPrimaryContainer, modifier = Modifier.size(32.dp))
                 }
                 Spacer(Modifier.height(12.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(colors.accent.copy(alpha = 0.1f))
-                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(m3eColors.surfaceContainerHigh)
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
                     Text("v${currentVersion.removePrefix("v")}", style = AmazeTheme.typography.smallLabel.copy(color = colors.textSecondary, fontWeight = FontWeight.SemiBold))
-                    Text("➔", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
-                    Text("v${release.tagName.removePrefix("v").removePrefix("V")}", style = AmazeTheme.typography.smallLabel.copy(color = colors.accent, fontWeight = FontWeight.Bold))
+                    Text("➔", style = AmazeTheme.typography.smallLabel.copy(color = m3eColors.primary, fontWeight = FontWeight.Bold))
+                    Text("v${release.tagName.removePrefix("v").removePrefix("V")}", style = AmazeTheme.typography.smallLabel.copy(color = m3eColors.primary, fontWeight = FontWeight.Bold))
                 }
             }
 
@@ -120,9 +123,9 @@ fun UpdateDialog(
             if (isAndroid) {
                 Button(
                     onClick = { onDownload(); uriHandler.openUri(apkAssetUrl) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.chart1),
-                    shape = RoundedCornerShape(14.dp)
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = m3eColors.primary, contentColor = m3eColors.onPrimary),
+                    shape = RoundedCornerShape(28.dp)
                 ) {
                     Icon(Icons.Rounded.Download, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
@@ -131,9 +134,9 @@ fun UpdateDialog(
             } else {
                 Button(
                     onClick = { onDownload(); uriHandler.openUri(release.htmlUrl) },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = colors.chart1),
-                    shape = RoundedCornerShape(14.dp)
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = m3eColors.primary, contentColor = m3eColors.onPrimary),
+                    shape = RoundedCornerShape(28.dp)
                 ) {
                     Icon(Icons.Rounded.OpenInNew, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))

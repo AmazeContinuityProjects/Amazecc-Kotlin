@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,13 +24,14 @@ fun PushPromptModal(
     onDismiss: () -> Unit
 ) {
     val colors = AmazeTheme.colors
+    val m3eColors = M3ETheme.colors
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = colors.background,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        containerColor = m3eColors.surfaceContainerLow,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
             modifier = Modifier

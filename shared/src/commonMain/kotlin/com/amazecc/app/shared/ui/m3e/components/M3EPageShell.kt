@@ -65,7 +65,7 @@ fun M3EPageShell(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.surface)
+            .background(colors.surfaceContainerLowest)
     ) {
         CompositionLocalProvider(LocalContentColor provides colors.onSurface) {
             Column(

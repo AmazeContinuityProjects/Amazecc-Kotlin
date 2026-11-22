@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3EEventRegistrationUi
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -88,7 +89,7 @@ fun M3EClubDetailScreen(
     Box(modifier = modifier.fillMaxSize().background(colors.background)) {
         if (state.isLoading && state.clubId.isBlank()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = colors.primary)
+                M3ELoadingIndicator(size = 48.dp, color = colors.primary)
             }
         } else if (state.clubId.isBlank()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

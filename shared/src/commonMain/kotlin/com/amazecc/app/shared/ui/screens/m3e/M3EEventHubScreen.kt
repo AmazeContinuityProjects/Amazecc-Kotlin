@@ -56,6 +56,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EEventRegistrationUi
 import com.amazecc.app.shared.domain.overhaul.M3ERegisteredEventItem
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -181,9 +182,8 @@ fun M3EEventHubScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            strokeWidth = 2.dp,
+                        M3ELoadingIndicator(
+                            size = 20.dp,
                             color = colors.primary
                         )
                         Text(
@@ -489,7 +489,7 @@ private fun EventPosterImage(url: String, modifier: Modifier = Modifier) {
             .clip(RoundedCornerShape(12.dp))
             .background(colors.surfaceContainerHigh),
         contentScale = ContentScale.Crop,
-        onLoading = { CircularProgressIndicator() },
+        onLoading = { M3ELoadingIndicator(size = 32.dp, color = colors.primary) },
         onFailure = {
             Icon(
                 imageVector = Icons.Rounded.Image,

@@ -60,6 +60,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EAcademicSummary
 import com.amazecc.app.shared.domain.overhaul.M3EAcademicsAction
 import com.amazecc.app.shared.domain.overhaul.M3EAcademicsState
 import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
+import com.amazecc.app.shared.ui.m3e.components.M3EAccordionChevron
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
@@ -645,7 +646,7 @@ private fun M3EAcademicCourseCard(
     val colors = M3ETheme.colors
 
     M3ESurfaceCard(
-        containerLevel = SurfaceContainerLevel.LOW,
+        containerLevel = if (isExpanded) SurfaceContainerLevel.HIGH else SurfaceContainerLevel.LOW,
         onClick = onToggleExpand,
         modifier = modifier.fillMaxWidth()
     ) {
@@ -701,10 +702,8 @@ private fun M3EAcademicCourseCard(
                         }
                     }
 
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant,
+                    M3EAccordionChevron(
+                        isExpanded = isExpanded,
                         modifier = Modifier.size(20.dp)
                     )
                 }

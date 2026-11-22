@@ -1,5 +1,10 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -44,7 +49,10 @@ import com.amazecc.app.shared.domain.ScheduleResult
 import com.amazecc.app.shared.domain.overhaul.M3EAttendancePredictorAction
 import com.amazecc.app.shared.domain.overhaul.M3EAttendancePredictorState
 import com.amazecc.app.shared.domain.overhaul.M3EPredictorCalendarDay
+import com.amazecc.app.shared.ui.m3e.components.M3EAccordionChevron
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
+import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.components.clickableA11y
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import kotlinx.datetime.Clock
@@ -271,100 +279,110 @@ private fun M3ECourseSectionRow(
         append('%')
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickableA11y(
-                    onClickLabel = if (expanded) {
-                        "Hide ${row.label}"
-                    } else {
-                        "Choose dates to skip for ${row.label}"
-                    },
-                    mergeDescendants = false,
-                    onClick = { onAction(M3EAttendancePredictorAction.ToggleCourseExpanded(row.code)) }
-                )
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
+    M3ESurfaceCard(
+        modifier = modifier.fillMaxWidth(),
+        containerLevel = if (expanded) SurfaceContainerLevel.HIGH else SurfaceContainerLevel.LOW,
+        cornerRadius = 16.dp
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
                 modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(tone.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(imageVector = icon, contentDescription = null, tint = tone, modifier = Modifier.size(21.dp))
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = row.label,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (locked) colors.onSurfaceVariant else colors.onSurface,
-                        maxLines = 1
+                    .fillMaxWidth()
+                    .clickableA11y(
+                        onClickLabel = if (expanded) {
+                            "Hide ${row.label}"
+                        } else {
+                            "Choose dates to skip for ${row.label}"
+                        },
+                        mergeDescendants = false,
+                        onClick = { onAction(M3EAttendancePredictorAction.ToggleCourseExpanded(row.code)) }
                     )
-                    if (skipCount > 0) {
-                        Spacer(Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(colors.warning.copy(alpha = 0.16f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "$skipCount skip${if (skipCount == 1) "" else "s"}",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.warning
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(tone.copy(alpha = 0.14f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(imageVector = icon, contentDescription = null, tint = tone, modifier = Modifier.size(21.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = row.label,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (locked) colors.onSurfaceVariant else colors.onSurface,
+                            maxLines = 1
+                        )
+                        if (skipCount > 0) {
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(colors.warning.copy(alpha = 0.16f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "$skipCount skip${if (skipCount == 1) "" else "s"}",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.warning
+                                )
+                            }
+                        }
+                        if (locked) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(
+                                imageVector = Icons.Rounded.AcUnit,
+                                contentDescription = "Attendance locked",
+                                tint = colors.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp)
                             )
                         }
                     }
-                    if (locked) {
-                        Spacer(Modifier.width(6.dp))
-                        Icon(
-                            imageVector = Icons.Rounded.AcUnit,
-                            contentDescription = "Attendance locked",
-                            tint = colors.onSurfaceVariant,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
+                    Text(
+                        text = subtitle,
+                        fontSize = 11.sp,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1
+                    )
                 }
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    text = subtitle,
-                    fontSize = 11.sp,
-                    color = colors.onSurfaceVariant,
+                    text = "${AttendancePredictor.formatPct(result.predictedPct)}%",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Black,
+                    color = tone,
                     maxLines = 1
                 )
+                M3EAccordionChevron(
+                    isExpanded = expanded,
+                    modifier = Modifier.size(18.dp)
+                )
             }
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = "${AttendancePredictor.formatPct(result.predictedPct)}%",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Black,
-                color = tone,
-                maxLines = 1
-            )
-            Icon(
-                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                contentDescription = null,
-                tint = colors.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
-            )
-        }
 
-        if (expanded) {
-            M3EPredictorSubjectSkipper(
-                row = row,
-                lockDate = lockDate,
-                locked = locked,
-                calendarDays = state.calendarDays,
-                skips = row.code?.let { state.courseSkips[it].orEmpty() }.orEmpty(),
-                onAction = onAction,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-            )
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically(animationSpec = M3ETheme.motion.spatialDefault()) +
+                    fadeIn(animationSpec = M3ETheme.motion.effectsDefault()),
+                exit = shrinkVertically(animationSpec = M3ETheme.motion.spatialDefault()) +
+                    fadeOut(animationSpec = M3ETheme.motion.effectsDefault())
+            ) {
+                M3EPredictorSubjectSkipper(
+                    row = row,
+                    lockDate = lockDate,
+                    locked = locked,
+                    calendarDays = state.calendarDays,
+                    skips = row.code?.let { state.courseSkips[it].orEmpty() }.orEmpty(),
+                    onAction = onAction,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                )
+            }
         }
     }
 }

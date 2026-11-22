@@ -42,6 +42,8 @@ import com.amazecc.app.shared.model.*
 import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.*
+import com.amazecc.app.shared.ui.m3e.components.M3EAccordionChevron
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.ui.screens.settings.SettingsGroupCard
 import com.amazecc.app.shared.ui.screens.settings.SettingsRow
 import com.amazecc.app.shared.utils.FacultyFreeSlotsUtil
@@ -200,13 +202,14 @@ fun FacultyInfoScreen() {
                                         overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                Icon(Icons.Rounded.ExpandMore, null, tint = colors.textMuted)
+                                M3EAccordionChevron(isExpanded = schoolMenuExpanded, tint = colors.textMuted)
                             }
                         }
                         DropdownMenu(
                             expanded = schoolMenuExpanded,
                             onDismissRequest = { schoolMenuExpanded = false },
-                            containerColor = colors.elevatedSurface
+                            containerColor = M3ETheme.colors.surfaceContainerHigh,
+                            shape = RoundedCornerShape(16.dp)
                         ) {
                             schools.forEach { school ->
                                 DropdownMenuItem(

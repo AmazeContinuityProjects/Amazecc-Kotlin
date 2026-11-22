@@ -1,5 +1,10 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -49,7 +54,9 @@ import com.amazecc.app.shared.domain.overhaul.M3EClubCategory
 import com.amazecc.app.shared.domain.overhaul.M3EClubHubAction
 import com.amazecc.app.shared.domain.overhaul.M3EClubHubState
 import com.amazecc.app.shared.domain.overhaul.M3EClubItem
+import com.amazecc.app.shared.ui.m3e.components.M3EAccordionChevron
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -169,9 +176,8 @@ fun M3EClubHubScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
+                    M3ELoadingIndicator(
+                        size = 20.dp,
                         color = colors.primary
                     )
                     Text(
@@ -369,27 +375,31 @@ private fun ClubCard(
                     }
                 }
 
-                if (club.isRecruiting) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(colors.tertiaryContainer)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "RECRUITING",
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 9.sp
-                            ),
-                            color = colors.onTertiaryContainer
-                        )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (club.isRecruiting) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(colors.tertiaryContainer)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "RECRUITING",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 9.sp
+                                ),
+                                color = colors.onTertiaryContainer
+                            )
+                        }
                     }
-                } else {
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant
+
+                    M3EAccordionChevron(
+                        isExpanded = isExpanded,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -433,8 +443,15 @@ private fun ClubCard(
             }
 
             // Expanded details
-            if (isExpanded) {
-                Spacer(modifier = Modifier.height(14.dp))
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(animationSpec = M3ETheme.motion.spatialDefault()) +
+                    fadeIn(animationSpec = M3ETheme.motion.effectsDefault()),
+                exit = shrinkVertically(animationSpec = M3ETheme.motion.spatialDefault()) +
+                    fadeOut(animationSpec = M3ETheme.motion.effectsDefault())
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Spacer(modifier = Modifier.height(14.dp))
 
                 if (club.description.isNotBlank()) {
                     Text(
@@ -535,6 +552,7 @@ private fun ClubCard(
             }
         }
     }
+}
 }
 
 // ==========================================

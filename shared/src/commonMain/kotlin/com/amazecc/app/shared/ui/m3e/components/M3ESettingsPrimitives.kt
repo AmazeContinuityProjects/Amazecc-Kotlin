@@ -230,7 +230,7 @@ fun SettingsActionRow(
             }
         }
         if (busy) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = colors.primary)
+            M3ELoadingIndicator(modifier = Modifier.size(20.dp), size = 20.dp, color = colors.primary)
         } else {
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,

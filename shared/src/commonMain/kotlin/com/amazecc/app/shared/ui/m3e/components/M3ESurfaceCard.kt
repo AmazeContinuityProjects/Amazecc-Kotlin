@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
+import com.amazecc.app.shared.ui.m3e.theme.M3ECornerRadius
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -33,7 +34,7 @@ enum class SurfaceContainerLevel {
 fun M3ESurfaceCard(
     modifier: Modifier = Modifier,
     containerLevel: SurfaceContainerLevel = SurfaceContainerLevel.STANDARD,
-    cornerRadius: Dp = 20.dp, // Large increased token
+    cornerRadius: Dp = M3ECornerRadius.LargeIncreased,
     onClick: (() -> Unit)? = null,
     borderColor: Color? = null,
     content: @Composable BoxScope.() -> Unit

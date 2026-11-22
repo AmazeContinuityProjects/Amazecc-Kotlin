@@ -37,6 +37,8 @@ import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.state.SyncCategory
 import com.amazecc.app.shared.state.SyncStatus
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.utils.toFixed
 import kotlinx.coroutines.delay
 
@@ -142,12 +144,10 @@ fun SyncProgressPopup(
                         contentAlignment = Alignment.Center
                     ) {
                         if (isSyncing) {
-                            CircularProgressIndicator(
-                                progress = { syncProgress.percentage / 100f },
+                            M3ELoadingIndicator(
                                 modifier = Modifier.size(24.dp),
-                                color = colors.accent,
-                                strokeWidth = 2.5.dp,
-                                trackColor = colors.accent.copy(alpha = 0.15f),
+                                size = 24.dp,
+                                color = colors.accent
                             )
                         } else {
                             Icon(Icons.Rounded.CheckCircle, null, tint = colors.success, modifier = Modifier.size(22.dp))
@@ -182,8 +182,8 @@ fun SyncProgressPopup(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.background,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        containerColor = M3ETheme.colors.surfaceContainerLow,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
             modifier = Modifier
@@ -338,12 +338,10 @@ private fun OverviewTabContent(
                 targetValue = syncProgress.percentage / 100f,
                 animationSpec = tween(600)
             )
-            CircularProgressIndicator(
-                progress = { animatedProgress },
+            M3ELoadingIndicator(
                 modifier = Modifier.fillMaxSize(),
-                color = if (syncProgress.errorCount > 0) colors.warning else if (isFinished) colors.success else colors.accent,
-                strokeWidth = 6.dp,
-                trackColor = colors.accent.copy(alpha = 0.12f)
+                size = 94.dp,
+                color = if (syncProgress.errorCount > 0) colors.warning else if (isFinished) colors.success else colors.accent
             )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -515,10 +513,10 @@ private fun ModuleSyncRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (state.status == SyncStatus.LOADING) {
-            CircularProgressIndicator(
+            M3ELoadingIndicator(
                 modifier = Modifier.size(16.dp),
-                color = colors.accent,
-                strokeWidth = 2.dp
+                size = 16.dp,
+                color = colors.accent
             )
         } else {
             Icon(icon, null, tint = iconColor, modifier = Modifier.size(16.dp))

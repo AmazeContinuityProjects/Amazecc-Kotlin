@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.repository.SessionManager
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -397,7 +398,7 @@ fun M3EAmazeIdSignInScreen(modifier: Modifier = Modifier) {
 
                     if (busy) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = colors.primary)
+                            M3ELoadingIndicator(modifier = Modifier.size(16.dp), size = 16.dp, color = colors.primary)
                             Text("Contacting Amaze ID…", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
                         }
                     }

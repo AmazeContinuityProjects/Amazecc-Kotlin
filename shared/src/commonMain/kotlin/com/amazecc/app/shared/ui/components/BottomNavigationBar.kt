@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.ui.strings.Strings
 
 import androidx.compose.animation.AnimatedVisibility
@@ -35,7 +36,6 @@ import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -55,10 +55,9 @@ fun BottomNavigationBar() {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
-            .shadow(12.dp, CircleShape, clip = false)
             .clip(CircleShape)
-            .background(colors.navBackground.copy(alpha = 0.92f))
-            .border(1.dp, colors.accent.copy(alpha = 0.22f), CircleShape)
+            .background(M3ETheme.colors.surfaceContainerHighest.copy(alpha = 0.95f))
+            .border(1.dp, M3ETheme.colors.outlineVariant.copy(alpha = 0.5f), CircleShape)
             .padding(vertical = 6.dp, horizontal = 8.dp),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically

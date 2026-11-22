@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -227,10 +228,10 @@ fun M3ESocialScreen(
                         Text("Compare schedules, find mutual free hours", fontSize = 13.sp, color = colors.onSurfaceVariant)
                     }
                     if (state.isServerLoading || state.isLoading) {
-                        CircularProgressIndicator(
+                        M3ELoadingIndicator(
                             modifier = Modifier.size(24.dp),
-                            color = colors.primary,
-                            strokeWidth = 2.dp
+                            size = 24.dp,
+                            color = colors.primary
                         )
                     } else {
                         IconButton(

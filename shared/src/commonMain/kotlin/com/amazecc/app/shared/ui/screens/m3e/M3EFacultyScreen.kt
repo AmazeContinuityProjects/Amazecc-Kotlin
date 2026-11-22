@@ -52,6 +52,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EFacultyAction
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyMember
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyState
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyTimetableSlot
+import com.amazecc.app.shared.ui.m3e.components.M3EAccordionChevron
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -219,7 +220,7 @@ private fun M3EFacultyCard(
     val colors = M3ETheme.colors
 
     M3ESurfaceCard(
-        containerLevel = SurfaceContainerLevel.LOW,
+        containerLevel = if (isExpanded) SurfaceContainerLevel.HIGH else SurfaceContainerLevel.LOW,
         onClick = onToggleExpand,
         modifier = modifier.fillMaxWidth()
     ) {
@@ -299,10 +300,9 @@ private fun M3EFacultyCard(
                     }
                 }
 
-                Icon(
-                    imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                M3EAccordionChevron(
+                    isExpanded = isExpanded,
                     contentDescription = if (isExpanded) "Collapse" else "Expand schedule",
-                    tint = colors.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
                 )
             }

@@ -72,7 +72,7 @@ fun M3EAttendancePredictorScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.surface)
+            .background(colors.surfaceContainerLowest)
     ) {
         LazyColumn(
             modifier = Modifier

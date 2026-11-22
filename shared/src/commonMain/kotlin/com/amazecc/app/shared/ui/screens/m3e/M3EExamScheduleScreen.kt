@@ -58,6 +58,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EExamScheduleState
 import com.amazecc.app.shared.domain.overhaul.M3EExamSeriesGroup
 import com.amazecc.app.shared.model.ExamScheduleRes
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3EPageAction
 import com.amazecc.app.shared.ui.m3e.components.M3EPageActionsHost
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
@@ -239,10 +240,10 @@ fun M3EExamScheduleScreen(
                     // D-116/D-124: the five crowded header controls are now one
                     // page-root action-menu FAB; only a transient export spinner stays inline.
                     if (isExporting) {
-                        CircularProgressIndicator(
+                        M3ELoadingIndicator(
                             modifier = Modifier.size(20.dp),
-                            color = colors.primary,
-                            strokeWidth = 2.dp
+                            size = 20.dp,
+                            color = colors.primary
                         )
                     }
                 }
@@ -372,8 +373,8 @@ fun M3EExamScheduleScreen(
                                     modifier = Modifier
                                         .height(36.dp)
                                         .testTag("exam_status_filter_${filter.name}"),
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                                    shape = CircleShape,
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                                     colors = ButtonDefaults.outlinedButtonColors(
                                         containerColor = if (selected) colors.primaryContainer
                                         else colors.surfaceContainerLow,
@@ -656,8 +657,8 @@ private fun M3EExamSeriesSection(
                     onExport(ExamExportRequest(ExamExportFormat.PNG, group.label, group.entries))
                 },
                 enabled = !isExporting && group.entries.isNotEmpty(),
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                shape = CircleShape,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                 modifier = Modifier.height(34.dp)
             ) {
                 Text("${group.label} PNG", style = MaterialTheme.typography.labelSmall)
@@ -667,8 +668,8 @@ private fun M3EExamSeriesSection(
                     onExport(ExamExportRequest(ExamExportFormat.PDF, group.label, group.entries))
                 },
                 enabled = !isExporting && group.entries.isNotEmpty(),
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                shape = CircleShape,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                 modifier = Modifier.height(34.dp)
             ) {
                 Text("${group.label} PDF", style = MaterialTheme.typography.labelSmall)
@@ -678,8 +679,8 @@ private fun M3EExamSeriesSection(
                     onExport(ExamExportRequest(ExamExportFormat.ICS, group.label, group.entries))
                 },
                 enabled = !isExporting && group.entries.isNotEmpty(),
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp),
+                shape = CircleShape,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
                 modifier = Modifier.height(34.dp)
             ) {
                 Text("Add to Calendar", style = MaterialTheme.typography.labelSmall)

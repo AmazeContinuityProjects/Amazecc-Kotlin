@@ -48,6 +48,7 @@ import com.mikepenz.markdown.m3.Markdown
 import com.amazecc.app.shared.state.AcademicDerivers
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.ui.components.AmazePill
 import com.amazecc.app.shared.ui.components.DatePickerSheet
 import com.amazecc.app.shared.ui.components.PickerField
@@ -255,7 +256,9 @@ fun TasksScreen() {
                                             ) { courseMenuOpen = true }
                                             DropdownMenu(
                                                 expanded = courseMenuOpen,
-                                                onDismissRequest = { courseMenuOpen = false }
+                                                onDismissRequest = { courseMenuOpen = false },
+                                                containerColor = M3ETheme.colors.surfaceContainerHigh,
+                                                shape = RoundedCornerShape(16.dp)
                                             ) {
                                                 DropdownMenuItem(
                                                     text = { Text("All Courses", fontSize = AmazeTheme.fontSize.sm) },

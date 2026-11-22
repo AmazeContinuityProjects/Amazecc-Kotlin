@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
+import com.amazecc.app.shared.ui.m3e.components.M3EAccordionChevron
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3EPageSkeleton
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -265,11 +267,6 @@ private fun CircularFolderCard(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
-    val rotation by animateFloatAsState(
-        targetValue = if (isExpanded) 180f else 0f,
-        animationSpec = M3ETheme.motion.spatialDefault(),
-        label = "CircularFolderChevron"
-    )
 
     M3ESurfaceCard(
         modifier = modifier.fillMaxWidth(),
@@ -320,11 +317,10 @@ private fun CircularFolderCard(
                     }
                     Spacer(Modifier.width(8.dp))
                 }
-                Icon(
-                    imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                M3EAccordionChevron(
+                    isExpanded = isExpanded,
                     contentDescription = if (isExpanded) "Collapse folder" else "Expand folder",
-                    tint = colors.onSurfaceVariant,
-                    modifier = Modifier.graphicsLayer(rotationZ = rotation).size(20.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
 
@@ -332,8 +328,8 @@ private fun CircularFolderCard(
             // preference; these expand/shrink specs become a true instant snap.
             AnimatedVisibility(
                 visible = isExpanded,
-                enter = expandVertically(animationSpec = M3ETheme.motion.effectsDefault<IntSize>()),
-                exit = shrinkVertically(animationSpec = M3ETheme.motion.effectsDefault<IntSize>())
+                enter = expandVertically(animationSpec = M3ETheme.motion.spatialDefault<IntSize>()),
+                exit = shrinkVertically(animationSpec = M3ETheme.motion.spatialDefault<IntSize>())
             ) {
                 Column(
                     modifier = Modifier.fillMaxWidth(),
@@ -377,10 +373,9 @@ private fun CircularFolderCard(
                                         M3ECircularDownloadStatus.IDLE -> Unit
                                         M3ECircularDownloadStatus.DOWNLOADING -> {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                CircularProgressIndicator(
+                                                M3ELoadingIndicator(
                                                     color = colors.primary,
-                                                    strokeWidth = 2.dp,
-                                                    modifier = Modifier.size(14.dp)
+                                                    size = 18.dp
                                                 )
                                                 Spacer(Modifier.width(8.dp))
                                                 Text(

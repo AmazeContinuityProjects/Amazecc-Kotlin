@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeColors
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 
 /**
  * Push-up bottom sheet for picking the active semester, mirroring the
@@ -66,9 +67,9 @@ fun SemesterPickerSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = colors.background,
+        containerColor = M3ETheme.colors.surfaceContainerLow,
         contentColor = colors.textPrimary,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
             modifier = Modifier

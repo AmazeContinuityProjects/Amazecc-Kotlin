@@ -62,6 +62,16 @@ object M3ETheme {
         get() = LocalM3EColors.current
 
     val motion = M3EMotionScope
+
+    val radius: M3ECornerRadius
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalM3ECornerRadius.current
+
+    val shapes: M3EShapes
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalM3EShapes.current
 }
 
 @Composable
@@ -145,10 +155,19 @@ fun AmazeM3ETheme(
         LocalM3EPalettePreset provides effectivePreset,
         LocalMotionReduced provides reducedMotion,
         LocalMotionFallbackPublished provides true,
-        LocalContentColor provides palette.onBackground
+        LocalContentColor provides palette.onBackground,
+        LocalM3ECornerRadius provides M3ECornerRadius,
+        LocalM3EShapes provides M3EShapes
     ) {
         MaterialTheme(
             colorScheme = m3Colors,
+            shapes = androidx.compose.material3.Shapes(
+                extraSmall = M3EShapes.ExtraSmall,
+                small = M3EShapes.Small,
+                medium = M3EShapes.Medium,
+                large = M3EShapes.Large,
+                extraLarge = M3EShapes.ExtraLarge
+            ),
             content = content
         )
     }

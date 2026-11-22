@@ -1,5 +1,10 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,6 +56,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ETransportState
 import com.amazecc.app.shared.model.BusesRes
 import com.amazecc.app.shared.model.TransportDataRes
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
+import com.amazecc.app.shared.ui.m3e.components.M3EAccordionChevron
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -380,10 +386,9 @@ private fun BusRouteCard(
                     }
                 }
 
-                Icon(
-                    imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = colors.onSurfaceVariant
+                M3EAccordionChevron(
+                    isExpanded = isExpanded,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand"
                 )
             }
 
@@ -429,14 +434,21 @@ private fun BusRouteCard(
             }
 
             // Expanded stops & placements view
-            if (isExpanded) {
-                Spacer(modifier = Modifier.height(16.dp))
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(animationSpec = M3ETheme.motion.spatialDefault()) +
+                    fadeIn(animationSpec = M3ETheme.motion.effectsDefault()),
+                exit = shrinkVertically(animationSpec = M3ETheme.motion.spatialDefault()) +
+                    fadeOut(animationSpec = M3ETheme.motion.effectsDefault())
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                // Action Buttons: Call Driver / WhatsApp
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
+                    // Action Buttons: Call Driver / WhatsApp
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
                     // Only offer a call when the route actually carries a driver number.
                     if (route.driverPhone.isNotBlank()) {
                         ElevatedButton(
@@ -571,6 +583,7 @@ private fun BusRouteCard(
             }
         }
     }
+}
 }
 
 // ==========================================

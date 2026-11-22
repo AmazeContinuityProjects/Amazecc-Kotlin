@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -126,10 +127,9 @@ fun M3EChangelogScreen(
                     modifier = Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(
+                    M3ELoadingIndicator(
                         color = colors.primary,
-                        strokeWidth = 3.dp,
-                        modifier = Modifier.size(28.dp)
+                        size = 32.dp
                     )
                 }
             }

@@ -76,7 +76,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -321,10 +320,9 @@ fun M3ESyncNotification(
                     )
                     .fillMaxWidth()
                     .height(60.dp)
-                    .shadow(16.dp, RoundedCornerShape(20.dp), clip = false)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(colors.surfaceContainerHighest.copy(alpha = 0.95f))
-                    .border(1.dp, colors.outlineVariant.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                    .background(colors.surfaceContainerHigh)
+                    .border(1.dp, colors.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
                     // D-119: labelled, role-bearing control (60 dp tall target).
                     .clickableA11y(
                         onClickLabel = "Expand sync details",
@@ -365,8 +363,7 @@ fun M3ESyncNotification(
                                 .fillMaxHeight()
                                 .width(3.dp)
                                 .align(Alignment.CenterEnd)
-                                .background(colors.primary)
-                                .shadow(8.dp, CircleShape)
+                                .background(colors.primary, CircleShape)
                         )
                     }
                 }

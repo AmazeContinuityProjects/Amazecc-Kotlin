@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -34,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -113,9 +116,17 @@ fun M3EPageActionsMenu(
         val effectsSpec: FiniteAnimationSpec<Float> = M3ETheme.motion.effectsDefault()
         val spatialSpec: FiniteAnimationSpec<Float> = M3ETheme.motion.spatialDefault()
         val itemEnter = fadeIn(animationSpec = effectsSpec) +
-            scaleIn(initialScale = 0.92f, animationSpec = spatialSpec)
+            scaleIn(
+                initialScale = 0.92f,
+                animationSpec = spatialSpec,
+                transformOrigin = TransformOrigin(1f, 1f)
+            )
         val itemExit = fadeOut(animationSpec = effectsSpec) +
-            scaleOut(targetScale = 0.92f, animationSpec = spatialSpec)
+            scaleOut(
+                targetScale = 0.92f,
+                animationSpec = spatialSpec,
+                transformOrigin = TransformOrigin(1f, 1f)
+            )
 
         Box(
             modifier = modifier
@@ -154,27 +165,32 @@ fun M3EPageActionsMenu(
             ) {
                 AnimatedVisibility(visible = expanded, enter = itemEnter, exit = itemExit) {
                     Box(modifier = Modifier.padding(bottom = MENU_GAP)) {
-                        Column(
+                        Surface(
                             modifier = Modifier
-                                .testTag(M3EPageActionsMenuTestTags.ITEMS)
-                                .background(colors.surfaceContainerHigh, MENU_SHAPE)
-                                .border(
-                                    width = 1.dp,
-                                    color = colors.outlineVariant.copy(alpha = 0.5f),
-                                    shape = MENU_SHAPE
-                                )
-                                .padding(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                                .testTag(M3EPageActionsMenuTestTags.ITEMS),
+                            shape = MENU_SHAPE,
+                            color = colors.surfaceContainerHigh,
+                            tonalElevation = 3.dp,
+                            shadowElevation = 3.dp,
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = colors.outlineVariant.copy(alpha = 0.5f)
+                            )
                         ) {
-                            actions.forEachIndexed { index, action ->
-                                M3EPageActionMenuItem(
-                                    action = action,
-                                    index = index,
-                                    onSelect = {
-                                        expanded = false
-                                        action.onClick()
-                                    }
-                                )
+                            Column(
+                                modifier = Modifier.padding(6.dp),
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                actions.forEachIndexed { index, action ->
+                                    M3EPageActionMenuItem(
+                                        action = action,
+                                        index = index,
+                                        onSelect = {
+                                            expanded = false
+                                            action.onClick()
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -317,7 +333,12 @@ private fun M3EPageActionMenuItem(
     }
 }
 
-private val MENU_SHAPE = RoundedCornerShape(20.dp)
+private val MENU_SHAPE = RoundedCornerShape(
+    topStart = 28.dp,
+    topEnd = 8.dp,
+    bottomStart = 28.dp,
+    bottomEnd = 8.dp
+)
 private val MENU_GAP = 4.dp
 
 /*

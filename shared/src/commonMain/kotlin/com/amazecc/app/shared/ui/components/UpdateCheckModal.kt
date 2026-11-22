@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.theme.AmazeTheme
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,8 +44,8 @@ fun UpdateCheckModal(onDismiss: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = dismissCheck,
         sheetState = sheetState,
-        containerColor = colors.background,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        containerColor = M3ETheme.colors.surfaceContainerLow,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
             modifier = Modifier
@@ -54,11 +56,7 @@ fun UpdateCheckModal(onDismiss: () -> Unit) {
         ) {
             when (val status = updateStatus) {
                 is AppState.UpdateStatus.Checking -> {
-                    CircularProgressIndicator(
-                        color = colors.accent,
-                        strokeWidth = 3.dp,
-                        modifier = Modifier.size(40.dp)
-                    )
+                    M3ELoadingIndicator(size = 40.dp)
                     Spacer(Modifier.height(16.dp))
                     Text(
                         "Checking for updates…",
@@ -71,11 +69,7 @@ fun UpdateCheckModal(onDismiss: () -> Unit) {
                     )
                 }
                 is AppState.UpdateStatus.Available -> {
-                    CircularProgressIndicator(
-                        color = colors.accent,
-                        strokeWidth = 3.dp,
-                        modifier = Modifier.size(40.dp)
-                    )
+                    M3ELoadingIndicator(size = 40.dp)
                     Spacer(Modifier.height(16.dp))
                     Text(
                         "Update found — opening…",

@@ -75,13 +75,21 @@ object M3EMotion {
         )
 
     private fun tabSwitchTransformFor(reduced: Boolean): ContentTransform {
-        val duration = if (reduced) 0 else M3EFeedbackDurations.TAB_TRANSITION_MS
-        return (fadeIn(animationSpec = tween(duration)) + scaleIn(
-            initialScale = 0.98f,
-            animationSpec = tween(duration)
-        )) togetherWith (fadeOut(animationSpec = tween(duration)) + scaleOut(
-            targetScale = 0.98f,
-            animationSpec = tween(duration)
+        if (reduced) {
+            return (fadeIn(animationSpec = instant()) + scaleIn(
+                initialScale = 1.0f,
+                animationSpec = instant()
+            )) togetherWith (fadeOut(animationSpec = instant()) + scaleOut(
+                targetScale = 1.0f,
+                animationSpec = instant()
+            ))
+        }
+        return (fadeIn(animationSpec = effectsDefaultFor(false)) + scaleIn(
+            initialScale = 0.96f,
+            animationSpec = spatialDefaultFor(false)
+        )) togetherWith (fadeOut(animationSpec = effectsDefaultFor(false)) + scaleOut(
+            targetScale = 0.96f,
+            animationSpec = spatialDefaultFor(false)
         ))
     }
 

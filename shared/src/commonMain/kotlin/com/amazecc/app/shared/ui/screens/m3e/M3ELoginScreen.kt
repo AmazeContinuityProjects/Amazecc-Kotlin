@@ -80,6 +80,7 @@ import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.ui.components.VtopCaptchaPrompt
 import com.amazecc.app.shared.ui.components.VtopMigrationPrompt
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -598,10 +599,10 @@ fun M3ELoginScreen(
                             )
                         ) {
                             if (isSubmitting) {
-                                CircularProgressIndicator(
+                                M3ELoadingIndicator(
                                     modifier = Modifier.size(20.dp),
-                                    color = colors.onPrimary,
-                                    strokeWidth = 2.dp
+                                    size = 20.dp,
+                                    color = colors.onPrimary
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(

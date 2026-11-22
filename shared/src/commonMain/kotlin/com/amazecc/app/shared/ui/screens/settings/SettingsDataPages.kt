@@ -22,6 +22,8 @@ import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.*
 import com.amazecc.app.shared.theme.AmazeTheme
 import com.amazecc.app.shared.ui.components.AmazeButton
+import com.amazecc.app.shared.ui.m3e.components.M3EAccordionChevron
+import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.ui.components.ButtonVariant
 import com.amazecc.app.shared.ui.components.SemesterPickerSheet
 import com.amazecc.app.shared.utils.ExportImportManager
@@ -108,7 +110,7 @@ fun AcademicsPage() {
                         label = { Text("Default Academic Calendar", color = colors.textSecondary) },
                         trailingIcon = {
                             IconButton(onClick = { calendarExpanded = !calendarExpanded }) {
-                                Icon(if (calendarExpanded) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown, null, tint = colors.accent)
+                                M3EAccordionChevron(isExpanded = calendarExpanded, tint = colors.accent)
                             }
                         },
                         modifier = Modifier.fillMaxWidth().clickable { calendarExpanded = !calendarExpanded },
@@ -125,7 +127,9 @@ fun AcademicsPage() {
                     DropdownMenu(
                         expanded = calendarExpanded,
                         onDismissRequest = { calendarExpanded = false },
-                        modifier = Modifier.fillMaxWidth(0.88f).background(colors.surface)
+                        modifier = Modifier.fillMaxWidth(0.88f),
+                        containerColor = M3ETheme.colors.surfaceContainerHigh,
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         AmazeClient.calendarTypes.forEach { (_, name) ->
                             val isSelected = preferredCalendarName == name || (preferredCalendarName.isEmpty() && AmazeClient.calendarTypes.first().second == name)
