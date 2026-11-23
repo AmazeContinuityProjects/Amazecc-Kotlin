@@ -383,6 +383,57 @@ class CurriculumTest {
         )
     }
 
+    /**
+     * D-188: the two halves are labelled ETH/ELA by the payload's own `type` cell, and both the
+     * graded side and the attendance side must resolve them to the SAME base code. One published
+     * grade at the SUM of the halves' credits; one basket match; one ongoing code.
+     */
+    @Test
+    fun labelledEmbeddedHalvesShareOneBaseCodeAndOnePublishedGrade() {
+        val theory = Course(
+            code = "BACSE106", title = "Operating Systems", type = "Embedded Theory",
+            credits = "3", grade = Grade(letter = "B+"),
+        )
+        val lab = Course(
+            code = "BACSE106(L)", title = "Operating Systems Lab", type = "Embedded Lab",
+            credits = "2",
+        )
+        val s = DomainSnapshot(
+            academics = Academics(
+                semesters = mapOf(
+                    "CH20252605" to Semester(
+                        id = "CH20252605",
+                        courses = mapOf(theory.code to theory, lab.code to lab),
+                    ),
+                ),
+            ),
+        )
+
+        // Web-exact labels come from the payload type, never from a code suffix guess.
+        assertEquals(EmbeddedCourseSemantics.LABEL_THEORY, EmbeddedCourseSemantics.labelFor(theory.type))
+        assertEquals(EmbeddedCourseSemantics.LABEL_LAB, EmbeddedCourseSemantics.labelFor(lab.type))
+        assertEquals(EmbeddedCourseSemantics.LABEL_COMBINED, EmbeddedCourseSemantics.labelFor("ETH+ELA"))
+        assertEquals("BACSE106", EmbeddedLinkCode.baseCode(theory.code))
+        assertEquals("BACSE106", EmbeddedLinkCode.baseCode(lab.code))
+
+        val completed = completedCourseCodes(s)
+        assertEquals(setOf("BACSE106"), completed)
+        assertEquals(5f, earnedCreditsFromGrades(s), "3 theory + 2 lab, counted once at the sum")
+
+        // The bare base code matches once; the suffixed half is not a second basket match.
+        val basket = listOf("BACSE106", "BACSE106(L)")
+        assertEquals(1, basket.count { courseStatus(it, completed, emptySet()) == CourseStatus.COMPLETED })
+
+        val ongoing = ongoingCourseCodes(
+            listOf(
+                course(theory.code, "Professional Core", credits = "3").copy(courseType = "Embedded Theory"),
+                course(lab.code, "Professional Core", credits = "2").copy(courseType = "Embedded Lab"),
+            ),
+        )
+        assertEquals(setOf("BACSE106"), ongoing)
+        assertEquals(1, basket.count { courseStatus(it, completed, ongoing) == CourseStatus.COMPLETED })
+    }
+
     // ── totals ──────────────────────────────────────────────────────────────
 
     @Test

@@ -142,8 +142,18 @@ data class M3ECourseAttendanceCardState(
     val bunkSummary: String,
     val isEmbedded: Boolean = false,
     val theoryPct: Double? = null,
-    val labPct: Double? = null
-)
+    val labPct: Double? = null,
+    /** True only when two embedded halves were merged into one card with two real figures. */
+    val isMergedPair: Boolean = false,
+) {
+    /**
+     * D-189 follow-up: only a real WARNING/CRITICAL figure is "at risk". A merged pair has no single
+     * percentage, so it is never at risk; a lone embedded half with a published low figure keeps its
+     * own tone and stays eligible. Single source of truth for the screen and the host bridge.
+     */
+    val isAtRisk: Boolean
+        get() = !isMergedPair && (tone == M3ECardTone.WARNING || tone == M3ECardTone.CRITICAL)
+}
 
 data class M3EBunkSummary(
     val totalBunkableClasses: Int,
@@ -458,7 +468,13 @@ data class M3ECurriculumCourse(
     val basket: CurriculumBasket,
     val courseType: String,
     val status: CourseCompletionStatus,
-    val grade: String? = null
+    val grade: String? = null,
+    /** True only when [grade] came from an exact-code row, never a base-code fallback. */
+    val gradeFromExactRow: Boolean = false,
+    /** Web-exact embedded label from `EmbeddedCourseSemantics.labelFor(type)`; null when unknown. */
+    val embeddedLabel: String? = null,
+    /** Canonical linking key from `EmbeddedLinkCode.baseCode(code)`; groups the two halves. */
+    val baseCode: String = "",
 )
 
 data class M3EBasketProgress(

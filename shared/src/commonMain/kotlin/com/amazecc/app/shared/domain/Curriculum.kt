@@ -249,13 +249,16 @@ private val NON_PASSING_GRADES = listOf("F", "N", "")
  * for the pair, so only one half carries it. Counting halves would double-count the course in
  * [earnedCreditsFromGrades] and in [completedCourseCodes]; crediting the theory half alone would
  * drop the lab's credits, so the entry keeps both halves' credits and the one grade that exists.
+ *
+ * The halves are keyed by [EmbeddedLinkCode.baseCode], the one canonical normalizer (it also folds
+ * `BCSE101L` onto `BCSE101`, which the old `substringBefore("(")` split could not).
  */
 private data class PassedCourse(val baseCode: String, val credits: Double)
 
 private fun passingCourses(snapshot: DomainSnapshot): List<PassedCourse> =
     snapshot.academics.semesters.values.flatMap { semester ->
         semester.courses.values
-            .groupBy { it.code.substringBefore("(").trim().uppercase() }
+            .groupBy { EmbeddedLinkCode.baseCode(it.code) }
             .mapNotNull { (baseCode, halves) ->
                 val passed = halves.any { half ->
                     val grade = half.grade?.letter
@@ -285,12 +288,11 @@ fun completedCourseCodes(snapshot: DomainSnapshot): Set<String> =
  *
  * Node keys this off the whole attendance list rather than one semester, so a course from an
  * earlier term still reads as in progress. An embedded pair contributes one code, not one per half,
- * so it matches against the basket exactly once.
+ * so it matches against the basket exactly once. [EmbeddedLinkCode.baseCode] is the same rule the
+ * graded side uses, so `[BACSE106, BACSE106(L)]` becomes exactly one `BACSE106`.
  */
 fun ongoingCourseCodes(courses: List<CourseAttendance>): Set<String> =
-    courses.mapTo(LinkedHashSet()) {
-        it.courseCode.substringBefore("(").trim().uppercase()
-    }
+    courses.mapTo(LinkedHashSet()) { EmbeddedLinkCode.baseCode(it.courseCode) }
 
 /**
  * Where a curriculum basket item sits, matched case-insensitively on both sides.

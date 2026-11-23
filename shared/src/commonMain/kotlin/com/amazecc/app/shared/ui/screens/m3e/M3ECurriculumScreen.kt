@@ -34,6 +34,10 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import com.amazecc.app.shared.domain.DomainSnapshot
+import com.amazecc.app.shared.domain.EmbeddedCourseSemantics
+import com.amazecc.app.shared.domain.EmbeddedEntry
+import com.amazecc.app.shared.domain.EmbeddedHalf
+import com.amazecc.app.shared.domain.EmbeddedLinkCode
 import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.domain.CREDITS_PER_SEMESTER
 import com.amazecc.app.shared.domain.buildCategoryRows
@@ -364,8 +368,9 @@ fun M3ECurriculumScreen(
                 )
             }
 
-            // Courses List
-            if (state.filteredCourses.isEmpty()) {
+            // Courses List — embedded halves share one section header; every half keeps its card.
+            val courseSections = buildCurriculumCourseSections(state.filteredCourses)
+            if (courseSections.isEmpty()) {
                 item(key = "empty_courses") {
                     M3ESurfaceCard(
                         containerLevel = SurfaceContainerLevel.LOW,
@@ -394,14 +399,50 @@ fun M3ECurriculumScreen(
                     }
                 }
             } else {
-                items(
-                    items = state.filteredCourses,
-                    key = { "${it.courseCode}_${it.basket.name}" }
-                ) { course ->
-                    M3ECurriculumCourseCard(
-                        course = course,
-                        onDownloadSyllabus = { code -> onAction(M3ECurriculumAction.DownloadSyllabus(code)) }
-                    )
+                items(items = courseSections, key = { it.key }) { section ->
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (section.label != null) {
+                            // Web-exact label + the pair's summed credits, shown ONCE for the group.
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = section.label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.primary,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Text(
+                                    text = "${section.totalCredits} Cr total",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.onSurface,
+                                )
+                            }
+                            Text(
+                                text = section.baseCode,
+                                fontSize = 11.sp,
+                                color = colors.onSurfaceVariant,
+                            )
+                            section.combinedGrade?.let { grade ->
+                                Text(
+                                    text = "Combined grade $grade",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.success,
+                                )
+                            }
+                        }
+                        section.courses.forEach { course ->
+                            M3ECurriculumCourseCard(
+                                course = course,
+                                onDownloadSyllabus = { code -> onAction(M3ECurriculumAction.DownloadSyllabus(code)) }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -459,15 +500,33 @@ internal fun buildCurriculumState(
     val totals = curriculumTotals(curriculumRes, earned, totalOngoingCredits(attendance))
     val categoryMeta = curriculumRes?.categories.orEmpty().associateBy { it.code.trim().uppercase() }
 
-    fun baseCode(code: String): String = code.substringBefore("(").trim().uppercase()
-
-    fun gradeFor(code: String): String? {
-        val base = baseCode(code)
-        return snapshot.academics.semesters.values.firstNotNullOfOrNull { sem ->
-            sem.courses.values.firstNotNullOfOrNull { course ->
-                course.grade?.letter?.takeIf { it.isNotBlank() && baseCode(course.code) == base }
-            }
+    /**
+     * The published grade and whether it came from an EXACT-code row, keyed by the canonical
+     * [EmbeddedLinkCode.baseCode].
+     *
+     * An exact match wins, so two halves with different published letters keep their own. When a
+     * half has its own row but no letter, it gets none — it must not borrow the other half's letter.
+     * The base-code fallback is only for a basket item whose spelling has no exact row at all (e.g.
+     * `BACSE106` against a stored `BACSE106(T)`); the flag makes sure such a borrowed letter can
+     * never be published as a "shared" combined grade.
+     */
+    fun gradeFor(code: String): Pair<String?, Boolean> {
+        val trimmed = code.trim()
+        val rowsOnThisCode = snapshot.academics.semesters.values.asSequence()
+            .flatMap { it.courses.values.asSequence() }
+            .filter { it.code.trim() == trimmed }
+            .toList()
+        if (rowsOnThisCode.isNotEmpty()) {
+            val exact = rowsOnThisCode.firstNotNullOfOrNull { it.grade?.letter?.takeIf { l -> l.isNotBlank() } }
+            return exact to true
         }
+        val base = EmbeddedLinkCode.baseCode(code)
+        if (base.isEmpty()) return null to false
+        val borrowed = snapshot.academics.semesters.values.asSequence()
+            .flatMap { it.courses.values.asSequence() }
+            .filter { EmbeddedLinkCode.baseCode(it.code) == base }
+            .firstNotNullOfOrNull { it.grade?.letter?.takeIf { l -> l.isNotBlank() } }
+        return borrowed to false
     }
 
     val courses = curriculumRes?.details.orEmpty().flatMap { detail ->
@@ -477,11 +536,23 @@ internal fun buildCurriculumState(
         val basket = curriculumBasketFor(code, title)
         detail.baskets.flatMap { b ->
             b.items.map { item ->
-                val status = when (courseStatus(item.code, completed, ongoing)) {
+                // Only a genuinely embedded label may claim an embedded section. D-187's labelFor
+                // also classifies "Theory Only"/"Lab Only"; those are standalone, never embedded.
+                // All embedded labels start with "Embedded" — never guess one from a bare code.
+                val embeddedLabel = EmbeddedCourseSemantics.labelFor(item.type)
+                    .takeIf { it.startsWith("Embedded") }
+                val base = EmbeddedLinkCode.baseCode(item.code)
+                // The completed/ongoing sets hold canonical base codes, so every basket item —
+                // embedded or standalone — must match on that base. Otherwise a standalone
+                // `CSE101L` (stored as `CSE101`) reads as NOT_STARTED against its raw code.
+                val statusCode = base.ifBlank { item.code }
+                val status = when (courseStatus(statusCode, completed, ongoing)) {
                     com.amazecc.app.shared.domain.CourseStatus.COMPLETED -> CourseCompletionStatus.COMPLETED
                     com.amazecc.app.shared.domain.CourseStatus.IN_PROGRESS -> CourseCompletionStatus.IN_PROGRESS
                     com.amazecc.app.shared.domain.CourseStatus.REMAINING -> CourseCompletionStatus.NOT_STARTED
                 }
+                val (publishedGrade, fromExactRow) = gradeFor(item.code)
+                val shownGrade = publishedGrade?.takeIf { status == CourseCompletionStatus.COMPLETED }
                 M3ECurriculumCourse(
                     courseCode = item.code,
                     courseTitle = item.name,
@@ -489,7 +560,10 @@ internal fun buildCurriculumState(
                     basket = basket,
                     courseType = item.type ?: "Theory",
                     status = status,
-                    grade = gradeFor(item.code)?.takeIf { status == CourseCompletionStatus.COMPLETED }
+                    grade = shownGrade,
+                    gradeFromExactRow = shownGrade != null && fromExactRow,
+                    embeddedLabel = embeddedLabel,
+                    baseCode = base,
                 )
             }
         }
@@ -543,6 +617,100 @@ internal fun buildCurriculumState(
         expectedLabel = totals.expectedLabel,
         downloadStatus = downloadStatus,
     )
+}
+
+/**
+ * One rendered row of the course list: a plain course card, or an embedded pair's two cards under
+ * one section header. The header carries the pair's web-exact label and its summed credits **once**;
+ * each half keeps its own card, its own grade badge and its own syllabus action.
+ */
+internal data class CurriculumCourseSection(
+    val key: String,
+    val label: String?,
+    val baseCode: String,
+    val courses: List<M3ECurriculumCourse>,
+    val totalCredits: Int,
+    /** Only the two halves' published shared letter — never a letter inferred from a blend. */
+    val combinedGrade: String?,
+)
+
+/**
+ * Groups embedded halves by [M3ECurriculumCourse.baseCode], preserving the payload's order.
+ *
+ * Non-embedded courses (no classified label) stay one-card rows. A labelled pair is folded into a
+ * single section, so the basket's two halves cannot render as two independent "5 Cr" rows. The
+ * combined grade comes straight from [EmbeddedCourseSemantics.group], which only publishes it when
+ * both halves carry the same real letter; no blended marks are used for a letter here.
+ */
+internal fun buildCurriculumCourseSections(
+    courses: List<M3ECurriculumCourse>,
+): List<CurriculumCourseSection> {
+    if (courses.isEmpty()) return emptyList()
+    val sections = mutableListOf<CurriculumCourseSection>()
+    val embeddedBases = HashSet<String>()
+
+    courses.forEachIndexed { index, course ->
+        if (course.embeddedLabel == null || course.baseCode.isBlank()) {
+            sections += CurriculumCourseSection(
+                key = "course_${course.courseCode}_${course.basket.name}_$index",
+                label = course.embeddedLabel,
+                baseCode = course.baseCode,
+                courses = listOf(course),
+                totalCredits = course.credits,
+                combinedGrade = null,
+            )
+            return@forEachIndexed
+        }
+        if (!embeddedBases.add(course.baseCode)) return@forEachIndexed
+
+        val halves = courses.filter { it.embeddedLabel != null && it.baseCode == course.baseCode }
+        val label = when {
+            halves.any { it.embeddedLabel == EmbeddedCourseSemantics.LABEL_COMBINED } ->
+                EmbeddedCourseSemantics.LABEL_COMBINED
+            else -> halves.mapNotNull { it.embeddedLabel }.distinct().singleOrNull()
+                ?: EmbeddedCourseSemantics.LABEL_COMBINED
+        }
+        val classified = halves.map { half ->
+            val side = when (EmbeddedLinkCode.halfOf(half.courseCode, half.courseType)) {
+                EmbeddedLinkCode.Half.LAB -> EmbeddedHalf.LAB
+                else -> EmbeddedHalf.THEORY
+            }
+            half to EmbeddedEntry(
+                code = half.courseCode,
+                half = side,
+                credits = half.credits.toDouble(),
+                // A base-code fallback letter is not a published half letter: it must never be
+                // reconciled into a "shared" combined grade.
+                grade = half.grade.takeIf { half.gradeFromExactRow },
+                title = half.courseTitle,
+            )
+        }
+        val group = EmbeddedCourseSemantics.group(classified.map { it.second }).firstOrNull()
+        // The group's gradeEntries apply D-187's canonical "keep first" rule per half. Only those
+        // halves are rendered and the total comes from the group, so a duplicate report of one half
+        // is neither shown twice nor counted twice (even when both reports share the same code).
+        val canonical = group?.gradeEntries.orEmpty()
+        val usedSides = HashSet<EmbeddedHalf>()
+        val canonicalHalves = if (canonical.isEmpty()) {
+            halves
+        } else {
+            classified.mapNotNull { (course, entry) ->
+                course.takeIf {
+                    canonical.any { c -> c.code == entry.code && c.half == entry.half } &&
+                        usedSides.add(entry.half)
+                }
+            }
+        }
+        sections += CurriculumCourseSection(
+            key = "embedded_${course.baseCode}",
+            label = label,
+            baseCode = course.baseCode,
+            courses = canonicalHalves,
+            totalCredits = group?.totalCredits?.toInt() ?: 0,
+            combinedGrade = group?.combinedGrade,
+        )
+    }
+    return sections
 }
 
 @Composable
@@ -650,6 +818,24 @@ private fun M3ECurriculumCourseCard(
                             color = colors.onSurfaceVariant
                         )
                     }
+                }
+            }
+
+            // Web-exact embedded label, shown only when the payload actually classified this row.
+            // It is a label, not a control: the syllabus button below stays the row's only action.
+            course.embeddedLabel?.let { label ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(colors.primaryContainer)
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onPrimaryContainer,
+                    )
                 }
             }
 
